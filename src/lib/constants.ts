@@ -80,3 +80,92 @@ export const products = [
     category: "electronics",
   },
 ];
+
+export const customers = [
+  {
+    id: 1,
+    name: "John Doe",
+    email: "john.doe@example.com",
+    phone: "+1 (555) 123-4567",
+    totalOrders: 5,
+    status: "active",
+  },
+  {
+    id: 2,
+    name: "Jane Smith",
+    email: "jane.smith@example.com",
+    phone: "+1 (555) 987-6543",
+    totalOrders: 3,
+    status: "inactive",
+  },
+  {
+    id: 3,
+    name: "Bob Johnson",
+    email: "bob.johnson@example.com",
+    phone: "+1 (555) 246-8135",
+    totalOrders: 8,
+    status: "active",
+  },
+  {
+    id: 4,
+    name: "Alice Brown",
+    email: "alice.brown@example.com",
+    phone: "+1 (555) 369-2580",
+    totalOrders: 2,
+    status: "active",
+  },
+  {
+    id: 5,
+    name: "Charlie Wilson",
+    email: "charlie.wilson@example.com",
+    phone: "+1 (555) 147-2589",
+    totalOrders: 6,
+    status: "inactive",
+  },
+  {
+    id: 6,
+    name: "Eva Davis",
+    email: "eva.davis@example.com",
+    phone: "+1 (555) 753-9514",
+    totalOrders: 4,
+    status: "active",
+  },
+  {
+    id: 7,
+    name: "Frank Miller",
+    email: "frank.miller@example.com",
+    phone: "+1 (555) 951-7532",
+    totalOrders: 1,
+    status: "active",
+  },
+  {
+    id: 8,
+    name: "Grace Taylor",
+    email: "grace.taylor@example.com",
+    phone: "+1 (555) 357-1593",
+    totalOrders: 7,
+    status: "inactive",
+  },
+  {
+    id: 9,
+    name: "Henry Clark",
+    email: "henry.clark@example.com",
+    phone: "+1 (555) 852-9630",
+    totalOrders: 3,
+    status: "active",
+  },
+  {
+    id: 10,
+    name: "Ivy Anderson",
+    email: "ivy.anderson@example.com",
+    phone: "+1 (555) 741-8520",
+    totalOrders: 5,
+    status: "active",
+  },
+];
+
+export const paymentMethods = [
+  { id: "credit-card", name: "Credit Card" },
+  { id: "debit-card", name: "Debit Card" },
+  { id: "cash", name: "Cash" },
+];

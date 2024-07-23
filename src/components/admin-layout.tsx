@@ -1,20 +1,43 @@
-"use client"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuItem } from "@/components/ui/dropdown-menu"
-import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
-import { usePathname } from "next/navigation"
-import Image from "next/image"
-import { Package2Icon, SearchIcon, LayoutDashboardIcon, DollarSignIcon, PackageIcon, ShoppingCartIcon } from "lucide-react"
+"use client";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
+import {
+  TooltipProvider,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
+import { usePathname } from "next/navigation";
+import Image from "next/image";
+import {
+  Package2Icon,
+  SearchIcon,
+  LayoutDashboardIcon,
+  DollarSignIcon,
+  PackageIcon,
+  ShoppingCartIcon,
+  UsersIcon,
+} from "lucide-react";
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname()
+  const pathname = usePathname();
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-muted/40">
       <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4">
-        <Link href="/admin" className="flex items-center gap-2 text-lg font-semibold">
+        <Link
+          href="/admin"
+          className="flex items-center gap-2 text-lg font-semibold"
+        >
           <Package2Icon className="h-6 w-6" />
           <span className="sr-only">Admin Panel</span>
         </Link>
@@ -28,7 +51,11 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="icon" className="overflow-hidden rounded-full">
+            <Button
+              variant="outline"
+              size="icon"
+              className="overflow-hidden rounded-full"
+            >
               <Image
                 src="/placeholder-user.jpg"
                 width={36}
@@ -57,7 +84,9 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                   <Link
                     href="/admin"
                     className={`flex h-9 w-9 items-center justify-center rounded-lg ${
-                      pathname === "/admin" ? "bg-accent text-accent-foreground" : "text-muted-foreground"
+                      pathname === "/admin"
+                        ? "bg-accent text-accent-foreground"
+                        : "text-muted-foreground"
                     } transition-colors hover:text-foreground md:h-8 md:w-8`}
                   >
                     <LayoutDashboardIcon className="h-5 w-5" />
@@ -71,7 +100,9 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                   <Link
                     href="/admin/cashier"
                     className={`flex h-9 w-9 items-center justify-center rounded-lg ${
-                      pathname === "/admin/cashier" ? "bg-accent text-accent-foreground" : "text-muted-foreground"
+                      pathname === "/admin/cashier"
+                        ? "bg-accent text-accent-foreground"
+                        : "text-muted-foreground"
                     } transition-colors hover:text-foreground md:h-8 md:w-8`}
                   >
                     <DollarSignIcon className="h-5 w-5" />
@@ -85,7 +116,9 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                   <Link
                     href="/admin/products"
                     className={`flex h-9 w-9 items-center justify-center rounded-lg ${
-                      pathname === "/admin/products" ? "bg-accent text-accent-foreground" : "text-muted-foreground"
+                      pathname === "/admin/products"
+                        ? "bg-accent text-accent-foreground"
+                        : "text-muted-foreground"
                     } transition-colors hover:text-foreground md:h-8 md:w-8`}
                   >
                     <PackageIcon className="h-5 w-5" />
@@ -97,9 +130,27 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Link
+                    href="/admin/customers"
+                    className={`flex h-9 w-9 items-center justify-center rounded-lg ${
+                      pathname === "/admin/customers"
+                        ? "bg-accent text-accent-foreground"
+                        : "text-muted-foreground"
+                    } transition-colors hover:text-foreground md:h-8 md:w-8`}
+                  >
+                    <UsersIcon className="h-5 w-5" />
+                    <span className="sr-only">Customers</span>
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent side="right">Customers</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Link
                     href="/admin/pos"
                     className={`flex h-9 w-9 items-center justify-center rounded-lg ${
-                      pathname === "/admin/pos" ? "bg-accent text-accent-foreground" : "text-muted-foreground"
+                      pathname === "/admin/pos"
+                        ? "bg-accent text-accent-foreground"
+                        : "text-muted-foreground"
                     } transition-colors hover:text-foreground md:h-8 md:w-8`}
                   >
                     <ShoppingCartIcon className="h-5 w-5" />
@@ -114,5 +165,5 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
         <main className="flex-1 p-4 sm:px-6 sm:py-0">{children}</main>
       </div>
     </div>
-  )
+  );
 }
