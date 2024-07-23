@@ -3,8 +3,20 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Loader2Icon, PlusCircle, Trash2, SearchIcon, FilterIcon, FilePenIcon } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardFooter,
+} from "@/components/ui/card";
+import {
+  Loader2Icon,
+  PlusCircle,
+  Trash2,
+  SearchIcon,
+  FilterIcon,
+  FilePenIcon,
+} from "lucide-react";
 import {
   Table,
   TableBody,
@@ -55,15 +67,23 @@ export default function CustomersPage() {
   const [newCustomerName, setNewCustomerName] = useState("");
   const [newCustomerEmail, setNewCustomerEmail] = useState("");
   const [newCustomerPhone, setNewCustomerPhone] = useState("");
-  const [newCustomerStatus, setNewCustomerStatus] = useState<"active" | "inactive">("active");
-  const [isEditCustomerDialogOpen, setIsEditCustomerDialogOpen] = useState(false);
-  const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(false);
-  const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
+  const [newCustomerStatus, setNewCustomerStatus] = useState<
+    "active" | "inactive"
+  >("active");
+  const [isEditCustomerDialogOpen, setIsEditCustomerDialogOpen] =
+    useState(false);
+  const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] =
+    useState(false);
+  const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(
+    null
+  );
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState({
     status: "all",
   });
-  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(
+    null
+  );
 
   useEffect(() => {
     const fetchCustomers = async () => {
@@ -89,9 +109,11 @@ export default function CustomersPage() {
       if (filters.status !== "all" && customer.status !== filters.status) {
         return false;
       }
-      return customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-             customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-             customer.phone.includes(searchTerm);
+      return (
+        customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        customer.phone.includes(searchTerm)
+      );
     });
   }, [customers, filters.status, searchTerm]);
 
@@ -358,40 +380,51 @@ export default function CustomersPage() {
               {showNewCustomerDialog ? "Create New Customer" : "Edit Customer"}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <Label htmlFor="name">Customer Name</Label>
-            <Input
-              id="name"
-              value={newCustomerName}
-              onChange={(e) => setNewCustomerName(e.target.value)}
-            />
-            <Label htmlFor="email">Customer Email</Label>
-            <Input
-              id="email"
-              value={newCustomerEmail}
-              onChange={(e) => setNewCustomerEmail(e.target.value)}
-            />
-            <Label htmlFor="phone">Customer Phone</Label>
-            <Input
-              id="phone"
-              value={newCustomerPhone}
-              onChange={(e) => setNewCustomerPhone(e.target.value)}
-            />
-            <Label htmlFor="status">Status</Label>
-            <Select
-              value={newCustomerStatus}
-              onValueChange={(value: "active" | "inactive") =>
-                setNewCustomerStatus(value)
-              }
-            >
-              <SelectTrigger id="status">
-                <SelectValue placeholder="Select status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="name">Name</Label>
+              <Input
+                id="name"
+                value={newCustomerName}
+                onChange={(e) => setNewCustomerName(e.target.value)}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                value={newCustomerEmail}
+                onChange={(e) => setNewCustomerEmail(e.target.value)}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="phone">Phone</Label>
+              <Input
+                id="phone"
+                value={newCustomerPhone}
+                onChange={(e) => setNewCustomerPhone(e.target.value)}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="status">Status</Label>
+              <Select
+                value={newCustomerStatus}
+                onValueChange={(value: "active" | "inactive") =>
+                  setNewCustomerStatus(value)
+                }
+              >
+                <SelectTrigger id="status" className="col-span-3">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <DialogFooter>
             <Button
