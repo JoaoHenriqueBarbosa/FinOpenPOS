@@ -51,9 +51,9 @@ export async function POST(request: Request) {
         customer_id: customerId,
         total_amount: total,
         user_uid: user.id,
-        status: 'pending'
+        status: 'completed'
       })
-      .select()
+      .select('*, customer:customers(name)')
       .single();
 
     if (orderError) {

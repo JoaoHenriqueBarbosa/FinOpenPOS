@@ -53,12 +53,14 @@ import Link from "next/link";
 
 type Order = {
   id: number;
+  customer_id: number;
   total_amount: number;
   status: "completed" | "pending" | "cancelled";
-  date: string;
+  created_at: string;
   customer: {
     name: string;
-  }
+  };
+  date: string;
 };
 
 export default function OrdersPage() {
@@ -142,7 +144,7 @@ export default function OrdersPage() {
     } catch (error) {
       console.error(error);
     }
-  }, [newOrderCustomerName, newOrderTotal, newOrderStatus, orders]);
+  }, [newOrderTotal, newOrderStatus, orders]);
 
   const handleEditOrder = useCallback(async () => {
     if (!selectedOrderId) return;
@@ -172,7 +174,7 @@ export default function OrdersPage() {
     } catch (error) {
       console.error(error);
     }
-  }, [selectedOrderId, newOrderCustomerName, newOrderTotal, newOrderStatus, orders]);
+  }, [selectedOrderId, newOrderTotal, newOrderStatus, orders]);
 
   const handleDeleteOrder = useCallback(async () => {
     if (!orderToDelete) return;
