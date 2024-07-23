@@ -6,7 +6,7 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuLab
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { usePathname } from "next/navigation"
 import Image from "next/image"
-import { Package2Icon, SearchIcon, LayoutDashboardIcon, DollarSignIcon, PackageIcon } from "lucide-react"
+import { Package2Icon, SearchIcon, LayoutDashboardIcon, DollarSignIcon, PackageIcon, ShoppingCartIcon } from "lucide-react"
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -93,6 +93,20 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                   </Link>
                 </TooltipTrigger>
                 <TooltipContent side="right">Products</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Link
+                    href="/admin/pos"
+                    className={`flex h-9 w-9 items-center justify-center rounded-lg ${
+                      pathname === "/admin/pos" ? "bg-accent text-accent-foreground" : "text-muted-foreground"
+                    } transition-colors hover:text-foreground md:h-8 md:w-8`}
+                  >
+                    <ShoppingCartIcon className="h-5 w-5" />
+                    <span className="sr-only">POS</span>
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent side="right">Point of Sale</TooltipContent>
               </Tooltip>
             </TooltipProvider>
           </nav>
