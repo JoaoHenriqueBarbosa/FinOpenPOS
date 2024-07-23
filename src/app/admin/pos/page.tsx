@@ -36,6 +36,7 @@ interface POSProduct extends Product {
 export default function POSPage() {
   const [open, setOpen] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState<POSProduct[]>([]);
+  const [popoverWidth, setPopoverWidth] = useState(0);
 
   const handleSelectProduct = (productId: number) => {
     const product = products.find((p) => p.id === productId);
@@ -84,12 +85,17 @@ export default function POSPage() {
                 role="combobox"
                 aria-expanded={open}
                 className="w-full justify-between"
+                ref={(element) => {
+                  setPopoverWidth(element?.offsetWidth || 0);
+                }}
               >
                 <span>Search Product</span>
                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-full p-0">
+            <PopoverContent className="p-0"
+              style={{ width: popoverWidth }}
+            >
               <Command>
                 <CommandInput placeholder="Search product..." />
                 <CommandEmpty>No product found.</CommandEmpty>
