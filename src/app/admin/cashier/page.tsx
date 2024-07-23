@@ -1,5 +1,4 @@
 "use client"
-import { Input } from "@/components/ui/input";                                                                                                    
 import {                                                                                                                                          
   DropdownMenu,                                                                                                                                   
   DropdownMenuTrigger,                                                                                                                            
@@ -12,8 +11,7 @@ import {
   CardHeader,                                                                                                                                     
   CardTitle,                                                                                                                                      
   CardDescription,                                                                                                                                
-  CardContent,                                                                                                                                    
-  CardFooter,                                                                                                                                     
+  CardContent,                                                                                                                                     
 } from "@/components/ui/card";                                                                                                                    
 import {                                                                                                                                          
   Table,                                                                                                                                          
@@ -26,29 +24,18 @@ import {
 import { Badge } from "@/components/ui/badge";                                                                                                    
 import {                                                                                                                                          
   Dialog,                                                                                                                                         
-  DialogTrigger,                                                                                                                                  
   DialogContent,                                                                                                                                  
   DialogHeader,                                                                                                                                   
   DialogTitle,                                                                                                                                    
   DialogDescription,                                                                                                                              
-  DialogFooter,                                                                                                                                   
-  DialogClose,                                                                                                                                    
+  DialogFooter,                                                                                                                                    
 } from "@/components/ui/dialog";                                                                                                                  
-import { Label } from "@/components/ui/label";                                                                                                    
-import {                                                                                                                                          
-  Select,                                                                                                                                         
-  SelectTrigger,                                                                                                                                  
-  SelectValue,                                                                                                                                    
-  SelectContent,                                                                                                                                  
-  SelectItem,                                                                                                                                     
-} from "@/components/ui/select";                                                                                                                  
-import { MoveVerticalIcon, PlusIcon, FilePenIcon, Trash2Icon, EllipsisVerticalIcon } from "lucide-react";                                         
-import { useState, useEffect, useMemo, useCallback } from "react";                                                                                
-import Link from "next/link";                                                                                                                     
+import { EllipsisVerticalIcon, Loader2Icon } from "lucide-react";                                         
+import { useState, useEffect, useCallback } from "react";                                                                                
                                                                                                                                                   
 interface Transaction {                                                                                                                           
   id: number;                                                                                                                                     
-  date: string;                                                                                                                                   
+  created_at: string;                                                                                                                                   
   amount: number;                                                                                                                                 
   status: string;                                                                                                                                 
 }                                                                                                                                                 
@@ -97,15 +84,14 @@ export default function Cashier() {
     fetchTransactions();                                                                                                                          
   }, []);                                                                                                                                         
                                                                                                                                                   
-  if (loading) {                                                                                                                                  
-    return (                                                                                                                                      
-      <div className="h-[80vh] flex items-center justify-center">                                                                                 
-        {/* Add a loading spinner here */}                                                                                                        
-        Loading...                                                                                                                                
-      </div>                                                                                                                                      
-    );                                                                                                                                            
-  }                                                                                                                                               
-                                                                                                                                                  
+  if (loading) {
+    return (
+      <div className="h-[80vh] flex items-center justify-center">
+        <Loader2Icon className="mx-auto h-12 w-12 animate-spin" />
+      </div>
+    );
+  }
+
   return (                                                                                                                                        
     <>                                                                                                                                            
       <Card className="w-full">                                                                                                                   
@@ -131,7 +117,7 @@ export default function Cashier() {
               {transactions.map((transaction) => (                                                                                                
                 <TableRow key={transaction.id}>                                                                                                   
                   <TableCell>{transaction.id}</TableCell>                                                                                         
-                  <TableCell>{transaction.date}</TableCell>                                                                                       
+                  <TableCell>{transaction.created_at}</TableCell>                                                                                       
                   <TableCell>${transaction.amount.toFixed(2)}</TableCell>                                                                         
                   <TableCell>                                                                                                                     
                     <Badge variant={transaction.status === 'Completed' ? 'secondary' : 'outline'}>                                                

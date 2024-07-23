@@ -60,7 +60,7 @@ type Order = {
   customer: {
     name: string;
   };
-  date: string;
+  created_at: string;
 };
 
 export default function OrdersPage() {
@@ -123,7 +123,7 @@ export default function OrdersPage() {
       const newOrder = {
         total_amount: parseFloat(newOrderTotal),
         status: newOrderStatus,
-        date: new Date().toISOString().split('T')[0], // Current date in YYYY-MM-DD format
+        created_at: new Date().toISOString().split('T')[0], // Current created_at in YYYY-MM-DD format
       };
       const response = await fetch("/api/orders", {
         method: "POST",
@@ -153,7 +153,7 @@ export default function OrdersPage() {
         id: selectedOrderId,
         total_amount: parseFloat(newOrderTotal),
         status: newOrderStatus,
-        date: orders.find(o => o.id === selectedOrderId)?.date, // Preserve the original date
+        created_at: orders.find(o => o.id === selectedOrderId)?.created_at, // Preserve the original created_at
       };
       const response = await fetch(`/api/orders/${selectedOrderId}`, {
         method: "PUT",
@@ -305,7 +305,7 @@ export default function OrdersPage() {
                   <TableCell>{order.customer.name}</TableCell>
                   <TableCell>${order.total_amount.toFixed(2)}</TableCell>
                   <TableCell>{order.status}</TableCell>
-                  <TableCell>{order.date}</TableCell>
+                  <TableCell>{order.created_at}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Button
