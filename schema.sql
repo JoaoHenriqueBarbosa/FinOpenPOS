@@ -1,3 +1,11 @@
+-- Drop tables if they exist
+DROP TABLE IF EXISTS transactions;
+DROP TABLE IF EXISTS order_items;
+DROP TABLE IF EXISTS orders;
+DROP TABLE IF EXISTS customers;
+DROP TABLE IF EXISTS products;
+DROP TABLE IF EXISTS payment_methods;
+
 -- Create Products table
 CREATE TABLE products (
     id SERIAL PRIMARY KEY,
@@ -5,6 +13,7 @@ CREATE TABLE products (
     description TEXT,
     price DECIMAL(10, 2) NOT NULL,
     in_stock INTEGER NOT NULL,
+    user_uid VARCHAR(255) NOT NULL,
     category VARCHAR(50)
 );
 
@@ -14,6 +23,7 @@ CREATE TABLE customers (
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) NOT NULL UNIQUE,
     phone VARCHAR(20),
+    user_uid VARCHAR(255) NOT NULL,
     status VARCHAR(20) CHECK (status IN ('active', 'inactive')),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -23,6 +33,7 @@ CREATE TABLE orders (
     id SERIAL PRIMARY KEY,
     customer_id INTEGER REFERENCES customers(id),
     total_amount DECIMAL(10, 2) NOT NULL,
+    user_uid VARCHAR(255) NOT NULL,
     status VARCHAR(20) CHECK (status IN ('pending', 'completed', 'cancelled')),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -49,6 +60,7 @@ CREATE TABLE transactions (
     order_id INTEGER REFERENCES orders(id),
     payment_method_id INTEGER REFERENCES payment_methods(id),
     amount DECIMAL(10, 2) NOT NULL,
+    user_uid VARCHAR(255) NOT NULL,
     status VARCHAR(20) CHECK (status IN ('pending', 'completed', 'failed')),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

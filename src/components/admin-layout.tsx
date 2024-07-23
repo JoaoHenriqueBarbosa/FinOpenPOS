@@ -26,7 +26,17 @@ import {
   PackageIcon,
   ShoppingCartIcon,
   UsersIcon,
+  ShoppingBagIcon,
 } from "lucide-react";
+
+const pageNames: { [key: string]: string } = {
+  "/admin": "Dashboard",
+  "/admin/customers": "Customers",
+  "/admin/products": "Products",
+  "/admin/orders": "Orders",
+  "/admin/pos": "Point of Sale",
+  "/admin/cashier": "Cashier",
+};
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -41,6 +51,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           <Package2Icon className="h-6 w-6" />
           <span className="sr-only">Admin Panel</span>
         </Link>
+        <h1 className="text-xl font-bold">{pageNames[pathname]}</h1>
         <div className="relative ml-auto flex-1 md:grow-0">
           <SearchIcon className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
@@ -142,6 +153,22 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                   </Link>
                 </TooltipTrigger>
                 <TooltipContent side="right">Customers</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Link
+                    href="/admin/orders"
+                    className={`flex h-9 w-9 items-center justify-center rounded-lg ${
+                      pathname === "/admin/orders"
+                        ? "bg-accent text-accent-foreground"
+                        : "text-muted-foreground"
+                    } transition-colors hover:text-foreground md:h-8 md:w-8`}
+                  >
+                    <ShoppingBagIcon className="h-5 w-5" />
+                    <span className="sr-only">Orders</span>
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent side="right">Orders</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
