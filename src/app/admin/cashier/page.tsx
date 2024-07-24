@@ -32,9 +32,13 @@ import {
 } from "@/components/ui/dialog";                                                                                                                  
 import { EllipsisVerticalIcon, Loader2Icon } from "lucide-react";                                         
 import { useState, useEffect, useCallback } from "react";                                                                                
+import { formatDate } from "@/lib/utils";
                                                                                                                                                   
 interface Transaction {                                                                                                                           
-  id: number;                                                                                                                                     
+  id: number;            
+  description: string;
+  type: "income" | "expense";
+  category: string;                                                                                                                         
   created_at: string;                                                                                                                                   
   amount: number;                                                                                                                                 
   status: string;                                                                                                                                 
@@ -104,10 +108,13 @@ export default function Cashier() {
             <TableHeader>                                                                                                                         
               <TableRow>                                                                                                                          
                 <TableHead>ID</TableHead>                                                                                                         
+                <TableHead>Description</TableHead>                                                                                                       
+                <TableHead>Category</TableHead>                                                                                                       
+                <TableHead>Type</TableHead>                                                                                                       
                 <TableHead>Date</TableHead>                                                                                                       
                 <TableHead>Amount</TableHead>                                                                                                     
                 <TableHead>Status</TableHead>                                                                                                     
-                <TableHead>Status</TableHead>                                                                                                     
+                <TableHead></TableHead>                                                                                                     
                 <TableHead>                                                                                                                       
                   <span className="sr-only">Actions</span>                                                                                        
                 </TableHead>                                                                                                                      
@@ -117,10 +124,17 @@ export default function Cashier() {
               {transactions.map((transaction) => (                                                                                                
                 <TableRow key={transaction.id}>                                                                                                   
                   <TableCell>{transaction.id}</TableCell>                                                                                         
-                  <TableCell>{transaction.created_at}</TableCell>                                                                                       
+                  <TableCell>{transaction.description}</TableCell>                                                                                         
+                  <TableCell>{transaction.category}</TableCell>         
+                  <TableCell>                                                                                                                     
+                    <Badge variant={transaction.type}>                                                
+                      {transaction.type}
+                    </Badge>
+                  </TableCell>                                                                                                                    
+                  <TableCell>{formatDate(transaction.created_at)}</TableCell>                                                                                       
                   <TableCell>${transaction.amount.toFixed(2)}</TableCell>                                                                         
                   <TableCell>                                                                                                                     
-                    <Badge variant={transaction.status === 'Completed' ? 'secondary' : 'outline'}>                                                
+                    <Badge variant={transaction.status === 'completed' ? 'default' : 'secondary'}>                                                
                       {transaction.status}                                                                                                        
                     </Badge>                                                                                                                      
                   </TableCell>                                                                                                                    

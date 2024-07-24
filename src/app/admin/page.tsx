@@ -1,4 +1,5 @@
 "use client";
+import { useEffect, useState } from "react";
 import {
   Card,
   CardHeader,
@@ -26,6 +27,58 @@ import {
 } from "recharts";
 
 export default function Page() {
+  const [totalRevenue, setTotalRevenue] = useState(0);
+  const [totalExpenses, setTotalExpenses] = useState(0);
+  const [totalProfit, setTotalProfit] = useState(0);
+  const [cashFlow, setCashFlow] = useState<{ date: string; amount: unknown }[]>([]);
+  const [revenueByCategory, setRevenueByCategory] = useState({});
+  const [expensesByCategory, setExpensesByCategory] = useState({});
+  const [profitMargin, setProfitMargin] = useState([]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [
+          revenueRes,
+          expensesRes,
+          profitRes,
+          cashFlowRes,
+          revenueByCategoryRes,
+          expensesByCategoryRes,
+          profitMarginRes
+        ] = await Promise.all([
+          fetch('/api/admin/revenue/total'),
+          fetch('/api/admin/expenses/total'),
+          fetch('/api/admin/profit/total'),
+          fetch('/api/admin/cashflow'),
+          fetch('/api/admin/revenue/category'),
+          fetch('/api/admin/expenses/category'),
+          fetch('/api/admin/profit/margin')
+        ]);
+
+        const revenue = await revenueRes.json();
+        const expenses = await expensesRes.json();
+        const profit = await profitRes.json();
+        const cashFlowData = await cashFlowRes.json();
+        const revenueByCategoryData = await revenueByCategoryRes.json();
+        const expensesByCategoryData = await expensesByCategoryRes.json();
+        const profitMarginData = await profitMarginRes.json();
+
+        setTotalRevenue(revenue.totalRevenue);
+        setTotalExpenses(expenses.totalExpenses);
+        setTotalProfit(profit.totalProfit);
+        setCashFlow(Object.entries(cashFlowData.cashFlow).map(([date, amount]) => ({ date, amount })));
+        setRevenueByCategory(revenueByCategoryData.revenueByCategory);
+        setExpensesByCategory(expensesByCategoryData.expensesByCategory);
+        setProfitMargin(profitMarginData.profitMargin);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      }
+    };
+
+    fetchData();
+  }, []);
+
   return (
     <div className="grid flex-1 items-start gap-4">
       <div className="grid auto-rows-max items-start gap-4 lg:grid-cols-2 xl:grid-cols-3">
@@ -35,10 +88,7 @@ export default function Page() {
             <DollarSignIcon className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$45,231.89</div>
-            <p className="text-xs text-muted-foreground">
-              +20.1% from last month
-            </p>
+            <div className="text-2xl font-bold">${totalRevenue.toFixed(2)}</div>
           </CardContent>
         </Card>
         <Card>
@@ -49,10 +99,7 @@ export default function Page() {
             <DollarSignIcon className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$32,450.12</div>
-            <p className="text-xs text-muted-foreground">
-              +10.5% from last month
-            </p>
+            <div className="text-2xl font-bold">${totalExpenses.toFixed(2)}</div>
           </CardContent>
         </Card>
         <Card>
@@ -61,22 +108,7 @@ export default function Page() {
             <DollarSignIcon className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$12,781.77</div>
-            <p className="text-xs text-muted-foreground">
-              +30.2% from last month
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Cash Flow</CardTitle>
-            <DollarSignIcon className="w-4 h-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">$24,500.00</div>
-            <p className="text-xs text-muted-foreground">
-              +15.8% from last month
-            </p>
+            <div className="text-2xl font-bold">${totalProfit.toFixed(2)}</div>
           </CardContent>
         </Card>
       </div>
@@ -89,7 +121,7 @@ export default function Page() {
             <PieChartIcon className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <PiechartcustomChart className="aspect-auto" />
+            <PiechartcustomChart data={revenueByCategory} className="aspect-auto" />
           </CardContent>
         </Card>
         <Card>
@@ -100,7 +132,7 @@ export default function Page() {
             <PieChartIcon className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <PiechartcustomChart className="aspect-auto" />
+            <PiechartcustomChart data={expensesByCategory} className="aspect-auto" />
           </CardContent>
         </Card>
         <Card>
@@ -109,16 +141,16 @@ export default function Page() {
             <BarChartIcon className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <BarchartChart className="aspect-auto" />
+            <BarchartChart data={profitMargin} className="aspect-auto" />
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Cash Flow</CardTitle>
-            <LineChartIcon className="w-4 h-4 text-muted-foreground" />
+            <DollarSignIcon className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <LinechartChart className="aspect-auto" />
+            <LinechartChart data={cashFlow} className="aspect-auto" />
           </CardContent>
         </Card>
       </div>
@@ -147,44 +179,30 @@ function BarChartIcon(props: any) {
   );
 }
 
-export function BarchartChart(props: any) {
-  const chartData = [
-    { month: "January", desktop: 186, mobile: 80 },
-    { month: "February", desktop: 305, mobile: 200 },
-    { month: "March", desktop: 237, mobile: 120 },
-    { month: "April", desktop: 73, mobile: 190 },
-    { month: "May", desktop: 209, mobile: 130 },
-    { month: "June", desktop: 214, mobile: 140 },
-  ];
-
+export function BarchartChart({ data, ...props }: { data: any[] } & React.HTMLAttributes<HTMLDivElement>) {
   const chartConfig = {
-    desktop: {
-      label: "Desktop",
+    margin: {
+      label: "Margin",
       color: "hsl(var(--chart-1))",
-    },
-    mobile: {
-      label: "Mobile",
-      color: "hsl(var(--chart-2))",
     },
   } satisfies ChartConfig;
   return (
     <div {...props}>
       <ChartContainer config={chartConfig}>
-        <BarChart accessibilityLayer data={chartData}>
+        <BarChart accessibilityLayer data={data}>
           <CartesianGrid vertical={false} />
           <XAxis
-            dataKey="month"
+            dataKey="date"
             tickLine={false}
             tickMargin={10}
             axisLine={false}
-            tickFormatter={(value) => value.slice(0, 3)}
+            tickFormatter={(value) => new Date(value).toLocaleDateString()}
           />
           <ChartTooltip
             cursor={false}
             content={<ChartTooltipContent indicator="dashed" />}
           />
-          <Bar dataKey="desktop" fill="var(--color-desktop)" radius={4} />
-          <Bar dataKey="mobile" fill="var(--color-mobile)" radius={4} />
+          <Bar dataKey="margin" fill="var(--color-margin)" radius={4} />
         </BarChart>
       </ChartContainer>
     </div>
@@ -253,27 +271,20 @@ function LineChartIcon(props: any) {
   );
 }
 
-function LinechartChart(props: any) {
+function LinechartChart({ data, ...props }: { data: any[] } & React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div {...props}>
       <ChartContainer
         config={{
-          desktop: {
-            label: "Desktop",
+          amount: {
+            label: "Amount",
             color: "hsl(var(--chart-1))",
           },
         }}
       >
         <LineChart
           accessibilityLayer
-          data={[
-            { month: "January", desktop: 186 },
-            { month: "February", desktop: 305 },
-            { month: "March", desktop: 237 },
-            { month: "April", desktop: 73 },
-            { month: "May", desktop: 209 },
-            { month: "June", desktop: 214 },
-          ]}
+          data={data}
           margin={{
             left: 12,
             right: 12,
@@ -281,20 +292,20 @@ function LinechartChart(props: any) {
         >
           <CartesianGrid vertical={false} />
           <XAxis
-            dataKey="month"
+            dataKey="date"
             tickLine={false}
             axisLine={false}
             tickMargin={8}
-            tickFormatter={(value) => value.slice(0, 3)}
+            tickFormatter={(value) => new Date(value).toLocaleDateString()}
           />
           <ChartTooltip
             cursor={false}
             content={<ChartTooltipContent hideLabel />}
           />
           <Line
-            dataKey="desktop"
-            type="natural"
-            stroke="var(--color-desktop)"
+            dataKey="amount"
+            type="monotone"
+            stroke="var(--color-amount)"
             strokeWidth={2}
             dot={false}
           />
@@ -343,55 +354,38 @@ function PieChartIcon(props: any) {
   );
 }
 
-function PiechartcustomChart(props: any) {
+function PiechartcustomChart({ data, ...props }: { data: Record<string, number> } & React.HTMLAttributes<HTMLDivElement>) {
+  const chartData = Object.entries(data).map(([category, value]) => ({
+    category,
+    value,
+  }));
+
+  const chartConfig = Object.fromEntries(
+    Object.keys(data).map((category, index) => [
+      category,
+      {
+        label: category,
+        color: `hsl(var(--chart-${index + 1}))`,
+      },
+    ])
+  ) as ChartConfig;
+
   return (
     <div {...props}>
-      <ChartContainer
-        config={{
-          visitors: {
-            label: "Visitors",
-          },
-          chrome: {
-            label: "Chrome",
-            color: "hsl(var(--chart-1))",
-          },
-          safari: {
-            label: "Safari",
-            color: "hsl(var(--chart-2))",
-          },
-          firefox: {
-            label: "Firefox",
-            color: "hsl(var(--chart-3))",
-          },
-          edge: {
-            label: "Edge",
-            color: "hsl(var(--chart-4))",
-          },
-          other: {
-            label: "Other",
-            color: "hsl(var(--chart-5))",
-          },
-        }}
-      >
+      <ChartContainer config={chartConfig}>
         <PieChart>
           <ChartTooltip
             cursor={false}
             content={<ChartTooltipContent hideLabel />}
           />
           <Pie
-            data={[
-              { browser: "chrome", visitors: 275, fill: "var(--color-chrome)" },
-              { browser: "safari", visitors: 200, fill: "var(--color-safari)" },
-              {
-                browser: "firefox",
-                visitors: 187,
-                fill: "var(--color-firefox)",
-              },
-              { browser: "edge", visitors: 173, fill: "var(--color-edge)" },
-              { browser: "other", visitors: 90, fill: "var(--color-other)" },
-            ]}
-            dataKey="visitors"
-            nameKey="browser"
+            data={chartData}
+            dataKey="value"
+            nameKey="category"
+            cx="50%"
+            cy="50%"
+            outerRadius={80}
+            fill="#8884d8"
           />
         </PieChart>
       </ChartContainer>

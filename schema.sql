@@ -61,6 +61,8 @@ CREATE TABLE transactions (
     payment_method_id INTEGER REFERENCES payment_methods(id),
     amount DECIMAL(10, 2) NOT NULL,
     user_uid VARCHAR(255) NOT NULL,
+    type VARCHAR(20) CHECK (type IN ('income', 'expense')),
+    category VARCHAR(100),
     status VARCHAR(20) CHECK (status IN ('pending', 'completed', 'failed')),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
