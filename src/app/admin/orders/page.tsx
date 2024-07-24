@@ -60,7 +60,6 @@ type Order = {
   customer: {
     name: string;
   };
-  created_at: string;
 };
 
 export default function OrdersPage() {
