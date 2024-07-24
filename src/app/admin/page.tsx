@@ -14,7 +14,7 @@ import {
   ChartContainer,
   ChartConfig,
 } from "@/components/ui/chart";
-import { TrendingUp } from "lucide-react";
+import { Loader2Icon, TrendingUp } from "lucide-react";
 import {
   Pie,
   PieChart,
@@ -34,6 +34,7 @@ export default function Page() {
   const [revenueByCategory, setRevenueByCategory] = useState({});
   const [expensesByCategory, setExpensesByCategory] = useState({});
   const [profitMargin, setProfitMargin] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -73,11 +74,21 @@ export default function Page() {
         setProfitMargin(profitMarginData.profitMargin);
       } catch (error) {
         console.error('Error fetching data:', error);
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchData();
   }, []);
+
+  if (loading) {
+    return (
+      <div className="h-[80vh] flex items-center justify-center">
+        <Loader2Icon className="mx-auto h-12 w-12 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="grid flex-1 items-start gap-4">
@@ -104,7 +115,7 @@ export default function Page() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Profit</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Profit (selling)</CardTitle>
             <DollarSignIcon className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -137,7 +148,7 @@ export default function Page() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Profit Margin</CardTitle>
+            <CardTitle className="text-sm font-medium">Profit Margin (selling)</CardTitle>
             <BarChartIcon className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -358,6 +369,7 @@ function PiechartcustomChart({ data, ...props }: { data: Record<string, number> 
   const chartData = Object.entries(data).map(([category, value]) => ({
     category,
     value,
+    fill: `var(--color-${category})`,
   }));
 
   const chartConfig = Object.fromEntries(
@@ -382,10 +394,7 @@ function PiechartcustomChart({ data, ...props }: { data: Record<string, number> 
             data={chartData}
             dataKey="value"
             nameKey="category"
-            cx="50%"
-            cy="50%"
             outerRadius={80}
-            fill="#8884d8"
           />
         </PieChart>
       </ChartContainer>

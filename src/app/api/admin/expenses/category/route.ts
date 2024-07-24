@@ -11,20 +11,26 @@ export async function GET(request: Request) {
 
   const { data: expensesData, error: expensesError } = await supabase
     .from('transactions')
-    .select('amount, description')
-    .eq('status', 'completed');
+    .select('amount, category, status, user_uid')
+    .eq('status', 'completed')
+    .eq('type', 'expense')
+    .eq('user_uid', user.id);
 
   if (expensesError) {
     console.error('Error fetching expenses by category:', expensesError);
     return NextResponse.json({ error: 'Failed to fetch expenses by category' }, { status: 500 });
   }
 
-  const expensesByCategory = expensesData?.reduce((acc, transaction) => {
-    const category = transaction.description || 'Uncategorized';
+  const expensesByCategory = expensesData?.reduce((acc, item) => {
+    const category = item.category; // Acessando a categoria do primeiro produto
+    if (!category) {
+      return acc; // Se a categoria não existir, continuar para o último item
+    }
+    const expenses = item.amount;
     if (acc[category]) {
-      acc[category] += transaction.amount;
+      acc[category] += expenses;
     } else {
-      acc[category] = transaction.amount;
+      acc[category] = expenses;
     }
     return acc;
   }, {} as Record<string, number>);

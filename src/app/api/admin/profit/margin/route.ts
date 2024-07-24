@@ -9,38 +9,52 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { data: ordersData, error: ordersError } = await supabase
-    .from('orders')
-    .select('id, total_amount, created_at')
-    .eq('status', 'completed')
-    .order('created_at', { ascending: true });
-
   const { data: transactionsData, error: transactionsError } = await supabase
     .from('transactions')
-    .select('amount, created_at')
+    .select('amount, type, category, created_at')
     .eq('status', 'completed')
+    .eq('user_uid', user.id)
     .order('created_at', { ascending: true });
 
-  if (ordersError || transactionsError) {
-    console.error('Error fetching profit margin data:', ordersError || transactionsError);
-    return NextResponse.json({ error: 'Failed to fetch profit margin data' }, { status: 500 });
+  if (transactionsError) {
+    console.error('Error fetching transactions:', transactionsError);
+    return NextResponse.json({ error: 'Failed to fetch transactions' }, { status: 500 });
   }
 
-  const profitMargin = ordersData?.map(order => {
-    const orderDate = new Date(order.created_at).toISOString().split('T')[0];
-    const expenses = transactionsData
-      ?.filter(t => new Date(t.created_at).toISOString().split('T')[0] === orderDate)
-      .reduce((sum, t) => sum + t.amount, 0) || 0;
-    
-    const revenue = order.total_amount;
-    const profit = revenue - expenses;
-    const margin = (profit / revenue) * 100;
+  if (!transactionsData) {
+    return NextResponse.json({ error: 'No transactions found' }, { status: 404 });
+  }
 
+  const profitMargin = calculateProfitMarginSeries(transactionsData);
+
+  return NextResponse.json({ profitMargin });
+}
+
+function calculateProfitMarginSeries(transactions: any[]) {
+  const dailyData: { [key: string]: { selling: number; expense: number } } = {};
+
+  transactions.forEach(transaction => {
+    const date = transaction.created_at.split('T')[0];
+    if (!dailyData[date]) {
+      dailyData[date] = { selling: 0, expense: 0 };
+    }
+
+    if (transaction.category === 'selling') {
+      dailyData[date].selling += transaction.amount;
+    } else if (transaction.type === 'expense') {
+      dailyData[date].expense += transaction.amount;
+    }
+  });
+
+  const profitMarginSeries = Object.entries(dailyData).map(([date, data]) => {
+    const { selling, expense } = data;
+    const profit = selling - expense;
+    const margin = selling > 0 ? (profit / selling) * 100 : 0;
     return {
-      date: orderDate,
+      date,
       margin: parseFloat(margin.toFixed(2))
     };
   });
 
-  return NextResponse.json({ profitMargin });
+  return profitMarginSeries;
 }

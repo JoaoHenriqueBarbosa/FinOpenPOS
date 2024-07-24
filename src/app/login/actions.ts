@@ -46,3 +46,7 @@ export async function signup(formData: FormData) {
   revalidatePath('/admin', 'layout')
   redirect('/admin')
 }
+
+export async function generateExampleData(user_uid: string) {
+  const supabase = createClient()
+}

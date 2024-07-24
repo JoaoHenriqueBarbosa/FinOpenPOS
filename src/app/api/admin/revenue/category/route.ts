@@ -11,14 +11,11 @@ export async function GET(request: Request) {
   }
 
   const { data: revenueData, error: revenueError } = await supabase
-    .from('order_items')
-    .select(`
-      quantity,
-      price,
-      orders ( status ),
-      products ( category )
-    `)
-    .eq('orders.status', 'completed');
+    .from('transactions')
+    .select('amount, category, status, user_uid')
+    .eq('status', 'completed')
+    .eq('type', 'income')
+    .eq('user_uid', userData.user.id);
 
   if (revenueError) {
     console.error('Error fetching revenue by category:', revenueError);
@@ -26,11 +23,11 @@ export async function GET(request: Request) {
   }
 
   const revenueByCategory = revenueData?.reduce((acc, item) => {
-    const category = item.products[0]?.category; // Acessando a categoria do primeiro produto
+    const category = item.category; // Acessando a categoria do primeiro produto
     if (!category) {
-      return acc; // Se a categoria não existir, continuar para o próximo item
+      return acc; // Se a categoria não existir, continuar para o último item
     }
-    const revenue = item.quantity * item.price;
+    const revenue = item.amount;
     if (acc[category]) {
       acc[category] += revenue;
     } else {

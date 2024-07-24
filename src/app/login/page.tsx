@@ -24,7 +24,7 @@ export default function LoginPage() {
         </div>
         <Card>
           <form>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 mt-4">
               <div className="grid gap-2">
                 <Label htmlFor="email">Email</Label>
                 <Input id="email" name="email"  type="email" placeholder="name@example.com" />

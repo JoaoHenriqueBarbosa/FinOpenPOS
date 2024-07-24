@@ -10,8 +10,10 @@ export async function GET(request: Request) {
   }
 
   const { data: revenueData, error: revenueError } = await supabase
-    .from('orders')
-    .select('total_amount')
+    .from('transactions')
+    .select('amount')
+    .eq('type', 'income')
+    .eq('user_uid', user.id)
     .eq('status', 'completed');
 
   if (revenueError) {
@@ -19,7 +21,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Failed to fetch total revenue' }, { status: 500 });
   }
 
-  const totalRevenue = revenueData?.reduce((sum, order) => sum + order.total_amount, 0) || 0;
+  const totalRevenue = revenueData?.reduce((sum, order) => sum + order.amount, 0) || 0;
 
   return NextResponse.json({ totalRevenue });
 }

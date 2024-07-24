@@ -86,7 +86,9 @@ export async function POST(request: Request) {
         payment_method_id: paymentMethodId,
         amount: total,
         user_uid: user.id,
-        status: 'pending',
+        status: 'completed',
+        category: 'selling',
+        type: 'income',
         description: `Payment for order #${orderData.id}`
       });
 
