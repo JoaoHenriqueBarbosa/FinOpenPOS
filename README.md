@@ -31,7 +31,10 @@ This particular iteration embraces the spirit of open-source development, making
    npm install
    ```
 3. Set up your Supabase project and add the necessary environment variables:
-   - Create a `.env.local` file in the root of your project
+   - Copy the `.env.example` to `.env.local` file in the root of the project
+     ```
+     cp .env.example .env.local
+     ```
    - Add the following lines to the file:
      ```
      NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
