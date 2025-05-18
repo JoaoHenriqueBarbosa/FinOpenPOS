@@ -5,16 +5,8 @@ import {
   CardHeader,
   CardTitle,
   CardContent,
-  CardDescription,
-  CardFooter,
 } from "@/components/ui/card";
-import {
-  ChartTooltipContent,
-  ChartTooltip,
-  ChartContainer,
-  ChartConfig,
-} from "@/components/ui/chart";
-import { Loader2Icon, TrendingUp } from "lucide-react";
+import { Loader2Icon } from "lucide-react";
 import {
   Pie,
   PieChart,
@@ -25,12 +17,21 @@ import {
   Line,
   LineChart,
 } from "recharts";
+import {
+  ChartTooltipContent,
+  ChartTooltip,
+  ChartContainer,
+  ChartConfig,
+} from "@/components/ui/chart";
 
+// ---------- MAIN PAGE COMPONENT ----------
 export default function Page() {
-  const [totalRevenue, setTotalRevenue] = useState(0);
-  const [totalExpenses, setTotalExpenses] = useState(0);
-  const [totalProfit, setTotalProfit] = useState(0);
-  const [cashFlow, setCashFlow] = useState<{ date: string; amount: unknown }[]>([]);
+  const [totalRevenue, setTotalRevenue] = useState<number | undefined>();
+  const [totalExpenses, setTotalExpenses] = useState<number | undefined>();
+  const [totalProfit, setTotalProfit] = useState<number | undefined>();
+  const [cashFlow, setCashFlow] = useState<{ date: string; amount: unknown }[]>(
+    []
+  );
   const [revenueByCategory, setRevenueByCategory] = useState({});
   const [expensesByCategory, setExpensesByCategory] = useState({});
   const [profitMargin, setProfitMargin] = useState([]);
@@ -46,15 +47,15 @@ export default function Page() {
           cashFlowRes,
           revenueByCategoryRes,
           expensesByCategoryRes,
-          profitMarginRes
+          profitMarginRes,
         ] = await Promise.all([
-          fetch('/api/admin/revenue/total'),
-          fetch('/api/admin/expenses/total'),
-          fetch('/api/admin/profit/total'),
-          fetch('/api/admin/cashflow'),
-          fetch('/api/admin/revenue/category'),
-          fetch('/api/admin/expenses/category'),
-          fetch('/api/admin/profit/margin')
+          fetch("/api/admin/revenue/total"),
+          fetch("/api/admin/expenses/total"),
+          fetch("/api/admin/profit/total"),
+          fetch("/api/admin/cashflow"),
+          fetch("/api/admin/revenue/category"),
+          fetch("/api/admin/expenses/category"),
+          fetch("/api/admin/profit/margin"),
         ]);
 
         const revenue = await revenueRes.json();
@@ -68,12 +69,19 @@ export default function Page() {
         setTotalRevenue(revenue.totalRevenue);
         setTotalExpenses(expenses.totalExpenses);
         setTotalProfit(profit.totalProfit);
-        setCashFlow(Object.entries(cashFlowData.cashFlow).map(([date, amount]) => ({ date, amount })));
-        setRevenueByCategory(revenueByCategoryData.revenueByCategory);
-        setExpensesByCategory(expensesByCategoryData.expensesByCategory);
-        setProfitMargin(profitMarginData.profitMargin);
+        setCashFlow(
+          cashFlowData?.cashFlow
+            ? Object.entries(cashFlowData.cashFlow).map(([date, amount]) => ({
+                date,
+                amount,
+              }))
+            : []
+        );
+        setRevenueByCategory(revenueByCategoryData.revenueByCategory || {});
+        setExpensesByCategory(expensesByCategoryData.expensesByCategory || {});
+        setProfitMargin(profitMarginData.profitMargin || []);
       } catch (error) {
-        console.error('Error fetching data:', error);
+        console.error("Error fetching data:", error);
       } finally {
         setLoading(false);
       }
@@ -81,6 +89,10 @@ export default function Page() {
 
     fetchData();
   }, []);
+
+  // --- SAFETY: toFixed fallback ---
+  const safeMoney = (val: unknown) =>
+    typeof val === "number" && !isNaN(val) ? val.toFixed(2) : "0.00";
 
   if (loading) {
     return (
@@ -99,7 +111,9 @@ export default function Page() {
             <DollarSignIcon className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${totalRevenue.toFixed(2)}</div>
+            <div className="text-2xl font-bold">
+              ${safeMoney(totalRevenue)}
+            </div>
           </CardContent>
         </Card>
         <Card>
@@ -110,16 +124,22 @@ export default function Page() {
             <DollarSignIcon className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${totalExpenses.toFixed(2)}</div>
+            <div className="text-2xl font-bold">
+              ${safeMoney(totalExpenses)}
+            </div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Profit (selling)</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Total Profit (selling)
+            </CardTitle>
             <DollarSignIcon className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${totalProfit.toFixed(2)}</div>
+            <div className="text-2xl font-bold">
+              ${safeMoney(totalProfit)}
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -132,7 +152,10 @@ export default function Page() {
             <PieChartIcon className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <PiechartcustomChart data={revenueByCategory} className="aspect-auto" />
+            <PiechartcustomChart
+              data={revenueByCategory}
+              className="aspect-auto"
+            />
           </CardContent>
         </Card>
         <Card>
@@ -143,12 +166,17 @@ export default function Page() {
             <PieChartIcon className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <PiechartcustomChart data={expensesByCategory} className="aspect-auto" />
+            <PiechartcustomChart
+              data={expensesByCategory}
+              className="aspect-auto"
+            />
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Profit Margin (selling)</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Profit Margin (selling)
+            </CardTitle>
             <BarChartIcon className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -169,6 +197,7 @@ export default function Page() {
   );
 }
 
+// ---------- ICON & CHART COMPONENTS (NO CHANGES NEEDED) ----------
 function BarChartIcon(props: any) {
   return (
     <svg
@@ -190,7 +219,10 @@ function BarChartIcon(props: any) {
   );
 }
 
-function BarchartChart({ data, ...props }: { data: any[] } & React.HTMLAttributes<HTMLDivElement>) {
+function BarchartChart({
+  data,
+  ...props
+}: { data: any[] } & React.HTMLAttributes<HTMLDivElement>) {
   const chartConfig = {
     margin: {
       label: "Margin",
@@ -240,7 +272,10 @@ function DollarSignIcon(props: any) {
   );
 }
 
-function LinechartChart({ data, ...props }: { data: any[] } & React.HTMLAttributes<HTMLDivElement>) {
+function LinechartChart({
+  data,
+  ...props
+}: { data: any[] } & React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div {...props}>
       <ChartContainer
@@ -304,15 +339,18 @@ function PieChartIcon(props: any) {
   );
 }
 
-function PiechartcustomChart({ data, ...props }: { data: Record<string, number> } & React.HTMLAttributes<HTMLDivElement>) {
-  const chartData = Object.entries(data).map(([category, value]) => ({
+function PiechartcustomChart({
+  data,
+  ...props
+}: { data: Record<string, number> } & React.HTMLAttributes<HTMLDivElement>) {
+  const chartData = Object.entries(data || {}).map(([category, value]) => ({
     category,
     value,
     fill: `var(--color-${category})`,
   }));
 
   const chartConfig = Object.fromEntries(
-    Object.keys(data).map((category, index) => [
+    Object.keys(data || {}).map((category, index) => [
       category,
       {
         label: category,
@@ -340,4 +378,3 @@ function PiechartcustomChart({ data, ...props }: { data: Record<string, number> 
     </div>
   );
 }
-
