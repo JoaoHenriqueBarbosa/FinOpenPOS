@@ -261,7 +261,7 @@ export default function CustomersPage() {
             <div className="relative">
               <Input
                 type="text"
-                placeholder="Search customers..."
+                placeholder="Buscar Clientes..."
                 value={searchTerm}
                 onChange={handleSearch}
                 className="pr-8"
@@ -272,36 +272,36 @@ export default function CustomersPage() {
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-1">
                   <FilterIcon className="w-4 h-4" />
-                  <span>Filters</span>
+                  <span>Filtros</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
+                <DropdownMenuLabel>Filtrar por Estado</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuCheckboxItem
                   checked={filters.status === "all"}
                   onCheckedChange={() => handleFilterChange("all")}
                 >
-                  All Statuses
+                  Todos
                 </DropdownMenuCheckboxItem>
                 <DropdownMenuCheckboxItem
                   checked={filters.status === "active"}
                   onCheckedChange={() => handleFilterChange("active")}
                 >
-                  Active
+                  Activos
                 </DropdownMenuCheckboxItem>
                 <DropdownMenuCheckboxItem
                   checked={filters.status === "inactive"}
                   onCheckedChange={() => handleFilterChange("inactive")}
                 >
-                  Inactive
+                  Inactivos
                 </DropdownMenuCheckboxItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
           <Button size="sm" onClick={() => setShowNewCustomerDialog(true)}>
             <PlusCircle className="w-4 h-4 mr-2" />
-            Add Customer
+            Crear Cliente
           </Button>
         </div>
       </CardHeader>
@@ -311,11 +311,11 @@ export default function CustomersPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
+                <TableHead>Nombre</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Actions</TableHead>
+                <TableHead>Telefono</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead>Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -362,7 +362,7 @@ export default function CustomersPage() {
               {filteredCustomers.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-6">
-                    No customers found.
+                    No se encontraron clientes.
                   </TableCell>
                 </TableRow>
               )}
@@ -389,12 +389,12 @@ export default function CustomersPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {showNewCustomerDialog ? "Create New Customer" : "Edit Customer"}
+              {showNewCustomerDialog ? "Crear Nuevo Cliente" : "Editar Cliente"}
             </DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name">Name</Label>
+              <Label htmlFor="name">Nombre</Label>
               <Input
                 id="name"
                 value={newCustomerName}
@@ -412,7 +412,7 @@ export default function CustomersPage() {
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="phone">Phone</Label>
+              <Label htmlFor="phone">Telefono</Label>
               <Input
                 id="phone"
                 value={newCustomerPhone}
@@ -421,7 +421,7 @@ export default function CustomersPage() {
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="status">Status</Label>
+              <Label htmlFor="status">Estado</Label>
               <Select
                 value={newCustomerStatus}
                 onValueChange={(value: CustomerStatus) =>
@@ -432,8 +432,8 @@ export default function CustomersPage() {
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
+                  <SelectItem value="active">Activo</SelectItem>
+                  <SelectItem value="inactive">Inactivo</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -454,7 +454,7 @@ export default function CustomersPage() {
                 showNewCustomerDialog ? handleAddCustomer : handleEditCustomer
               }
             >
-              {showNewCustomerDialog ? "Create Customer" : "Update Customer"}
+              {showNewCustomerDialog ? "Crear Cliente" : "Editar Cliente"}
             </Button>
           </DialogFooter>
         </DialogContent>

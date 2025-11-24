@@ -237,7 +237,7 @@ export default function ProductCategoriesPage() {
               <div className="relative">
                 <Input
                   type="text"
-                  placeholder="Search categories..."
+                  placeholder="Buscar categorias..."
                   value={searchTerm}
                   onChange={handleSearchChange}
                   className="pr-8"
@@ -248,29 +248,29 @@ export default function ProductCategoriesPage() {
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-1">
                     <FilterIcon className="w-4 h-4" />
-                    <span>Filters</span>
+                    <span>Filtros</span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
+                  <DropdownMenuLabel>Filtrar por Estado</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuCheckboxItem
                     checked={activeFilter === "all"}
                     onCheckedChange={() => setActiveFilter("all")}
                   >
-                    All
+                    Todos
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuCheckboxItem
                     checked={activeFilter === "active"}
                     onCheckedChange={() => setActiveFilter("active")}
                   >
-                    Active
+                    Activos
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuCheckboxItem
                     checked={activeFilter === "inactive"}
                     onCheckedChange={() => setActiveFilter("inactive")}
                   >
-                    Inactive
+                    Inactivos
                   </DropdownMenuCheckboxItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -287,11 +287,11 @@ export default function ProductCategoriesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Description</TableHead>
+                  <TableHead>Nombre</TableHead>
+                  <TableHead>Descripcion</TableHead>
                   <TableHead>Color</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

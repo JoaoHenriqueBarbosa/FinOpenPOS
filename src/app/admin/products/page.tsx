@@ -344,7 +344,7 @@ export default function Products() {
               <div className="relative">
                 <Input
                   type="text"
-                  placeholder="Search products..."
+                  placeholder="Buscar productos..."
                   value={searchTerm}
                   onChange={handleSearch}
                   className="pr-8"
@@ -355,11 +355,11 @@ export default function Products() {
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-1">
                     <FilterIcon className="w-4 h-4" />
-                    <span>Filters</span>
+                    <span>Filtros</span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel>Filter by Category</DropdownMenuLabel>
+                  <DropdownMenuLabel>Filtrar por Categoria</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuCheckboxItem
                     checked={filters.categoryId === "all"}
@@ -367,7 +367,7 @@ export default function Products() {
                       handleFilterChange("categoryId", "all")
                     }
                   >
-                    All Categories
+                    Todas
                   </DropdownMenuCheckboxItem>
                   {categories.map((cat) => (
                     <DropdownMenuCheckboxItem
@@ -382,7 +382,7 @@ export default function Products() {
                   ))}
 
                   <DropdownMenuSeparator />
-                  <DropdownMenuLabel>Filter by Stock</DropdownMenuLabel>
+                  <DropdownMenuLabel>Filtrar por Stock</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuCheckboxItem
                     checked={filters.inStock === "all"}
@@ -390,7 +390,7 @@ export default function Products() {
                       handleFilterChange("inStock", "all")
                     }
                   >
-                    All Stock
+                    Todas
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuCheckboxItem
                     checked={filters.inStock === "in-stock"}
@@ -398,7 +398,7 @@ export default function Products() {
                       handleFilterChange("inStock", "in-stock")
                     }
                   >
-                    In Stock
+                    Con Stock
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuCheckboxItem
                     checked={filters.inStock === "out-of-stock"}
@@ -406,14 +406,14 @@ export default function Products() {
                       handleFilterChange("inStock", "out-of-stock")
                     }
                   >
-                    Out of Stock
+                    Sin Stock
                   </DropdownMenuCheckboxItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
             <Button size="sm" onClick={() => setIsAddProductDialogOpen(true)}>
               <PlusIcon className="w-4 h-4 mr-2" />
-              Add Product
+              Crear Producto
             </Button>
           </div>
         </CardHeader>
@@ -423,12 +423,12 @@ export default function Products() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Product</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Price</TableHead>
+                  <TableHead>Producto</TableHead>
+                  <TableHead>Descripcion</TableHead>
+                  <TableHead>Categoria</TableHead>
+                  <TableHead>Precio</TableHead>
                   <TableHead>Stock</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead>Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -479,7 +479,7 @@ export default function Products() {
                 {currentProducts.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-6">
-                      No products found.
+                      No se encontraron productos.
                     </TableCell>
                   </TableRow>
                 )}
