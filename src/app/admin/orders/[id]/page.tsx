@@ -93,8 +93,7 @@ export default function OrderDetailPage() {
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<
     number | "none"
   >("none");
-  const [customAmount, setCustomAmount] = useState<number | "">("");
-
+  
   useEffect(() => {
     if (!orderId || Number.isNaN(orderId)) return;
 
@@ -292,23 +291,12 @@ export default function OrderDetailPage() {
       return;
     }
 
-    const total = computedTotal;
-    const amount =
-      typeof customAmount === "string"
-        ? Number(customAmount)
-        : customAmount || total;
-
-    if (!amount || amount <= 0) {
-      console.error("Monto inválido");
-      return;
-    }
-
     try {
       setPaying(true);
 
       const payload = {
         paymentMethodId: Number(selectedPaymentMethodId),
-        amount,
+        computedTotal,
       };
 
       const res = await fetch(`/api/orders/${orderId}/pay`, {
@@ -331,14 +319,7 @@ export default function OrderDetailPage() {
     } finally {
       setPaying(false);
     }
-  }, [
-    order,
-    orderId,
-    selectedPaymentMethodId,
-    customAmount,
-    computedTotal,
-    router,
-  ]);
+  }, [order, orderId, selectedPaymentMethodId, computedTotal]);
 
   if (!orderId || Number.isNaN(orderId)) {
     return <div>Invalid order id</div>;
@@ -585,24 +566,6 @@ export default function OrderDetailPage() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>
-                Monto (opcional, por defecto el total: $
-                {computedTotal.toFixed(2)})
-              </Label>
-              <Input
-                type="number"
-                min={0}
-                value={customAmount}
-                disabled={order.status !== "open"}
-                onChange={(e) =>
-                  setCustomAmount(
-                    e.target.value === "" ? "" : Number(e.target.value)
-                  )
-                }
-              />
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-2">
