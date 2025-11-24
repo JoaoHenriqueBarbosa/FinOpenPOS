@@ -1,4 +1,4 @@
-// app/api/transactions/[id]/route.ts
+// app/api/payment-methods/[id]/route.ts
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
@@ -15,26 +15,14 @@ export async function GET(_request: Request, { params }: Params) {
   const id = Number(params.id);
 
   const { data, error } = await supabase
-    .from('transactions')
-    .select(
-      `
-      id,
-      order_id,
-      customer_id,
-      payment_method_id,
-      description,
-      amount,
-      type,
-      status,
-      created_at
-    `
-    )
+    .from('payment_methods')
+    .select('id, name, is_active, created_at')
     .eq('user_uid', user.id)
     .eq('id', id)
     .single();
 
   if (error) {
-    console.error('GET /transactions/[id] error:', error);
+    console.error('GET /payment-methods/[id] error:', error);
     return NextResponse.json({ error: error.message }, { status: 404 });
   }
 
@@ -54,42 +42,16 @@ export async function PATCH(request: Request, { params }: Params) {
 
   const updateFields: Record<string, any> = {};
 
-  if (body.description !== undefined) {
-    updateFields.description = body.description ?? null;
-  }
-
-  if (body.amount !== undefined) {
-    const amount = Number(body.amount);
-    if (!amount || Number.isNaN(amount)) {
-      return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
+  if (typeof body.name === 'string') {
+    const name = body.name.trim();
+    if (!name) {
+      return NextResponse.json({ error: 'Name cannot be empty' }, { status: 400 });
     }
-    updateFields.amount = amount;
+    updateFields.name = name;
   }
 
-  if (body.paymentMethodId !== undefined) {
-    updateFields.payment_method_id = body.paymentMethodId ?? null;
-  }
-
-  if (body.orderId !== undefined) {
-    updateFields.order_id = body.orderId ?? null;
-  }
-
-  if (body.customerId !== undefined) {
-    updateFields.customer_id = body.customerId ?? null;
-  }
-
-  if (body.type !== undefined) {
-    if (!['income', 'expense'].includes(body.type)) {
-      return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
-    }
-    updateFields.type = body.type;
-  }
-
-  if (body.status !== undefined) {
-    if (!['pending', 'completed', 'failed'].includes(body.status)) {
-      return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
-    }
-    updateFields.status = body.status;
+  if (typeof body.is_active === 'boolean') {
+    updateFields.is_active = body.is_active;
   }
 
   if (Object.keys(updateFields).length === 0) {
@@ -97,27 +59,15 @@ export async function PATCH(request: Request, { params }: Params) {
   }
 
   const { data, error } = await supabase
-    .from('transactions')
+    .from('payment_methods')
     .update(updateFields)
     .eq('user_uid', user.id)
     .eq('id', id)
-    .select(
-      `
-      id,
-      order_id,
-      customer_id,
-      payment_method_id,
-      description,
-      amount,
-      type,
-      status,
-      created_at
-    `
-    )
+    .select('id, name, is_active, created_at')
     .single();
 
   if (error) {
-    console.error('PATCH /transactions/[id] error:', error);
+    console.error('PATCH /payment-methods/[id] error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
@@ -134,14 +84,15 @@ export async function DELETE(_request: Request, { params }: Params) {
 
   const id = Number(params.id);
 
+  // Soft delete: solo desactivamos el método
   const { error } = await supabase
-    .from('transactions')
-    .delete()
+    .from('payment_methods')
+    .update({ is_active: false })
     .eq('user_uid', user.id)
     .eq('id', id);
 
   if (error) {
-    console.error('DELETE /transactions/[id] error:', error);
+    console.error('DELETE /payment-methods/[id] error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
