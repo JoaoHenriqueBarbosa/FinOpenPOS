@@ -82,6 +82,7 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [savingItems, setSavingItems] = useState(false);
   const [paying, setPaying] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   // UI state para agregar ítem
   const [selectedProductId, setSelectedProductId] = useState<number | "none">(
@@ -274,6 +275,35 @@ export default function OrderDetailPage() {
     [order, orderId]
   );
 
+  const handleCancel = useCallback(async () => {
+    if (!order || !orderId) return;
+    if (order.status !== "open") {
+      console.error("La cuenta no está abierta");
+      return;
+    }
+
+    try {
+      setCancelling(true);
+
+      const res = await fetch(`/api/orders/${orderId}/cancel`, {
+        method: "POST",
+      });
+
+      if (!res.ok) {
+        console.error("Error al cancelar la cuenta");
+        return;
+      }
+
+      const updatedOrder: Order = await res.json();
+      setOrder(updatedOrder);
+    } catch (err) {
+      console.error("Error al cancelar la cuenta:", err);
+    } finally {
+      setCancelling(false);
+    }
+  }, [order, orderId]);
+
+
   const handlePay = useCallback(async () => {
     if (!order || !orderId) return;
     if (order.status !== "open") {
@@ -296,7 +326,7 @@ export default function OrderDetailPage() {
 
       const payload = {
         paymentMethodId: Number(selectedPaymentMethodId),
-        computedTotal,
+        amount: computedTotal,
       };
 
       const res = await fetch(`/api/orders/${orderId}/pay`, {
@@ -584,6 +614,19 @@ export default function OrderDetailPage() {
               )}
               Cobrar y cerrar cuenta
             </Button>
+
+            <Button
+              className="w-full"
+              variant="outline"
+              disabled={cancelling || paying || order.status !== "open"}
+              onClick={handleCancel}
+            >
+              {cancelling && (
+                <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Cancelar cuenta
+            </Button>
+
             {order.status !== "open" && (
               <p className="text-xs text-muted-foreground text-center">
                 Esta cuenta ya está {order.status === "closed" ? "pagada" : "cancelada"}.
