@@ -24,6 +24,7 @@ import {
   LayoutDashboardIcon,
   DollarSignIcon,
   PackageIcon,
+  LayersIcon,
   ShoppingCartIcon,
   UsersIcon,
   ShoppingBagIcon,
@@ -31,15 +32,18 @@ import {
 
 const pageNames: { [key: string]: string } = {
   "/admin": "Dashboard",
-  "/admin/customers": "Customers",
-  "/admin/products": "Products",
-  "/admin/orders": "Orders",
+  "/admin/customers": "Clientes",
+  "/admin/products": "Productos",
+  "/admin/product-categories": "Categorias de Productos",
+  "/admin/orders": "Cuentas",
+  "/admin/orders/[id]": "Cuenta",
   "/admin/pos": "Point of Sale",
   "/admin/cashier": "Cashier",
 };
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const effectiveTitle = Object.keys(pageNames).find((k) => pathname.startsWith(k)) ?? pathname;
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-muted/40">
@@ -51,7 +55,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           <Package2Icon className="h-6 w-6" />
           <span className="sr-only">Admin Panel</span>
         </Link>
-        <h1 className="text-xl font-bold">{pageNames[pathname]}</h1>
+        <h1 className="text-xl font-bold">{pageNames[effectiveTitle]}</h1>
         <div className="relative ml-auto flex-1 md:grow-0">
           <SearchIcon className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
@@ -125,6 +129,22 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Link
+                    href="/admin/product-categories"
+                    className={`flex h-9 w-9 items-center justify-center rounded-lg ${
+                      pathname === "/admin/product-categories"
+                        ? "bg-accent text-accent-foreground"
+                        : "text-muted-foreground"
+                    } transition-colors hover:text-foreground md:h-8 md:w-8`}
+                  >
+                    <LayersIcon className="h-5 w-5" />
+                    <span className="sr-only">Categorias de Productos</span>
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent side="right">Categorias de Productos</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Link
                     href="/admin/products"
                     className={`flex h-9 w-9 items-center justify-center rounded-lg ${
                       pathname === "/admin/products"
@@ -133,10 +153,10 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                     } transition-colors hover:text-foreground md:h-8 md:w-8`}
                   >
                     <PackageIcon className="h-5 w-5" />
-                    <span className="sr-only">Products</span>
+                    <span className="sr-only">Productos</span>
                   </Link>
                 </TooltipTrigger>
-                <TooltipContent side="right">Products</TooltipContent>
+                <TooltipContent side="right">Productos</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -149,26 +169,26 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                     } transition-colors hover:text-foreground md:h-8 md:w-8`}
                   >
                     <UsersIcon className="h-5 w-5" />
-                    <span className="sr-only">Customers</span>
+                    <span className="sr-only">Clientes</span>
                   </Link>
                 </TooltipTrigger>
-                <TooltipContent side="right">Customers</TooltipContent>
+                <TooltipContent side="right">Clientes</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Link
                     href="/admin/orders"
                     className={`flex h-9 w-9 items-center justify-center rounded-lg ${
-                      pathname === "/admin/orders"
+                      pathname.startsWith("/admin/orders")
                         ? "bg-accent text-accent-foreground"
                         : "text-muted-foreground"
                     } transition-colors hover:text-foreground md:h-8 md:w-8`}
                   >
                     <ShoppingBagIcon className="h-5 w-5" />
-                    <span className="sr-only">Orders</span>
+                    <span className="sr-only">Cuentas abiertas</span>
                   </Link>
                 </TooltipTrigger>
-                <TooltipContent side="right">Orders</TooltipContent>
+                <TooltipContent side="right">Cuentas abiertas</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>

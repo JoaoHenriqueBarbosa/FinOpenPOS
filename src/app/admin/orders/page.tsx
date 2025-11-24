@@ -1,209 +1,157 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   Card,
-  CardContent,
   CardHeader,
+  CardTitle,
+  CardContent,
   CardFooter,
 } from "@/components/ui/card";
 import {
-  Loader2Icon,
-  PlusCircle,
-  Trash2,
-  SearchIcon,
-  FilterIcon,
-  FilePenIcon,
-  EyeIcon,
-} from "lucide-react";
-import {
   Table,
-  TableBody,
-  TableCell,
-  TableHead,
   TableHeader,
   TableRow,
+  TableHead,
+  TableBody,
+  TableCell,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
+  Dialog,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogContent,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
   Select,
+  SelectTrigger,
   SelectContent,
   SelectItem,
-  SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuCheckboxItem,
-} from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
+import { Loader2Icon, PlusIcon, SearchIcon, FilePenIcon } from "lucide-react";
 import Link from "next/link";
+
+type OrderStatus = "open" | "closed" | "cancelled";
 
 type Order = {
   id: number;
-  customer_id: number;
+  customer_id: number | null;
   total_amount: number;
-  status: "completed" | "pending" | "cancelled";
+  status: OrderStatus;
   created_at: string;
-  customer: {
+  customer?: {
     name: string;
-  };
+  } | null;
+};
+
+type Customer = {
+  id: number;
+  name: string;
 };
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showNewOrderDialog, setShowNewOrderDialog] = useState(false);
-  const [newOrderCustomerName, setNewOrderCustomerName] = useState("");
-  const [newOrderTotal, setNewOrderTotal] = useState("");
-  const [newOrderStatus, setNewOrderStatus] = useState<"completed" | "pending" | "cancelled">("pending");
-  const [isEditOrderDialogOpen, setIsEditOrderDialogOpen] = useState(false);
-  const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(false);
-  const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
+
   const [searchTerm, setSearchTerm] = useState("");
-  const [filters, setFilters] = useState({
-    status: "all",
-  });
-  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"all" | OrderStatus>("open");
+
+  const [isNewOrderDialogOpen, setIsNewOrderDialogOpen] = useState(false);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<number | "none">(
+    "none"
+  );
+  const [creatingOrder, setCreatingOrder] = useState(false);
 
   useEffect(() => {
-    const fetchOrders = async () => {
+    const fetchData = async () => {
       try {
-        const response = await fetch("/api/orders");
-        if (!response.ok) {
-          throw new Error("Failed to fetch orders");
+        const [ordersRes, customersRes] = await Promise.all([
+          fetch("/api/orders"),
+          fetch("/api/customers?onlyActive=true"),
+        ]);
+
+        if (!ordersRes.ok) throw new Error("Failed to fetch orders");
+        const ordersData = await ordersRes.json();
+
+        let customersData: Customer[] = [];
+        if (customersRes.ok) {
+          customersData = await customersRes.json();
         }
-        const data = await response.json();
-        setOrders(data);
-      } catch (error) {
-        setError((error as Error).message);
+
+        setOrders(ordersData);
+        setCustomers(customersData);
+      } catch (err) {
+        console.error("Error fetching orders/customers:", err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchOrders();
+    fetchData();
   }, []);
 
-  const filteredOrders = useMemo(() => {
-    return orders.filter((order) => {
-      if (filters.status !== "all" && order.status !== filters.status) {
-        return false;
-      }
-      return (
-        order.customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        order.id.toString().includes(searchTerm)
-      );
-    });
-  }, [orders, filters.status, searchTerm]);
+  const filteredOrders = orders.filter((order) => {
+    if (statusFilter !== "all" && order.status !== statusFilter) return false;
 
-  const resetSelectedOrder = () => {
-    setSelectedOrderId(null);
-    setNewOrderCustomerName("");
-    setNewOrderTotal("");
-    setNewOrderStatus("pending");
+    const term = searchTerm.toLowerCase();
+    const customerName = order.customer?.name ?? "";
+    const idString = String(order.id);
+
+    return (
+      customerName.toLowerCase().includes(term) ||
+      idString.includes(term)
+    );
+  });
+
+  const getStatusBadge = (status: OrderStatus) => {
+    switch (status) {
+      case "open":
+        return <Badge variant="outline">Open</Badge>;
+      case "closed":
+        return <Badge className="bg-green-500/10 text-green-600 border-green-500/30">Paid</Badge>;
+      case "cancelled":
+        return <Badge className="bg-red-500/10 text-red-600 border-red-500/30">Cancelled</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
   };
 
-  const handleAddOrder = useCallback(async () => {
+  const handleCreateOrder = useCallback(async () => {
     try {
-      const newOrder = {
-        total_amount: parseFloat(newOrderTotal),
-        status: newOrderStatus,
-        created_at: new Date().toISOString().split('T')[0], // Current created_at in YYYY-MM-DD format
+      setCreatingOrder(true);
+
+      const payload: { customerId: number | null } = {
+        customerId: selectedCustomerId === "none" ? null : Number(selectedCustomerId),
       };
-      const response = await fetch("/api/orders", {
+
+      const res = await fetch("/api/orders", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(newOrder),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
 
-      if (!response.ok) {
-        throw new Error("Error creating order");
+      if (!res.ok) {
+        console.error("Failed to create order");
+        return;
       }
 
-      const createdOrder = await response.json();
-      setOrders([...orders, createdOrder]);
-      setShowNewOrderDialog(false);
-      resetSelectedOrder();
-    } catch (error) {
-      console.error(error);
+      const newOrder: Order = await res.json();
+      setOrders((prev) => [newOrder, ...prev]);
+      setIsNewOrderDialogOpen(false);
+      setSelectedCustomerId("none");
+    } catch (err) {
+      console.error("Error creating order:", err);
+    } finally {
+      setCreatingOrder(false);
     }
-  }, [newOrderTotal, newOrderStatus, orders]);
-
-  const handleEditOrder = useCallback(async () => {
-    if (!selectedOrderId) return;
-    try {
-      const updatedOrder = {
-        id: selectedOrderId,
-        total_amount: parseFloat(newOrderTotal),
-        status: newOrderStatus,
-        created_at: orders.find(o => o.id === selectedOrderId)?.created_at, // Preserve the original created_at
-      };
-      const response = await fetch(`/api/orders/${selectedOrderId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(updatedOrder),
-      });
-
-      if (!response.ok) {
-        throw new Error("Error updating order");
-      }
-
-      const updatedOrderData = await response.json();
-      setOrders(orders.map((o) => (o.id === updatedOrderData.id ? updatedOrderData : o)));
-      setIsEditOrderDialogOpen(false);
-      resetSelectedOrder();
-    } catch (error) {
-      console.error(error);
-    }
-  }, [selectedOrderId, newOrderTotal, newOrderStatus, orders]);
-
-  const handleDeleteOrder = useCallback(async () => {
-    if (!orderToDelete) return;
-    try {
-      const response = await fetch(`/api/orders/${orderToDelete.id}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        throw new Error("Error deleting order");
-      }
-
-      setOrders(orders.filter((o) => o.id !== orderToDelete.id));
-      setIsDeleteConfirmationOpen(false);
-      setOrderToDelete(null);
-    } catch (error) {
-      console.error(error);
-    }
-  }, [orderToDelete, orders]);
-
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(e.target.value);
-  };
-
-  const handleFilterChange = (value: string) => {
-    setFilters((prevFilters) => ({
-      ...prevFilters,
-      status: value,
-    }));
-  };
+  }, [selectedCustomerId]);
 
   if (loading) {
     return (
@@ -213,238 +161,170 @@ export default function OrdersPage() {
     );
   }
 
-  if (error) {
-    return (
-      <div className="container mx-auto p-4">
-        <h1 className="text-2xl font-bold mb-4">Orders</h1>
-        <Card>
-          <CardContent>
-            <p className="text-red-500">{error}</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
-    <Card className="flex flex-col gap-6 p-6">
-      <CardHeader className="p-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="relative">
+    <>
+      <Card className="flex flex-col gap-6 p-6">
+        <CardHeader className="p-0 flex flex-col gap-4">
+          <div className="flex items-center justify-between gap-4">
+            <CardTitle className="text-xl font-semibold">
+              Cuentas del buffet
+            </CardTitle>
+            <Button size="sm" onClick={() => setIsNewOrderDialogOpen(true)}>
+              <PlusIcon className="w-4 h-4 mr-2" />
+              Nueva cuenta
+            </Button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="relative max-w-xs w-full">
               <Input
-                type="text"
-                placeholder="Search orders..."
+                placeholder="Buscar por cliente o #cuenta..."
                 value={searchTerm}
-                onChange={handleSearch}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 className="pr-8"
               />
               <SearchIcon className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-1">
-                  <FilterIcon className="w-4 h-4" />
-                  <span>Filters</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuCheckboxItem
-                  checked={filters.status === "all"}
-                  onCheckedChange={() => handleFilterChange("all")}
-                >
-                  All Statuses
-                </DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem
-                  checked={filters.status === "completed"}
-                  onCheckedChange={() => handleFilterChange("completed")}
-                >
-                  Completed
-                </DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem
-                  checked={filters.status === "pending"}
-                  onCheckedChange={() => handleFilterChange("pending")}
-                >
-                  Pending
-                </DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem
-                  checked={filters.status === "cancelled"}
-                  onCheckedChange={() => handleFilterChange("cancelled")}
-                >
-                  Cancelled
-                </DropdownMenuCheckboxItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-          <Button size="sm" onClick={() => setShowNewOrderDialog(true)}>
-            <PlusCircle className="w-4 h-4 mr-2" />
-            Create Order
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="p-0">
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Order ID</TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead>Total</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredOrders.map((order) => (
-                <TableRow key={order.id}>
-                  <TableCell>{order.id}</TableCell>
-                  <TableCell>{order.customer.name}</TableCell>
-                  <TableCell>${order.total_amount.toFixed(2)}</TableCell>
-                  <TableCell>{order.status}</TableCell>
-                  <TableCell>{order.created_at}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => {
-                          setSelectedOrderId(order.id);
-                          setNewOrderCustomerName(order.customer.name);
-                          setNewOrderTotal(order.total_amount.toString());
-                          setNewOrderStatus(order.status);
-                          setIsEditOrderDialogOpen(true);
-                        }}
-                      >
-                        <FilePenIcon className="w-4 h-4" />
-                        <span className="sr-only">Edit</span>
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => {
-                          setOrderToDelete(order);
-                          setIsDeleteConfirmationOpen(true);
-                        }}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        <span className="sr-only">Delete</span>
-                      </Button>
-                      <Link href={`/admin/orders/${order.id}`} prefetch={false}>
-                        <Button size="icon" variant="ghost">
-                          <EyeIcon className="w-4 h-4" />
-                          <span className="sr-only">View</span>
-                        </Button>
-                      </Link>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
-      <CardFooter className="flex justify-between items-center">
-        {/* Pagination can be added here if needed */}
-      </CardFooter>
 
+            <Select
+              value={statusFilter}
+              onValueChange={(value: "all" | OrderStatus) =>
+                setStatusFilter(value)
+              }
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Estado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="open">Abiertas</SelectItem>
+                <SelectItem value="closed">Pagadas</SelectItem>
+                <SelectItem value="cancelled">Canceladas</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>#</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Total</TableHead>
+                  <TableHead>Fecha</TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredOrders.map((order) => (
+                  <TableRow key={order.id}>
+                    <TableCell className="font-mono text-xs">
+                      #{order.id}
+                    </TableCell>
+                    <TableCell>
+                      {order.customer?.name ?? "Sin nombre"}
+                    </TableCell>
+                    <TableCell>{getStatusBadge(order.status)}</TableCell>
+                    <TableCell>${order.total_amount.toFixed(2)}</TableCell>
+                    <TableCell>
+                      {new Date(order.created_at).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        asChild
+                        size="icon"
+                        variant="ghost"
+                        title="Abrir cuenta"
+                      >
+                        <Link href={`/admin/orders/${order.id}`}>
+                          <FilePenIcon className="w-4 h-4" />
+                        </Link>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {filteredOrders.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-6">
+                      No hay cuentas para mostrar.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+
+        <CardFooter className="flex justify-between text-sm text-muted-foreground">
+          <span>Total cuentas: {filteredOrders.length}</span>
+        </CardFooter>
+      </Card>
+
+      {/* Nueva cuenta */}
       <Dialog
-        open={showNewOrderDialog || isEditOrderDialogOpen}
+        open={isNewOrderDialogOpen}
         onOpenChange={(open) => {
+          setIsNewOrderDialogOpen(open);
           if (!open) {
-            setShowNewOrderDialog(false);
-            setIsEditOrderDialogOpen(false);
-            resetSelectedOrder();
+            setSelectedCustomerId("none");
           }
         }}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {showNewOrderDialog ? "Create New Order" : "Edit Order"}
-            </DialogTitle>
+            <DialogTitle>Abrir nueva cuenta</DialogTitle>
+            <DialogDescription>
+              Seleccioná el cliente para asociar la cuenta del buffet. Podés
+              dejarla sin cliente si es algo rápido.
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="customerName">Customer Name</Label>
-              <Input
-                id="customerName"
-                value={newOrderCustomerName}
-                onChange={(e) => setNewOrderCustomerName(e.target.value)}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="total">Total</Label>
-              <Input
-                id="total"
-                type="number"
-                value={newOrderTotal}
-                onChange={(e) => setNewOrderTotal(e.target.value)}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="status">Status</Label>
+              <span className="text-right text-sm font-medium">Cliente</span>
               <Select
-                value={newOrderStatus}
-                onValueChange={(value: "completed" | "pending" | "cancelled") =>
-                  setNewOrderStatus(value)
+                value={
+                  selectedCustomerId === "none"
+                    ? "none"
+                    : String(selectedCustomerId)
                 }
+                onValueChange={(value) => {
+                  if (value === "none") setSelectedCustomerId("none");
+                  else setSelectedCustomerId(Number(value));
+                }}
               >
-                <SelectTrigger id="status" className="col-span-3">
-                  <SelectValue placeholder="Select status" />
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Seleccionar cliente" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                  <SelectItem value="none">Sin cliente</SelectItem>
+                  {customers.map((c) => (
+                    <SelectItem key={c.id} value={String(c.id)}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
           </div>
           <DialogFooter>
             <Button
-              variant="secondary"
-              onClick={() => {
-                setShowNewOrderDialog(false);
-                setIsEditOrderDialogOpen(false);
-                resetSelectedOrder();
-              }}
+              variant="outline"
+              onClick={() => setIsNewOrderDialogOpen(false)}
             >
-              Cancel
+              Cancelar
             </Button>
-            <Button onClick={showNewOrderDialog ? handleAddOrder : handleEditOrder}>
-              {showNewOrderDialog ? "Create Order" : "Update Order"}
+            <Button onClick={handleCreateOrder} disabled={creatingOrder}>
+              {creatingOrder && (
+                <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Crear cuenta
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <Dialog
-        open={isDeleteConfirmationOpen}
-        onOpenChange={setIsDeleteConfirmationOpen}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirm Deletion</DialogTitle>
-          </DialogHeader>
-          Are you sure you want to delete this order? This action cannot be undone.
-          <DialogFooter>
-            <Button
-              variant="secondary"
-              onClick={() => setIsDeleteConfirmationOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleDeleteOrder}>
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </Card>
+    </>
   );
 }
