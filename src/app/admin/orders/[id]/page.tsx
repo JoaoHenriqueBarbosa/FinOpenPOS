@@ -223,7 +223,7 @@ export default function OrderDetailPage() {
           quantity: newQty,
         };
 
-        const res = await fetch(`/api/orders/${orderId}/items`, {
+        const res = await fetch(`/api/orders/${orderId}/items/${item.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -253,7 +253,7 @@ export default function OrderDetailPage() {
         setSavingItems(true);
 
         const res = await fetch(
-          `/api/orders/${orderId}/items?itemId=${item.id}`,
+          `/api/orders/${orderId}/items/${item.id}`,
           {
             method: "DELETE",
           }
