@@ -1,4 +1,4 @@
-// app/api/customers/[id]/route.ts
+// app/api/product-categories/[id]/route.ts
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
@@ -6,7 +6,9 @@ type Params = { params: { id: string } };
 
 export async function GET(_request: Request, { params }: Params) {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -15,14 +17,14 @@ export async function GET(_request: Request, { params }: Params) {
   const id = Number(params.id);
 
   const { data, error } = await supabase
-    .from('customers')
-    .select('id, name, email, phone, status, created_at')
+    .from('product_categories')
+    .select('id, name, description, color, is_active, created_at')
     .eq('user_uid', user.id)
     .eq('id', id)
     .single();
 
   if (error) {
-    console.error('GET /customers/[id] error:', error);
+    console.error('GET /product-categories/[id] error:', error);
     return NextResponse.json({ error: error.message }, { status: 404 });
   }
 
@@ -31,7 +33,9 @@ export async function GET(_request: Request, { params }: Params) {
 
 export async function PATCH(request: Request, { params }: Params) {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -45,40 +49,43 @@ export async function PATCH(request: Request, { params }: Params) {
   if (typeof body.name === 'string') {
     const name = body.name.trim();
     if (!name) {
-      return NextResponse.json({ error: 'Name cannot be empty' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Name cannot be empty' },
+        { status: 400 }
+      );
     }
     updateFields.name = name;
   }
 
-  if (typeof body.email === 'string' || body.email === null) {
-    updateFields.email = body.email;
+  if (body.description !== undefined) {
+    updateFields.description = body.description ?? null;
   }
 
-  if (typeof body.phone === 'string' || body.phone === null) {
-    updateFields.phone = body.phone;
+  if (body.color !== undefined) {
+    updateFields.color = body.color ?? null;
   }
 
-  if (typeof body.status === 'string') {
-    if (!['active', 'inactive'].includes(body.status)) {
-      return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
-    }
-    updateFields.status = body.status;
+  if (typeof body.is_active === 'boolean') {
+    updateFields.is_active = body.is_active;
   }
 
   if (Object.keys(updateFields).length === 0) {
-    return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'No fields to update' },
+      { status: 400 }
+    );
   }
 
   const { data, error } = await supabase
-    .from('customers')
+    .from('product_categories')
     .update(updateFields)
     .eq('user_uid', user.id)
     .eq('id', id)
-    .select('id, name, email, phone, status, created_at')
+    .select('id, name, description, color, is_active, created_at')
     .single();
 
   if (error) {
-    console.error('PATCH /customers/[id] error:', error);
+    console.error('PATCH /product-categories/[id] error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
@@ -87,7 +94,9 @@ export async function PATCH(request: Request, { params }: Params) {
 
 export async function DELETE(_request: Request, { params }: Params) {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -95,15 +104,15 @@ export async function DELETE(_request: Request, { params }: Params) {
 
   const id = Number(params.id);
 
-  // Soft delete: marcamos status = 'inactive'
+  // Soft delete: marcamos inactiva
   const { error } = await supabase
-    .from('customers')
-    .update({ status: 'inactive' })
+    .from('product_categories')
+    .update({ is_active: false })
     .eq('user_uid', user.id)
     .eq('id', id);
 
   if (error) {
-    console.error('DELETE /customers/[id] error:', error);
+    console.error('DELETE /product-categories/[id] error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

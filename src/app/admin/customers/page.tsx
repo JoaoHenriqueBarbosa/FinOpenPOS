@@ -1,7 +1,5 @@
 "use client";
 
-"use client";
-
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Card,
@@ -51,12 +49,14 @@ import {
   DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
 
+type CustomerStatus = "active" | "inactive";
+
 type Customer = {
   id: number;
   name: string;
-  email: string;
-  phone: string;
-  status: "active" | "inactive";
+  email: string | null;
+  phone: string | null;
+  status: CustomerStatus;
 };
 
 export default function CustomersPage() {
@@ -67,9 +67,8 @@ export default function CustomersPage() {
   const [newCustomerName, setNewCustomerName] = useState("");
   const [newCustomerEmail, setNewCustomerEmail] = useState("");
   const [newCustomerPhone, setNewCustomerPhone] = useState("");
-  const [newCustomerStatus, setNewCustomerStatus] = useState<
-    "active" | "inactive"
-  >("active");
+  const [newCustomerStatus, setNewCustomerStatus] =
+    useState<CustomerStatus>("active");
   const [isEditCustomerDialogOpen, setIsEditCustomerDialogOpen] =
     useState(false);
   const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] =
@@ -79,7 +78,7 @@ export default function CustomersPage() {
   );
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState({
-    status: "all",
+    status: "all" as "all" | CustomerStatus,
   });
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(
     null
@@ -109,10 +108,11 @@ export default function CustomersPage() {
       if (filters.status !== "all" && customer.status !== filters.status) {
         return false;
       }
+      const term = searchTerm.toLowerCase();
       return (
-        customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        customer.phone.includes(searchTerm)
+        customer.name.toLowerCase().includes(term) ||
+        (customer.email ?? "").toLowerCase().includes(term) ||
+        (customer.phone ?? "").includes(searchTerm)
       );
     });
   }, [customers, filters.status, searchTerm]);
@@ -129,8 +129,8 @@ export default function CustomersPage() {
     try {
       const newCustomer = {
         name: newCustomerName,
-        email: newCustomerEmail,
-        phone: newCustomerPhone,
+        email: newCustomerEmail || null,
+        phone: newCustomerPhone || null,
         status: newCustomerStatus,
       };
       const response = await fetch("/api/customers", {
@@ -146,32 +146,27 @@ export default function CustomersPage() {
       }
 
       const createdCustomer = await response.json();
-      setCustomers([...customers, createdCustomer]);
+      setCustomers((prev) => [...prev, createdCustomer]);
       setShowNewCustomerDialog(false);
       resetSelectedCustomer();
     } catch (error) {
       console.error(error);
+      // acá podrías setear un toast/error UI si querés
     }
-  }, [
-    newCustomerName,
-    newCustomerEmail,
-    newCustomerPhone,
-    newCustomerStatus,
-    customers,
-  ]);
+  }, [newCustomerName, newCustomerEmail, newCustomerPhone, newCustomerStatus]);
 
   const handleEditCustomer = useCallback(async () => {
     if (!selectedCustomerId) return;
     try {
       const updatedCustomer = {
-        id: selectedCustomerId,
         name: newCustomerName,
-        email: newCustomerEmail,
-        phone: newCustomerPhone,
+        email: newCustomerEmail || null,
+        phone: newCustomerPhone || null,
         status: newCustomerStatus,
       };
+
       const response = await fetch(`/api/customers/${selectedCustomerId}`, {
-        method: "PUT",
+        method: "PATCH", // 💡 usamos PATCH, no PUT
         headers: {
           "Content-Type": "application/json",
         },
@@ -182,9 +177,9 @@ export default function CustomersPage() {
         throw new Error("Error updating customer");
       }
 
-      const updatedCustomerData = await response.json();
-      setCustomers(
-        customers.map((c) =>
+      const updatedCustomerData: Customer = await response.json();
+      setCustomers((prev) =>
+        prev.map((c) =>
           c.id === updatedCustomerData.id ? updatedCustomerData : c
         )
       );
@@ -199,7 +194,6 @@ export default function CustomersPage() {
     newCustomerEmail,
     newCustomerPhone,
     newCustomerStatus,
-    customers,
   ]);
 
   const handleDeleteCustomer = useCallback(async () => {
@@ -213,19 +207,25 @@ export default function CustomersPage() {
         throw new Error("Error deleting customer");
       }
 
-      setCustomers(customers.filter((c) => c.id !== customerToDelete.id));
+      // Nuestro backend hace soft-delete (status = 'inactive'),
+      // así que reflejamos eso en el estado en vez de borrar el cliente.
+      setCustomers((prev) =>
+        prev.map((c) =>
+          c.id === customerToDelete.id ? { ...c, status: "inactive" } : c
+        )
+      );
       setIsDeleteConfirmationOpen(false);
       setCustomerToDelete(null);
     } catch (error) {
       console.error(error);
     }
-  }, [customerToDelete, customers]);
+  }, [customerToDelete]);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
   };
 
-  const handleFilterChange = (value: string) => {
+  const handleFilterChange = (value: "all" | CustomerStatus) => {
     setFilters((prevFilters) => ({
       ...prevFilters,
       status: value,
@@ -305,6 +305,7 @@ export default function CustomersPage() {
           </Button>
         </div>
       </CardHeader>
+
       <CardContent className="p-0">
         <div className="overflow-x-auto">
           <Table>
@@ -323,7 +324,9 @@ export default function CustomersPage() {
                   <TableCell>{customer.name}</TableCell>
                   <TableCell>{customer.email}</TableCell>
                   <TableCell>{customer.phone}</TableCell>
-                  <TableCell>{customer.status}</TableCell>
+                  <TableCell className="capitalize">
+                    {customer.status}
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Button
@@ -332,8 +335,8 @@ export default function CustomersPage() {
                         onClick={() => {
                           setSelectedCustomerId(customer.id);
                           setNewCustomerName(customer.name);
-                          setNewCustomerEmail(customer.email);
-                          setNewCustomerPhone(customer.phone);
+                          setNewCustomerEmail(customer.email ?? "");
+                          setNewCustomerPhone(customer.phone ?? "");
                           setNewCustomerStatus(customer.status);
                           setIsEditCustomerDialogOpen(true);
                         }}
@@ -356,14 +359,23 @@ export default function CustomersPage() {
                   </TableCell>
                 </TableRow>
               ))}
+              {filteredCustomers.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-6">
+                    No customers found.
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </div>
       </CardContent>
+
       <CardFooter className="flex justify-between items-center">
-        {/* Pagination can be added here if needed */}
+        {/* Pagination can go here later */}
       </CardFooter>
 
+      {/* Create / Edit dialog */}
       <Dialog
         open={showNewCustomerDialog || isEditCustomerDialogOpen}
         onOpenChange={(open) => {
@@ -412,7 +424,7 @@ export default function CustomersPage() {
               <Label htmlFor="status">Status</Label>
               <Select
                 value={newCustomerStatus}
-                onValueChange={(value: "active" | "inactive") =>
+                onValueChange={(value: CustomerStatus) =>
                   setNewCustomerStatus(value)
                 }
               >
@@ -448,6 +460,7 @@ export default function CustomersPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Delete dialog */}
       <Dialog
         open={isDeleteConfirmationOpen}
         onOpenChange={setIsDeleteConfirmationOpen}
@@ -456,8 +469,10 @@ export default function CustomersPage() {
           <DialogHeader>
             <DialogTitle>Confirm Deletion</DialogTitle>
           </DialogHeader>
-          Are you sure you want to delete this customer? This action cannot be
-          undone.
+          <p>
+            Are you sure you want to delete this customer? This will mark them
+            as inactive.
+          </p>
           <DialogFooter>
             <Button
               variant="secondary"

@@ -1,4 +1,4 @@
-// app/api/products/route.ts
+// app/api/courts/route.ts
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
@@ -11,32 +11,21 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url);
-  const categoryId = url.searchParams.get('categoryId');
-  const search = url.searchParams.get('q');
   const onlyActive = url.searchParams.get('onlyActive') === 'true';
 
   let query = supabase
-    .from('products')
-    .select('*')
+    .from('courts')
+    .select('id, name, is_active, created_at')
     .eq('user_uid', user.id);
 
   if (onlyActive) {
     query = query.eq('is_active', true);
   }
 
-  if (categoryId) {
-    query = query.eq('category_id', Number(categoryId));
-  }
-
-  if (search && search.trim() !== '') {
-    // simple búsqueda por nombre
-    query = query.ilike('name', `%${search.trim()}%`);
-  }
-
-  const { data, error } = await query.order('created_at', { ascending: false });
+  const { data, error } = await query.order('id', { ascending: true });
 
   if (error) {
-    console.error('GET /products error:', error);
+    console.error('GET /courts error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
@@ -52,28 +41,24 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
+  const name = String(body.name ?? '').trim();
 
-  // Campos que esperamos para un producto nuevo
-  const newProduct = {
-    name: body.name,
-    description: body.description ?? null,
-    price: body.price,
-    stock_quantity: body.stock_quantity ?? 0,
-    uses_stock: body.uses_stock ?? true,
-    min_stock: body.min_stock ?? 0,
-    category_id: body.category_id ?? null,
-    is_active: body.is_active ?? true,
-    user_uid: user.id,
-  };
+  if (!name) {
+    return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+  }
 
   const { data, error } = await supabase
-    .from('products')
-    .insert([newProduct])
-    .select()
+    .from('courts')
+    .insert({
+      user_uid: user.id,
+      name,
+      is_active: body.is_active ?? true,
+    })
+    .select('id, name, is_active, created_at')
     .single();
 
   if (error) {
-    console.error('POST /products error:', error);
+    console.error('POST /courts error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

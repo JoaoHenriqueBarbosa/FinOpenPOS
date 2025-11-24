@@ -1,42 +1,40 @@
-// app/api/products/route.ts
+// app/api/product-categories/route.ts
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
 export async function GET(request: Request) {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const url = new URL(request.url);
-  const categoryId = url.searchParams.get('categoryId');
-  const search = url.searchParams.get('q');
   const onlyActive = url.searchParams.get('onlyActive') === 'true';
+  const search = url.searchParams.get('q')?.trim();
 
   let query = supabase
-    .from('products')
-    .select('*')
+    .from('product_categories')
+    .select('id, name, description, color, is_active, created_at')
     .eq('user_uid', user.id);
 
   if (onlyActive) {
     query = query.eq('is_active', true);
   }
 
-  if (categoryId) {
-    query = query.eq('category_id', Number(categoryId));
+  if (search && search !== '') {
+    query = query.ilike('name', `%${search}%`);
   }
 
-  if (search && search.trim() !== '') {
-    // simple búsqueda por nombre
-    query = query.ilike('name', `%${search.trim()}%`);
-  }
-
-  const { data, error } = await query.order('created_at', { ascending: false });
+  const { data, error } = await query.order('created_at', {
+    ascending: true,
+  });
 
   if (error) {
-    console.error('GET /products error:', error);
+    console.error('GET /product-categories error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
@@ -45,35 +43,37 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const body = await request.json();
+  const name = String(body.name ?? '').trim();
 
-  // Campos que esperamos para un producto nuevo
-  const newProduct = {
-    name: body.name,
-    description: body.description ?? null,
-    price: body.price,
-    stock_quantity: body.stock_quantity ?? 0,
-    uses_stock: body.uses_stock ?? true,
-    min_stock: body.min_stock ?? 0,
-    category_id: body.category_id ?? null,
-    is_active: body.is_active ?? true,
+  if (!name) {
+    return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+  }
+
+  const newCategory = {
     user_uid: user.id,
+    name,
+    description: body.description ?? null,
+    color: body.color ?? null,
+    is_active: body.is_active ?? true,
   };
 
   const { data, error } = await supabase
-    .from('products')
-    .insert([newProduct])
-    .select()
+    .from('product_categories')
+    .insert(newCategory)
+    .select('id, name, description, color, is_active, created_at')
     .single();
 
   if (error) {
-    console.error('POST /products error:', error);
+    console.error('POST /product-categories error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

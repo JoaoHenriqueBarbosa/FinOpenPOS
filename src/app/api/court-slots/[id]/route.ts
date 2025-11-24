@@ -1,4 +1,4 @@
-// app/api/customers/[id]/route.ts
+// app/api/court-slots/[id]/route.ts
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
@@ -15,14 +15,37 @@ export async function GET(_request: Request, { params }: Params) {
   const id = Number(params.id);
 
   const { data, error } = await supabase
-    .from('customers')
-    .select('id, name, email, phone, status, created_at')
+    .from('court_slots')
+    .select(
+      `
+      id,
+      court_id,
+      slot_date,
+      start_time,
+      end_time,
+      was_played,
+      notes,
+      player1_payment_method_id,
+      player1_paid,
+      player1_note,
+      player2_payment_method_id,
+      player2_paid,
+      player2_note,
+      player3_payment_method_id,
+      player3_paid,
+      player3_note,
+      player4_payment_method_id,
+      player4_paid,
+      player4_note,
+      created_at
+    `
+    )
     .eq('user_uid', user.id)
     .eq('id', id)
     .single();
 
   if (error) {
-    console.error('GET /customers/[id] error:', error);
+    console.error('GET /court-slots/[id] error:', error);
     return NextResponse.json({ error: error.message }, { status: 404 });
   }
 
@@ -42,27 +65,34 @@ export async function PATCH(request: Request, { params }: Params) {
 
   const updateFields: Record<string, any> = {};
 
-  if (typeof body.name === 'string') {
-    const name = body.name.trim();
-    if (!name) {
-      return NextResponse.json({ error: 'Name cannot be empty' }, { status: 400 });
+  if (typeof body.was_played === 'boolean') {
+    updateFields.was_played = body.was_played;
+  }
+
+  if (body.notes !== undefined) {
+    updateFields.notes = body.notes ?? null;
+  }
+
+  // Campos por jugador
+  const fields = [
+    'player1_payment_method_id',
+    'player1_paid',
+    'player1_note',
+    'player2_payment_method_id',
+    'player2_paid',
+    'player2_note',
+    'player3_payment_method_id',
+    'player3_paid',
+    'player3_note',
+    'player4_payment_method_id',
+    'player4_paid',
+    'player4_note',
+  ];
+
+  for (const key of fields) {
+    if (body[key] !== undefined) {
+      updateFields[key] = body[key];
     }
-    updateFields.name = name;
-  }
-
-  if (typeof body.email === 'string' || body.email === null) {
-    updateFields.email = body.email;
-  }
-
-  if (typeof body.phone === 'string' || body.phone === null) {
-    updateFields.phone = body.phone;
-  }
-
-  if (typeof body.status === 'string') {
-    if (!['active', 'inactive'].includes(body.status)) {
-      return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
-    }
-    updateFields.status = body.status;
   }
 
   if (Object.keys(updateFields).length === 0) {
@@ -70,15 +100,38 @@ export async function PATCH(request: Request, { params }: Params) {
   }
 
   const { data, error } = await supabase
-    .from('customers')
+    .from('court_slots')
     .update(updateFields)
     .eq('user_uid', user.id)
     .eq('id', id)
-    .select('id, name, email, phone, status, created_at')
+    .select(
+      `
+      id,
+      court_id,
+      slot_date,
+      start_time,
+      end_time,
+      was_played,
+      notes,
+      player1_payment_method_id,
+      player1_paid,
+      player1_note,
+      player2_payment_method_id,
+      player2_paid,
+      player2_note,
+      player3_payment_method_id,
+      player3_paid,
+      player3_note,
+      player4_payment_method_id,
+      player4_paid,
+      player4_note,
+      created_at
+    `
+    )
     .single();
 
   if (error) {
-    console.error('PATCH /customers/[id] error:', error);
+    console.error('PATCH /court-slots/[id] error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
@@ -95,15 +148,14 @@ export async function DELETE(_request: Request, { params }: Params) {
 
   const id = Number(params.id);
 
-  // Soft delete: marcamos status = 'inactive'
   const { error } = await supabase
-    .from('customers')
-    .update({ status: 'inactive' })
+    .from('court_slots')
+    .delete()
     .eq('user_uid', user.id)
     .eq('id', id);
 
   if (error) {
-    console.error('DELETE /customers/[id] error:', error);
+    console.error('DELETE /court-slots/[id] error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
