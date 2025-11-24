@@ -18,7 +18,6 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
-import Link from "next/link";
 import {
   Card,
   CardContent,
@@ -30,9 +29,7 @@ import {
   FilterIcon,
   FilePenIcon,
   TrashIcon,
-  EyeIcon,
   PlusIcon,
-  LoaderIcon,
   Loader2Icon,
 } from "lucide-react";
 import {
@@ -56,159 +53,115 @@ import {
 interface Product {
   id: number;
   name: string;
-  description: string;
+  description: string | null;
   price: number;
-  in_stock: number;
-  category: string;
+  stock_quantity: number;
+  category_id: number | null;
+  is_active: boolean;
 }
+
+interface ProductCategory {
+  id: number;
+  name: string;
+}
+
+type InStockFilter = "all" | "in-stock" | "out-of-stock";
 
 export default function Products() {
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filters, setFilters] = useState({
-    category: "all",
+  const [filters, setFilters] = useState<{
+    categoryId: "all" | number;
+    inStock: InStockFilter;
+  }>({
+    categoryId: "all",
     inStock: "all",
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [productsPerPage] = useState(10);
   const [loading, setLoading] = useState(true);
   const [isAddProductDialogOpen, setIsAddProductDialogOpen] = useState(false);
-  const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
+  const [selectedProductId, setSelectedProductId] = useState<number | null>(
+    null
+  );
   const [productName, setProductName] = useState("");
   const [productDescription, setProductDescription] = useState("");
-  const [productPrice, setProductPrice] = useState(0);
-  const [productInStock, setProductInStock] = useState(0);
-  const [productCategory, setProductCategory] = useState("");
-  const [isEditProductDialogOpen, setIsEditProductDialogOpen] = useState(false);
-  const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(false);
+  const [productPrice, setProductPrice] = useState<number | "">("");
+  const [productStock, setProductStock] = useState<number | "">("");
+  const [productCategoryId, setProductCategoryId] = useState<
+    number | "none"
+  >("none");
+  const [isEditProductDialogOpen, setIsEditProductDialogOpen] =
+    useState(false);
+  const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] =
+    useState(false);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
 
   const resetSelectedProduct = () => {
     setSelectedProductId(null);
     setProductName("");
     setProductDescription("");
-    setProductPrice(0);
-    setProductInStock(0);
-    setProductCategory("");
+    setProductPrice("");
+    setProductStock("");
+    setProductCategoryId("none");
   };
 
-  const handleAddProduct = useCallback(async () => {
-    try {
-      const newProduct = {
-        name: productName,
-        description: productDescription,
-        price: productPrice,
-        in_stock: productInStock,
-        category: productCategory,
-      };
-      const response = await fetch("/api/products", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(newProduct),
-      });
-
-      if (response.ok) {
-        const addedProduct = await response.json();
-        setProducts([...products, addedProduct]);
-        setIsAddProductDialogOpen(false);
-        resetSelectedProduct();
-      } else {
-        console.error("Failed to add product");
-      }
-    } catch (error) {
-      console.error("Error adding product:", error);
-    }
-  }, [productName, productDescription, productPrice, productInStock, productCategory, products]);
-
-  const handleEditProduct = useCallback(async () => {
-    if (!selectedProductId) return;
-    try {
-      const updatedProduct = {
-        id: selectedProductId,
-        name: productName,
-        description: productDescription,
-        price: productPrice,
-        in_stock: productInStock,
-        category: productCategory,
-      };
-      const response = await fetch(`/api/products/${selectedProductId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(updatedProduct),
-      });
-
-      if (response.ok) {
-        const updatedProductFromServer = await response.json();
-        setProducts(
-          products.map((p) => (p.id === updatedProductFromServer.id ? updatedProductFromServer : p))
-        );
-        setIsEditProductDialogOpen(false);
-        resetSelectedProduct();
-      } else {
-        console.error("Failed to update product");
-      }
-    } catch (error) {
-      console.error("Error updating product:", error);
-    }
-  }, [selectedProductId, productName, productDescription, productPrice, productInStock, productCategory, products]);
-
-  const handleDeleteProduct = useCallback(async () => {
-    if (!productToDelete) return;
-    try {
-      const response = await fetch(`/api/products/${productToDelete.id}`, {
-        method: "DELETE",
-      });
-
-      if (response.ok) {
-        setProducts(products.filter((p) => p.id !== productToDelete.id));
-        setIsDeleteConfirmationOpen(false);
-        setProductToDelete(null);
-      } else {
-        console.error("Failed to delete product");
-      }
-    } catch (error) {
-      console.error("Error deleting product:", error);
-    }
-  }, [productToDelete, products]);
-
+  // Fetch products + categories
   useEffect(() => {
-    const fetchProducts = async () => {
+    const fetchData = async () => {
       try {
-        const response = await fetch("/api/products");
-        if (!response.ok) {
+        const [productsRes, categoriesRes] = await Promise.all([
+          fetch("/api/products"),
+          fetch("/api/product-categories?onlyActive=true"),
+        ]);
+
+        if (!productsRes.ok) {
           throw new Error("Failed to fetch products");
         }
-        const data = await response.json();
-        setProducts(data);
+        const productsData = await productsRes.json();
+
+        let categoriesData: ProductCategory[] = [];
+        if (categoriesRes.ok) {
+          categoriesData = await categoriesRes.json();
+        }
+
+        setProducts(productsData);
+        setCategories(categoriesData);
       } catch (error) {
-        console.error("Error fetching products:", error);
+        console.error("Error fetching products/categories:", error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchProducts();
+    fetchData();
   }, []);
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
-      if (filters.category !== "all" && product.category !== filters.category) {
-        return false;
-      }
       if (
-        filters.inStock !== "all" &&
-        filters.inStock === "in-stock" &&
-        product.in_stock === 0
+        filters.categoryId !== "all" &&
+        product.category_id !== filters.categoryId
       ) {
         return false;
       }
-      return product.name.toLowerCase().includes(searchTerm.toLowerCase());
+
+      if (filters.inStock === "in-stock" && product.stock_quantity <= 0) {
+        return false;
+      }
+
+      if (filters.inStock === "out-of-stock" && product.stock_quantity > 0) {
+        return false;
+      }
+
+      const term = searchTerm.toLowerCase();
+      return (
+        product.name.toLowerCase().includes(term) ||
+        (product.description ?? "").toLowerCase().includes(term)
+      );
     });
-  }, [products, filters.category, filters.inStock, searchTerm]);
+  }, [products, filters.categoryId, filters.inStock, searchTerm]);
 
   const indexOfLastProduct = currentPage * productsPerPage;
   const indexOfFirstProduct = indexOfLastProduct - productsPerPage;
@@ -228,12 +181,150 @@ export default function Products() {
     setCurrentPage(1);
   };
 
-  const handleFilterChange = (type: "category" | "inStock", value: string) => {
-    setFilters((prevFilters) => ({
-      ...prevFilters,
+  const handleFilterChange = (
+    type: "categoryId" | "inStock",
+    value: "all" | InStockFilter | number
+  ) => {
+    setFilters((prev) => ({
+      ...prev,
       [type]: value,
     }));
     setCurrentPage(1);
+  };
+
+  const handleAddProduct = useCallback(async () => {
+    try {
+      const price = typeof productPrice === "string" ? Number(productPrice) : productPrice;
+      const stock =
+        typeof productStock === "string" ? Number(productStock) : productStock;
+
+      if (!productName.trim()) {
+        console.error("Product name is required");
+        return;
+      }
+
+      if (Number.isNaN(price) || price <= 0) {
+        console.error("Price must be a positive number");
+        return;
+      }
+
+      const newProductPayload = {
+        name: productName,
+        description: productDescription || null,
+        price,
+        stock_quantity: Number.isNaN(stock) ? 0 : stock ?? 0,
+        uses_stock: true,
+        min_stock: 0,
+        category_id:
+          productCategoryId === "none" ? null : Number(productCategoryId),
+        is_active: true,
+      };
+
+      const response = await fetch("/api/products", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(newProductPayload),
+      });
+
+      if (!response.ok) {
+        console.error("Failed to add product");
+        return;
+      }
+
+      const addedProduct: Product = await response.json();
+      setProducts((prev) => [...prev, addedProduct]);
+      setIsAddProductDialogOpen(false);
+      resetSelectedProduct();
+    } catch (error) {
+      console.error("Error adding product:", error);
+    }
+  }, [
+    productName,
+    productDescription,
+    productPrice,
+    productStock,
+    productCategoryId,
+  ]);
+
+  const handleEditProduct = useCallback(async () => {
+    if (!selectedProductId) return;
+
+    try {
+      const price = typeof productPrice === "string" ? Number(productPrice) : productPrice;
+      const stock =
+        typeof productStock === "string" ? Number(productStock) : productStock;
+
+      const updatedProductPayload: Partial<Product> & {
+        category_id?: number | null;
+        stock_quantity?: number;
+      } = {
+        name: productName,
+        description: productDescription || null,
+        price,
+        stock_quantity: Number.isNaN(stock) ? 0 : stock ?? 0,
+        category_id:
+          productCategoryId === "none" ? null : Number(productCategoryId),
+      };
+
+      const response = await fetch(`/api/products/${selectedProductId}`, {
+        method: "PATCH", // usamos PATCH, no PUT
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updatedProductPayload),
+      });
+
+      if (!response.ok) {
+        console.error("Failed to update product");
+        return;
+      }
+
+      const updatedProductFromServer: Product = await response.json();
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === updatedProductFromServer.id ? updatedProductFromServer : p
+        )
+      );
+      setIsEditProductDialogOpen(false);
+      resetSelectedProduct();
+    } catch (error) {
+      console.error("Error updating product:", error);
+    }
+  }, [
+    selectedProductId,
+    productName,
+    productDescription,
+    productPrice,
+    productStock,
+    productCategoryId,
+  ]);
+
+  const handleDeleteProduct = useCallback(async () => {
+    if (!productToDelete) return;
+    try {
+      const response = await fetch(`/api/products/${productToDelete.id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        console.error("Failed to delete product");
+        return;
+      }
+
+      setProducts((prev) => prev.filter((p) => p.id !== productToDelete.id));
+      setIsDeleteConfirmationOpen(false);
+      setProductToDelete(null);
+    } catch (error) {
+      console.error("Error deleting product:", error);
+    }
+  }, [productToDelete]);
+
+  const getCategoryName = (categoryId: number | null) => {
+    if (categoryId == null) return "-";
+    const cat = categories.find((c) => c.id === categoryId);
+    return cat ? cat.name : "-";
   };
 
   if (loading) {
@@ -267,45 +358,37 @@ export default function Products() {
                     <span>Filters</span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuLabel>Filter by</DropdownMenuLabel>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>Filter by Category</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuCheckboxItem
-                    checked={filters.category === "all"}
+                    checked={filters.categoryId === "all"}
                     onCheckedChange={() =>
-                      handleFilterChange("category", "all")
+                      handleFilterChange("categoryId", "all")
                     }
                   >
                     All Categories
                   </DropdownMenuCheckboxItem>
-                  <DropdownMenuCheckboxItem
-                    checked={filters.category === "electronics"}
-                    onCheckedChange={() =>
-                      handleFilterChange("category", "electronics")
-                    }
-                  >
-                    Electronics
-                  </DropdownMenuCheckboxItem>
-                  <DropdownMenuCheckboxItem
-                    checked={filters.category === "home"}
-                    onCheckedChange={() =>
-                      handleFilterChange("category", "home")
-                    }
-                  >
-                    Home
-                  </DropdownMenuCheckboxItem>
-                  <DropdownMenuCheckboxItem
-                    checked={filters.category === "health"}
-                    onCheckedChange={() =>
-                      handleFilterChange("category", "health")
-                    }
-                  >
-                    Health
-                  </DropdownMenuCheckboxItem>
+                  {categories.map((cat) => (
+                    <DropdownMenuCheckboxItem
+                      key={cat.id}
+                      checked={filters.categoryId === cat.id}
+                      onCheckedChange={() =>
+                        handleFilterChange("categoryId", cat.id)
+                      }
+                    >
+                      {cat.name}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>Filter by Stock</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuCheckboxItem
                     checked={filters.inStock === "all"}
-                    onCheckedChange={() => handleFilterChange("inStock", "all")}
+                    onCheckedChange={() =>
+                      handleFilterChange("inStock", "all")
+                    }
                   >
                     All Stock
                   </DropdownMenuCheckboxItem>
@@ -334,6 +417,7 @@ export default function Products() {
             </Button>
           </div>
         </CardHeader>
+
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <Table>
@@ -341,6 +425,7 @@ export default function Products() {
                 <TableRow>
                   <TableHead>Product</TableHead>
                   <TableHead>Description</TableHead>
+                  <TableHead>Category</TableHead>
                   <TableHead>Price</TableHead>
                   <TableHead>Stock</TableHead>
                   <TableHead>Actions</TableHead>
@@ -353,8 +438,9 @@ export default function Products() {
                       {product.name}
                     </TableCell>
                     <TableCell>{product.description}</TableCell>
+                    <TableCell>{getCategoryName(product.category_id)}</TableCell>
                     <TableCell>${product.price.toFixed(2)}</TableCell>
-                    <TableCell>{product.in_stock}</TableCell>
+                    <TableCell>{product.stock_quantity}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Button
@@ -363,10 +449,12 @@ export default function Products() {
                           onClick={() => {
                             setSelectedProductId(product.id);
                             setProductName(product.name);
-                            setProductDescription(product.description);
+                            setProductDescription(product.description ?? "");
                             setProductPrice(product.price);
-                            setProductInStock(product.in_stock);
-                            setProductCategory(product.category);
+                            setProductStock(product.stock_quantity);
+                            setProductCategoryId(
+                              product.category_id ?? "none"
+                            );
                             setIsEditProductDialogOpen(true);
                           }}
                         >
@@ -388,12 +476,35 @@ export default function Products() {
                     </TableCell>
                   </TableRow>
                 ))}
+                {currentProducts.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-6">
+                      No products found.
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </div>
         </CardContent>
-        <CardFooter></CardFooter>
+
+        <CardFooter className="flex justify-end gap-2">
+          {Array.from({ length: totalPages }, (_, idx) => idx + 1).map(
+            (page) => (
+              <Button
+                key={page}
+                size="sm"
+                variant={page === currentPage ? "default" : "outline"}
+                onClick={() => handlePageChange(page)}
+              >
+                {page}
+              </Button>
+            )
+          )}
+        </CardFooter>
       </Card>
+
+      {/* Add / Edit dialog */}
       <Dialog
         open={isAddProductDialogOpen || isEditProductDialogOpen}
         onOpenChange={(open) => {
@@ -446,19 +557,27 @@ export default function Products() {
                 id="price"
                 type="number"
                 value={productPrice}
-                onChange={(e) => setProductPrice(Number(e.target.value))}
+                onChange={(e) =>
+                  setProductPrice(
+                    e.target.value === "" ? "" : Number(e.target.value)
+                  )
+                }
                 className="col-span-3"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="in_stock" className="text-right">
-                In Stock
+              <Label htmlFor="stock" className="text-right">
+                Stock
               </Label>
               <Input
-                id="in_stock"
+                id="stock"
                 type="number"
-                value={productInStock}
-                onChange={(e) => setProductInStock(Number(e.target.value))}
+                value={productStock}
+                onChange={(e) =>
+                  setProductStock(
+                    e.target.value === "" ? "" : Number(e.target.value)
+                  )
+                }
                 className="col-span-3"
               />
             </div>
@@ -467,17 +586,29 @@ export default function Products() {
                 Category
               </Label>
               <Select
-                value={productCategory}
-                onValueChange={(value) => setProductCategory(value)}
+                value={
+                  productCategoryId === "none"
+                    ? "none"
+                    : String(productCategoryId)
+                }
+                onValueChange={(value) => {
+                  if (value === "none") {
+                    setProductCategoryId("none");
+                  } else {
+                    setProductCategoryId(Number(value));
+                  }
+                }}
               >
                 <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Select a category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="electronics">Electronics</SelectItem>
-                  <SelectItem value="clothing">Clothing</SelectItem>
-                  <SelectItem value="books">Books</SelectItem>
-                  <SelectItem value="home">Home</SelectItem>
+                  <SelectItem value="none">No Category</SelectItem>
+                  {categories.map((cat) => (
+                    <SelectItem key={cat.id} value={String(cat.id)}>
+                      {cat.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -493,6 +624,8 @@ export default function Products() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete dialog */}
       <Dialog
         open={isDeleteConfirmationOpen}
         onOpenChange={setIsDeleteConfirmationOpen}

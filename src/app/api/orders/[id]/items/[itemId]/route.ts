@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-type RouteParams = { params: { id: string } };
+type RouteParams = { params: { id: string; itemId: string } };
 
-// Helper: trae la order + items + customer
+// --- helpers (same idea as before, pero sin user_uid en order_items) ---
+
 async function getOrderWithItems(
   supabase: ReturnType<typeof createClient>,
   orderId: number,
@@ -40,8 +41,7 @@ async function getOrderWithItems(
         product:product_id ( name )
       `
     )
-    .eq("order_id", orderId)
-    .eq("user_uid", userId);
+    .eq("order_id", orderId);
 
   if (itemsError) {
     throw new Error("Error fetching order items");
@@ -53,7 +53,6 @@ async function getOrderWithItems(
   };
 }
 
-// Helper: recalcular total_amount según los items
 async function recalcOrderTotal(
   supabase: ReturnType<typeof createClient>,
   orderId: number,
@@ -62,8 +61,7 @@ async function recalcOrderTotal(
   const { data, error } = await supabase
     .from("order_items")
     .select("quantity, unit_price")
-    .eq("order_id", orderId)
-    .eq("user_uid", userId);
+    .eq("order_id", orderId);
 
   if (error) {
     throw new Error("Error calculating order total");
@@ -85,102 +83,8 @@ async function recalcOrderTotal(
   }
 }
 
-// 🚀 POST /api/orders/:id/items
-// body: { productId, quantity }
-export async function POST(request: Request, { params }: RouteParams) {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const orderId = Number(params.id);
-  if (Number.isNaN(orderId)) {
-    return NextResponse.json({ error: "Invalid order id" }, { status: 400 });
-  }
-
-  const body = await request.json();
-  const productId = Number(body.productId);
-  const quantity = Number(body.quantity);
-
-  if (!productId || Number.isNaN(productId)) {
-    return NextResponse.json({ error: "Invalid productId" }, { status: 400 });
-  }
-  if (!quantity || Number.isNaN(quantity) || quantity <= 0) {
-    return NextResponse.json({ error: "Invalid quantity" }, { status: 400 });
-  }
-
-  try {
-    // Verificar que la order existe y es del usuario
-    const { data: order, error: orderError } = await supabase
-      .from("orders")
-      .select("id, status")
-      .eq("id", orderId)
-      .eq("user_uid", user.id)
-      .single();
-
-    if (orderError || !order) {
-      return NextResponse.json({ error: "Order not found" }, { status: 404 });
-    }
-
-    if (order.status !== "open") {
-      return NextResponse.json(
-        { error: "Cannot modify a non-pending order" },
-        { status: 400 }
-      );
-    }
-
-    // Obtener precio actual del producto
-    const { data: product, error: productError } = await supabase
-      .from("products")
-      .select("id, price")
-      .eq("id", productId)
-      .eq("user_uid", user.id)
-      .single();
-
-    if (productError || !product) {
-      return NextResponse.json(
-        { error: "Product not found" },
-        { status: 404 }
-      );
-    }
-
-    // Por simplicidad: siempre insertamos un nuevo item.
-    // (Podrías buscar si ya hay un item con ese product_id y sumar quantity.)
-    const { error: insertError } = await supabase.from("order_items").insert({
-      order_id: orderId,
-      product_id: productId,
-      quantity,
-      unit_price: product.price,
-      user_uid: user.id,
-    });
-
-    if (insertError) {
-      console.error("Error inserting order item:", insertError);
-      return NextResponse.json(
-        { error: "Error inserting order item" },
-        { status: 500 }
-      );
-    }
-
-    await recalcOrderTotal(supabase, orderId, user.id);
-    const updatedOrder = await getOrderWithItems(supabase, orderId, user.id);
-
-    return NextResponse.json(updatedOrder);
-  } catch (err) {
-    console.error("POST /orders/:id/items error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
-  }
-}
-
-// ✏️ PATCH /api/orders/:id/items
-// body: { itemId, quantity }
+// ✏️ PATCH /api/orders/:id/items/:itemId
+// body: { quantity }
 export async function PATCH(request: Request, { params }: RouteParams) {
   const supabase = createClient();
   const {
@@ -192,23 +96,24 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   }
 
   const orderId = Number(params.id);
+  const itemId = Number(params.itemId);
+
   if (Number.isNaN(orderId)) {
     return NextResponse.json({ error: "Invalid order id" }, { status: 400 });
   }
+  if (Number.isNaN(itemId)) {
+    return NextResponse.json({ error: "Invalid item id" }, { status: 400 });
+  }
 
   const body = await request.json();
-  const itemId = Number(body.itemId);
   const quantity = Number(body.quantity);
 
-  if (!itemId || Number.isNaN(itemId)) {
-    return NextResponse.json({ error: "Invalid itemId" }, { status: 400 });
-  }
   if (!quantity || Number.isNaN(quantity) || quantity <= 0) {
     return NextResponse.json({ error: "Invalid quantity" }, { status: 400 });
   }
 
   try {
-    // Asegurarnos que la order pertenece al usuario y está pending
+    // check order belongs to user and is pending
     const { data: order, error: orderError } = await supabase
       .from("orders")
       .select("id, status")
@@ -222,7 +127,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 
     if (order.status !== "open") {
       return NextResponse.json(
-        { error: "Cannot modify a non-pending order" },
+        { error: "Cannot modify a non-opened order" },
         { status: 400 }
       );
     }
@@ -231,8 +136,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       .from("order_items")
       .update({ quantity })
       .eq("id", itemId)
-      .eq("order_id", orderId)
-      .eq("user_uid", user.id);
+      .eq("order_id", orderId);
 
     if (updateError) {
       console.error("Error updating order item:", updateError);
@@ -247,7 +151,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 
     return NextResponse.json(updatedOrder);
   } catch (err) {
-    console.error("PATCH /orders/:id/items error:", err);
+    console.error("PATCH /orders/:id/items/:itemId error:", err);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -255,7 +159,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   }
 }
 
-// 🗑️ DELETE /api/orders/:id/items?itemId=123
+// 🗑️ DELETE /api/orders/:id/items/:itemId
 export async function DELETE(request: Request, { params }: RouteParams) {
   const supabase = createClient();
   const {
@@ -267,20 +171,17 @@ export async function DELETE(request: Request, { params }: RouteParams) {
   }
 
   const orderId = Number(params.id);
+  const itemId = Number(params.itemId);
+
   if (Number.isNaN(orderId)) {
     return NextResponse.json({ error: "Invalid order id" }, { status: 400 });
   }
-
-  const url = new URL(request.url);
-  const itemIdParam = url.searchParams.get("itemId");
-  const itemId = itemIdParam ? Number(itemIdParam) : NaN;
-
-  if (!itemIdParam || Number.isNaN(itemId)) {
-    return NextResponse.json({ error: "Invalid itemId" }, { status: 400 });
+  if (Number.isNaN(itemId)) {
+    return NextResponse.json({ error: "Invalid item id" }, { status: 400 });
   }
 
   try {
-    // Verificar order
+    // check order belongs to user and is pending
     const { data: order, error: orderError } = await supabase
       .from("orders")
       .select("id, status")
@@ -294,7 +195,7 @@ export async function DELETE(request: Request, { params }: RouteParams) {
 
     if (order.status !== "open") {
       return NextResponse.json(
-        { error: "Cannot modify a non-pending order" },
+        { error: "Cannot modify a non-opened order" },
         { status: 400 }
       );
     }
@@ -303,8 +204,7 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       .from("order_items")
       .delete()
       .eq("id", itemId)
-      .eq("order_id", orderId)
-      .eq("user_uid", user.id);
+      .eq("order_id", orderId);
 
     if (deleteError) {
       console.error("Error deleting order item:", deleteError);
@@ -319,7 +219,7 @@ export async function DELETE(request: Request, { params }: RouteParams) {
 
     return NextResponse.json(updatedOrder);
   } catch (err) {
-    console.error("DELETE /orders/:id/items error:", err);
+    console.error("DELETE /orders/:id/items/:itemId error:", err);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
