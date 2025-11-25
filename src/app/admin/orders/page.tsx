@@ -171,7 +171,7 @@ export default function OrdersPage() {
             </CardTitle>
             <Button size="sm" onClick={() => setIsNewOrderDialogOpen(true)}>
               <PlusIcon className="w-4 h-4 mr-2" />
-              Nueva cuenta
+              Abrir cuenta
             </Button>
           </div>
 
@@ -320,7 +320,7 @@ export default function OrdersPage() {
               {creatingOrder && (
                 <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
               )}
-              Crear cuenta
+              Abrir cuenta
             </Button>
           </DialogFooter>
         </DialogContent>
