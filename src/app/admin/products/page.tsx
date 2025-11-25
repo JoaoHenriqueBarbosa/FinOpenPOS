@@ -55,7 +55,6 @@ interface Product {
   name: string;
   description: string | null;
   price: number;
-  stock_quantity: number;
   category_id: number | null;
   is_active: boolean;
 }
@@ -65,18 +64,14 @@ interface ProductCategory {
   name: string;
 }
 
-type InStockFilter = "all" | "in-stock" | "out-of-stock";
-
 export default function Products() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState<{
     categoryId: "all" | number;
-    inStock: InStockFilter;
   }>({
     categoryId: "all",
-    inStock: "all",
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [productsPerPage] = useState(10);
@@ -88,7 +83,6 @@ export default function Products() {
   const [productName, setProductName] = useState("");
   const [productDescription, setProductDescription] = useState("");
   const [productPrice, setProductPrice] = useState<number | "">("");
-  const [productStock, setProductStock] = useState<number | "">("");
   const [productCategoryId, setProductCategoryId] = useState<
     number | "none"
   >("none");
@@ -103,7 +97,6 @@ export default function Products() {
     setProductName("");
     setProductDescription("");
     setProductPrice("");
-    setProductStock("");
     setProductCategoryId("none");
   };
 
@@ -147,21 +140,13 @@ export default function Products() {
         return false;
       }
 
-      if (filters.inStock === "in-stock" && product.stock_quantity <= 0) {
-        return false;
-      }
-
-      if (filters.inStock === "out-of-stock" && product.stock_quantity > 0) {
-        return false;
-      }
-
       const term = searchTerm.toLowerCase();
       return (
         product.name.toLowerCase().includes(term) ||
         (product.description ?? "").toLowerCase().includes(term)
       );
     });
-  }, [products, filters.categoryId, filters.inStock, searchTerm]);
+  }, [products, filters.categoryId, searchTerm]);
 
   const indexOfLastProduct = currentPage * productsPerPage;
   const indexOfFirstProduct = indexOfLastProduct - productsPerPage;
@@ -182,8 +167,8 @@ export default function Products() {
   };
 
   const handleFilterChange = (
-    type: "categoryId" | "inStock",
-    value: "all" | InStockFilter | number
+    type: "categoryId",
+    value: "all" | number
   ) => {
     setFilters((prev) => ({
       ...prev,
@@ -195,9 +180,7 @@ export default function Products() {
   const handleAddProduct = useCallback(async () => {
     try {
       const price = typeof productPrice === "string" ? Number(productPrice) : productPrice;
-      const stock =
-        typeof productStock === "string" ? Number(productStock) : productStock;
-
+      
       if (!productName.trim()) {
         console.error("Product name is required");
         return;
@@ -212,7 +195,6 @@ export default function Products() {
         name: productName,
         description: productDescription || null,
         price,
-        stock_quantity: Number.isNaN(stock) ? 0 : stock ?? 0,
         uses_stock: true,
         min_stock: 0,
         category_id:
@@ -244,7 +226,6 @@ export default function Products() {
     productName,
     productDescription,
     productPrice,
-    productStock,
     productCategoryId,
   ]);
 
@@ -253,17 +234,13 @@ export default function Products() {
 
     try {
       const price = typeof productPrice === "string" ? Number(productPrice) : productPrice;
-      const stock =
-        typeof productStock === "string" ? Number(productStock) : productStock;
-
+      
       const updatedProductPayload: Partial<Product> & {
         category_id?: number | null;
-        stock_quantity?: number;
       } = {
         name: productName,
         description: productDescription || null,
         price,
-        stock_quantity: Number.isNaN(stock) ? 0 : stock ?? 0,
         category_id:
           productCategoryId === "none" ? null : Number(productCategoryId),
       };
@@ -297,7 +274,6 @@ export default function Products() {
     productName,
     productDescription,
     productPrice,
-    productStock,
     productCategoryId,
   ]);
 
@@ -380,34 +356,6 @@ export default function Products() {
                       {cat.name}
                     </DropdownMenuCheckboxItem>
                   ))}
-
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel>Filtrar por Stock</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuCheckboxItem
-                    checked={filters.inStock === "all"}
-                    onCheckedChange={() =>
-                      handleFilterChange("inStock", "all")
-                    }
-                  >
-                    Todas
-                  </DropdownMenuCheckboxItem>
-                  <DropdownMenuCheckboxItem
-                    checked={filters.inStock === "in-stock"}
-                    onCheckedChange={() =>
-                      handleFilterChange("inStock", "in-stock")
-                    }
-                  >
-                    Con Stock
-                  </DropdownMenuCheckboxItem>
-                  <DropdownMenuCheckboxItem
-                    checked={filters.inStock === "out-of-stock"}
-                    onCheckedChange={() =>
-                      handleFilterChange("inStock", "out-of-stock")
-                    }
-                  >
-                    Sin Stock
-                  </DropdownMenuCheckboxItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -427,7 +375,6 @@ export default function Products() {
                   <TableHead>Descripcion</TableHead>
                   <TableHead>Categoria</TableHead>
                   <TableHead>Precio</TableHead>
-                  <TableHead>Stock</TableHead>
                   <TableHead>Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -440,7 +387,6 @@ export default function Products() {
                     <TableCell>{product.description}</TableCell>
                     <TableCell>{getCategoryName(product.category_id)}</TableCell>
                     <TableCell>${product.price.toFixed(2)}</TableCell>
-                    <TableCell>{product.stock_quantity}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Button
@@ -451,7 +397,6 @@ export default function Products() {
                             setProductName(product.name);
                             setProductDescription(product.description ?? "");
                             setProductPrice(product.price);
-                            setProductStock(product.stock_quantity);
                             setProductCategoryId(
                               product.category_id ?? "none"
                             );
@@ -566,22 +511,6 @@ export default function Products() {
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="stock" className="text-right">
-                Stock
-              </Label>
-              <Input
-                id="stock"
-                type="number"
-                value={productStock}
-                onChange={(e) =>
-                  setProductStock(
-                    e.target.value === "" ? "" : Number(e.target.value)
-                  )
-                }
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="category" className="text-right">
                 Category
               </Label>
@@ -619,7 +548,7 @@ export default function Products() {
                 isAddProductDialogOpen ? handleAddProduct : handleEditProduct
               }
             >
-              {isAddProductDialogOpen ? "Add Product" : "Update Product"}
+              {isAddProductDialogOpen ? "Crear Producto" : "Editar Producto"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -634,8 +563,8 @@ export default function Products() {
           <DialogHeader>
             <DialogTitle>Confirm Deletion</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this product? This action cannot
-              be undone.
+              Estas seguro de que quieres eliminar este producto? Esta accion no se 
+              puede revertir.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
