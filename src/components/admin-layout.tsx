@@ -28,6 +28,7 @@ import {
   ShoppingCartIcon,
   UsersIcon,
   ShoppingBagIcon,
+  TruckIcon,
 } from "lucide-react";
 
 const pageNames: { [key: string]: string } = {
@@ -39,6 +40,7 @@ const pageNames: { [key: string]: string } = {
   "/admin/orders/[id]": "Cuenta",
   "/admin/pos": "Point of Sale",
   "/admin/cashier": "Cashier",
+  "/admin/purchases": "Compras",
 };
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -184,7 +186,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                         : "text-muted-foreground"
                     } transition-colors hover:text-foreground md:h-8 md:w-8`}
                   >
-                    <ShoppingBagIcon className="h-5 w-5" />
+                    <ShoppingCartIcon className="h-5 w-5" />
                     <span className="sr-only">Cuentas abiertas</span>
                   </Link>
                 </TooltipTrigger>
@@ -193,18 +195,18 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Link
-                    href="/admin/pos"
+                    href="/admin/purchases"
                     className={`flex h-9 w-9 items-center justify-center rounded-lg ${
-                      pathname === "/admin/pos"
+                      pathname === "/admin/purchases"
                         ? "bg-accent text-accent-foreground"
                         : "text-muted-foreground"
                     } transition-colors hover:text-foreground md:h-8 md:w-8`}
                   >
-                    <ShoppingCartIcon className="h-5 w-5" />
-                    <span className="sr-only">POS</span>
+                    <TruckIcon className="h-5 w-5" />
+                    <span className="sr-only">Compras</span>
                   </Link>
                 </TooltipTrigger>
-                <TooltipContent side="right">Point of Sale</TooltipContent>
+                <TooltipContent side="right">Compras</TooltipContent>
               </Tooltip>
             </TooltipProvider>
           </nav>

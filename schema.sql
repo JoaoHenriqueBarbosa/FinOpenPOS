@@ -10,6 +10,10 @@ DROP TABLE IF EXISTS orders;
 DROP TABLE IF EXISTS customers;
 DROP TABLE IF EXISTS products;
 DROP TABLE IF EXISTS payment_methods;
+DROP TABLE IF EXISTS stock_movements;
+DROP TABLE IF EXISTS suppliers;
+DROP TABLE IF EXISTS purchases;
+DROP TABLE IF EXISTS purchase_items;
 
 -- =========================================================
 -- PAYMENT METHODS (Efectivo / Transferencia / QR por usuario)
@@ -176,14 +180,45 @@ CREATE TABLE transactions (
 -- STOCK_MOVEMENTS (historial de stock del buffet)
 -- =========================================================
 CREATE TABLE stock_movements (
-    id          BIGSERIAL PRIMARY KEY,
-    user_uid    UUID NOT NULL,
-    product_id  BIGINT NOT NULL REFERENCES products(id),
+  id           SERIAL PRIMARY KEY,
+  product_id   INTEGER NOT NULL REFERENCES products(id),
+  movement_type VARCHAR(20) NOT NULL CHECK (movement_type IN ('purchase', 'sale', 'adjustment')),
+  quantity     INTEGER NOT NULL,
+  unit_cost    DECIMAL(10, 2),
+  notes        TEXT,
+  user_uid     VARCHAR(255) NOT NULL,
+  created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
-    quantity    INTEGER NOT NULL,   -- + entra stock, - sale stock
-    reason      VARCHAR(30) NOT NULL
-                 CHECK (reason IN ('sale', 'adjustment', 'purchase', 'return')),
-    order_id    BIGINT REFERENCES orders(id),
+CREATE TABLE IF NOT EXISTS suppliers (
+    id          SERIAL PRIMARY KEY,
+    name        VARCHAR(255) NOT NULL,
+    contact_email VARCHAR(255),
+    phone       VARCHAR(50),
     notes       TEXT,
-    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    status      VARCHAR(20) NOT NULL DEFAULT 'active'
+                CHECK (status IN ('active', 'inactive')),
+    user_uid    VARCHAR(255) NOT NULL,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS purchases (
+    id               SERIAL PRIMARY KEY,
+    supplier_id      INTEGER NOT NULL REFERENCES suppliers(id),
+    user_uid         VARCHAR(255) NOT NULL,
+    total_amount     DECIMAL(10, 2) NOT NULL DEFAULT 0,
+    status           VARCHAR(20) NOT NULL DEFAULT 'completed'
+                     CHECK (status IN ('pending', 'completed', 'cancelled')),
+    payment_method_id INTEGER REFERENCES payment_methods(id),
+    transaction_id   INTEGER REFERENCES transactions(id),
+    notes            TEXT,
+    created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS purchase_items (
+    id           SERIAL PRIMARY KEY,
+    purchase_id  INTEGER NOT NULL REFERENCES purchases(id) ON DELETE CASCADE,
+    product_id   INTEGER NOT NULL REFERENCES products(id),
+    quantity     INTEGER NOT NULL,
+    unit_cost    DECIMAL(10, 2) NOT NULL
 );
