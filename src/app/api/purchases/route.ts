@@ -1,6 +1,83 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+export async function GET(request: Request) {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const url = new URL(request.url);
+  const supplierIdParam = url.searchParams.get("supplierId");
+  const paymentMethodIdParam = url.searchParams.get("paymentMethodId");
+  const statusParam = url.searchParams.get("status"); // "pending" | "completed" | "cancelled"
+  const fromParam = url.searchParams.get("from"); // YYYY-MM-DD
+  const toParam = url.searchParams.get("to"); // YYYY-MM-DD
+
+  let query = supabase
+    .from("purchases")
+    .select(
+      `
+      id,
+      total_amount,
+      status,
+      notes,
+      created_at,
+      supplier:supplier_id (
+        id,
+        name
+      ),
+      payment_method:payment_method_id (
+        id,
+        name
+      )
+    `
+    )
+    .eq("user_uid", user.id)
+    .order("created_at", { ascending: false });
+
+  if (supplierIdParam) {
+    const sid = Number(supplierIdParam);
+    if (!Number.isNaN(sid)) {
+      query = query.eq("supplier_id", sid);
+    }
+  }
+
+  if (paymentMethodIdParam) {
+    const pmid = Number(paymentMethodIdParam);
+    if (!Number.isNaN(pmid)) {
+      query = query.eq("payment_method_id", pmid);
+    }
+  }
+
+  if (statusParam && ["pending", "completed", "cancelled"].includes(statusParam)) {
+    query = query.eq("status", statusParam);
+  }
+
+  if (fromParam) {
+    query = query.gte("created_at", `${fromParam} 00:00:00`);
+  }
+  if (toParam) {
+    query = query.lte("created_at", `${toParam} 23:59:59`);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error("Error fetching purchases:", error);
+    return NextResponse.json(
+      { error: "Error fetching purchases" },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json(data ?? []);
+}
+
 export async function POST(request: Request) {
   const supabase = createClient();
   const {

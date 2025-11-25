@@ -29,6 +29,7 @@ import {
   UsersIcon,
   StoreIcon,
   TruckIcon,
+  FileTextIcon,
 } from "lucide-react";
 
 const pageNames: { [key: string]: string } = {
@@ -41,7 +42,8 @@ const pageNames: { [key: string]: string } = {
   "/admin/pos": "Point of Sale",
   "/admin/cashier": "Cashier",
   "/admin/purchases": "Compras",
-  "/admin/suppliers": "Suppliers"
+  "/admin/suppliers": "Suppliers",
+  "/admin/purchases-history": "Historial de compras"
 };
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -224,6 +226,22 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                   </Link>
                 </TooltipTrigger>
                 <TooltipContent side="right">Proveedores</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Link
+                    href="/admin/purchases-history"
+                    className={`flex h-9 w-9 items-center justify-center rounded-lg ${
+                      pathname === "/admin/purchases-history"
+                        ? "bg-accent text-accent-foreground"
+                        : "text-muted-foreground"
+                    } transition-colors hover:text-foreground md:h-8 md:w-8`}
+                  >
+                    <FileTextIcon className="h-5 w-5" />
+                    <span className="sr-only">Historial de compras</span>
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent side="right">Historial de compras</TooltipContent>
               </Tooltip>
             </TooltipProvider>
           </nav>
