@@ -301,7 +301,7 @@ export default function CustomersPage() {
           </div>
           <Button size="sm" onClick={() => setShowNewCustomerDialog(true)}>
             <PlusCircle className="w-4 h-4 mr-2" />
-            Crear Cliente
+            Nuevo Cliente
           </Button>
         </div>
       </CardHeader>

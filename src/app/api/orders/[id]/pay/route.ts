@@ -139,7 +139,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     // 2) Asegurarnos que haya items
     const { data: items, error: itemsError } = await supabase
       .from("order_items")
-      .select("id, quantity, unit_price")
+      .select("id, quantity, unit_price, product_id")
       .eq("order_id", orderId);
 
     if (itemsError) {
@@ -215,7 +215,31 @@ export async function POST(request: Request, { params }: RouteParams) {
       );
     }
 
-    // 7) Marcar order como completed
+    // 7) Crear movimientos de stock tipo 'sale'
+    //    Usamos quantity > 0 y movement_type = 'sale'.
+    const stockMovementsPayload = items.map((item: any) => ({
+      product_id: item.product_id,
+      movement_type: "sale",
+      quantity: item.quantity, // positiva, en los cálculos restás cuando movement_type = 'sale'
+      unit_cost: item.unit_price, // acá queda el precio de venta por unidad
+      notes: `Venta (order #${orderId})`,
+      user_uid: user.id,
+    }));
+
+    const { error: smError } = await supabase
+      .from("stock_movements")
+      .insert(stockMovementsPayload);
+
+    if (smError) {
+      console.error("Error inserting stock movements (sale):", smError);
+      // Si querés ser ultra prolijo, podrías hacer rollback de la transaction acá.
+      return NextResponse.json(
+        { error: "Error inserting stock movements" },
+        { status: 500 }
+      );
+    }
+
+    // 8) Marcar order como completed
     const { error: updateOrderError } = await supabase
       .from("orders")
       .update({ status: "closed" })
@@ -230,7 +254,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       );
     }
 
-    // 8) Devolver la orden actualizada con items (para refrescar la UI)
+    // 9) Devolver la orden actualizada con items (para refrescar la UI)
     const updatedOrder = await getOrderWithItems(supabase, orderId, user.id);
     return NextResponse.json(updatedOrder);
   } catch (err) {
