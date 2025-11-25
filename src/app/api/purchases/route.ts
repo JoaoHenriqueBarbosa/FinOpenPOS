@@ -171,7 +171,6 @@ export async function POST(request: Request) {
           amount: totalAmount,
           user_uid: user.id,
           type: "expense",
-          category: "purchase",
           status: "completed",
           payment_method_id: paymentMethodId,
           description: `Purchase #${purchaseId} from ${supplier.name} (${pm.name})`,

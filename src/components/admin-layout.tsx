@@ -27,7 +27,7 @@ import {
   LayersIcon,
   ShoppingCartIcon,
   UsersIcon,
-  ShoppingBagIcon,
+  StoreIcon,
   TruckIcon,
 } from "lucide-react";
 
@@ -41,6 +41,7 @@ const pageNames: { [key: string]: string } = {
   "/admin/pos": "Point of Sale",
   "/admin/cashier": "Cashier",
   "/admin/purchases": "Compras",
+  "/admin/suppliers": "Suppliers"
 };
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -207,6 +208,22 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                   </Link>
                 </TooltipTrigger>
                 <TooltipContent side="right">Compras</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Link
+                    href="/admin/suppliers"
+                    className={`flex h-9 w-9 items-center justify-center rounded-lg ${
+                      pathname === "/admin/suppliers"
+                        ? "bg-accent text-accent-foreground"
+                        : "text-muted-foreground"
+                    } transition-colors hover:text-foreground md:h-8 md:w-8`}
+                  >
+                    <StoreIcon className="h-5 w-5" />
+                    <span className="sr-only">Proveedores</span>
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent side="right">Proveedores</TooltipContent>
               </Tooltip>
             </TooltipProvider>
           </nav>
