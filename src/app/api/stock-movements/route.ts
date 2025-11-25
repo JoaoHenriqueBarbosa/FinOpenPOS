@@ -113,33 +113,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: insertError.message }, { status: 500 });
   }
 
-  // 2) Actualizar stock_quantity del producto
-  const { data: currentProduct, error: productError } = await supabase
-    .from('products')
-    .select('stock_quantity')
-    .eq('user_uid', user.id)
-    .eq('id', productId)
-    .single();
-
-  if (productError || !currentProduct) {
-    console.error('Fetch product error:', productError);
-    return NextResponse.json({ error: 'Product not found' }, { status: 404 });
-  }
-
-  const newStock = Number(currentProduct.stock_quantity) + quantity;
-
-  const { data: updatedProduct, error: updateError } = await supabase
-    .from('products')
-    .update({ stock_quantity: newStock, updated_at: new Date().toISOString() })
-    .eq('user_uid', user.id)
-    .eq('id', productId)
-    .select('id, name, stock_quantity, min_stock, uses_stock, is_active')
-    .single();
-
-  if (updateError) {
-    console.error('Update product stock error:', updateError);
-    return NextResponse.json({ error: updateError.message }, { status: 500 });
-  }
-
-  return NextResponse.json(updatedProduct, { status: 201 });
+  return NextResponse.json(movement, { status: 201 });
 }

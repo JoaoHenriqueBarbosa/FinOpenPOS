@@ -45,7 +45,6 @@ export async function PATCH(request: Request, { params }: Params) {
     'name',
     'description',
     'price',
-    'stock_quantity',
     'uses_stock',
     'min_stock',
     'category_id',

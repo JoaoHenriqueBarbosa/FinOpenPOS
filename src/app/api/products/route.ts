@@ -58,7 +58,6 @@ export async function POST(request: Request) {
     name: body.name,
     description: body.description ?? null,
     price: body.price,
-    stock_quantity: body.stock_quantity ?? 0,
     uses_stock: body.uses_stock ?? true,
     min_stock: body.min_stock ?? 0,
     category_id: body.category_id ?? null,
