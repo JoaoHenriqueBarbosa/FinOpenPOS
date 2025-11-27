@@ -91,7 +91,8 @@ const paymentColorById = (
   id: number | null | undefined,
   paymentMethods: PaymentMethod[]
 ) => {
-  if (!id) return "border-slate-200 bg-background";
+  if (!id)
+    return "border-red-400 bg-red-50 text-red-700 dark:bg-red-900/40 dark:border-red-700 dark:text-red-300";
 
   const idx = paymentMethods.findIndex((pm) => pm.id === id);
   if (idx === -1) return "border-slate-200 bg-background";
@@ -372,7 +373,7 @@ export default function CourtSlotsPage() {
                           <SelectValue placeholder="Método de pago" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">Sin asignar</SelectItem>
+                          <SelectItem value="none">SIN ASIGNAR</SelectItem>
                           {paymentMethods.map((pm) => (
                             <SelectItem key={pm.id} value={String(pm.id)}>
                               {pm.name}

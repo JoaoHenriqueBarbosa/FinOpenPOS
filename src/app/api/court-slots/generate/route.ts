@@ -40,15 +40,55 @@ export async function POST(request: Request) {
     );
   }
 
-  // 2) Definir rango horario y duración de slots
-  /**
-   * Configuration for slot generation.
-   * - startHour: Start time for slots (HH:MM, 24h format)
-   * - endHour: End time for slots (HH:MM, 24h format)
-   * - durationMinutes: Duration of each slot in minutes
-   * 
-   * To change slot generation times, update these values.
-   */
+  // 2) Ver si ya existen slots para ese día+usuario
+  const { data: existingSlots, error: existingError } = await supabase
+    .from("court_slots")
+    .select(
+      `
+      id,
+      user_uid,
+      slot_date,
+      start_time,
+      end_time,
+      was_played,
+      notes,
+      player1_payment_method_id,
+      player1_note,
+      player2_payment_method_id,
+      player2_note,
+      player3_payment_method_id,
+      player3_note,
+      player4_payment_method_id,
+      player4_note,
+      created_at,
+      court:court_id (
+        id,
+        name
+      )
+    `
+    )
+    .eq("user_uid", user.id)
+    .eq("slot_date", slotDate);
+
+  if (existingError) {
+    console.error("Error fetching existing court_slots:", existingError);
+    return NextResponse.json(
+      { error: "Error checking existing court slots" },
+      { status: 500 }
+    );
+  }
+
+  // Si ya hay slots, no generamos nada nuevo
+  if (existingSlots && existingSlots.length > 0) {
+    return NextResponse.json(existingSlots);
+    // O si preferís indicar explícitamente:
+    // return NextResponse.json(
+    //   { message: "Slots already exist for this date", data: existingSlots },
+    //   { status: 200 }
+    // );
+  }
+
+  // 3) Definir rango horario y duración de slots
   const slotConfig = {
     startHour: "13:00",      // Start time for slots (HH:MM)
     endHour: "23:30",        // End time for slots (HH:MM)
@@ -60,12 +100,8 @@ export async function POST(request: Request) {
   const durationMinutes = slotConfig.durationMinutes;
 
   const timeSlots: { start: string; end: string }[] = [];
-  let current = new Date(
-    `${slotDate}T${startHour}:00`
-  );
-  const dayEnd = new Date(
-    `${slotDate}T${endHour}:00`
-  );
+  let current = new Date(`${slotDate}T${startHour}:00`);
+  const dayEnd = new Date(`${slotDate}T${endHour}:00`);
 
   const toTimeString = (d: Date) => d.toTimeString().slice(0, 5); // HH:MM
 
@@ -81,7 +117,6 @@ export async function POST(request: Request) {
     });
 
     if (next >= dayEnd) break;
-
     current = next;
   }
 
@@ -93,22 +128,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    // 3) Borrar slots anteriores de ese día+usuario
-    const { error: deleteError } = await supabase
-      .from("court_slots")
-      .delete()
-      .eq("user_uid", user.id)
-      .eq("slot_date", slotDate);
-
-    if (deleteError) {
-      console.error("Error deleting existing court_slots:", deleteError);
-      return NextResponse.json(
-        { error: "Error regenerating court slots" },
-        { status: 500 }
-      );
-    }
-
-    // 4) Insertar nuevos slots por cada cancha activa
+    // 4) Insertar nuevos slots por cada cancha activa (solo si no existían)
     const payload = courts.flatMap((court) =>
       timeSlots.map((ts) => ({
         user_uid: user.id,
@@ -116,8 +136,7 @@ export async function POST(request: Request) {
         slot_date: slotDate,
         start_time: ts.start,
         end_time: ts.end,
-        was_played: true
-        // player*_paid: true (defaults)
+        was_played: true,
       }))
     );
 
