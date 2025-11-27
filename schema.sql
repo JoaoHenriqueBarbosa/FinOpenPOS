@@ -133,22 +133,18 @@ CREATE TABLE court_slots (
 
     -- Jugador 1
     player1_payment_method_id BIGINT REFERENCES payment_methods(id),
-    player1_paid              BOOLEAN NOT NULL DEFAULT TRUE,
     player1_note              TEXT,
 
     -- Jugador 2
     player2_payment_method_id BIGINT REFERENCES payment_methods(id),
-    player2_paid              BOOLEAN NOT NULL DEFAULT TRUE,
     player2_note              TEXT,
 
     -- Jugador 3
     player3_payment_method_id BIGINT REFERENCES payment_methods(id),
-    player3_paid              BOOLEAN NOT NULL DEFAULT TRUE,
     player3_note              TEXT,
 
     -- Jugador 4
     player4_payment_method_id BIGINT REFERENCES payment_methods(id),
-    player4_paid              BOOLEAN NOT NULL DEFAULT TRUE,
     player4_note              TEXT,
 
     created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP

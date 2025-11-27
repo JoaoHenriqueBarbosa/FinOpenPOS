@@ -30,6 +30,7 @@ import {
   StoreIcon,
   TruckIcon,
   FileTextIcon,
+  CalendarIcon,
 } from "lucide-react";
 
 const pageNames: { [key: string]: string } = {
@@ -43,7 +44,8 @@ const pageNames: { [key: string]: string } = {
   "/admin/cashier": "Cashier",
   "/admin/purchases": "Compras",
   "/admin/suppliers": "Suppliers",
-  "/admin/purchases-history": "Historial de compras"
+  "/admin/purchases-history": "Historial de compras",
+  "/admin/court-slots": "Turnos de canchas",
 };
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -243,6 +245,23 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                 </TooltipTrigger>
                 <TooltipContent side="right">Historial de compras</TooltipContent>
               </Tooltip>
+              <Tooltip>
+              <TooltipTrigger asChild>
+                <Link
+                  href="/admin/court-slots"
+                  className={`flex h-9 w-9 items-center justify-center rounded-lg ${
+                    pathname === "/admin/court-slots"
+                      ? "bg-accent text-accent-foreground"
+                      : "text-muted-foreground"
+                  } transition-colors hover:text-foreground md:h-8 md:w-8`}
+                >
+                  {/* el icono que quieras */}
+                  <CalendarIcon className="h-5 w-5" />
+                  <span className="sr-only">Turnos de canchas</span>
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent side="right">Turnos de canchas</TooltipContent>
+            </Tooltip>
             </TooltipProvider>
           </nav>
         </aside>
