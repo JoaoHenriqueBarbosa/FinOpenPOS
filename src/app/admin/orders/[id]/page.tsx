@@ -103,7 +103,7 @@ export default function OrderDetailPage() {
         const [orderRes, productsRes, pmRes] = await Promise.all([
           fetch(`/api/orders/${orderId}`),
           fetch("/api/products"),
-          fetch("/api/payment-methods?onlyActive=true"),
+          fetch("/api/payment-methods?onlyActive=true&scope=BAR"),
         ]);
 
         if (!orderRes.ok) throw new Error("Failed to fetch order");

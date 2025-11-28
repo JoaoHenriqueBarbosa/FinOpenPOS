@@ -117,7 +117,7 @@ export default function CourtSlotsPage() {
     const fetchInitial = async () => {
       try {
         const [pmRes] = await Promise.all([
-          fetch("/api/payment-methods?onlyActive=true"),
+          fetch("/api/payment-methods?onlyActive=true&scope=COURT"),
         ]);
 
         if (pmRes.ok) {

@@ -18,10 +18,13 @@ DROP TABLE IF EXISTS purchase_items;
 -- =========================================================
 -- PAYMENT METHODS (Efectivo / Transferencia / QR por usuario)
 -- =========================================================
+CREATE TYPE payment_scope AS ENUM ('BAR', 'COURT', 'BOTH');
+
 CREATE TABLE payment_methods (
     id         BIGSERIAL PRIMARY KEY,
     user_uid   UUID NOT NULL,
     name       VARCHAR(50) NOT NULL,
+    scope       payment_scope NOT NULL DEFAULT 'BAR',
     is_active  BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT pm_unique_per_user UNIQUE (user_uid, name)

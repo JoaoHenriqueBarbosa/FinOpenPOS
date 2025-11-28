@@ -12,16 +12,41 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const onlyActive = url.searchParams.get('onlyActive') === 'true';
+  const scopeParam = url.searchParams.get('scope');
 
   let query = supabase
     .from('payment_methods')
-    .select('id, name, is_active, created_at')
+    .select('id, name, scope, is_active, created_at')
     .eq('user_uid', user.id);
 
   if (onlyActive) {
     query = query.eq('is_active', true);
   }
 
+  // Always include BOTH
+  const ALWAYS_INCLUDE = ['BOTH'];
+
+  if (scopeParam) {
+    const scopes = scopeParam
+      .split(',')
+      .map((s) => s.trim().toUpperCase());
+
+    const valid = ['BAR', 'COURT', 'BOTH'];
+
+    // Filter valid scopes and ALWAYS add BOTH
+    const filteredScopes = Array.from(
+      new Set([
+        ...scopes.filter((s) => valid.includes(s)),
+        ...ALWAYS_INCLUDE,
+      ])
+    );
+
+    if (filteredScopes.length > 0) {
+      query = query.in('scope', filteredScopes);
+    }
+  }
+
+  // If no scope param → return all, including BOTH (default behavior)
   const { data, error } = await query.order('created_at', { ascending: true });
 
   if (error) {
