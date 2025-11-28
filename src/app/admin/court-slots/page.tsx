@@ -407,7 +407,7 @@ export default function CourtSlotsPage() {
                           <SelectValue placeholder="Método de pago" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">Sin asignar</SelectItem>
+                          <SelectItem value="none">SIN ASIGNAR</SelectItem>
                           {paymentMethods.map((pm) => (
                             <SelectItem key={pm.id} value={String(pm.id)}>
                               {pm.name}
@@ -441,7 +441,7 @@ export default function CourtSlotsPage() {
                           <SelectValue placeholder="Método de pago" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">Sin asignar</SelectItem>
+                          <SelectItem value="none">SIN ASIGNAR</SelectItem>
                           {paymentMethods.map((pm) => (
                             <SelectItem key={pm.id} value={String(pm.id)}>
                               {pm.name}
@@ -475,7 +475,7 @@ export default function CourtSlotsPage() {
                           <SelectValue placeholder="Método de pago" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">Sin asignar</SelectItem>
+                          <SelectItem value="none">SIN ASIGNAR</SelectItem>
                           {paymentMethods.map((pm) => (
                             <SelectItem key={pm.id} value={String(pm.id)}>
                               {pm.name}
