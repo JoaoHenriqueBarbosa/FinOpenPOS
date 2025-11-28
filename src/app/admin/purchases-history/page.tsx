@@ -94,7 +94,7 @@ export default function PurchasesHistoryPage() {
         const [pRes, sRes, pmRes] = await Promise.all([
           fetch("/api/purchases"),
           fetch("/api/suppliers"),
-          fetch("/api/payment-methods?onlyActive=true"),
+          fetch("/api/payment-methods?onlyActive=true&scope=BAR"),
         ]);
 
         if (pRes.ok) {

@@ -79,7 +79,7 @@ export default function PurchasesPage() {
         const [productsRes, suppliersRes, pmRes] = await Promise.all([
           fetch("/api/products"),
           fetch("/api/suppliers"),
-          fetch("/api/payment-methods?onlyActive=true"),
+          fetch("/api/payment-methods?onlyActive=true&scope=BAR"),
         ]);
 
         if (!productsRes.ok) throw new Error("Failed to fetch products");
