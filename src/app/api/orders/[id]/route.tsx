@@ -55,7 +55,8 @@ export async function GET(
         product:product_id ( name )
       `
       )
-      .eq("order_id", orderId);
+      .eq("order_id", orderId)
+      .order("id", { ascending: true });
 
     if (itemsError) {
       console.error("GET /orders/[id] itemsError:", itemsError);
