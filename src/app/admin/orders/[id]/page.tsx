@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type OrderStatus = "open" | "closed" | "cancelled";
 
@@ -162,6 +163,19 @@ export default function OrderDetailPage() {
     if (pmError) toast.error("Error al cargar los métodos de pago.");
   }, [pmError]);
 
+  // Order para mostrar en UI: estado local (optimistic) o, si todavía no, lo que vino del server
+  const displayOrder = order ?? orderData ?? null;
+  const isOrderOpen = displayOrder?.status === "open";
+
+  const computedTotal = useMemo(() => {
+    if (!displayOrder) return 0;
+    if (!displayOrder.items || displayOrder.items.length === 0) return 0;
+    return displayOrder.items.reduce(
+      (sum, item) => sum + item.unit_price * item.quantity,
+      0
+    );
+  }, [displayOrder]);
+
   // ---- Mutations con UI-first ----
 
   // Agregar ítem
@@ -181,16 +195,16 @@ export default function OrderDetailPage() {
       return (await res.json()) as Order;
     },
     onMutate: ({ productId, quantity }) => {
-      if (!order) return { previousOrder: null };
+      if (!order && !orderData) return { previousOrder: null };
 
-      const previousOrder = order;
+      const previousOrder = order ?? orderData!;
       const product = products.find((p) => p.id === productId);
       if (!product) return { previousOrder };
 
       // id temporal negativo
       const tempId =
         -Math.floor(Math.random() * 1_000_000) -
-        (order.items.length ? order.items.length : 0);
+        (previousOrder.items.length ? previousOrder.items.length : 0);
 
       const optimisticItem: OrderItem = {
         id: tempId,
@@ -201,8 +215,8 @@ export default function OrderDetailPage() {
       };
 
       setOrder({
-        ...order,
-        items: [...order.items, optimisticItem],
+        ...previousOrder,
+        items: [...previousOrder.items, optimisticItem],
       });
 
       setSelectedProductId("none");
@@ -242,14 +256,14 @@ export default function OrderDetailPage() {
       return (await res.json()) as Order;
     },
     onMutate: ({ item, newQty }) => {
-      if (!order) return { previousOrder: null };
-      const previousOrder = order;
+      if (!order && !orderData) return { previousOrder: null };
+      const previousOrder = order ?? orderData!;
 
       setUpdatingItemId(item.id);
 
       setOrder({
-        ...order,
-        items: order.items.map((i) =>
+        ...previousOrder,
+        items: previousOrder.items.map((i) =>
           i.id === item.id ? { ...i, quantity: newQty } : i
         ),
       });
@@ -283,14 +297,14 @@ export default function OrderDetailPage() {
       return (await res.json()) as Order;
     },
     onMutate: (item) => {
-      if (!order) return { previousOrder: null };
-      const previousOrder = order;
+      if (!order && !orderData) return { previousOrder: null };
+      const previousOrder = order ?? orderData!;
 
       setRemovingItemId(item.id);
 
       setOrder({
-        ...order,
-        items: order.items.filter((i) => i.id !== item.id),
+        ...previousOrder,
+        items: previousOrder.items.filter((i) => i.id !== item.id),
       });
 
       return { previousOrder };
@@ -322,11 +336,11 @@ export default function OrderDetailPage() {
       return (await res.json()) as Order;
     },
     onMutate: () => {
-      if (!order) return { previousOrder: null };
-      const previousOrder = order;
+      if (!order && !orderData) return { previousOrder: null };
+      const previousOrder = order ?? orderData!;
 
       setOrder({
-        ...order,
+        ...previousOrder,
         status: "cancelled",
       });
 
@@ -363,11 +377,11 @@ export default function OrderDetailPage() {
       return (await res.json()) as Order;
     },
     onMutate: ({ amount }) => {
-      if (!order) return { previousOrder: null };
-      const previousOrder = order;
+      if (!order && !orderData) return { previousOrder: null };
+      const previousOrder = order ?? orderData!;
 
       setOrder({
-        ...order,
+        ...previousOrder,
         status: "closed",
         total_amount: amount,
       });
@@ -395,15 +409,6 @@ export default function OrderDetailPage() {
   const paying = payOrderMutation.isPending;
   const cancelling = cancelOrderMutation.isPending;
 
-  const computedTotal = useMemo(() => {
-    if (!order) return 0;
-    if (!order.items || order.items.length === 0) return 0;
-    return order.items.reduce(
-      (sum, item) => sum + item.unit_price * item.quantity,
-      0
-    );
-  }, [order]);
-
   const getStatusBadge = (status: OrderStatus) => {
     switch (status) {
       case "open":
@@ -426,7 +431,7 @@ export default function OrderDetailPage() {
   };
 
   const handleAddItem = useCallback(() => {
-    if (!order || !orderId) return;
+    if (!displayOrder || !orderId) return;
 
     if (selectedProductId === "none") {
       toast.error("Elegí un producto.");
@@ -443,13 +448,13 @@ export default function OrderDetailPage() {
 
     const productIdNumber = Number(selectedProductId);
 
-    // 💡 Buscar si ya existe un item con ese producto en la orden
-    const existingItem = order.items.find(
+    // Buscar si ya existe un item con ese producto en la orden
+    const existingItem = displayOrder.items.find(
       (i) => i.product_id === productIdNumber
     );
 
     if (existingItem) {
-      // ➕ Si existe, sumamos la cantidad al mismo ítem
+      // Si existe, sumamos la cantidad al mismo ítem
       updateItemMutation.mutate({
         item: existingItem,
         newQty: existingItem.quantity + qty,
@@ -461,13 +466,13 @@ export default function OrderDetailPage() {
       return;
     }
 
-    // 🆕 Si no existe, creamos un nuevo order_item
+    // Si no existe, creamos un nuevo order_item
     addItemMutation.mutate({
       productId: productIdNumber,
       quantity: qty,
     });
   }, [
-    order,
+    displayOrder,
     orderId,
     selectedProductId,
     newItemQty,
@@ -477,7 +482,7 @@ export default function OrderDetailPage() {
 
   const updateItemQuantity = useCallback(
     (item: OrderItem, newQty: number) => {
-      if (!order || !orderId) return;
+      if (!displayOrder || !orderId) return;
       if (newQty <= 0) {
         removeItemMutation.mutate(item);
         return;
@@ -485,35 +490,35 @@ export default function OrderDetailPage() {
 
       updateItemMutation.mutate({ item, newQty });
     },
-    [order, orderId, updateItemMutation, removeItemMutation]
+    [displayOrder, orderId, updateItemMutation, removeItemMutation]
   );
 
   const removeItem = useCallback(
     (item: OrderItem) => {
-      if (!order || !orderId) return;
+      if (!displayOrder || !orderId) return;
       removeItemMutation.mutate(item);
     },
-    [order, orderId, removeItemMutation]
+    [displayOrder, orderId, removeItemMutation]
   );
 
   const handleCancel = useCallback(() => {
-    if (!order || !orderId) return;
-    if (order.status !== "open") {
+    if (!displayOrder || !orderId) return;
+    if (displayOrder.status !== "open") {
       toast.error("La cuenta no está abierta.");
       return;
     }
 
     cancelOrderMutation.mutate();
-  }, [order, orderId, cancelOrderMutation]);
+  }, [displayOrder, orderId, cancelOrderMutation]);
 
   const handlePay = useCallback(() => {
-    if (!order || !orderId) return;
-    if (order.status !== "open") {
+    if (!displayOrder || !orderId) return;
+    if (displayOrder.status !== "open") {
       toast.error("La cuenta no está abierta.");
       return;
     }
 
-    if (order.items.length === 0) {
+    if (displayOrder.items.length === 0) {
       toast.error("No se puede cobrar una cuenta vacía.");
       return;
     }
@@ -528,7 +533,7 @@ export default function OrderDetailPage() {
       amount: computedTotal,
     });
   }, [
-    order,
+    displayOrder,
     orderId,
     selectedPaymentMethodId,
     computedTotal,
@@ -539,17 +544,8 @@ export default function OrderDetailPage() {
     return <div>Invalid order id</div>;
   }
 
-  const globalLoading = loadingOrder || loadingProducts || loadingPM;
-
-  if (globalLoading) {
-    return (
-      <div className="h-[80vh] flex items-center justify-center">
-        <Loader2Icon className="mx-auto h-12 w-12 animate-spin" />
-      </div>
-    );
-  }
-
-  if (!order) {
+  // Si terminó de cargar y no hay cuenta → mensaje de no encontrado
+  if (!displayOrder && !loadingOrder) {
     return (
       <div className="p-6">
         <Button
@@ -568,6 +564,7 @@ export default function OrderDetailPage() {
 
   return (
     <div className="flex flex-col gap-4 p-4">
+      {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Button
@@ -578,18 +575,32 @@ export default function OrderDetailPage() {
             <ArrowLeftIcon className="w-4 h-4 mr-2" />
             Volver
           </Button>
-          <h1 className="text-xl font-semibold">
-            Cuenta #{order.id}{" "}
-            <span className="text-sm text-muted-foreground">
-              {order.customer?.name ?? "Sin nombre"}
-            </span>
+          <h1 className="text-xl font-semibold flex items-center gap-2">
+            {loadingOrder && !displayOrder ? (
+              <Skeleton className="h-6 w-40" />
+            ) : (
+              <>
+                Cuenta #{displayOrder?.id}{" "}
+                <span className="text-sm text-muted-foreground">
+                  {displayOrder?.customer?.name ?? "Sin nombre"}
+                </span>
+              </>
+            )}
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          {getStatusBadge(order.status)}
-          <span className="text-xs text-muted-foreground">
-            {new Date(order.created_at).toLocaleString()}
-          </span>
+          {loadingOrder && !displayOrder ? (
+            <Skeleton className="h-4 w-40" />
+          ) : (
+            <>
+              {displayOrder && getStatusBadge(displayOrder.status)}
+              {displayOrder && (
+                <span className="text-xs text-muted-foreground">
+                  {new Date(displayOrder.created_at).toLocaleString()}
+                </span>
+              )}
+            </>
+          )}
         </div>
       </div>
 
@@ -615,73 +626,100 @@ export default function OrderDetailPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {order.items.length === 0 && (
+                  {loadingOrder && !displayOrder ? (
+                    // Skeleton rows mientras carga la order
+                    <>
+                      {[1, 2, 3].map((i) => (
+                        <TableRow key={i}>
+                          <TableCell>
+                            <Skeleton className="h-4 w-32" />
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Skeleton className="h-7 w-7" />
+                              <Skeleton className="h-4 w-8" />
+                              <Skeleton className="h-7 w-7" />
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-4 w-16" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-4 w-16" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-4 w-4" />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </>
+                  ) : displayOrder && displayOrder.items.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center py-6">
                         No hay productos en la cuenta.
                       </TableCell>
                     </TableRow>
+                  ) : (
+                    displayOrder?.items.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell>
+                          {item.product?.name ?? "Producto"}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-7 w-7"
+                              disabled={
+                                !isOrderOpen ||
+                                updatingItemId === item.id ||
+                                removingItemId === item.id
+                              }
+                              onClick={() =>
+                                updateItemQuantity(item, item.quantity - 1)
+                              }
+                            >
+                              <MinusIcon className="w-3 h-3" />
+                            </Button>
+                            <span className="w-8 text-center">
+                              {item.quantity}
+                            </span>
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-7 w-7"
+                              disabled={
+                                !isOrderOpen ||
+                                updatingItemId === item.id ||
+                                removingItemId === item.id
+                              }
+                              onClick={() =>
+                                updateItemQuantity(item, item.quantity + 1)
+                              }
+                            >
+                              <PlusIcon className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                        <TableCell>${item.unit_price.toFixed(2)}</TableCell>
+                        <TableCell>
+                          ${(item.unit_price * item.quantity).toFixed(2)}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            disabled={!isOrderOpen || removingItemId === item.id}
+                            onClick={() => removeItem(item)}
+                          >
+                            <TrashIcon className="w-4 h-4" />
+                            <span className="sr-only">Eliminar</span>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
                   )}
-                  {order.items.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>{item.product?.name ?? "Producto"}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            size="icon"
-                            variant="outline"
-                            className="h-7 w-7"
-                            disabled={
-                              order.status !== "open" ||
-                              updatingItemId === item.id ||
-                              removingItemId === item.id
-                            }
-                            onClick={() =>
-                              updateItemQuantity(item, item.quantity - 1)
-                            }
-                          >
-                            <MinusIcon className="w-3 h-3" />
-                          </Button>
-                          <span className="w-8 text-center">
-                            {item.quantity}
-                          </span>
-                          <Button
-                            size="icon"
-                            variant="outline"
-                            className="h-7 w-7"
-                            disabled={
-                              order.status !== "open" ||
-                              updatingItemId === item.id ||
-                              removingItemId === item.id
-                            }
-                            onClick={() =>
-                              updateItemQuantity(item, item.quantity + 1)
-                            }
-                          >
-                            <PlusIcon className="w-3 h-3" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                      <TableCell>${item.unit_price.toFixed(2)}</TableCell>
-                      <TableCell>
-                        ${(item.unit_price * item.quantity).toFixed(2)}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          disabled={
-                            order.status !== "open" ||
-                            removingItemId === item.id
-                          }
-                          onClick={() => removeItem(item)}
-                        >
-                          <TrashIcon className="w-4 h-4" />
-                          <span className="sr-only">Eliminar</span>
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
                 </TableBody>
               </Table>
             </div>
@@ -700,10 +738,16 @@ export default function OrderDetailPage() {
                     if (value === "none") setSelectedProductId("none");
                     else setSelectedProductId(Number(value));
                   }}
-                  disabled={order.status !== "open"}
+                  disabled={!isOrderOpen || loadingProducts}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Elegir producto" />
+                    <SelectValue
+                      placeholder={
+                        loadingProducts
+                          ? "Cargando productos..."
+                          : "Elegir producto"
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Seleccionar...</SelectItem>
@@ -721,7 +765,7 @@ export default function OrderDetailPage() {
                   type="number"
                   min={1}
                   value={newItemQty}
-                  disabled={order.status !== "open"}
+                  disabled={!isOrderOpen}
                   onChange={(e) =>
                     setNewItemQty(
                       e.target.value === "" ? "" : Number(e.target.value)
@@ -734,7 +778,7 @@ export default function OrderDetailPage() {
                 onClick={handleAddItem}
                 disabled={
                   savingItemsAdd ||
-                  order.status !== "open" ||
+                  !isOrderOpen ||
                   selectedProductId === "none"
                 }
               >
@@ -756,14 +800,29 @@ export default function OrderDetailPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex justify-between text-sm">
-              <span>Subtotal</span>
-              <span>${computedTotal.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-base font-semibold">
-              <span>Total</span>
-              <span>${computedTotal.toFixed(2)}</span>
-            </div>
+            {loadingOrder && !displayOrder ? (
+              <>
+                <div className="flex justify-between text-sm">
+                  <span>Subtotal</span>
+                  <Skeleton className="h-4 w-16" />
+                </div>
+                <div className="flex justify-between text-base font-semibold">
+                  <span>Total</span>
+                  <Skeleton className="h-5 w-20" />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex justify-between text-sm">
+                  <span>Subtotal</span>
+                  <span>${computedTotal.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-base font-semibold">
+                  <span>Total</span>
+                  <span>${computedTotal.toFixed(2)}</span>
+                </div>
+              </>
+            )}
 
             <div className="h-px bg-border my-2" />
 
@@ -779,10 +838,16 @@ export default function OrderDetailPage() {
                   if (value === "none") setSelectedPaymentMethodId("none");
                   else setSelectedPaymentMethodId(Number(value));
                 }}
-                disabled={order.status !== "open"}
+                disabled={!isOrderOpen || loadingPM}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Elegí método de pago" />
+                  <SelectValue
+                    placeholder={
+                      loadingPM
+                        ? "Cargando métodos de pago..."
+                        : "Elegí método de pago"
+                    }
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Seleccionar...</SelectItem>
@@ -800,8 +865,9 @@ export default function OrderDetailPage() {
               className="w-full"
               disabled={
                 paying ||
-                order.status !== "open" ||
-                order.items.length === 0 ||
+                !isOrderOpen ||
+                !displayOrder ||
+                displayOrder.items.length === 0 ||
                 selectedPaymentMethodId === "none"
               }
               onClick={handlePay}
@@ -815,7 +881,7 @@ export default function OrderDetailPage() {
             <Button
               className="w-full"
               variant="outline"
-              disabled={cancelling || paying || order.status !== "open"}
+              disabled={cancelling || paying || !isOrderOpen}
               onClick={handleCancel}
             >
               {cancelling && (
@@ -824,10 +890,10 @@ export default function OrderDetailPage() {
               Cancelar cuenta
             </Button>
 
-            {order.status !== "open" && (
+            {displayOrder && displayOrder.status !== "open" && (
               <p className="text-xs text-muted-foreground text-center">
                 Esta cuenta ya está{" "}
-                {order.status === "closed" ? "pagada" : "cancelada"}.
+                {displayOrder.status === "closed" ? "pagada" : "cancelada"}.
               </p>
             )}
           </CardFooter>
