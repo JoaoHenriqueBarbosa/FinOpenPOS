@@ -36,6 +36,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type PaymentMethod = {
   id: number;
@@ -124,10 +125,10 @@ export default function CourtSlotsPage() {
   );
   const queryClient = useQueryClient();
 
-  // 🔹 Estado local para que la UI responda instantáneamente
+  // Estado local para UI instantánea
   const [localSlots, setLocalSlots] = useState<CourtSlot[]>([]);
 
-  // Métodos de pago (cacheados)
+  // Métodos de pago
   const {
     data: paymentMethods = [],
     isLoading: loadingPayments,
@@ -135,11 +136,10 @@ export default function CourtSlotsPage() {
   } = useQuery({
     queryKey: ["payment-methods", "COURT"],
     queryFn: fetchPaymentMethods,
-    staleTime: 1000 * 60 * 5, // 5 minutos
+    staleTime: 1000 * 60 * 5,
   });
 
-
-  // Slots de canchas por día (cacheados)
+  // Slots de canchas por día
   const {
     data: slots = [],
     isLoading: loadingSlots,
@@ -150,7 +150,7 @@ export default function CourtSlotsPage() {
     queryKey: ["court-slots", selectedDate],
     queryFn: () => fetchCourtSlots(selectedDate),
     enabled: !!selectedDate,
-    staleTime: 1000 * 60 * 2, // 2 minutos
+    staleTime: 1000 * 60 * 2,
   });
 
   useEffect(() => {
@@ -165,8 +165,7 @@ export default function CourtSlotsPage() {
     }
   }, [isCourtSlotsError]);
 
-
-  // 🔹 Cada vez que cambian los slots del server, sincronizamos el estado local
+  // Sync de slots de server -> local
   useEffect(() => {
     setLocalSlots(slots);
   }, [slots]);
@@ -181,8 +180,7 @@ export default function CourtSlotsPage() {
       });
 
       if (!res.ok) {
-        // opcional: leer mensaje del backend
-        let message = "Error generating court slots";
+        let message = "Error generando turnos";
         try {
           const data = await res.json();
           if (data?.message) message = data.message;
@@ -195,19 +193,19 @@ export default function CourtSlotsPage() {
       return res.json();
     },
     onSuccess: () => {
-      toast.success("Turnos generados correctamente."); // ✅ NUEVO
+      toast.success("Turnos generados correctamente.");
       queryClient.invalidateQueries({ queryKey: ["court-slots", selectedDate] });
     },
     onError: (error) => {
       toast.error(
         error instanceof Error
           ? error.message
-          : "No se pudieron generar los turnos del día." // ✅ NUEVO
+          : "No se pudieron generar los turnos del día."
       );
     },
   });
 
-  // Actualizar un slot (optimistic update en cache + estado local)
+  // Actualizar un slot
   const updateSlotMutation = useMutation({
     mutationFn: async (params: { slotId: number; patch: Partial<CourtSlot> }) => {
       const res = await fetch(`/api/court-slots/${params.slotId}`, {
@@ -226,7 +224,6 @@ export default function CourtSlotsPage() {
         selectedDate,
       ]);
 
-      // 🔹 Actualizamos cache de React Query
       if (previous) {
         queryClient.setQueryData<CourtSlot[]>(
           ["court-slots", selectedDate],
@@ -234,7 +231,6 @@ export default function CourtSlotsPage() {
         );
       }
 
-      // 🔹 Y dejamos que el useEffect sincronice nuevamente si hace falta
       return { previous };
     },
     onError: (_err, _vars, ctx) => {
@@ -258,29 +254,20 @@ export default function CourtSlotsPage() {
     refetchSlots();
   };
 
-  // 🔹 Esta función ahora primero actualiza el estado local (UI instantánea)
+  // UI instantánea + PATCH en paralelo
   const updateSlotField = (slotId: number, patch: Partial<CourtSlot>) => {
     setLocalSlots((prev) =>
       prev.map((slot) => (slot.id === slotId ? { ...slot, ...patch } : slot))
     );
 
-    // Y en paralelo manda el PATCH al backend
     updateSlotMutation.mutate({ slotId, patch });
   };
 
-  const formatTime = (t: string) => t.slice(0, 5); // "HH:MM:SS" -> "HH:MM"
-
-  const globalLoading = loadingPayments || (loadingSlots && !localSlots.length);
-
-  if (globalLoading) {
-    return (
-      <div className="h-[80vh] flex items-center justify-center">
-        <Loader2Icon className="mx-auto h-12 w-12 animate-spin" />
-      </div>
-    );
-  }
+  const formatTime = (t: string) => t.slice(0, 5);
 
   const saving = updateSlotMutation.isPending;
+
+  const initialSlotsLoading = loadingSlots && !localSlots.length;
 
   return (
     <Card className="flex flex-col gap-4 p-6">
@@ -343,7 +330,17 @@ export default function CourtSlotsPage() {
             </span>
           </div>
 
-          {paymentMethods.length > 0 && (
+          {/* Métodos de pago o skeleton */}
+          {loadingPayments && !paymentMethods.length ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold text-foreground">
+                Métodos de pago:
+              </span>
+              <Skeleton className="h-3 w-24 rounded-full" />
+              <Skeleton className="h-3 w-20 rounded-full" />
+              <Skeleton className="h-3 w-16 rounded-full" />
+            </div>
+          ) : paymentMethods.length > 0 ? (
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-semibold text-foreground">
                 Métodos de pago:
@@ -360,15 +357,50 @@ export default function CourtSlotsPage() {
                 </span>
               ))}
             </div>
-          )}
+          ) : null}
         </div>
 
         {/* Tabla de slots */}
         <div className="overflow-x-auto">
-          {loadingSlots && !localSlots.length ? (
-            <div className="h-40 flex items-center justify-center">
-              <Loader2Icon className="h-8 w-8 animate-spin" />
-            </div>
+          {initialSlotsLoading ? (
+            // Skeleton de tabla de turnos
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Jugado</TableHead>
+                  <TableHead>Cancha</TableHead>
+                  <TableHead>Dia</TableHead>
+                  <TableHead>Horario</TableHead>
+                  <TableHead>Jugador 1</TableHead>
+                  <TableHead>Jugador 2</TableHead>
+                  <TableHead>Jugador 3</TableHead>
+                  <TableHead>Jugador 4</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {[1, 2, 3, 4].map((i) => (
+                  <TableRow key={i}>
+                    <TableCell className="text-center">
+                      <Skeleton className="h-4 w-4 rounded-sm mx-auto" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-5 w-20 rounded-full" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-32" />
+                    </TableCell>
+                      <TableCell>
+                      <Skeleton className="h-4 w-24" />
+                    </TableCell>
+                    {[1, 2, 3, 4].map((j) => (
+                      <TableCell key={j}>
+                        <Skeleton className="h-8 w-32 rounded-md" />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           ) : localSlots.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4">
               No hay turnos generados para esta fecha.
@@ -462,8 +494,8 @@ export default function CourtSlotsPage() {
                     {/* Jugador 2 */}
                     <TableCell className="min-w-[160px]">
                       <Select
-                        value=
-                          {slot.player2_payment_method_id
+                        value={
+                          slot.player2_payment_method_id
                             ? String(slot.player2_payment_method_id)
                             : "none"
                         }
