@@ -427,6 +427,7 @@ export default function OrderDetailPage() {
 
   const handleAddItem = useCallback(() => {
     if (!order || !orderId) return;
+
     if (selectedProductId === "none") {
       toast.error("Elegí un producto.");
       return;
@@ -434,16 +435,45 @@ export default function OrderDetailPage() {
 
     const qty =
       typeof newItemQty === "string" ? Number(newItemQty) : newItemQty;
+
     if (!qty || qty <= 0) {
       toast.error("Cantidad inválida.");
       return;
     }
 
+    const productIdNumber = Number(selectedProductId);
+
+    // 💡 Buscar si ya existe un item con ese producto en la orden
+    const existingItem = order.items.find(
+      (i) => i.product_id === productIdNumber
+    );
+
+    if (existingItem) {
+      // ➕ Si existe, sumamos la cantidad al mismo ítem
+      updateItemMutation.mutate({
+        item: existingItem,
+        newQty: existingItem.quantity + qty,
+      });
+
+      // limpiamos UI
+      setSelectedProductId("none");
+      setNewItemQty("");
+      return;
+    }
+
+    // 🆕 Si no existe, creamos un nuevo order_item
     addItemMutation.mutate({
-      productId: Number(selectedProductId),
+      productId: productIdNumber,
       quantity: qty,
     });
-  }, [order, orderId, selectedProductId, newItemQty, addItemMutation]);
+  }, [
+    order,
+    orderId,
+    selectedProductId,
+    newItemQty,
+    addItemMutation,
+    updateItemMutation,
+  ]);
 
   const updateItemQuantity = useCallback(
     (item: OrderItem, newQty: number) => {
