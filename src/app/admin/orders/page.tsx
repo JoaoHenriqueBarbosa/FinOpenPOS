@@ -172,6 +172,19 @@ export default function OrdersPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+
+      if (res.status === 409) {
+      const body = await res.json();
+      const existingId = body?.orderId;
+      const err = new Error(
+        existingId
+          ? `El cliente ya tiene una cuenta abierta (#${existingId}).`
+          : "El cliente ya tiene una cuenta abierta."
+      );
+      (err as any).orderId = existingId;
+      throw err;
+    }
+
       if (!res.ok) {
         throw new Error("Error al crear la cuenta");
       }
@@ -216,6 +229,14 @@ export default function OrdersPage() {
   const handleCreateOrder = useCallback(() => {
     if (!selectedCustomerId) {
       toast.error("Debe seleccionar un cliente.");
+      return;
+    }
+
+    const alreadyOpen = orders.some(
+      (o) => o.customer_id === selectedCustomerId && o.status === "open"
+    );  
+    if (alreadyOpen) {
+      toast.error("Este cliente ya tiene una cuenta abierta. Cerrala antes de abrir otra.");
       return;
     }
 
@@ -447,7 +468,7 @@ export default function OrdersPage() {
         onOpenChange={(open) => {
           setIsNewOrderDialogOpen(open);
           if (!open) {
-            setSelectedCustomerId("none");
+            setSelectedCustomerId(null);
           }
         }}
       >
