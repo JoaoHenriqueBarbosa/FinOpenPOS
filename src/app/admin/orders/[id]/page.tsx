@@ -36,6 +36,9 @@ import {
   MinusIcon,
   TrashIcon,
 } from "lucide-react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type OrderStatus = "open" | "closed" | "cancelled";
 
@@ -71,18 +74,30 @@ type PaymentMethod = {
   name: string;
 };
 
+async function fetchOrder(orderId: number): Promise<Order> {
+  const res = await fetch(`/api/orders/${orderId}`);
+  if (!res.ok) throw new Error("No se pudo cargar la cuenta");
+  return res.json();
+}
+
+async function fetchProducts(): Promise<Product[]> {
+  const res = await fetch("/api/products");
+  if (!res.ok) throw new Error("No se pudieron cargar los productos");
+  return res.json();
+}
+
+async function fetchPaymentMethods(): Promise<PaymentMethod[]> {
+  const res = await fetch("/api/payment-methods?onlyActive=true&scope=BAR");
+  if (!res.ok) throw new Error("No se pudieron cargar los métodos de pago");
+  return res.json();
+}
+
 export default function OrderDetailPage() {
   const params = useParams();
   const router = useRouter();
   const orderId = Number(params?.id);
 
   const [order, setOrder] = useState<Order | null>(null);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [savingItems, setSavingItems] = useState(false);
-  const [paying, setPaying] = useState(false);
-  const [cancelling, setCancelling] = useState(false);
 
   // UI state para agregar ítem
   const [selectedProductId, setSelectedProductId] = useState<number | "none">(
@@ -94,52 +109,305 @@ export default function OrderDetailPage() {
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<
     number | "none"
   >("none");
-  
+
+  // flags por ítem
+  const [updatingItemId, setUpdatingItemId] = useState<number | null>(null);
+  const [removingItemId, setRemovingItemId] = useState<number | null>(null);
+
+  // ---- Queries ----
+  const {
+    data: orderData,
+    isLoading: loadingOrder,
+    isError: orderError,
+  } = useQuery({
+    queryKey: ["order", orderId],
+    queryFn: () => fetchOrder(orderId),
+    enabled: !!orderId,
+  });
+
+  const {
+    data: products = [],
+    isLoading: loadingProducts,
+    isError: productsError,
+  } = useQuery({
+    queryKey: ["products"],
+    queryFn: fetchProducts,
+  });
+
+  const {
+    data: paymentMethods = [],
+    isLoading: loadingPM,
+    isError: pmError,
+  } = useQuery({
+    queryKey: ["payment-methods", "BAR"],
+    queryFn: fetchPaymentMethods,
+  });
+
+  // sincronizar order local cuando llega de la API
   useEffect(() => {
-    if (!orderId || Number.isNaN(orderId)) return;
+    if (orderData) {
+      setOrder(orderData);
+    }
+  }, [orderData]);
 
-    const fetchData = async () => {
-      try {
-        const [orderRes, productsRes, pmRes] = await Promise.all([
-          fetch(`/api/orders/${orderId}`),
-          fetch("/api/products"),
-          fetch("/api/payment-methods?onlyActive=true&scope=BAR"),
-        ]);
+  // toasts de error de carga
+  useEffect(() => {
+    if (orderError) toast.error("Error al cargar la cuenta.");
+  }, [orderError]);
 
-        if (!orderRes.ok) throw new Error("Failed to fetch order");
-        const orderData = await orderRes.json();
+  useEffect(() => {
+    if (productsError) toast.error("Error al cargar los productos.");
+  }, [productsError]);
 
-        let productsData: Product[] = [];
-        if (productsRes.ok) {
-          productsData = await productsRes.json();
-        }
+  useEffect(() => {
+    if (pmError) toast.error("Error al cargar los métodos de pago.");
+  }, [pmError]);
 
-        let pmData: PaymentMethod[] = [];
-        if (pmRes.ok) {
-          pmData = await pmRes.json();
-        }
-
-        setOrder(orderData);
-        setProducts(productsData);
-        setPaymentMethods(pmData);
-      } catch (err) {
-        console.error("Error fetching order detail:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [orderId]);
+  // Order para mostrar en UI: estado local (optimistic) o, si todavía no, lo que vino del server
+  const displayOrder = order ?? orderData ?? null;
+  const isOrderOpen = displayOrder?.status === "open";
 
   const computedTotal = useMemo(() => {
-    if (!order) return 0;
-    if (!order.items || order.items.length === 0) return 0;
-    return order.items.reduce(
+    if (!displayOrder) return 0;
+    if (!displayOrder.items || displayOrder.items.length === 0) return 0;
+    return displayOrder.items.reduce(
       (sum, item) => sum + item.unit_price * item.quantity,
       0
     );
-  }, [order]);
+  }, [displayOrder]);
+
+  // ---- Mutations con UI-first ----
+
+  // Agregar ítem
+  const addItemMutation = useMutation({
+    mutationFn: async (params: { productId: number; quantity: number }) => {
+      const res = await fetch(`/api/orders/${orderId}/items`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productId: params.productId,
+          quantity: params.quantity,
+        }),
+      });
+      if (!res.ok) {
+        throw new Error("Error agregando ítem");
+      }
+      return (await res.json()) as Order;
+    },
+    onMutate: ({ productId, quantity }) => {
+      if (!order && !orderData) return { previousOrder: null };
+
+      const previousOrder = order ?? orderData!;
+      const product = products.find((p) => p.id === productId);
+      if (!product) return { previousOrder };
+
+      // id temporal negativo
+      const tempId =
+        -Math.floor(Math.random() * 1_000_000) -
+        (previousOrder.items.length ? previousOrder.items.length : 0);
+
+      const optimisticItem: OrderItem = {
+        id: tempId,
+        product_id: product.id,
+        quantity,
+        unit_price: product.price,
+        product: { name: product.name },
+      };
+
+      setOrder({
+        ...previousOrder,
+        items: [...previousOrder.items, optimisticItem],
+      });
+
+      setSelectedProductId("none");
+      setNewItemQty("");
+
+      return { previousOrder };
+    },
+    onError: (err, _vars, ctx) => {
+      if (ctx?.previousOrder) {
+        setOrder(ctx.previousOrder);
+      }
+      toast.error(
+        err instanceof Error ? err.message : "Error agregando ítem."
+      );
+    },
+    onSuccess: (updatedOrder) => {
+      // sincronizamos con lo que diga el backend
+      setOrder(updatedOrder);
+    },
+  });
+
+  // Actualizar cantidad
+  const updateItemMutation = useMutation({
+    mutationFn: async (params: { item: OrderItem; newQty: number }) => {
+      const { item, newQty } = params;
+      const res = await fetch(`/api/orders/${orderId}/items/${item.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          itemId: item.id,
+          quantity: newQty,
+        }),
+      });
+      if (!res.ok) {
+        throw new Error("Error actualizando ítem");
+      }
+      return (await res.json()) as Order;
+    },
+    onMutate: ({ item, newQty }) => {
+      if (!order && !orderData) return { previousOrder: null };
+      const previousOrder = order ?? orderData!;
+
+      setUpdatingItemId(item.id);
+
+      setOrder({
+        ...previousOrder,
+        items: previousOrder.items.map((i) =>
+          i.id === item.id ? { ...i, quantity: newQty } : i
+        ),
+      });
+
+      return { previousOrder };
+    },
+    onError: (err, _vars, ctx) => {
+      if (ctx?.previousOrder) {
+        setOrder(ctx.previousOrder);
+      }
+      setUpdatingItemId(null);
+      toast.error(
+        err instanceof Error ? err.message : "Error actualizando ítem."
+      );
+    },
+    onSuccess: (updatedOrder) => {
+      setOrder(updatedOrder);
+      setUpdatingItemId(null);
+    },
+  });
+
+  // Eliminar ítem
+  const removeItemMutation = useMutation({
+    mutationFn: async (item: OrderItem) => {
+      const res = await fetch(`/api/orders/${orderId}/items/${item.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        throw new Error("Error eliminando ítem");
+      }
+      return (await res.json()) as Order;
+    },
+    onMutate: (item) => {
+      if (!order && !orderData) return { previousOrder: null };
+      const previousOrder = order ?? orderData!;
+
+      setRemovingItemId(item.id);
+
+      setOrder({
+        ...previousOrder,
+        items: previousOrder.items.filter((i) => i.id !== item.id),
+      });
+
+      return { previousOrder };
+    },
+    onError: (err, _vars, ctx) => {
+      if (ctx?.previousOrder) {
+        setOrder(ctx.previousOrder);
+      }
+      setRemovingItemId(null);
+      toast.error(
+        err instanceof Error ? err.message : "Error eliminando ítem."
+      );
+    },
+    onSuccess: (updatedOrder) => {
+      setOrder(updatedOrder);
+      setRemovingItemId(null);
+    },
+  });
+
+  // Cancelar cuenta
+  const cancelOrderMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/orders/${orderId}/cancel`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        throw new Error("Error al cancelar la cuenta");
+      }
+      return (await res.json()) as Order;
+    },
+    onMutate: () => {
+      if (!order && !orderData) return { previousOrder: null };
+      const previousOrder = order ?? orderData!;
+
+      setOrder({
+        ...previousOrder,
+        status: "cancelled",
+      });
+
+      return { previousOrder };
+    },
+    onError: (err, _vars, ctx) => {
+      if (ctx?.previousOrder) {
+        setOrder(ctx.previousOrder);
+      }
+      toast.error(
+        err instanceof Error ? err.message : "Error al cancelar la cuenta."
+      );
+    },
+    onSuccess: (updatedOrder) => {
+      setOrder(updatedOrder);
+      toast.success("Cuenta cancelada.");
+    },
+  });
+
+  // Cobrar cuenta
+  const payOrderMutation = useMutation({
+    mutationFn: async (params: { paymentMethodId: number; amount: number }) => {
+      const res = await fetch(`/api/orders/${orderId}/pay`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paymentMethodId: params.paymentMethodId,
+          amount: params.amount,
+        }),
+      });
+      if (!res.ok) {
+        throw new Error("Error al cobrar la cuenta");
+      }
+      return (await res.json()) as Order;
+    },
+    onMutate: ({ amount }) => {
+      if (!order && !orderData) return { previousOrder: null };
+      const previousOrder = order ?? orderData!;
+
+      setOrder({
+        ...previousOrder,
+        status: "closed",
+        total_amount: amount,
+      });
+
+      return { previousOrder };
+    },
+    onError: (err, _vars, ctx) => {
+      if (ctx?.previousOrder) {
+        setOrder(ctx.previousOrder);
+      }
+      toast.error(
+        err instanceof Error ? err.message : "Error al cobrar la cuenta."
+      );
+    },
+    onSuccess: (updatedOrder) => {
+      setOrder(updatedOrder);
+      toast.success("Cuenta cobrada y cerrada.");
+      // si querés redirigir:
+      // router.push("/admin/orders");
+    },
+  });
+
+  // flags combinados
+  const savingItemsAdd = addItemMutation.isPending;
+  const paying = payOrderMutation.isPending;
+  const cancelling = cancelOrderMutation.isPending;
 
   const getStatusBadge = (status: OrderStatus) => {
     switch (status) {
@@ -162,208 +430,122 @@ export default function OrderDetailPage() {
     }
   };
 
-  const handleAddItem = useCallback(async () => {
-    if (!order || !orderId) return;
+  const handleAddItem = useCallback(() => {
+    if (!displayOrder || !orderId) return;
+
     if (selectedProductId === "none") {
-      console.error("Elegí un producto");
+      toast.error("Elegí un producto.");
       return;
     }
 
     const qty =
       typeof newItemQty === "string" ? Number(newItemQty) : newItemQty;
+
     if (!qty || qty <= 0) {
-      console.error("Cantidad inválida");
+      toast.error("Cantidad inválida.");
       return;
     }
 
-    try {
-      setSavingItems(true);
+    const productIdNumber = Number(selectedProductId);
 
-      const payload = {
-        productId: Number(selectedProductId),
-        quantity: qty,
-      };
+    // Buscar si ya existe un item con ese producto en la orden
+    const existingItem = displayOrder.items.find(
+      (i) => i.product_id === productIdNumber
+    );
 
-      const res = await fetch(`/api/orders/${orderId}/items`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+    if (existingItem) {
+      // Si existe, sumamos la cantidad al mismo ítem
+      updateItemMutation.mutate({
+        item: existingItem,
+        newQty: existingItem.quantity + qty,
       });
 
-      if (!res.ok) {
-        console.error("Error agregando ítem");
-        return;
-      }
-
-      const updatedOrder: Order = await res.json();
-      setOrder(updatedOrder);
+      // limpiamos UI
       setSelectedProductId("none");
       setNewItemQty("");
-    } catch (err) {
-      console.error("Error agregando ítem:", err);
-    } finally {
-      setSavingItems(false);
+      return;
     }
-  }, [order, orderId, selectedProductId, newItemQty]);
+
+    // Si no existe, creamos un nuevo order_item
+    addItemMutation.mutate({
+      productId: productIdNumber,
+      quantity: qty,
+    });
+  }, [
+    displayOrder,
+    orderId,
+    selectedProductId,
+    newItemQty,
+    addItemMutation,
+    updateItemMutation,
+  ]);
 
   const updateItemQuantity = useCallback(
-    async (item: OrderItem, newQty: number) => {
-      if (!order || !orderId) return;
+    (item: OrderItem, newQty: number) => {
+      if (!displayOrder || !orderId) return;
       if (newQty <= 0) {
-        // Podríamos borrar el ítem si qty <= 0
-        await removeItem(item);
+        removeItemMutation.mutate(item);
         return;
       }
 
-      try {
-        setSavingItems(true);
-
-        const payload = {
-          itemId: item.id,
-          quantity: newQty,
-        };
-
-        const res = await fetch(`/api/orders/${orderId}/items/${item.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-
-        if (!res.ok) {
-          console.error("Error actualizando ítem");
-          return;
-        }
-
-        const updatedOrder: Order = await res.json();
-        setOrder(updatedOrder);
-      } catch (err) {
-        console.error("Error actualizando ítem:", err);
-      } finally {
-        setSavingItems(false);
-      }
+      updateItemMutation.mutate({ item, newQty });
     },
-    [order, orderId]
+    [displayOrder, orderId, updateItemMutation, removeItemMutation]
   );
 
   const removeItem = useCallback(
-    async (item: OrderItem) => {
-      if (!order || !orderId) return;
-
-      try {
-        setSavingItems(true);
-
-        const res = await fetch(
-          `/api/orders/${orderId}/items/${item.id}`,
-          {
-            method: "DELETE",
-          }
-        );
-
-        if (!res.ok) {
-          console.error("Error eliminando ítem");
-          return;
-        }
-
-        const updatedOrder: Order = await res.json();
-        setOrder(updatedOrder);
-      } catch (err) {
-        console.error("Error eliminando ítem:", err);
-      } finally {
-        setSavingItems(false);
-      }
+    (item: OrderItem) => {
+      if (!displayOrder || !orderId) return;
+      removeItemMutation.mutate(item);
     },
-    [order, orderId]
+    [displayOrder, orderId, removeItemMutation]
   );
 
-  const handleCancel = useCallback(async () => {
-    if (!order || !orderId) return;
-    if (order.status !== "open") {
-      console.error("La cuenta no está abierta");
+  const handleCancel = useCallback(() => {
+    if (!displayOrder || !orderId) return;
+    if (displayOrder.status !== "open") {
+      toast.error("La cuenta no está abierta.");
       return;
     }
 
-    try {
-      setCancelling(true);
+    cancelOrderMutation.mutate();
+  }, [displayOrder, orderId, cancelOrderMutation]);
 
-      const res = await fetch(`/api/orders/${orderId}/cancel`, {
-        method: "POST",
-      });
-
-      if (!res.ok) {
-        console.error("Error al cancelar la cuenta");
-        return;
-      }
-
-      const updatedOrder: Order = await res.json();
-      setOrder(updatedOrder);
-    } catch (err) {
-      console.error("Error al cancelar la cuenta:", err);
-    } finally {
-      setCancelling(false);
-    }
-  }, [order, orderId]);
-
-
-  const handlePay = useCallback(async () => {
-    if (!order || !orderId) return;
-    if (order.status !== "open") {
-      console.error("La cuenta no está abierta");
+  const handlePay = useCallback(() => {
+    if (!displayOrder || !orderId) return;
+    if (displayOrder.status !== "open") {
+      toast.error("La cuenta no está abierta.");
       return;
     }
 
-    if (order.items.length === 0) {
-      console.error("No se puede cobrar una cuenta vacía");
+    if (displayOrder.items.length === 0) {
+      toast.error("No se puede cobrar una cuenta vacía.");
       return;
     }
 
     if (selectedPaymentMethodId === "none") {
-      console.error("Elegí un método de pago");
+      toast.error("Elegí un método de pago.");
       return;
     }
 
-    try {
-      setPaying(true);
-
-      const payload = {
-        paymentMethodId: Number(selectedPaymentMethodId),
-        amount: computedTotal,
-      };
-
-      const res = await fetch(`/api/orders/${orderId}/pay`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        console.error("Error al cobrar la cuenta");
-        return;
-      }
-
-      const updatedOrder: Order = await res.json();
-      setOrder(updatedOrder);
-      // podrías redirigir de vuelta a /orders si querés:
-      // router.push("/orders");
-    } catch (err) {
-      console.error("Error al cobrar:", err);
-    } finally {
-      setPaying(false);
-    }
-  }, [order, orderId, selectedPaymentMethodId, computedTotal]);
+    payOrderMutation.mutate({
+      paymentMethodId: Number(selectedPaymentMethodId),
+      amount: computedTotal,
+    });
+  }, [
+    displayOrder,
+    orderId,
+    selectedPaymentMethodId,
+    computedTotal,
+    payOrderMutation,
+  ]);
 
   if (!orderId || Number.isNaN(orderId)) {
     return <div>Invalid order id</div>;
   }
 
-  if (loading) {
-    return (
-      <div className="h-[80vh] flex items-center justify-center">
-        <Loader2Icon className="mx-auto h-12 w-12 animate-spin" />
-      </div>
-    );
-  }
-
-  if (!order) {
+  // Si terminó de cargar y no hay cuenta → mensaje de no encontrado
+  if (!displayOrder && !loadingOrder) {
     return (
       <div className="p-6">
         <Button
@@ -382,6 +564,7 @@ export default function OrderDetailPage() {
 
   return (
     <div className="flex flex-col gap-4 p-4">
+      {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Button
@@ -392,18 +575,32 @@ export default function OrderDetailPage() {
             <ArrowLeftIcon className="w-4 h-4 mr-2" />
             Volver
           </Button>
-          <h1 className="text-xl font-semibold">
-            Cuenta #{order.id}{" "}
-            <span className="text-sm text-muted-foreground">
-              {order.customer?.name ?? "Sin nombre"}
-            </span>
+          <h1 className="text-xl font-semibold flex items-center gap-2">
+            {loadingOrder && !displayOrder ? (
+              <Skeleton className="h-6 w-40" />
+            ) : (
+              <>
+                Cuenta #{displayOrder?.id}{" "}
+                <span className="text-sm text-muted-foreground">
+                  {displayOrder?.customer?.name ?? "Sin nombre"}
+                </span>
+              </>
+            )}
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          {getStatusBadge(order.status)}
-          <span className="text-xs text-muted-foreground">
-            {new Date(order.created_at).toLocaleString()}
-          </span>
+          {loadingOrder && !displayOrder ? (
+            <Skeleton className="h-4 w-40" />
+          ) : (
+            <>
+              {displayOrder && getStatusBadge(displayOrder.status)}
+              {displayOrder && (
+                <span className="text-xs text-muted-foreground">
+                  {new Date(displayOrder.created_at).toLocaleString()}
+                </span>
+              )}
+            </>
+          )}
         </div>
       </div>
 
@@ -429,62 +626,100 @@ export default function OrderDetailPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {order.items.length === 0 && (
+                  {loadingOrder && !displayOrder ? (
+                    // Skeleton rows mientras carga la order
+                    <>
+                      {[1, 2, 3].map((i) => (
+                        <TableRow key={i}>
+                          <TableCell>
+                            <Skeleton className="h-4 w-32" />
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Skeleton className="h-7 w-7" />
+                              <Skeleton className="h-4 w-8" />
+                              <Skeleton className="h-7 w-7" />
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-4 w-16" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-4 w-16" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-4 w-4" />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </>
+                  ) : displayOrder && displayOrder.items.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center py-6">
                         No hay productos en la cuenta.
                       </TableCell>
                     </TableRow>
+                  ) : (
+                    displayOrder?.items.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell>
+                          {item.product?.name ?? "Producto"}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-7 w-7"
+                              disabled={
+                                !isOrderOpen ||
+                                updatingItemId === item.id ||
+                                removingItemId === item.id
+                              }
+                              onClick={() =>
+                                updateItemQuantity(item, item.quantity - 1)
+                              }
+                            >
+                              <MinusIcon className="w-3 h-3" />
+                            </Button>
+                            <span className="w-8 text-center">
+                              {item.quantity}
+                            </span>
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-7 w-7"
+                              disabled={
+                                !isOrderOpen ||
+                                updatingItemId === item.id ||
+                                removingItemId === item.id
+                              }
+                              onClick={() =>
+                                updateItemQuantity(item, item.quantity + 1)
+                              }
+                            >
+                              <PlusIcon className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                        <TableCell>${item.unit_price.toFixed(2)}</TableCell>
+                        <TableCell>
+                          ${(item.unit_price * item.quantity).toFixed(2)}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            disabled={!isOrderOpen || removingItemId === item.id}
+                            onClick={() => removeItem(item)}
+                          >
+                            <TrashIcon className="w-4 h-4" />
+                            <span className="sr-only">Eliminar</span>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
                   )}
-                  {order.items.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>{item.product?.name ?? "Producto"}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            size="icon"
-                            variant="outline"
-                            className="h-7 w-7"
-                            disabled={savingItems || order.status !== "open"}
-                            onClick={() =>
-                              updateItemQuantity(item, item.quantity - 1)
-                            }
-                          >
-                            <MinusIcon className="w-3 h-3" />
-                          </Button>
-                          <span className="w-8 text-center">
-                            {item.quantity}
-                          </span>
-                          <Button
-                            size="icon"
-                            variant="outline"
-                            className="h-7 w-7"
-                            disabled={savingItems || order.status !== "open"}
-                            onClick={() =>
-                              updateItemQuantity(item, item.quantity + 1)
-                            }
-                          >
-                            <PlusIcon className="w-3 h-3" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                      <TableCell>${item.unit_price.toFixed(2)}</TableCell>
-                      <TableCell>
-                        ${(item.unit_price * item.quantity).toFixed(2)}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          disabled={savingItems || order.status !== "open"}
-                          onClick={() => removeItem(item)}
-                        >
-                          <TrashIcon className="w-4 h-4" />
-                          <span className="sr-only">Eliminar</span>
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
                 </TableBody>
               </Table>
             </div>
@@ -503,10 +738,16 @@ export default function OrderDetailPage() {
                     if (value === "none") setSelectedProductId("none");
                     else setSelectedProductId(Number(value));
                   }}
-                  disabled={order.status !== "open"}
+                  disabled={!isOrderOpen || loadingProducts}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Elegir producto" />
+                    <SelectValue
+                      placeholder={
+                        loadingProducts
+                          ? "Cargando productos..."
+                          : "Elegir producto"
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Seleccionar...</SelectItem>
@@ -524,7 +765,7 @@ export default function OrderDetailPage() {
                   type="number"
                   min={1}
                   value={newItemQty}
-                  disabled={order.status !== "open"}
+                  disabled={!isOrderOpen}
                   onChange={(e) =>
                     setNewItemQty(
                       e.target.value === "" ? "" : Number(e.target.value)
@@ -536,12 +777,12 @@ export default function OrderDetailPage() {
                 className="mt-6"
                 onClick={handleAddItem}
                 disabled={
-                  savingItems ||
-                  order.status !== "open" ||
+                  savingItemsAdd ||
+                  !isOrderOpen ||
                   selectedProductId === "none"
                 }
               >
-                {savingItems && (
+                {savingItemsAdd && (
                   <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
                 )}
                 Agregar
@@ -559,14 +800,29 @@ export default function OrderDetailPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex justify-between text-sm">
-              <span>Subtotal</span>
-              <span>${computedTotal.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-base font-semibold">
-              <span>Total</span>
-              <span>${computedTotal.toFixed(2)}</span>
-            </div>
+            {loadingOrder && !displayOrder ? (
+              <>
+                <div className="flex justify-between text-sm">
+                  <span>Subtotal</span>
+                  <Skeleton className="h-4 w-16" />
+                </div>
+                <div className="flex justify-between text-base font-semibold">
+                  <span>Total</span>
+                  <Skeleton className="h-5 w-20" />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex justify-between text-sm">
+                  <span>Subtotal</span>
+                  <span>${computedTotal.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-base font-semibold">
+                  <span>Total</span>
+                  <span>${computedTotal.toFixed(2)}</span>
+                </div>
+              </>
+            )}
 
             <div className="h-px bg-border my-2" />
 
@@ -582,10 +838,16 @@ export default function OrderDetailPage() {
                   if (value === "none") setSelectedPaymentMethodId("none");
                   else setSelectedPaymentMethodId(Number(value));
                 }}
-                disabled={order.status !== "open"}
+                disabled={!isOrderOpen || loadingPM}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Elegí método de pago" />
+                  <SelectValue
+                    placeholder={
+                      loadingPM
+                        ? "Cargando métodos de pago..."
+                        : "Elegí método de pago"
+                    }
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Seleccionar...</SelectItem>
@@ -603,8 +865,9 @@ export default function OrderDetailPage() {
               className="w-full"
               disabled={
                 paying ||
-                order.status !== "open" ||
-                order.items.length === 0 ||
+                !isOrderOpen ||
+                !displayOrder ||
+                displayOrder.items.length === 0 ||
                 selectedPaymentMethodId === "none"
               }
               onClick={handlePay}
@@ -618,7 +881,7 @@ export default function OrderDetailPage() {
             <Button
               className="w-full"
               variant="outline"
-              disabled={cancelling || paying || order.status !== "open"}
+              disabled={cancelling || paying || !isOrderOpen}
               onClick={handleCancel}
             >
               {cancelling && (
@@ -627,9 +890,10 @@ export default function OrderDetailPage() {
               Cancelar cuenta
             </Button>
 
-            {order.status !== "open" && (
+            {displayOrder && displayOrder.status !== "open" && (
               <p className="text-xs text-muted-foreground text-center">
-                Esta cuenta ya está {order.status === "closed" ? "pagada" : "cancelada"}.
+                Esta cuenta ya está{" "}
+                {displayOrder.status === "closed" ? "pagada" : "cancelada"}.
               </p>
             )}
           </CardFooter>

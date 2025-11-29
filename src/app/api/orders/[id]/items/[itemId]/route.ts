@@ -41,7 +41,8 @@ async function getOrderWithItems(
         product:product_id ( name )
       `
     )
-    .eq("order_id", orderId);
+    .eq("order_id", orderId)
+    .order("id", { ascending: true });
 
   if (itemsError) {
     throw new Error("Error fetching order items");

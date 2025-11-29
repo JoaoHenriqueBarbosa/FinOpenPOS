@@ -52,6 +52,44 @@ export async function POST(request: Request) {
 
   const { customerId } = await request.json();
 
+  // 🔒 Validación: siempre tiene que venir un customerId
+  if (!customerId) {
+    return NextResponse.json(
+      { error: 'customerId is required' },
+      { status: 400 }
+    );
+  }
+
+  // 🔒 Chequear si ya existe una cuenta OPEN para ese cliente y usuario
+  const { data: existingOpenOrders, error: existingError } = await supabase
+    .from('orders')
+    .select('id')
+    .eq('user_uid', user.id)
+    .eq('customer_id', customerId)
+    .eq('status', 'open')
+    .limit(1);
+
+  if (existingError) {
+    console.error('Error checking existing open orders:', existingError);
+    return NextResponse.json(
+      { error: 'Error checking existing open orders' },
+      { status: 500 }
+    );
+  }
+
+  if (existingOpenOrders && existingOpenOrders.length > 0) {
+    // ⚠️ Ya hay una cuenta abierta para este cliente
+    const existingOrder = existingOpenOrders[0];
+    return NextResponse.json(
+      {
+        error: 'Customer already has an open order',
+        orderId: existingOrder.id,
+      },
+      { status: 409 }
+    );
+  }
+
+  // ✅ Crear nueva orden
   const { data, error } = await supabase
     .from('orders')
     .insert({
