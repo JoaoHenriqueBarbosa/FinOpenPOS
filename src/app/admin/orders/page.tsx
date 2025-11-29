@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   Card,
   CardHeader,
@@ -35,7 +35,14 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Loader2Icon, PlusIcon, SearchIcon, FilePenIcon } from "lucide-react";
+import { Label } from "@/components/ui/label";
 import Link from "next/link";
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { toast } from "sonner";
 
 type OrderStatus = "open" | "closed" | "cancelled";
 
@@ -50,53 +57,77 @@ type Order = {
   } | null;
 };
 
+type CustomerStatus = "active" | "inactive";
+
 type Customer = {
   id: number;
   name: string;
+  email?: string | null;
+  phone?: string | null;
+  status?: CustomerStatus;
 };
 
+// ---- fetchers ----
+async function fetchOrders(): Promise<Order[]> {
+  const res = await fetch("/api/orders");
+  if (!res.ok) throw new Error("Error al cargar las cuentas");
+  return res.json();
+}
+
+async function fetchCustomers(): Promise<Customer[]> {
+  const res = await fetch("/api/customers?onlyActive=true");
+  if (!res.ok) throw new Error("Error al cargar los clientes");
+  return res.json();
+}
+
 export default function OrdersPage() {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | OrderStatus>("open");
 
   const [isNewOrderDialogOpen, setIsNewOrderDialogOpen] = useState(false);
-  const [selectedCustomerId, setSelectedCustomerId] = useState<number | "none">(
-    "none"
-  );
+  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
   const [creatingOrder, setCreatingOrder] = useState(false);
 
+  // Popup rápido para nuevo cliente
+  const [isNewCustomerDialogOpen, setIsNewCustomerDialogOpen] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState("");
+  const [newCustomerEmail, setNewCustomerEmail] = useState("");
+  const [newCustomerPhone, setNewCustomerPhone] = useState("");
+  const [newCustomerStatus, setNewCustomerStatus] =
+    useState<CustomerStatus>("active");
+  const [creatingCustomer, setCreatingCustomer] = useState(false);
+
+  // ---- Queries ----
+  const {
+    data: orders = [],
+    isLoading: loadingOrders,
+    isError: ordersError,
+  } = useQuery({
+    queryKey: ["orders"],
+    queryFn: fetchOrders,
+  });
+
+  const {
+    data: customers = [],
+    isLoading: loadingCustomers,
+    isError: customersError,
+  } = useQuery({
+    queryKey: ["customers", "onlyActive"],
+    queryFn: fetchCustomers,
+  });
+
+  // toasts de error de carga
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [ordersRes, customersRes] = await Promise.all([
-          fetch("/api/orders"),
-          fetch("/api/customers?onlyActive=true"),
-        ]);
+    if (ordersError) toast.error("Error al cargar las cuentas.");
+  }, [ordersError]);
 
-        if (!ordersRes.ok) throw new Error("Failed to fetch orders");
-        const ordersData = await ordersRes.json();
+  useEffect(() => {
+    if (customersError) toast.error("Error al cargar los clientes.");
+  }, [customersError]);
 
-        let customersData: Customer[] = [];
-        if (customersRes.ok) {
-          customersData = await customersRes.json();
-        }
-
-        setOrders(ordersData);
-        setCustomers(customersData);
-      } catch (err) {
-        console.error("Error fetching orders/customers:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
-
+  // ---- Filtro en memoria ----
   const filteredOrders = orders.filter((order) => {
     if (statusFilter !== "all" && order.status !== statusFilter) return false;
 
@@ -115,45 +146,192 @@ export default function OrdersPage() {
       case "open":
         return <Badge variant="outline">Open</Badge>;
       case "closed":
-        return <Badge className="bg-green-500/10 text-green-600 border-green-500/30">Paid</Badge>;
+        return (
+          <Badge className="bg-green-500/10 text-green-600 border-green-500/30">
+            Paid
+          </Badge>
+        );
       case "cancelled":
-        return <Badge className="bg-red-500/10 text-red-600 border-red-500/30">Cancelled</Badge>;
+        return (
+          <Badge className="bg-red-500/10 text-red-600 border-red-500/30">
+            Cancelled
+          </Badge>
+        );
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
   };
 
-  const handleCreateOrder = useCallback(async () => {
-    try {
-      setCreatingOrder(true);
+  // ---- Mutations ----
 
-      const payload: { customerId: number | null } = {
-        customerId: selectedCustomerId === "none" ? null : Number(selectedCustomerId),
-      };
-
+  // Crear cuenta
+  const createOrderMutation = useMutation({
+    mutationFn: async (payload: { customerId: number | null }) => {
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-
       if (!res.ok) {
-        console.error("Failed to create order");
-        return;
+        throw new Error("Error al crear la cuenta");
       }
+      return (await res.json()) as Order;
+    },
+    onMutate: async (payload) => {
+      setCreatingOrder(true);
 
-      const newOrder: Order = await res.json();
-      setOrders((prev) => [newOrder, ...prev]);
-      setIsNewOrderDialogOpen(false);
-      setSelectedCustomerId("none");
-    } catch (err) {
-      console.error("Error creating order:", err);
-    } finally {
+      await queryClient.cancelQueries({ queryKey: ["orders"] });
+
+      const previousOrders =
+        queryClient.getQueryData<Order[]>(["orders"]) ?? [];
+
+      // Podríamos hacer un optimista completo con id temporal,
+      // pero como después igual vamos a reemplazar con el real,
+      // acá solo devolvemos el snapshot por si hay que hacer rollback.
+      return { previousOrders };
+    },
+    onError: (err, _vars, ctx) => {
+      if (ctx?.previousOrders) {
+        queryClient.setQueryData(["orders"], ctx.previousOrders);
+      }
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Error al crear la cuenta."
+      );
       setCreatingOrder(false);
-    }
-  }, [selectedCustomerId]);
+    },
+    onSuccess: (newOrder) => {
+      queryClient.setQueryData<Order[]>(["orders"], (old) => [
+        newOrder,
+        ...(old ?? []),
+      ]);
+      toast.success("Cuenta creada.");
+      setIsNewOrderDialogOpen(false);
+      setSelectedCustomerId(null);
+      setCreatingOrder(false);
+    },
+  });
 
-  if (loading) {
+  const handleCreateOrder = useCallback(() => {
+    if (!selectedCustomerId) {
+      toast.error("Debe seleccionar un cliente.");
+      return;
+    }
+
+    createOrderMutation.mutate({
+      customerId: selectedCustomerId,
+    });
+  }, [selectedCustomerId, createOrderMutation]);
+
+  // Crear cliente rápido
+  const createCustomerMutation = useMutation({
+    mutationFn: async (payload: {
+      name: string;
+      email: string | null;
+      phone: string | null;
+      status: CustomerStatus;
+    }) => {
+      const res = await fetch("/api/customers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        throw new Error("Error creando cliente");
+      }
+      return (await res.json()) as Customer;
+    },
+    onMutate: async (payload) => {
+      setCreatingCustomer(true);
+      await queryClient.cancelQueries({ queryKey: ["customers", "onlyActive"] });
+
+      const previousCustomers =
+        queryClient.getQueryData<Customer[]>(["customers", "onlyActive"]) ?? [];
+
+      // Optimista: agregamos uno "fake" mientras tanto
+      const tempId = -Math.floor(Math.random() * 1_000_000);
+      const optimisticCustomer: Customer = {
+        id: tempId,
+        name: payload.name,
+        email: payload.email,
+        phone: payload.phone,
+        status: payload.status,
+      };
+
+      queryClient.setQueryData<Customer[]>(
+        ["customers", "onlyActive"],
+        (old) => [optimisticCustomer, ...(old ?? [])]
+      );
+
+      // seleccionamos ya al cliente nuevo en el select
+      setSelectedCustomerId(tempId);
+
+      return { previousCustomers, tempId };
+    },
+    onError: (err, _vars, ctx) => {
+      if (ctx?.previousCustomers) {
+        queryClient.setQueryData(
+          ["customers", "onlyActive"],
+          ctx.previousCustomers
+        );
+      }
+      toast.error(
+        err instanceof Error ? err.message : "Error creando cliente."
+      );
+      setCreatingCustomer(false);
+    },
+    onSuccess: (newCustomer, _vars, ctx) => {
+      // Reemplazamos el temp por el real
+      queryClient.setQueryData<Customer[]>(
+        ["customers", "onlyActive"],
+        (old) => {
+          const list = old ?? [];
+          if (!ctx?.tempId) return [newCustomer, ...list];
+          return [
+            newCustomer,
+            ...list.filter((c) => c.id !== ctx.tempId),
+          ];
+        }
+      );
+
+      setSelectedCustomerId(newCustomer.id);
+      toast.success("Cliente creado.");
+
+      // Cerrar popup y limpiar form
+      setIsNewCustomerDialogOpen(false);
+      setNewCustomerName("");
+      setNewCustomerEmail("");
+      setNewCustomerPhone("");
+      setNewCustomerStatus("active");
+      setCreatingCustomer(false);
+    },
+  });
+
+  const handleCreateCustomer = useCallback(() => {
+    const name = newCustomerName.trim();
+    if (!name) {
+      toast.error("El nombre del cliente es obligatorio.");
+      return;
+    }
+
+    createCustomerMutation.mutate({
+      name,
+      email: newCustomerEmail || null,
+      phone: newCustomerPhone || null,
+      status: newCustomerStatus,
+    });
+  }, [
+    newCustomerName,
+    newCustomerEmail,
+    newCustomerPhone,
+    newCustomerStatus,
+    createCustomerMutation,
+  ]);
+
+  const globalLoading = loadingOrders || loadingCustomers;
+
+  if (globalLoading) {
     return (
       <div className="h-[80vh] flex items-center justify-center">
         <Loader2Icon className="mx-auto h-12 w-12 animate-spin" />
@@ -277,36 +455,42 @@ export default function OrdersPage() {
           <DialogHeader>
             <DialogTitle>Abrir nueva cuenta</DialogTitle>
             <DialogDescription>
-              Seleccioná el cliente para asociar la cuenta del buffet. Podés
-              dejarla sin cliente si es algo rápido.
+              Seleccioná el cliente para asociar la cuenta del buffet.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
               <span className="text-right text-sm font-medium">Cliente</span>
-              <Select
-                value={
-                  selectedCustomerId === "none"
-                    ? "none"
-                    : String(selectedCustomerId)
-                }
-                onValueChange={(value) => {
-                  if (value === "none") setSelectedCustomerId("none");
-                  else setSelectedCustomerId(Number(value));
-                }}
-              >
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Seleccionar cliente" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Sin cliente</SelectItem>
-                  {customers.map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="col-span-3 flex items-center gap-2">
+                <Select
+                  value={selectedCustomerId ? String(selectedCustomerId) : ""}
+                  onValueChange={(value) => {
+                    setSelectedCustomerId(Number(value));
+                  }}
+                >
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Seleccionar cliente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customers.map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Botón para crear cliente rápido */}
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  title="Nuevo cliente"
+                  onClick={() => setIsNewCustomerDialogOpen(true)}
+                >
+                  <PlusIcon className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
           </div>
           <DialogFooter>
@@ -321,6 +505,97 @@ export default function OrdersPage() {
                 <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
               )}
               Abrir cuenta
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Popup rápido de nuevo cliente */}
+      <Dialog
+        open={isNewCustomerDialogOpen}
+        onOpenChange={(open) => {
+          setIsNewOrderDialogOpen(open);
+          if (!open) {
+            setSelectedCustomerId(null); // obligado a elegir cliente
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nuevo cliente</DialogTitle>
+            <DialogDescription>
+              Cargá rápidamente un cliente para asociarlo a la cuenta.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="newCustomerName">Nombre</Label>
+              <Input
+                id="newCustomerName"
+                className="col-span-3"
+                placeholder="Nombre del cliente"
+                value={newCustomerName}
+                onChange={(e) => setNewCustomerName(e.target.value)}
+              />
+            </div>
+
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="newCustomerEmail">Email</Label>
+              <Input
+                id="newCustomerEmail"
+                className="col-span-3"
+                placeholder="Email"
+                value={newCustomerEmail}
+                onChange={(e) => setNewCustomerEmail(e.target.value)}
+              />
+            </div>
+
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="newCustomerPhone">Teléfono</Label>
+              <Input
+                id="newCustomerPhone"
+                className="col-span-3"
+                placeholder="Teléfono"
+                value={newCustomerPhone}
+                onChange={(e) => setNewCustomerPhone(e.target.value)}
+              />
+            </div>
+
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="newCustomerStatus">Estado</Label>
+              <Select
+                value={newCustomerStatus}
+                onValueChange={(value: CustomerStatus) =>
+                  setNewCustomerStatus(value)
+                }
+              >
+                <SelectTrigger id="newCustomerStatus" className="col-span-3">
+                  <SelectValue placeholder="Seleccionar estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Activo</SelectItem>
+                  <SelectItem value="inactive">Inactivo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsNewCustomerDialogOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleCreateCustomer}
+              disabled={creatingCustomer || !newCustomerName.trim()}
+            >
+              {creatingCustomer && (
+                <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Guardar cliente
             </Button>
           </DialogFooter>
         </DialogContent>
