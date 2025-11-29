@@ -35,6 +35,7 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 type PaymentMethod = {
   id: number;
@@ -130,11 +131,13 @@ export default function CourtSlotsPage() {
   const {
     data: paymentMethods = [],
     isLoading: loadingPayments,
+    isError: isPaymentMethodsError,
   } = useQuery({
     queryKey: ["payment-methods", "COURT"],
     queryFn: fetchPaymentMethods,
     staleTime: 1000 * 60 * 5, // 5 minutos
   });
+
 
   // Slots de canchas por día (cacheados)
   const {
@@ -142,12 +145,26 @@ export default function CourtSlotsPage() {
     isLoading: loadingSlots,
     isFetching: fetchingSlots,
     refetch: refetchSlots,
+    isError: isCourtSlotsError,
   } = useQuery({
     queryKey: ["court-slots", selectedDate],
     queryFn: () => fetchCourtSlots(selectedDate),
     enabled: !!selectedDate,
     staleTime: 1000 * 60 * 2, // 2 minutos
   });
+
+  useEffect(() => {
+    if (isPaymentMethodsError) {
+      toast.error("No se pudieron cargar los métodos de pago.");
+    }
+  }, [isPaymentMethodsError]);
+
+  useEffect(() => {
+    if (isCourtSlotsError) {
+      toast.error("No se pudieron cargar los turnos de canchas.");
+    }
+  }, [isCourtSlotsError]);
+
 
   // 🔹 Cada vez que cambian los slots del server, sincronizamos el estado local
   useEffect(() => {
@@ -162,11 +179,31 @@ export default function CourtSlotsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ date }),
       });
-      if (!res.ok) throw new Error("Error generating court slots");
+
+      if (!res.ok) {
+        // opcional: leer mensaje del backend
+        let message = "Error generating court slots";
+        try {
+          const data = await res.json();
+          if (data?.message) message = data.message;
+        } catch {
+          // ignore
+        }
+        throw new Error(message);
+      }
+
       return res.json();
     },
     onSuccess: () => {
+      toast.success("Turnos generados correctamente."); // ✅ NUEVO
       queryClient.invalidateQueries({ queryKey: ["court-slots", selectedDate] });
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "No se pudieron generar los turnos del día." // ✅ NUEVO
+      );
     },
   });
 
