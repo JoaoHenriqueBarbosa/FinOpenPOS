@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   CardHeader,
@@ -30,6 +30,11 @@ import { Label } from "@/components/ui/label";
 import { Loader2Icon, CalendarIcon, RefreshCwIcon } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 type PaymentMethod = {
   id: number;
@@ -80,7 +85,6 @@ const courtPillClasses = (courtName?: string | null) => {
 };
 
 const PAYMENT_COLORS = [
-  // claros en light, suaves en dark
   "border-emerald-300 bg-emerald-50 dark:bg-emerald-900/30",
   "border-sky-300 bg-sky-50 dark:bg-sky-900/30",
   "border-amber-300 bg-amber-50 dark:bg-amber-900/30",
@@ -100,126 +104,146 @@ const paymentColorById = (
   return PAYMENT_COLORS[idx % PAYMENT_COLORS.length];
 };
 
+// ---- helpers para fetch ----
+async function fetchPaymentMethods(): Promise<PaymentMethod[]> {
+  const res = await fetch("/api/payment-methods?onlyActive=true&scope=COURT");
+  if (!res.ok) throw new Error("Failed to fetch payment methods");
+  return res.json();
+}
+
+async function fetchCourtSlots(date: string): Promise<CourtSlot[]> {
+  const res = await fetch(`/api/court-slots?date=${date}`);
+  if (!res.ok) throw new Error("Failed to fetch court slots");
+  return res.json();
+}
 
 export default function CourtSlotsPage() {
   const [selectedDate, setSelectedDate] = useState<string>(() =>
     new Date().toISOString().slice(0, 10)
   );
-  const [slots, setSlots] = useState<CourtSlot[]>([]);
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingSlots, setLoadingSlots] = useState(false);
-  const [generating, setGenerating] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const queryClient = useQueryClient();
 
-  // Cargar métodos de pago una vez + slots del día seleccionado
+  // 🔹 Estado local para que la UI responda instantáneamente
+  const [localSlots, setLocalSlots] = useState<CourtSlot[]>([]);
+
+  // Métodos de pago (cacheados)
+  const {
+    data: paymentMethods = [],
+    isLoading: loadingPayments,
+  } = useQuery({
+    queryKey: ["payment-methods", "COURT"],
+    queryFn: fetchPaymentMethods,
+    staleTime: 1000 * 60 * 5, // 5 minutos
+  });
+
+  // Slots de canchas por día (cacheados)
+  const {
+    data: slots = [],
+    isLoading: loadingSlots,
+    isFetching: fetchingSlots,
+    refetch: refetchSlots,
+  } = useQuery({
+    queryKey: ["court-slots", selectedDate],
+    queryFn: () => fetchCourtSlots(selectedDate),
+    enabled: !!selectedDate,
+    staleTime: 1000 * 60 * 2, // 2 minutos
+  });
+
+  // 🔹 Cada vez que cambian los slots del server, sincronizamos el estado local
   useEffect(() => {
-    const fetchInitial = async () => {
-      try {
-        const [pmRes] = await Promise.all([
-          fetch("/api/payment-methods?onlyActive=true&scope=COURT"),
-        ]);
+    setLocalSlots(slots);
+  }, [slots]);
 
-        if (pmRes.ok) {
-          const pmData = await pmRes.json();
-          setPaymentMethods(pmData);
-        }
-      } catch (err) {
-        console.error("Error fetching payment methods:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchInitial();
-  }, []);
-
-  const fetchSlots = useCallback(
-    async (date: string) => {
-      try {
-        setLoadingSlots(true);
-        const res = await fetch(`/api/court-slots?date=${date}`);
-        if (!res.ok) {
-          console.error("Error fetching court slots");
-          setSlots([]);
-          return;
-        }
-        const data = await res.json();
-        setSlots(data ?? []);
-      } catch (err) {
-        console.error("Error fetching court slots:", err);
-      } finally {
-        setLoadingSlots(false);
-      }
-    },
-    []
-  );
-
-  useEffect(() => {
-    if (!loading) {
-      fetchSlots(selectedDate);
-    }
-  }, [loading, selectedDate, fetchSlots]);
-
-  const handleGenerateDay = async () => {
-    try {
-      setGenerating(true);
+  // Generar turnos del día
+  const generateMutation = useMutation({
+    mutationFn: async (date: string) => {
       const res = await fetch("/api/court-slots/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: selectedDate }),
+        body: JSON.stringify({ date }),
       });
+      if (!res.ok) throw new Error("Error generating court slots");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["court-slots", selectedDate] });
+    },
+  });
 
-      if (!res.ok) {
-        console.error("Error generating court slots");
-        return;
-      }
-
-      await fetchSlots(selectedDate);
-    } catch (err) {
-      console.error("Error generating court slots:", err);
-    } finally {
-      setGenerating(false);
-    }
-  };
-
-  const updateSlotField = async (
-    slotId: number,
-    patch: Partial<CourtSlot>
-  ) => {
-    try {
-      setSaving(true);
-      const res = await fetch(`/api/court-slots/${slotId}`, {
+  // Actualizar un slot (optimistic update en cache + estado local)
+  const updateSlotMutation = useMutation({
+    mutationFn: async (params: { slotId: number; patch: Partial<CourtSlot> }) => {
+      const res = await fetch(`/api/court-slots/${params.slotId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(patch),
+        body: JSON.stringify(params.patch),
       });
+      if (!res.ok) throw new Error("Error updating court slot");
+      return (await res.json()) as CourtSlot;
+    },
+    onMutate: async ({ slotId, patch }) => {
+      await queryClient.cancelQueries({ queryKey: ["court-slots", selectedDate] });
 
-      if (!res.ok) {
-        console.error("Error updating court slot");
-        return;
+      const previous = queryClient.getQueryData<CourtSlot[]>([
+        "court-slots",
+        selectedDate,
+      ]);
+
+      // 🔹 Actualizamos cache de React Query
+      if (previous) {
+        queryClient.setQueryData<CourtSlot[]>(
+          ["court-slots", selectedDate],
+          previous.map((s) => (s.id === slotId ? { ...s, ...patch } : s))
+        );
       }
 
-      const updated: CourtSlot = await res.json();
-      setSlots((prev) =>
-        prev.map((s) => (s.id === updated.id ? updated : s))
+      // 🔹 Y dejamos que el useEffect sincronice nuevamente si hace falta
+      return { previous };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.previous) {
+        queryClient.setQueryData(["court-slots", selectedDate], ctx.previous);
+      }
+    },
+    onSuccess: (updated) => {
+      queryClient.setQueryData<CourtSlot[]>(
+        ["court-slots", selectedDate],
+        (old) => old?.map((s) => (s.id === updated.id ? updated : s)) ?? []
       );
-    } catch (err) {
-      console.error("Error updating court slot:", err);
-    } finally {
-      setSaving(false);
-    }
+    },
+  });
+
+  const handleGenerateDay = () => {
+    generateMutation.mutate(selectedDate);
+  };
+
+  const handleRefresh = () => {
+    refetchSlots();
+  };
+
+  // 🔹 Esta función ahora primero actualiza el estado local (UI instantánea)
+  const updateSlotField = (slotId: number, patch: Partial<CourtSlot>) => {
+    setLocalSlots((prev) =>
+      prev.map((slot) => (slot.id === slotId ? { ...slot, ...patch } : slot))
+    );
+
+    // Y en paralelo manda el PATCH al backend
+    updateSlotMutation.mutate({ slotId, patch });
   };
 
   const formatTime = (t: string) => t.slice(0, 5); // "HH:MM:SS" -> "HH:MM"
 
-  if (loading) {
+  const globalLoading = loadingPayments || (loadingSlots && !localSlots.length);
+
+  if (globalLoading) {
     return (
       <div className="h-[80vh] flex items-center justify-center">
         <Loader2Icon className="mx-auto h-12 w-12 animate-spin" />
       </div>
     );
   }
+
+  const saving = updateSlotMutation.isPending;
 
   return (
     <Card className="flex flex-col gap-4 p-6">
@@ -249,15 +273,19 @@ export default function CourtSlotsPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => fetchSlots(selectedDate)}
+              onClick={handleRefresh}
+              disabled={fetchingSlots}
             >
               <RefreshCwIcon className="w-4 h-4 mr-1" />
-              Refrescar
+              {fetchingSlots ? "Actualizando..." : "Refrescar"}
             </Button>
           </div>
 
-          <Button onClick={handleGenerateDay} disabled={generating}>
-            {generating && (
+          <Button
+            onClick={handleGenerateDay}
+            disabled={generateMutation.isPending}
+          >
+            {generateMutation.isPending && (
               <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
             )}
             Generar turnos del día
@@ -280,7 +308,9 @@ export default function CourtSlotsPage() {
 
           {paymentMethods.length > 0 && (
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-semibold text-foreground">Métodos de pago:</span>
+              <span className="font-semibold text-foreground">
+                Métodos de pago:
+              </span>
               {paymentMethods.map((pm, idx) => (
                 <span key={pm.id} className="inline-flex items-center gap-1">
                   <span
@@ -298,11 +328,11 @@ export default function CourtSlotsPage() {
 
         {/* Tabla de slots */}
         <div className="overflow-x-auto">
-          {loadingSlots ? (
+          {loadingSlots && !localSlots.length ? (
             <div className="h-40 flex items-center justify-center">
               <Loader2Icon className="h-8 w-8 animate-spin" />
             </div>
-          ) : slots.length === 0 ? (
+          ) : localSlots.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4">
               No hay turnos generados para esta fecha.
             </p>
@@ -321,13 +351,15 @@ export default function CourtSlotsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {slots.map((slot) => (
+                {localSlots.map((slot) => (
                   <TableRow key={slot.id}>
                     <TableCell className="text-center">
                       <Checkbox
                         checked={slot.was_played}
                         onCheckedChange={(checked) =>
-                          updateSlotField(slot.id, { was_played: Boolean(checked) })
+                          updateSlotField(slot.id, {
+                            was_played: Boolean(checked),
+                          })
                         }
                       />
                     </TableCell>
@@ -342,7 +374,11 @@ export default function CourtSlotsPage() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      {format(new Date(slot.slot_date), "EEEE dd/MM/yyyy", { locale: es }).toUpperCase()}
+                      {format(
+                        new Date(slot.slot_date),
+                        "EEEE dd/MM/yyyy",
+                        { locale: es }
+                      ).toUpperCase()}
                     </TableCell>
                     <TableCell>
                       {formatTime(slot.start_time)} -{" "}
@@ -367,7 +403,10 @@ export default function CourtSlotsPage() {
                         <SelectTrigger
                           className={`
                             text-xs
-                            ${paymentColorById(slot.player1_payment_method_id, paymentMethods)}
+                            ${paymentColorById(
+                              slot.player1_payment_method_id,
+                              paymentMethods
+                            )}
                           `}
                         >
                           <SelectValue placeholder="Método de pago" />
@@ -382,12 +421,12 @@ export default function CourtSlotsPage() {
                         </SelectContent>
                       </Select>
                     </TableCell>
-                    
+
                     {/* Jugador 2 */}
                     <TableCell className="min-w-[160px]">
                       <Select
-                        value={
-                          slot.player2_payment_method_id
+                        value=
+                          {slot.player2_payment_method_id
                             ? String(slot.player2_payment_method_id)
                             : "none"
                         }
@@ -401,7 +440,10 @@ export default function CourtSlotsPage() {
                         <SelectTrigger
                           className={`
                             text-xs
-                            ${paymentColorById(slot.player2_payment_method_id, paymentMethods)}
+                            ${paymentColorById(
+                              slot.player2_payment_method_id,
+                              paymentMethods
+                            )}
                           `}
                         >
                           <SelectValue placeholder="Método de pago" />
@@ -416,7 +458,7 @@ export default function CourtSlotsPage() {
                         </SelectContent>
                       </Select>
                     </TableCell>
-                    
+
                     {/* Jugador 3 */}
                     <TableCell className="min-w-[160px]">
                       <Select
@@ -435,7 +477,10 @@ export default function CourtSlotsPage() {
                         <SelectTrigger
                           className={`
                             text-xs
-                            ${paymentColorById(slot.player3_payment_method_id, paymentMethods)}
+                            ${paymentColorById(
+                              slot.player3_payment_method_id,
+                              paymentMethods
+                            )}
                           `}
                         >
                           <SelectValue placeholder="Método de pago" />
@@ -450,7 +495,7 @@ export default function CourtSlotsPage() {
                         </SelectContent>
                       </Select>
                     </TableCell>
-                    
+
                     {/* Jugador 4 */}
                     <TableCell className="min-w-[160px]">
                       <Select
@@ -469,7 +514,10 @@ export default function CourtSlotsPage() {
                         <SelectTrigger
                           className={`
                             text-xs
-                            ${paymentColorById(slot.player4_payment_method_id, paymentMethods)}
+                            ${paymentColorById(
+                              slot.player4_payment_method_id,
+                              paymentMethods
+                            )}
                           `}
                         >
                           <SelectValue placeholder="Método de pago" />
