@@ -43,6 +43,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 type OrderStatus = "open" | "closed" | "cancelled";
 
@@ -82,6 +83,7 @@ async function fetchCustomers(): Promise<Customer[]> {
 
 export default function OrdersPage() {
   const queryClient = useQueryClient();
+  const router = useRouter();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | OrderStatus>("open");
@@ -414,12 +416,15 @@ export default function OrdersPage() {
                   <TableHead>Estado</TableHead>
                   <TableHead>Total</TableHead>
                   <TableHead>Fecha</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredOrders.map((order) => (
-                  <TableRow key={order.id}>
+                  <TableRow 
+                    key={order.id}
+                    onClick={() => router.push(`/admin/orders/${order.id}`)}
+                    className="cursor-pointer hover:bg-muted/60"
+                  >
                     <TableCell className="font-mono text-xs">
                       #{order.id}
                     </TableCell>
@@ -431,23 +436,11 @@ export default function OrdersPage() {
                     <TableCell>
                       {new Date(order.created_at).toLocaleString()}
                     </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        asChild
-                        size="icon"
-                        variant="ghost"
-                        title="Abrir cuenta"
-                      >
-                        <Link href={`/admin/orders/${order.id}`}>
-                          <FilePenIcon className="w-4 h-4" />
-                        </Link>
-                      </Button>
-                    </TableCell>
                   </TableRow>
                 ))}
                 {filteredOrders.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-6">
+                    <TableCell colSpan={5} className="text-center py-6">
                       No hay cuentas para mostrar.
                     </TableCell>
                   </TableRow>
@@ -466,7 +459,7 @@ export default function OrdersPage() {
       <Dialog
         open={isNewOrderDialogOpen}
         onOpenChange={(open) => {
-          setIsNewOrderDialogOpen(open);
+          setIsNewCustomerDialogOpen(open);
           if (!open) {
             setSelectedCustomerId(null);
           }
