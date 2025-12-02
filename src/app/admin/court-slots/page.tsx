@@ -613,25 +613,15 @@ export default function CourtSlotsPage() {
                     onChange={(e) => setSelectedDate(e.target.value)}
                   />
                 </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleRefresh}
-                    disabled={fetchingSlots}
-                  >
-                    <RefreshCwIcon className="w-4 h-4 mr-1" />
-                    {fetchingSlots ? "Actualizando..." : "Refrescar"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleDownloadPdf}
-                    disabled={!localSlots.length}
-                  >
-                    Generar Reporte PDF
-                  </Button>
-                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRefresh}
+                  disabled={fetchingSlots}
+                >
+                  <RefreshCwIcon className="w-4 h-4 mr-1" />
+                  {fetchingSlots ? "Actualizando..." : "Refrescar"}
+                </Button>
               </div>
 
               <Button
@@ -948,6 +938,14 @@ export default function CourtSlotsPage() {
           {/* Columna derecha: resumen del día */}
           {localSlots.length > 0 && (
             <div className="w-full md:w-64 shrink-0 space-y-4">
+              <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDownloadPdf}
+                  disabled={!localSlots.length}
+                >
+                  Generar Reporte Diario
+              </Button>
               <div className="rounded-lg border bg-muted/40 px-4 py-3">
                 <p className="text-sm font-semibold">Resumen del día</p>
                 <p className="text-xs text-muted-foreground mb-2">
