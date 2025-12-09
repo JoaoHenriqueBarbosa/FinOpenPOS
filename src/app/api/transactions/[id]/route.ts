@@ -16,7 +16,7 @@ export async function GET(request: Request) {
   const from = url.searchParams.get('from');       // '2025-01-01'
   const to = url.searchParams.get('to');           // '2025-01-31'
   const orderId = url.searchParams.get('orderId'); // opcional
-  const customerId = url.searchParams.get('customerId'); // opcional
+  const playerId = url.searchParams.get('playerId'); // opcional
 
   let query = supabase
     .from('transactions')
@@ -24,7 +24,7 @@ export async function GET(request: Request) {
       `
       id,
       order_id,
-      customer_id,
+      player_id,
       payment_method_id,
       description,
       amount,
@@ -56,8 +56,8 @@ export async function GET(request: Request) {
     query = query.eq('order_id', Number(orderId));
   }
 
-  if (customerId) {
-    query = query.eq('customer_id', Number(customerId));
+  if (playerId) {
+    query = query.eq('player_id', Number(playerId));
   }
 
   const { data, error } = await query.order('created_at', { ascending: false });
@@ -93,7 +93,7 @@ export async function POST(request: Request) {
   const newTx = {
     user_uid: user.id,
     order_id: body.orderId ?? null,
-    customer_id: body.customerId ?? null,
+    player_id: body.playerId ?? null,
     payment_method_id: body.paymentMethodId ?? null,
     description: body.description ?? null,
     amount,
@@ -108,7 +108,7 @@ export async function POST(request: Request) {
       `
       id,
       order_id,
-      customer_id,
+      player_id,
       payment_method_id,
       description,
       amount,

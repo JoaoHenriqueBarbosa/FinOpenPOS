@@ -49,23 +49,24 @@ type OrderStatus = "open" | "closed" | "cancelled";
 
 type Order = {
   id: number;
-  customer_id: number | null;
+  player_id: number | null;
   total_amount: number;
   status: OrderStatus;
   created_at: string;
-  customer?: {
-    name: string;
+  player?: {
+    first_name: string;
+    last_name: string;
   } | null;
 };
 
-type CustomerStatus = "active" | "inactive";
+type PlayerStatus = "active" | "inactive";
 
-type Customer = {
+type Player = {
   id: number;
-  name: string;
-  email?: string | null;
-  phone?: string | null;
-  status?: CustomerStatus;
+  first_name: string;
+  last_name: string;
+  phone: string;
+  status?: PlayerStatus;
 };
 
 // ---- fetchers ----
@@ -75,8 +76,8 @@ async function fetchOrders(): Promise<Order[]> {
   return res.json();
 }
 
-async function fetchCustomers(): Promise<Customer[]> {
-  const res = await fetch("/api/customers?onlyActive=true");
+async function fetchPlayers(): Promise<Player[]> {
+  const res = await fetch("/api/players?onlyActive=true");
   if (!res.ok) throw new Error("Error al cargar los clientes");
   return res.json();
 }
@@ -89,17 +90,17 @@ export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState<"all" | OrderStatus>("open");
 
   const [isNewOrderDialogOpen, setIsNewOrderDialogOpen] = useState(false);
-  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
+  const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
   const [creatingOrder, setCreatingOrder] = useState(false);
 
   // Popup rápido para nuevo cliente
-  const [isNewCustomerDialogOpen, setIsNewCustomerDialogOpen] = useState(false);
-  const [newCustomerName, setNewCustomerName] = useState("");
-  const [newCustomerEmail, setNewCustomerEmail] = useState("");
-  const [newCustomerPhone, setNewCustomerPhone] = useState("");
-  const [newCustomerStatus, setNewCustomerStatus] =
-    useState<CustomerStatus>("active");
-  const [creatingCustomer, setCreatingCustomer] = useState(false);
+  const [isNewPlayerDialogOpen, setIsNewPlayerDialogOpen] = useState(false);
+  const [newPlayerFirstName, setNewPlayerFirstName] = useState("");
+  const [newPlayerLastName, setNewPlayerLastName] = useState("");
+  const [newPlayerPhone, setNewPlayerPhone] = useState("");
+  const [newPlayerStatus, setNewPlayerStatus] =
+    useState<PlayerStatus>("active");
+  const [creatingPlayer, setCreatingPlayer] = useState(false);
 
   // ---- Queries ----
   const {
@@ -112,12 +113,12 @@ export default function OrdersPage() {
   });
 
   const {
-    data: customers = [],
-    isLoading: loadingCustomers,
-    isError: customersError,
+    data: players = [],
+    isLoading: loadingPlayers,
+    isError: playersError,
   } = useQuery({
-    queryKey: ["customers", "onlyActive"],
-    queryFn: fetchCustomers,
+    queryKey: ["players", "onlyActive"],
+    queryFn: fetchPlayers,
   });
 
   // toasts de error de carga
@@ -126,19 +127,21 @@ export default function OrdersPage() {
   }, [ordersError]);
 
   useEffect(() => {
-    if (customersError) toast.error("Error al cargar los clientes.");
-  }, [customersError]);
+    if (playersError) toast.error("Error al cargar los clientes.");
+  }, [playersError]);
 
   // ---- Filtro en memoria ----
   const filteredOrders = orders.filter((order) => {
     if (statusFilter !== "all" && order.status !== statusFilter) return false;
 
     const term = searchTerm.toLowerCase();
-    const customerName = order.customer?.name ?? "";
+    const playerName = order.player
+      ? `${order.player.first_name} ${order.player.last_name}`
+      : "";
     const idString = String(order.id);
 
     return (
-      customerName.toLowerCase().includes(term) ||
+      playerName.toLowerCase().includes(term) ||
       idString.includes(term)
     );
   });
@@ -168,7 +171,7 @@ export default function OrdersPage() {
 
   // Crear cuenta
   const createOrderMutation = useMutation({
-    mutationFn: async (payload: { customerId: number | null }) => {
+    mutationFn: async (payload: { playerId: number | null }) => {
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -223,19 +226,19 @@ export default function OrdersPage() {
       ]);
       toast.success("Cuenta creada.");
       setIsNewOrderDialogOpen(false);
-      setSelectedCustomerId(null);
+      setSelectedPlayerId(null);
       setCreatingOrder(false);
     },
   });
 
   const handleCreateOrder = useCallback(() => {
-    if (!selectedCustomerId) {
+    if (!selectedPlayerId) {
       toast.error("Debe seleccionar un cliente.");
       return;
     }
 
     const alreadyOpen = orders.some(
-      (o) => o.customer_id === selectedCustomerId && o.status === "open"
+      (o) => o.player_id === selectedPlayerId && o.status === "open"
     );  
     if (alreadyOpen) {
       toast.error("Este cliente ya tiene una cuenta abierta. Cerrala antes de abrir otra.");
@@ -243,19 +246,19 @@ export default function OrdersPage() {
     }
 
     createOrderMutation.mutate({
-      customerId: selectedCustomerId,
+      playerId: selectedPlayerId,
     });
-  }, [selectedCustomerId, createOrderMutation]);
+  }, [selectedPlayerId, createOrderMutation]);
 
   // Crear cliente rápido
-  const createCustomerMutation = useMutation({
+  const createPlayerMutation = useMutation({
     mutationFn: async (payload: {
-      name: string;
-      email: string | null;
-      phone: string | null;
-      status: CustomerStatus;
+      first_name: string;
+      last_name: string;
+      phone: string;
+      status: PlayerStatus;
     }) => {
-      const res = await fetch("/api/customers", {
+      const res = await fetch("/api/players", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -263,96 +266,106 @@ export default function OrdersPage() {
       if (!res.ok) {
         throw new Error("Error creando cliente");
       }
-      return (await res.json()) as Customer;
+      return (await res.json()) as Player;
     },
     onMutate: async (payload) => {
-      setCreatingCustomer(true);
-      await queryClient.cancelQueries({ queryKey: ["customers", "onlyActive"] });
+      setCreatingPlayer(true);
+      await queryClient.cancelQueries({ queryKey: ["players", "onlyActive"] });
 
-      const previousCustomers =
-        queryClient.getQueryData<Customer[]>(["customers", "onlyActive"]) ?? [];
+      const previousPlayers =
+        queryClient.getQueryData<Player[]>(["players", "onlyActive"]) ?? [];
 
       // Optimista: agregamos uno "fake" mientras tanto
       const tempId = -Math.floor(Math.random() * 1_000_000);
-      const optimisticCustomer: Customer = {
+      const optimisticPlayer: Player = {
         id: tempId,
-        name: payload.name,
-        email: payload.email,
+        first_name: payload.first_name,
+        last_name: payload.last_name,
         phone: payload.phone,
         status: payload.status,
       };
 
-      queryClient.setQueryData<Customer[]>(
-        ["customers", "onlyActive"],
-        (old) => [optimisticCustomer, ...(old ?? [])]
+      queryClient.setQueryData<Player[]>(
+        ["players", "onlyActive"],
+        (old) => [optimisticPlayer, ...(old ?? [])]
       );
 
       // seleccionamos ya al cliente nuevo en el select
-      setSelectedCustomerId(tempId);
+      setSelectedPlayerId(tempId);
 
-      return { previousCustomers, tempId };
+      return { previousPlayers, tempId };
     },
     onError: (err, _vars, ctx) => {
-      if (ctx?.previousCustomers) {
+      if (ctx?.previousPlayers) {
         queryClient.setQueryData(
-          ["customers", "onlyActive"],
-          ctx.previousCustomers
+          ["players", "onlyActive"],
+          ctx.previousPlayers
         );
       }
       toast.error(
         err instanceof Error ? err.message : "Error creando cliente."
       );
-      setCreatingCustomer(false);
+      setCreatingPlayer(false);
     },
-    onSuccess: (newCustomer, _vars, ctx) => {
+    onSuccess: (newPlayer, _vars, ctx) => {
       // Reemplazamos el temp por el real
-      queryClient.setQueryData<Customer[]>(
-        ["customers", "onlyActive"],
+      queryClient.setQueryData<Player[]>(
+        ["players", "onlyActive"],
         (old) => {
           const list = old ?? [];
-          if (!ctx?.tempId) return [newCustomer, ...list];
+          if (!ctx?.tempId) return [newPlayer, ...list];
           return [
-            newCustomer,
+            newPlayer,
             ...list.filter((c) => c.id !== ctx.tempId),
           ];
         }
       );
 
-      setSelectedCustomerId(newCustomer.id);
+      setSelectedPlayerId(newPlayer.id);
       toast.success("Cliente creado.");
 
       // Cerrar popup y limpiar form
-      setIsNewCustomerDialogOpen(false);
-      setNewCustomerName("");
-      setNewCustomerEmail("");
-      setNewCustomerPhone("");
-      setNewCustomerStatus("active");
-      setCreatingCustomer(false);
+      setIsNewPlayerDialogOpen(false);
+      setNewPlayerFirstName("");
+      setNewPlayerLastName("");
+      setNewPlayerPhone("");
+      setNewPlayerStatus("active");
+      setCreatingPlayer(false);
     },
   });
 
-  const handleCreateCustomer = useCallback(() => {
-    const name = newCustomerName.trim();
-    if (!name) {
+  const handleCreatePlayer = useCallback(() => {
+    const firstName = newPlayerFirstName.trim();
+    if (!firstName) {
       toast.error("El nombre del cliente es obligatorio.");
       return;
     }
+    const lastName = newPlayerLastName.trim();
+    if (!lastName) {
+      toast.error("El apellido del cliente es obligatorio.");
+      return;
+    }
+    const phone = newPlayerPhone.trim();
+    if (!phone) {
+      toast.error("El telefono del cliente es obligatorio.");
+      return;
+    }
 
-    createCustomerMutation.mutate({
-      name,
-      email: newCustomerEmail || null,
-      phone: newCustomerPhone || null,
-      status: newCustomerStatus,
+    createPlayerMutation.mutate({
+      first_name: firstName,
+      last_name: lastName,
+      phone: newPlayerPhone,
+      status: newPlayerStatus,
     });
   }, [
-    newCustomerName,
-    newCustomerEmail,
-    newCustomerPhone,
-    newCustomerStatus,
-    createCustomerMutation,
+    newPlayerFirstName,
+    newPlayerLastName,
+    newPlayerPhone,
+    newPlayerStatus,
+    createPlayerMutation,
   ]);
 
-  const globalLoading = loadingOrders || loadingCustomers;
+  const globalLoading = loadingOrders || loadingPlayers;
 
   if (globalLoading) {
     return (
@@ -429,7 +442,7 @@ export default function OrdersPage() {
                       #{order.id}
                     </TableCell>
                     <TableCell>
-                      {order.customer?.name ?? "Sin nombre"}
+                      {(order.player?.first_name ?? "") + " " + (order.player?.last_name ?? "") || "Sin nombre"}
                     </TableCell>
                     <TableCell>{getStatusBadge(order.status)}</TableCell>
                     <TableCell>${order.total_amount.toFixed(2)}</TableCell>
@@ -459,9 +472,9 @@ export default function OrdersPage() {
       <Dialog
         open={isNewOrderDialogOpen}
         onOpenChange={(open) => {
-          setIsNewCustomerDialogOpen(open);
+          setIsNewPlayerDialogOpen(open);
           if (!open) {
-            setSelectedCustomerId(null);
+            setSelectedPlayerId(null);
           }
         }}
       >
@@ -477,18 +490,18 @@ export default function OrdersPage() {
               <span className="text-right text-sm font-medium">Cliente</span>
               <div className="col-span-3 flex items-center gap-2">
                 <Select
-                  value={selectedCustomerId ? String(selectedCustomerId) : ""}
+                  value={selectedPlayerId ? String(selectedPlayerId) : ""}
                   onValueChange={(value) => {
-                    setSelectedCustomerId(Number(value));
+                    setSelectedPlayerId(Number(value));
                   }}
                 >
                   <SelectTrigger className="flex-1">
                     <SelectValue placeholder="Seleccionar cliente" />
                   </SelectTrigger>
                   <SelectContent>
-                    {customers.map((c) => (
-                      <SelectItem key={c.id} value={String(c.id)}>
-                        {c.name}
+                    {players.map((p) => (
+                      <SelectItem key={p.id} value={String(p.id)}>
+                        {p.first_name} {p.last_name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -500,7 +513,7 @@ export default function OrdersPage() {
                   size="icon"
                   variant="outline"
                   title="Nuevo cliente"
-                  onClick={() => setIsNewCustomerDialogOpen(true)}
+                  onClick={() => setIsNewPlayerDialogOpen(true)}
                 >
                   <PlusIcon className="w-4 h-4" />
                 </Button>
@@ -526,11 +539,11 @@ export default function OrdersPage() {
 
       {/* Popup rápido de nuevo cliente */}
       <Dialog
-        open={isNewCustomerDialogOpen}
+        open={isNewPlayerDialogOpen}
         onOpenChange={(open) => {
           setIsNewOrderDialogOpen(open);
           if (!open) {
-            setSelectedCustomerId(null); // obligado a elegir cliente
+            setSelectedPlayerId(null); // obligado a elegir cliente
           }
         }}
       >
@@ -544,47 +557,47 @@ export default function OrdersPage() {
 
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="newCustomerName">Nombre</Label>
+              <Label htmlFor="newPlayerName">Nombre</Label>
               <Input
-                id="newCustomerName"
+                id="newPlayerFirstName"
                 className="col-span-3"
                 placeholder="Nombre del cliente"
-                value={newCustomerName}
-                onChange={(e) => setNewCustomerName(e.target.value)}
+                value={newPlayerFirstName}
+                onChange={(e) => setNewPlayerFirstName(e.target.value)}
               />
             </div>
 
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="newCustomerEmail">Email</Label>
+              <Label htmlFor="newPlayerEmail">Apellido</Label>
               <Input
-                id="newCustomerEmail"
+                id="newPlayerLastName"
                 className="col-span-3"
-                placeholder="Email"
-                value={newCustomerEmail}
-                onChange={(e) => setNewCustomerEmail(e.target.value)}
+                placeholder="Apellido del cliente"
+                value={newPlayerLastName}
+                onChange={(e) => setNewPlayerLastName(e.target.value)}
               />
             </div>
 
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="newCustomerPhone">Teléfono</Label>
+              <Label htmlFor="newPlayerPhone">Teléfono</Label>
               <Input
-                id="newCustomerPhone"
+                id="newPlayerPhone"
                 className="col-span-3"
                 placeholder="Teléfono"
-                value={newCustomerPhone}
-                onChange={(e) => setNewCustomerPhone(e.target.value)}
+                value={newPlayerPhone}
+                onChange={(e) => setNewPlayerPhone(e.target.value)}
               />
             </div>
 
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="newCustomerStatus">Estado</Label>
+              <Label htmlFor="newPlayerStatus">Estado</Label>
               <Select
-                value={newCustomerStatus}
-                onValueChange={(value: CustomerStatus) =>
-                  setNewCustomerStatus(value)
+                value={newPlayerStatus}
+                onValueChange={(value: PlayerStatus) =>
+                  setNewPlayerStatus(value)
                 }
               >
-                <SelectTrigger id="newCustomerStatus" className="col-span-3">
+                <SelectTrigger id="newPlayerStatus" className="col-span-3">
                   <SelectValue placeholder="Seleccionar estado" />
                 </SelectTrigger>
                 <SelectContent>
@@ -598,15 +611,15 @@ export default function OrdersPage() {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setIsNewCustomerDialogOpen(false)}
+              onClick={() => setIsNewPlayerDialogOpen(false)}
             >
               Cancelar
             </Button>
             <Button
-              onClick={handleCreateCustomer}
-              disabled={creatingCustomer || !newCustomerName.trim()}
+              onClick={handleCreatePlayer}
+              disabled={creatingPlayer || !newPlayerFirstName.trim() || !newPlayerLastName.trim() || !newPlayerPhone.trim()}
             >
-              {creatingCustomer && (
+              {creatingPlayer && (
                 <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
               )}
               Guardar cliente

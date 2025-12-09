@@ -34,7 +34,7 @@ import {
 
 const pageNames: { [key: string]: string } = {
   "/admin": "Dashboard",
-  "/admin/customers": "Clientes",
+  "/admin/players": "Clientes",
   "/admin/products": "Productos",
   "/admin/product-categories": "Categorias de Productos",
   "/admin/orders": "Cuentas abiertas",
@@ -92,7 +92,7 @@ const navSections: NavSection[] = [
         href: "/admin/product-categories",
         label: "Categorías de productos",
       },
-      { href: "/admin/customers", label: "Clientes" },
+      { href: "/admin/players", label: "Clientes" },
     ],
   },
 ];
