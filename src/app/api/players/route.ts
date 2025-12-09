@@ -1,4 +1,4 @@
-// app/api/customers/route.ts
+// app/api/players/route.ts
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
@@ -15,8 +15,8 @@ export async function GET(request: Request) {
   const search = url.searchParams.get('q')?.trim();
 
   let query = supabase
-    .from('customers')
-    .select('id, name, email, phone, status, created_at')
+    .from('players')
+    .select('id, first_name, last_name, phone, status, created_at')
     .eq('user_uid', user.id);
 
   if (onlyActive) {
@@ -33,7 +33,7 @@ export async function GET(request: Request) {
   const { data, error } = await query.order('created_at', { ascending: false });
 
   if (error) {
-    console.error('GET /customers error:', error);
+    console.error('GET /players error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
@@ -49,28 +49,37 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const name = String(body.name ?? '').trim();
-
-  if (!name) {
-    return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+  const first_name = String(body.first_name ?? '').trim();
+  if (!first_name) {
+    return NextResponse.json({ error: 'First Name is required' }, { status: 400 });
   }
 
-  const newCustomer = {
+  const last_name = String(body.last_name ?? '').trim();
+  if (!last_name) {
+    return NextResponse.json({ error: 'Last Name is required' }, { status: 400 });
+  }
+
+  const phone = String(body.phone ?? '').trim();
+  if (!phone) {
+    return NextResponse.json({ error: 'Phone is required' }, { status: 400 });
+  }
+
+  const newPlayer = {
     user_uid: user.id,
-    name,
-    email: body.email ?? null,
+    first_name: first_name,
+    last_name: last_name,
     phone: body.phone ?? null,
     status: body.status === 'inactive' ? 'inactive' : 'active',
   };
 
   const { data, error } = await supabase
-    .from('customers')
-    .insert(newCustomer)
-    .select('id, name, email, phone, status, created_at')
+    .from('players')
+    .insert(newPlayer)
+    .select('id, first_name, last_name, phone, status, created_at')
     .single();
 
   if (error) {
-    console.error('POST /customers error:', error);
+    console.error('POST /players error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

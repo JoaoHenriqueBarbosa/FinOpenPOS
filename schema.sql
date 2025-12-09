@@ -1,70 +1,95 @@
 -- =========================================================
 -- RESET (para desarrollo)
 -- =========================================================
+
+DROP TABLE IF EXISTS tournament_group_standings;
+DROP TABLE IF EXISTS tournament_playoffs;
+DROP TABLE IF EXISTS tournament_matches;
+DROP TABLE IF EXISTS tournament_group_teams;
+DROP TABLE IF EXISTS tournament_groups;
+DROP TABLE IF EXISTS tournament_teams;
+DROP TABLE IF EXISTS tournaments;
+
 DROP TABLE IF EXISTS stock_movements;
 DROP TABLE IF EXISTS transactions;
 DROP TABLE IF EXISTS court_slots;
 DROP TABLE IF EXISTS courts;
 DROP TABLE IF EXISTS order_items;
 DROP TABLE IF EXISTS orders;
-DROP TABLE IF EXISTS customers;
+DROP TABLE IF EXISTS players;
 DROP TABLE IF EXISTS products;
+DROP TABLE IF EXISTS product_categories;
 DROP TABLE IF EXISTS payment_methods;
-DROP TABLE IF EXISTS stock_movements;
 DROP TABLE IF EXISTS suppliers;
 DROP TABLE IF EXISTS purchases;
 DROP TABLE IF EXISTS purchase_items;
 
+DROP TYPE IF EXISTS payment_scope;
+
 -- =========================================================
 -- PAYMENT METHODS (Efectivo / Transferencia / QR por usuario)
 -- =========================================================
+
 CREATE TYPE payment_scope AS ENUM ('BAR', 'COURT', 'BOTH');
 
 CREATE TABLE payment_methods (
     id         BIGSERIAL PRIMARY KEY,
     user_uid   UUID NOT NULL,
     name       VARCHAR(50) NOT NULL,
-    scope       payment_scope NOT NULL DEFAULT 'BAR',
+    scope      payment_scope NOT NULL DEFAULT 'BAR', -- dónde se usa
     is_active  BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT pm_unique_per_user UNIQUE (user_uid, name)
 );
 
--- Notas:
--- Los métodos de pago se deberían insertar desde tu backend, por ejemplo:
--- INSERT INTO payment_methods (user_uid, name)
--- VALUES (auth.uid(), 'Efectivo'),
---        (auth.uid(), 'Transferencia'),
---        (auth.uid(), 'QR');
+-- =========================================================
+-- PLAYERS (jugadores / clientes del buffet / alumnos)
+-- =========================================================
+-- Versión unificada de "personas"
+-- Obligatorios: first_name, last_name, phone
+-- El resto opcional
 
--- =========================================================
--- CUSTOMERS (jugadores / clientes del buffet)
--- =========================================================
-CREATE TABLE customers (
-    id          BIGSERIAL PRIMARY KEY,
-    user_uid    UUID NOT NULL,
-    name        VARCHAR(255) NOT NULL,
-    email       VARCHAR(255),
-    phone       VARCHAR(30),
-    status      VARCHAR(20) NOT NULL DEFAULT 'active'
-                 CHECK (status IN ('active', 'inactive')),
-    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE players (
+    id               BIGSERIAL PRIMARY KEY,
+    user_uid         UUID NOT NULL,
+
+    first_name       VARCHAR(255) NOT NULL,
+    last_name        VARCHAR(255) NOT NULL,
+    phone            VARCHAR(30)  NOT NULL,
+
+    email            VARCHAR(255),
+    gender           VARCHAR(20),
+    city             VARCHAR(100),
+
+    category         VARCHAR(50),   -- ej: "4ta", "5ta"
+    female_category  VARCHAR(50),   -- ej: "7ma" femenina si aplica
+    notes            TEXT,
+
+    status           VARCHAR(20) NOT NULL DEFAULT 'active'
+                     CHECK (status IN ('active', 'inactive')),
+
+    created_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- =========================================================
+-- PRODUCT CATEGORIES
+-- =========================================================
+
 CREATE TABLE product_categories (
-    id         BIGSERIAL PRIMARY KEY,
-    user_uid   UUID NOT NULL,
-    name       VARCHAR(100) NOT NULL,
+    id          BIGSERIAL PRIMARY KEY,
+    user_uid    UUID NOT NULL,
+    name        VARCHAR(100) NOT NULL,
     description TEXT,
-    color      VARCHAR(20),                           -- opcional, para mostrar en la UI
-    is_active  BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    color       VARCHAR(20),   -- opcional, para mostrar en la UI
+    is_active   BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT product_categories_unique_per_user UNIQUE (user_uid, name)
 );
 
 -- =========================================================
 -- PRODUCTS (buffet / tienda)
 -- =========================================================
+
 CREATE TABLE products (
     id             BIGSERIAL PRIMARY KEY,
     user_uid       UUID NOT NULL,
@@ -72,8 +97,8 @@ CREATE TABLE products (
     name           VARCHAR(255) NOT NULL,
     description    TEXT,
     price          NUMERIC(10, 2) NOT NULL,
-    uses_stock     BOOLEAN NOT NULL DEFAULT TRUE,
-    min_stock      INTEGER NOT NULL DEFAULT 0,
+    uses_stock     BOOLEAN NOT NULL DEFAULT TRUE,     -- si descuenta stock
+    min_stock      INTEGER NOT NULL DEFAULT 0,        -- para alertas
     is_active      BOOLEAN NOT NULL DEFAULT TRUE,
     created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -82,10 +107,11 @@ CREATE TABLE products (
 -- =========================================================
 -- ORDERS (cuentas de buffet por persona)
 -- =========================================================
+
 CREATE TABLE orders (
     id           BIGSERIAL PRIMARY KEY,
     user_uid     UUID NOT NULL,
-    customer_id  BIGINT NOT NULL REFERENCES customers(id),
+    player_id    BIGINT NOT NULL REFERENCES players(id),
 
     status       VARCHAR(20) NOT NULL DEFAULT 'open'
                  CHECK (status IN ('open', 'closed', 'cancelled')),
@@ -98,6 +124,7 @@ CREATE TABLE orders (
 -- =========================================================
 -- ORDER_ITEMS (consumos en buffet)
 -- =========================================================
+
 CREATE TABLE order_items (
     id           BIGSERIAL PRIMARY KEY,
     user_uid     UUID NOT NULL,
@@ -112,6 +139,7 @@ CREATE TABLE order_items (
 -- =========================================================
 -- COURTS (canchas de pádel)
 -- =========================================================
+
 CREATE TABLE courts (
     id        BIGSERIAL PRIMARY KEY,
     user_uid  UUID NOT NULL,
@@ -123,6 +151,7 @@ CREATE TABLE courts (
 -- COURT_SLOTS (turnos fijos – siempre 4 jugadores)
 -- Solo indica si se usó el turno y cómo pagó cada jugador.
 -- =========================================================
+
 CREATE TABLE court_slots (
     id          BIGSERIAL PRIMARY KEY,
     user_uid    UUID NOT NULL,
@@ -155,14 +184,14 @@ CREATE TABLE court_slots (
 
 -- =========================================================
 -- TRANSACTIONS (movimientos de caja del buffet)
--- (Solo buffet, sin referencia a turnos)
 -- =========================================================
+
 CREATE TABLE transactions (
     id                BIGSERIAL PRIMARY KEY,
     user_uid          UUID NOT NULL,
 
     order_id          BIGINT REFERENCES orders(id),
-    customer_id       BIGINT REFERENCES customers(id),
+    player_id         BIGINT REFERENCES players(id),
     payment_method_id BIGINT REFERENCES payment_methods(id),
 
     description       TEXT,
@@ -177,46 +206,199 @@ CREATE TABLE transactions (
 -- =========================================================
 -- STOCK_MOVEMENTS (historial de stock del buffet)
 -- =========================================================
+
 CREATE TABLE stock_movements (
-  id           SERIAL PRIMARY KEY,
-  product_id   INTEGER NOT NULL REFERENCES products(id),
-  movement_type VARCHAR(20) NOT NULL CHECK (movement_type IN ('purchase', 'sale', 'adjustment')),
-  quantity     INTEGER NOT NULL,
-  unit_cost    DECIMAL(10, 2),
-  notes        TEXT,
-  user_uid     VARCHAR(255) NOT NULL,
-  created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  id            BIGSERIAL PRIMARY KEY,
+  product_id    BIGINT NOT NULL REFERENCES products(id),
+  movement_type VARCHAR(20) NOT NULL
+                CHECK (movement_type IN ('purchase', 'sale', 'adjustment')),
+  quantity      INTEGER NOT NULL,
+  unit_cost     NUMERIC(10, 2),
+  notes         TEXT,
+  user_uid      UUID NOT NULL,
+  created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS suppliers (
-    id          SERIAL PRIMARY KEY,
-    name        VARCHAR(255) NOT NULL,
+-- =========================================================
+-- SUPPLIERS (proveedores)
+-- =========================================================
+
+CREATE TABLE suppliers (
+    id            BIGSERIAL PRIMARY KEY,
+    name          VARCHAR(255) NOT NULL,
     contact_email VARCHAR(255),
-    phone       VARCHAR(50),
-    notes       TEXT,
-    status      VARCHAR(20) NOT NULL DEFAULT 'active'
-                CHECK (status IN ('active', 'inactive')),
-    user_uid    VARCHAR(255) NOT NULL,
-    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    phone         VARCHAR(50),
+    notes         TEXT,
+    status        VARCHAR(20) NOT NULL DEFAULT 'active'
+                  CHECK (status IN ('active', 'inactive')),
+    user_uid      UUID NOT NULL,
+    created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS purchases (
-    id               SERIAL PRIMARY KEY,
-    supplier_id      INTEGER NOT NULL REFERENCES suppliers(id),
-    user_uid         VARCHAR(255) NOT NULL,
-    total_amount     DECIMAL(10, 2) NOT NULL DEFAULT 0,
-    status           VARCHAR(20) NOT NULL DEFAULT 'completed'
-                     CHECK (status IN ('pending', 'completed', 'cancelled')),
-    payment_method_id INTEGER REFERENCES payment_methods(id),
-    transaction_id   INTEGER REFERENCES transactions(id),
-    notes            TEXT,
-    created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+-- =========================================================
+-- PURCHASES (compras a proveedores)
+-- =========================================================
+
+CREATE TABLE purchases (
+    id                BIGSERIAL PRIMARY KEY,
+    supplier_id       BIGINT NOT NULL REFERENCES suppliers(id),
+    user_uid          UUID NOT NULL,
+    total_amount      NUMERIC(10, 2) NOT NULL DEFAULT 0,
+    status            VARCHAR(20) NOT NULL DEFAULT 'completed'
+                      CHECK (status IN ('pending', 'completed', 'cancelled')),
+    payment_method_id BIGINT REFERENCES payment_methods(id),
+    transaction_id    BIGINT REFERENCES transactions(id),
+    notes             TEXT,
+    created_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS purchase_items (
-    id           SERIAL PRIMARY KEY,
-    purchase_id  INTEGER NOT NULL REFERENCES purchases(id) ON DELETE CASCADE,
-    product_id   INTEGER NOT NULL REFERENCES products(id),
+CREATE TABLE purchase_items (
+    id           BIGSERIAL PRIMARY KEY,
+    purchase_id  BIGINT NOT NULL REFERENCES purchases(id) ON DELETE CASCADE,
+    product_id   BIGINT NOT NULL REFERENCES products(id),
     quantity     INTEGER NOT NULL,
-    unit_cost    DECIMAL(10, 2) NOT NULL
+    unit_cost    NUMERIC(10, 2) NOT NULL
+);
+
+-- =========================================================
+-- TOURNAMENTS (torneos de pádel)
+-- =========================================================
+
+CREATE TABLE tournaments (
+    id          BIGSERIAL PRIMARY KEY,
+    user_uid    UUID NOT NULL,
+    name        VARCHAR(100) NOT NULL,
+    description TEXT,
+    category    VARCHAR(50),      -- ej: "7ma", "Mixto"
+    start_date  DATE,
+    end_date    DATE,
+    status      VARCHAR(20) NOT NULL DEFAULT 'draft'
+                 CHECK (status IN ('draft', 'in_progress', 'finished', 'cancelled')),
+    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =========================================================
+-- TOURNAMENT_TEAMS (parejas dentro de un torneo)
+-- =========================================================
+
+CREATE TABLE tournament_teams (
+    id                  BIGSERIAL PRIMARY KEY,
+    tournament_id       BIGINT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+    user_uid            UUID NOT NULL,
+
+    player1_id          BIGINT NOT NULL REFERENCES players(id),
+    player2_id          BIGINT NOT NULL REFERENCES players(id),
+
+    display_name        VARCHAR(120),      -- "Gómez / Pérez" opcional
+    seed_number         INTEGER,
+    notes               TEXT
+);
+
+-- =========================================================
+-- TOURNAMENT_GROUPS (ZONAS)
+-- =========================================================
+
+CREATE TABLE tournament_groups (
+    id              BIGSERIAL PRIMARY KEY,
+    tournament_id   BIGINT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+    user_uid        UUID NOT NULL,
+    name            VARCHAR(20) NOT NULL,  -- "Zona A"
+    group_order     INTEGER NOT NULL DEFAULT 1
+);
+
+-- =========================================================
+-- TOURNAMENT_GROUP_TEAMS (asignación equipo -> zona)
+-- =========================================================
+
+CREATE TABLE tournament_group_teams (
+    id                  BIGSERIAL PRIMARY KEY,
+    tournament_group_id BIGINT NOT NULL REFERENCES tournament_groups(id) ON DELETE CASCADE,
+    team_id             BIGINT NOT NULL REFERENCES tournament_teams(id) ON DELETE CASCADE,
+    user_uid            UUID NOT NULL,
+    UNIQUE (tournament_group_id, team_id)
+);
+
+-- =========================================================
+-- TOURNAMENT_MATCHES (partidos: zonas + playoffs)
+-- =========================================================
+
+CREATE TABLE tournament_matches (
+    id                  BIGSERIAL PRIMARY KEY,
+    tournament_id       BIGINT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+    user_uid            UUID NOT NULL,
+
+    phase               VARCHAR(20) NOT NULL DEFAULT 'group'
+                        CHECK (phase IN ('group', 'playoff')),
+
+    tournament_group_id BIGINT REFERENCES tournament_groups(id), -- NULL en playoffs
+
+    team1_id            BIGINT NOT NULL REFERENCES tournament_teams(id),
+    team2_id            BIGINT NOT NULL REFERENCES tournament_teams(id),
+
+    court_id            BIGINT REFERENCES courts(id),
+    match_date          DATE,
+    start_time          TIME,
+    end_time            TIME,  -- normalmente start_time + 1 hora
+
+    status              VARCHAR(20) NOT NULL DEFAULT 'scheduled'
+                        CHECK (status IN ('scheduled', 'in_progress', 'finished', 'cancelled')),
+
+    team1_sets          INTEGER DEFAULT 0,
+    team2_sets          INTEGER DEFAULT 0,
+    team1_games_total   INTEGER DEFAULT 0,
+    team2_games_total   INTEGER DEFAULT 0,
+
+    notes               TEXT,
+    created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =========================================================
+-- TOURNAMENT_GROUP_STANDINGS (tabla de posiciones por zona)
+-- =========================================================
+
+CREATE TABLE tournament_group_standings (
+    id                  BIGSERIAL PRIMARY KEY,
+    tournament_group_id BIGINT NOT NULL REFERENCES tournament_groups(id) ON DELETE CASCADE,
+    team_id             BIGINT NOT NULL REFERENCES tournament_teams(id) ON DELETE CASCADE,
+    user_uid            UUID NOT NULL,
+
+    matches_played      INTEGER NOT NULL DEFAULT 0,
+    wins                INTEGER NOT NULL DEFAULT 0,
+    losses              INTEGER NOT NULL DEFAULT 0,
+    sets_won            INTEGER NOT NULL DEFAULT 0,
+    sets_lost           INTEGER NOT NULL DEFAULT 0,
+    games_won           INTEGER NOT NULL DEFAULT 0,
+    games_lost          INTEGER NOT NULL DEFAULT 0,
+    points              INTEGER NOT NULL DEFAULT 0,
+
+    UNIQUE (tournament_group_id, team_id)
+);
+
+-- =========================================================
+-- TOURNAMENT_PLAYOFFS (metadata de cuadro: 8vos, 4tos, semi, final)
+-- =========================================================
+-- Esta tabla NO duplica los partidos.
+-- Apunta a tournament_matches (phase='playoff') y agrega:
+-- - qué ronda es (octavos, cuartos, etc)
+-- - posición en el cuadro
+-- - de dónde salen los equipos (1A vs 2B, Ganador QF1, etc.)
+
+CREATE TABLE tournament_playoffs (
+    id            BIGSERIAL PRIMARY KEY,
+    tournament_id BIGINT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+    user_uid      UUID NOT NULL,
+
+    match_id      BIGINT NOT NULL REFERENCES tournament_matches(id) ON DELETE CASCADE,
+
+    round         VARCHAR(20) NOT NULL
+                  CHECK (round IN ('octavos', 'cuartos', 'semifinal', 'final', 'tercer_puesto')),
+
+    bracket_pos   INTEGER NOT NULL,    -- ej: 1..8 en octavos, 1..4 en cuartos, etc.
+
+    -- Texto libre para saber de dónde vienen los equipos en el cuadro
+    -- Ejemplos: '1A', '2B', 'Ganador QF1', 'Ganador SF1'
+    source_team1  VARCHAR(50),
+    source_team2  VARCHAR(50),
+
+    created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

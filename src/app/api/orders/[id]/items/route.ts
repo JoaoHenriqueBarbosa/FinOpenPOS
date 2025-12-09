@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 
 type RouteParams = { params: { id: string } };
 
-// Helper: trae la order + items + customer
+// Helper: trae la order + items + player
 async function getOrderWithItems(
   supabase: ReturnType<typeof createClient>,
   orderId: number,
@@ -14,11 +14,11 @@ async function getOrderWithItems(
     .select(
       `
         id,
-        customer_id,
+        player_id,
         total_amount,
         status,
         created_at,
-        customer:customer_id ( name )
+        player:player_id ( first_name, last_name )
       `
     )
     .eq("id", orderId)

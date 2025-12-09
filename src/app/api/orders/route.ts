@@ -17,14 +17,14 @@ export async function GET(request: Request) {
     .from('orders')
     .select(`
       id,
-      customer_id,
+      player_id,
       total_amount,
       user_uid,
       status,
       created_at,
       closed_at,
-      customer:customer_id (
-        name
+      player:player_id (
+        first_name, last_name
       )
     `)
     .eq('user_uid', user.id);
@@ -50,12 +50,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { customerId } = await request.json();
+  const { playerId } = await request.json();
 
-  // 🔒 Validación: siempre tiene que venir un customerId
-  if (!customerId) {
+  // 🔒 Validación: siempre tiene que venir un playerId
+  if (!playerId) {
     return NextResponse.json(
-      { error: 'customerId is required' },
+      { error: 'playerId is required' },
       { status: 400 }
     );
   }
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     .from('orders')
     .select('id')
     .eq('user_uid', user.id)
-    .eq('customer_id', customerId)
+    .eq('player_id', playerId)
     .eq('status', 'open')
     .limit(1);
 
@@ -82,7 +82,7 @@ export async function POST(request: Request) {
     const existingOrder = existingOpenOrders[0];
     return NextResponse.json(
       {
-        error: 'Customer already has an open order',
+        error: 'Player already has an open order',
         orderId: existingOrder.id,
       },
       { status: 409 }
@@ -93,20 +93,20 @@ export async function POST(request: Request) {
   const { data, error } = await supabase
     .from('orders')
     .insert({
-      customer_id: customerId,
+      player_id: playerId,
       total_amount: 0,
       user_uid: user.id,
       status: 'open',
     })
     .select(`
       id,
-      customer_id,
+      player_id,
       total_amount,
       user_uid,
       status,
       created_at,
       closed_at,
-      customer:customer_id ( name )
+      player:player_id ( first_name, last_name )
     `)
     .single();
 

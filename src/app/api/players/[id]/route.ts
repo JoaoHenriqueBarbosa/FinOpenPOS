@@ -1,4 +1,4 @@
-// app/api/customers/[id]/route.ts
+// app/api/players/[id]/route.ts
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
@@ -15,14 +15,14 @@ export async function GET(_request: Request, { params }: Params) {
   const id = Number(params.id);
 
   const { data, error } = await supabase
-    .from('customers')
-    .select('id, name, email, phone, status, created_at')
+    .from('players')
+    .select('id, first_name, last_name, phone, status, created_at')
     .eq('user_uid', user.id)
     .eq('id', id)
     .single();
 
   if (error) {
-    console.error('GET /customers/[id] error:', error);
+    console.error('GET /players/[id] error:', error);
     return NextResponse.json({ error: error.message }, { status: 404 });
   }
 
@@ -70,15 +70,15 @@ export async function PATCH(request: Request, { params }: Params) {
   }
 
   const { data, error } = await supabase
-    .from('customers')
+    .from('players')
     .update(updateFields)
     .eq('user_uid', user.id)
     .eq('id', id)
-    .select('id, name, email, phone, status, created_at')
+    .select('id, first_name, last_name, phone, status, created_at')
     .single();
 
   if (error) {
-    console.error('PATCH /customers/[id] error:', error);
+    console.error('PATCH /players/[id] error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
@@ -97,13 +97,13 @@ export async function DELETE(_request: Request, { params }: Params) {
 
   // Soft delete: marcamos status = 'inactive'
   const { error } = await supabase
-    .from('customers')
+    .from('players')
     .update({ status: 'inactive' })
     .eq('user_uid', user.id)
     .eq('id', id);
 
   if (error) {
-    console.error('DELETE /customers/[id] error:', error);
+    console.error('DELETE /players/[id] error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

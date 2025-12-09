@@ -57,7 +57,7 @@ type Order = {
   status: OrderStatus;
   total_amount: number;
   created_at: string;
-  customer?: {
+  player?: {
     name: string;
   } | null;
   items: OrderItem[];
@@ -582,7 +582,7 @@ export default function OrderDetailPage() {
               <>
                 Cuenta #{displayOrder?.id}{" "}
                 <span className="text-sm text-muted-foreground">
-                  {displayOrder?.customer?.name ?? "Sin nombre"}
+                  {displayOrder?.player?.name ?? "Sin nombre"}
                 </span>
               </>
             )}

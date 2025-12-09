@@ -55,7 +55,7 @@ Esta iteração específica abraça o espírito do desenvolvimento de código ab
 
 - `/admin`: Dashboard principal
 - `/admin/products`: Gerenciamento de produtos
-- `/admin/customers`: Gerenciamento de clientes
+- `/admin/players`: Gerenciamento de clientes
 - `/admin/orders`: Gerenciamento de pedidos
 - `/admin/pos`: Interface do Ponto de Venda
 
@@ -64,7 +64,7 @@ Esta iteração específica abraça o espírito do desenvolvimento de código ab
 O projeto utiliza um banco de dados PostgreSQL com as seguintes tabelas principais:
 
 - `products`: Armazena informações dos produtos
-- `customers`: Detalhes dos clientes
+- `players`: Detalhes dos clientes
 - `orders`: Informações dos pedidos
 - `order_items`: Itens dentro de cada pedido
 - `transactions`: Transações financeiras

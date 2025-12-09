@@ -13,11 +13,11 @@ async function getOrderWithItems(
     .select(
       `
         id,
-        customer_id,
+        player_id,
         total_amount,
         status,
         created_at,
-        customer:customer_id ( name )
+        player:player_id ( first_name, last_name )
       `
     )
     .eq("id", orderId)

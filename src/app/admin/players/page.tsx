@@ -49,50 +49,50 @@ import {
   DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
 
-type CustomerStatus = "active" | "inactive";
+type PlayerStatus = "active" | "inactive";
 
-type Customer = {
+type Player = {
   id: number;
-  name: string;
-  email: string | null;
-  phone: string | null;
-  status: CustomerStatus;
+  first_name: string;
+  last_name: string;
+  phone: string;
+  status: PlayerStatus;
 };
 
-export default function CustomersPage() {
-  const [customers, setCustomers] = useState<Customer[]>([]);
+export default function PlayersPage() {
+  const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showNewCustomerDialog, setShowNewCustomerDialog] = useState(false);
-  const [newCustomerName, setNewCustomerName] = useState("");
-  const [newCustomerEmail, setNewCustomerEmail] = useState("");
-  const [newCustomerPhone, setNewCustomerPhone] = useState("");
-  const [newCustomerStatus, setNewCustomerStatus] =
-    useState<CustomerStatus>("active");
-  const [isEditCustomerDialogOpen, setIsEditCustomerDialogOpen] =
+  const [showNewPlayerDialog, setShowNewPlayerDialog] = useState(false);
+  const [newPlayerFirstName, setNewPlayerFirstName] = useState("");
+  const [newPlayerLastName, setNewPlayerLastName] = useState("");
+  const [newPlayerPhone, setNewPlayerPhone] = useState("");
+  const [newPlayerStatus, setNewPlayerStatus] =
+    useState<PlayerStatus>("active");
+  const [isEditPlayerDialogOpen, setIsEditPlayerDialogOpen] =
     useState(false);
   const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] =
     useState(false);
-  const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(
+  const [playerToDelete, setPlayerToDelete] = useState<Player | null>(
     null
   );
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState({
-    status: "all" as "all" | CustomerStatus,
+    status: "all" as "all" | PlayerStatus,
   });
-  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(
+  const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(
     null
   );
 
   useEffect(() => {
-    const fetchCustomers = async () => {
+    const fetchPlayers = async () => {
       try {
-        const response = await fetch("/api/customers");
+        const response = await fetch("/api/players");
         if (!response.ok) {
-          throw new Error("Failed to fetch customers");
+          throw new Error("Failed to fetch players");
         }
         const data = await response.json();
-        setCustomers(data);
+        setPlayers(data);
       } catch (error) {
         setError((error as Error).message);
       } finally {
@@ -100,132 +100,132 @@ export default function CustomersPage() {
       }
     };
 
-    fetchCustomers();
+    fetchPlayers();
   }, []);
 
-  const filteredCustomers = useMemo(() => {
-    return customers.filter((customer) => {
-      if (filters.status !== "all" && customer.status !== filters.status) {
+  const filteredPlayers = useMemo(() => {
+    return players.filter((player) => {
+      if (filters.status !== "all" && player.status !== filters.status) {
         return false;
       }
       const term = searchTerm.toLowerCase();
       return (
-        customer.name.toLowerCase().includes(term) ||
-        (customer.email ?? "").toLowerCase().includes(term) ||
-        (customer.phone ?? "").includes(searchTerm)
+        player.first_name.toLowerCase().includes(term) ||
+        (player.last_name).toLowerCase().includes(term) ||
+        (player.phone).includes(searchTerm)
       );
     });
-  }, [customers, filters.status, searchTerm]);
+  }, [players, filters.status, searchTerm]);
 
-  const resetSelectedCustomer = () => {
-    setSelectedCustomerId(null);
-    setNewCustomerName("");
-    setNewCustomerEmail("");
-    setNewCustomerPhone("");
-    setNewCustomerStatus("active");
+  const resetSelectedPlayer = () => {
+    setSelectedPlayerId(null);
+    setNewPlayerFirstName("");
+    setNewPlayerLastName("");
+    setNewPlayerPhone("");
+    setNewPlayerStatus("active");
   };
 
-  const handleAddCustomer = useCallback(async () => {
+  const handleAddPlayer = useCallback(async () => {
     try {
-      const newCustomer = {
-        name: newCustomerName,
-        email: newCustomerEmail || null,
-        phone: newCustomerPhone || null,
-        status: newCustomerStatus,
+      const newPlayer = {
+        first_name: newPlayerFirstName,
+        last_name: newPlayerLastName,
+        phone: newPlayerPhone,
+        status: newPlayerStatus,
       };
-      const response = await fetch("/api/customers", {
+      const response = await fetch("/api/players", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(newCustomer),
+        body: JSON.stringify(newPlayer),
       });
 
       if (!response.ok) {
-        throw new Error("Error creating customer");
+        throw new Error("Error creating player");
       }
 
-      const createdCustomer = await response.json();
-      setCustomers((prev) => [...prev, createdCustomer]);
-      setShowNewCustomerDialog(false);
-      resetSelectedCustomer();
+      const createdPlayer = await response.json();
+      setPlayers((prev) => [...prev, createdPlayer]);
+      setShowNewPlayerDialog(false);
+      resetSelectedPlayer();
     } catch (error) {
       console.error(error);
       // acá podrías setear un toast/error UI si querés
     }
-  }, [newCustomerName, newCustomerEmail, newCustomerPhone, newCustomerStatus]);
+  }, [newPlayerFirstName, newPlayerLastName, newPlayerPhone, newPlayerStatus]);
 
-  const handleEditCustomer = useCallback(async () => {
-    if (!selectedCustomerId) return;
+  const handleEditPlayer = useCallback(async () => {
+    if (!selectedPlayerId) return;
     try {
-      const updatedCustomer = {
-        name: newCustomerName,
-        email: newCustomerEmail || null,
-        phone: newCustomerPhone || null,
-        status: newCustomerStatus,
+      const updatedPlayer = {
+        first_name: newPlayerFirstName,
+        last_name: newPlayerLastName,
+        phone: newPlayerPhone,
+        status: newPlayerStatus,
       };
 
-      const response = await fetch(`/api/customers/${selectedCustomerId}`, {
+      const response = await fetch(`/api/players/${selectedPlayerId}`, {
         method: "PATCH", // 💡 usamos PATCH, no PUT
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(updatedCustomer),
+        body: JSON.stringify(updatedPlayer),
       });
 
       if (!response.ok) {
-        throw new Error("Error updating customer");
+        throw new Error("Error updating player");
       }
 
-      const updatedCustomerData: Customer = await response.json();
-      setCustomers((prev) =>
+      const updatedPlayerData: Player = await response.json();
+      setPlayers((prev) =>
         prev.map((c) =>
-          c.id === updatedCustomerData.id ? updatedCustomerData : c
+          c.id === updatedPlayerData.id ? updatedPlayerData : c
         )
       );
-      setIsEditCustomerDialogOpen(false);
-      resetSelectedCustomer();
+      setIsEditPlayerDialogOpen(false);
+      resetSelectedPlayer();
     } catch (error) {
       console.error(error);
     }
   }, [
-    selectedCustomerId,
-    newCustomerName,
-    newCustomerEmail,
-    newCustomerPhone,
-    newCustomerStatus,
+    selectedPlayerId,
+    newPlayerFirstName,
+    newPlayerLastName,
+    newPlayerPhone,
+    newPlayerStatus,
   ]);
 
-  const handleDeleteCustomer = useCallback(async () => {
-    if (!customerToDelete) return;
+  const handleDeletePlayer = useCallback(async () => {
+    if (!playerToDelete) return;
     try {
-      const response = await fetch(`/api/customers/${customerToDelete.id}`, {
+      const response = await fetch(`/api/players/${playerToDelete.id}`, {
         method: "DELETE",
       });
 
       if (!response.ok) {
-        throw new Error("Error deleting customer");
+        throw new Error("Error deleting player");
       }
 
       // Nuestro backend hace soft-delete (status = 'inactive'),
       // así que reflejamos eso en el estado en vez de borrar el cliente.
-      setCustomers((prev) =>
+      setPlayers((prev) =>
         prev.map((c) =>
-          c.id === customerToDelete.id ? { ...c, status: "inactive" } : c
+          c.id === playerToDelete.id ? { ...c, status: "inactive" } : c
         )
       );
       setIsDeleteConfirmationOpen(false);
-      setCustomerToDelete(null);
+      setPlayerToDelete(null);
     } catch (error) {
       console.error(error);
     }
-  }, [customerToDelete]);
+  }, [playerToDelete]);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
   };
 
-  const handleFilterChange = (value: "all" | CustomerStatus) => {
+  const handleFilterChange = (value: "all" | PlayerStatus) => {
     setFilters((prevFilters) => ({
       ...prevFilters,
       status: value,
@@ -243,7 +243,7 @@ export default function CustomersPage() {
   if (error) {
     return (
       <div className="container mx-auto p-4">
-        <h1 className="text-2xl font-bold mb-4">Customers</h1>
+        <h1 className="text-2xl font-bold mb-4">Players</h1>
         <Card>
           <CardContent>
             <p className="text-red-500">{error}</p>
@@ -299,7 +299,7 @@ export default function CustomersPage() {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          <Button size="sm" onClick={() => setShowNewCustomerDialog(true)}>
+          <Button size="sm" onClick={() => setShowNewPlayerDialog(true)}>
             <PlusCircle className="w-4 h-4 mr-2" />
             Nuevo Cliente
           </Button>
@@ -312,20 +312,20 @@ export default function CustomersPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Nombre</TableHead>
-                <TableHead>Email</TableHead>
+                <TableHead>Apellido</TableHead>
                 <TableHead>Telefono</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead>Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredCustomers.map((customer) => (
-                <TableRow key={customer.id}>
-                  <TableCell>{customer.name}</TableCell>
-                  <TableCell>{customer.email}</TableCell>
-                  <TableCell>{customer.phone}</TableCell>
+              {filteredPlayers.map((player) => (
+                <TableRow key={player.id}>
+                  <TableCell>{player.first_name}</TableCell>
+                  <TableCell>{player.last_name}</TableCell>
+                  <TableCell>{player.phone}</TableCell>
                   <TableCell className="capitalize">
-                    {customer.status}
+                    {player.status}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -333,12 +333,12 @@ export default function CustomersPage() {
                         size="icon"
                         variant="ghost"
                         onClick={() => {
-                          setSelectedCustomerId(customer.id);
-                          setNewCustomerName(customer.name);
-                          setNewCustomerEmail(customer.email ?? "");
-                          setNewCustomerPhone(customer.phone ?? "");
-                          setNewCustomerStatus(customer.status);
-                          setIsEditCustomerDialogOpen(true);
+                          setSelectedPlayerId(player.id);
+                          setNewPlayerFirstName(player.first_name);
+                          setNewPlayerLastName(player.last_name);
+                          setNewPlayerPhone(player.phone);
+                          setNewPlayerStatus(player.status);
+                          setIsEditPlayerDialogOpen(true);
                         }}
                       >
                         <FilePenIcon className="w-4 h-4" />
@@ -348,7 +348,7 @@ export default function CustomersPage() {
                         size="icon"
                         variant="ghost"
                         onClick={() => {
-                          setCustomerToDelete(customer);
+                          setPlayerToDelete(player);
                           setIsDeleteConfirmationOpen(true);
                         }}
                       >
@@ -359,7 +359,7 @@ export default function CustomersPage() {
                   </TableCell>
                 </TableRow>
               ))}
-              {filteredCustomers.length === 0 && (
+              {filteredPlayers.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-6">
                     No se encontraron clientes.
@@ -377,37 +377,37 @@ export default function CustomersPage() {
 
       {/* Create / Edit dialog */}
       <Dialog
-        open={showNewCustomerDialog || isEditCustomerDialogOpen}
+        open={showNewPlayerDialog || isEditPlayerDialogOpen}
         onOpenChange={(open) => {
           if (!open) {
-            setShowNewCustomerDialog(false);
-            setIsEditCustomerDialogOpen(false);
-            resetSelectedCustomer();
+            setShowNewPlayerDialog(false);
+            setIsEditPlayerDialogOpen(false);
+            resetSelectedPlayer();
           }
         }}
       >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {showNewCustomerDialog ? "Crear Nuevo Cliente" : "Editar Cliente"}
+              {showNewPlayerDialog ? "Crear Nuevo Cliente" : "Editar Cliente"}
             </DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="name">Nombre</Label>
               <Input
-                id="name"
-                value={newCustomerName}
-                onChange={(e) => setNewCustomerName(e.target.value)}
+                id="firstName"
+                value={newPlayerFirstName}
+                onChange={(e) => setNewPlayerFirstName(e.target.value)}
                 className="col-span-3"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="lastName">Apellido</Label>
               <Input
-                id="email"
-                value={newCustomerEmail}
-                onChange={(e) => setNewCustomerEmail(e.target.value)}
+                id="lastName"
+                value={newPlayerLastName}
+                onChange={(e) => setNewPlayerLastName(e.target.value)}
                 className="col-span-3"
               />
             </div>
@@ -415,17 +415,17 @@ export default function CustomersPage() {
               <Label htmlFor="phone">Telefono</Label>
               <Input
                 id="phone"
-                value={newCustomerPhone}
-                onChange={(e) => setNewCustomerPhone(e.target.value)}
+                value={newPlayerPhone}
+                onChange={(e) => setNewPlayerPhone(e.target.value)}
                 className="col-span-3"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="status">Estado</Label>
               <Select
-                value={newCustomerStatus}
-                onValueChange={(value: CustomerStatus) =>
-                  setNewCustomerStatus(value)
+                value={newPlayerStatus}
+                onValueChange={(value: PlayerStatus) =>
+                  setNewPlayerStatus(value)
                 }
               >
                 <SelectTrigger id="status" className="col-span-3">
@@ -442,19 +442,19 @@ export default function CustomersPage() {
             <Button
               variant="secondary"
               onClick={() => {
-                setShowNewCustomerDialog(false);
-                setIsEditCustomerDialogOpen(false);
-                resetSelectedCustomer();
+                setShowNewPlayerDialog(false);
+                setIsEditPlayerDialogOpen(false);
+                resetSelectedPlayer();
               }}
             >
               Cancel
             </Button>
             <Button
               onClick={
-                showNewCustomerDialog ? handleAddCustomer : handleEditCustomer
+                showNewPlayerDialog ? handleAddPlayer : handleEditPlayer
               }
             >
-              {showNewCustomerDialog ? "Crear Cliente" : "Editar Cliente"}
+              {showNewPlayerDialog ? "Crear Cliente" : "Editar Cliente"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -470,7 +470,7 @@ export default function CustomersPage() {
             <DialogTitle>Confirm Deletion</DialogTitle>
           </DialogHeader>
           <p>
-            Are you sure you want to delete this customer? This will mark them
+            Are you sure you want to delete this player? This will mark them
             as inactive.
           </p>
           <DialogFooter>
@@ -480,7 +480,7 @@ export default function CustomersPage() {
             >
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDeleteCustomer}>
+            <Button variant="destructive" onClick={handleDeletePlayer}>
               Delete
             </Button>
           </DialogFooter>

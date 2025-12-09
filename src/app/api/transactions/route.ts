@@ -20,7 +20,7 @@ export async function GET(_request: Request, { params }: Params) {
       `
       id,
       order_id,
-      customer_id,
+      player_id,
       payment_method_id,
       description,
       amount,
@@ -74,8 +74,8 @@ export async function PATCH(request: Request, { params }: Params) {
     updateFields.order_id = body.orderId ?? null;
   }
 
-  if (body.customerId !== undefined) {
-    updateFields.customer_id = body.customerId ?? null;
+  if (body.playerId !== undefined) {
+    updateFields.player_id = body.playerId ?? null;
   }
 
   if (body.type !== undefined) {
@@ -105,7 +105,7 @@ export async function PATCH(request: Request, { params }: Params) {
       `
       id,
       order_id,
-      customer_id,
+      player_id,
       payment_method_id,
       description,
       amount,

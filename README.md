@@ -1,6 +1,6 @@
 # POS and Inventory Management System
 
-This is a Point of Sale (POS) and Inventory Management System built with Next.js, React, and Supabase. It provides a comprehensive solution for managing products, customers, orders, and transactions in a retail or small business setting.
+This is a Point of Sale (POS) and Inventory Management System built with Next.js, React, and Supabase. It provides a comprehensive solution for managing products, players, orders, and transactions in a retail or small business setting.
 
 As a developer with extensive experience in creating similar applications, this project represents the culmination of years of expertise in building POS systems. Of course, in the beginning the project seem a little raw, but with time and hopefully with the help of the community, it will become a robust and feature-rich solution for businesses of all sizes.
 
@@ -10,7 +10,7 @@ This particular iteration embraces the spirit of open-source development, making
 
 - **Dashboard**: Overview of key metrics and charts
 - **Products Management**: Add, edit, delete, and view products
-- **Customer Management**: Manage customer information and status
+- **Player Management**: Manage player information and status
 - **Order Management**: Create and manage orders
 - **Point of Sale (POS)**: Quick and easy sales processing
 - **User Authentication**: Secure login system
@@ -55,7 +55,7 @@ This particular iteration embraces the spirit of open-source development, making
 
 - `/admin`: Main dashboard
 - `/admin/products`: Product management
-- `/admin/customers`: Customer management
+- `/admin/players`: Player management
 - `/admin/orders`: Order management
 - `/admin/pos`: Point of Sale interface
 
@@ -64,7 +64,7 @@ This particular iteration embraces the spirit of open-source development, making
 The project uses a PostgreSQL database with the following main tables:
 
 - `products`: Store product information
-- `customers`: Customer details
+- `players`: Player details
 - `orders`: Order information
 - `order_items`: Items within each order
 - `transactions`: Financial transactions

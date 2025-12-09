@@ -81,7 +81,7 @@ export const products = [
   },
 ];
 
-export const customers = [
+export const players = [
   {
     id: 1,
     name: "John Doe",
