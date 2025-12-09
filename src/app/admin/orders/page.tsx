@@ -149,17 +149,17 @@ export default function OrdersPage() {
   const getStatusBadge = (status: OrderStatus) => {
     switch (status) {
       case "open":
-        return <Badge variant="outline">Open</Badge>;
+        return <Badge variant="outline">Abierta</Badge>;
       case "closed":
         return (
           <Badge className="bg-green-500/10 text-green-600 border-green-500/30">
-            Paid
+            Pagada
           </Badge>
         );
       case "cancelled":
         return (
           <Badge className="bg-red-500/10 text-red-600 border-red-500/30">
-            Cancelled
+            Cancelada
           </Badge>
         );
       default:
