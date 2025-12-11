@@ -332,8 +332,8 @@ CREATE TABLE tournament_matches (
 
     tournament_group_id BIGINT REFERENCES tournament_groups(id),
 
-    team1_id            BIGINT NOT NULL REFERENCES tournament_teams(id),
-    team2_id            BIGINT NOT NULL REFERENCES tournament_teams(id),
+    team1_id            BIGINT REFERENCES tournament_teams(id),
+    team2_id            BIGINT REFERENCES tournament_teams(id),
 
     court_id            BIGINT REFERENCES courts(id),
     match_date          DATE,
@@ -405,7 +405,7 @@ CREATE TABLE tournament_playoffs (
     match_id      BIGINT NOT NULL REFERENCES tournament_matches(id) ON DELETE CASCADE,
 
     round         VARCHAR(20) NOT NULL
-                  CHECK (round IN ('octavos', 'cuartos', 'semifinal', 'final', 'tercer_puesto')),
+                  CHECK (round IN ('16avos', 'octavos', 'cuartos', 'semifinal', 'final')),
 
     bracket_pos   INTEGER NOT NULL,    -- ej: 1..8 en octavos, 1..4 en cuartos, etc.
 
