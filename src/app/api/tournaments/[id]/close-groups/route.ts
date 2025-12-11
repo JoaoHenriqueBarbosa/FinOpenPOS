@@ -252,7 +252,7 @@ export async function POST(_req: Request, { params }: RouteParams) {
     }
   }
 
-  // 7) generar playoffs: bracket simple con todos los clasificados en orden
+  // 7) generar playoffs: bracket completo con todas las rondas
   if (qualifiedTeams.length < 2) {
     return NextResponse.json(
       { error: "Not enough qualified teams for playoffs" },
@@ -268,38 +268,160 @@ export async function POST(_req: Request, { params }: RouteParams) {
     return a.pos - b.pos;
   });
 
-  // armamos parejas 1 vs último, 2 vs penúltimo, etc.
-  const pairs: { team1_id: number; team2_id: number; round: string }[] = [];
-  const roundsLabel = (nPairs: number): string => {
-    if (nPairs === 8) return "octavos";
-    if (nPairs === 4) return "cuartos";
-    if (nPairs === 2) return "semifinal";
-    if (nPairs === 1) return "final";
-    return "cuartos"; // fallback
+  const n = qualifiedTeams.length;
+
+  // Determinar la primera ronda según cantidad de equipos
+  const getFirstRoundName = (count: number): string => {
+    if (count >= 16) return "16avos";
+    if (count >= 8) return "octavos";
+    if (count >= 4) return "cuartos";
+    if (count >= 2) return "semifinal";
+    return "final";
   };
 
-  const n = qualifiedTeams.length;
-  const nPairs = Math.floor(n / 2);
-  const roundName = roundsLabel(nPairs);
+  const firstRoundName = getFirstRoundName(n);
+  const firstRoundMatches = Math.floor(n / 2);
+  const hasBye = n % 2 === 1;
+  const teamsAdvancing = firstRoundMatches + (hasBye ? 1 : 0);
 
-  for (let i = 0; i < nPairs; i++) {
-    const t1 = qualifiedTeams[i];
-    const t2 = qualifiedTeams[n - 1 - i];
-    pairs.push({ team1_id: t1.team_id, team2_id: t2.team_id, round: roundName });
+  // Generar todas las rondas necesarias
+  type RoundInfo = {
+    name: string;
+    matches: number;
+    teamsIn: number;
+  };
+
+  const rounds: RoundInfo[] = [{
+    name: firstRoundName,
+    matches: firstRoundMatches,
+    teamsIn: n,
+  }];
+
+  // Calcular rondas siguientes
+  let currentTeams = teamsAdvancing;
+  while (currentTeams > 1) {
+    const nextMatches = Math.ceil(currentTeams / 2);
+    let nextRoundName = "";
+    
+    if (nextMatches === 1) {
+      nextRoundName = "final";
+    } else if (currentTeams <= 4) {
+      nextRoundName = "semifinal";
+    } else if (currentTeams <= 8) {
+      nextRoundName = "cuartos";
+    } else if (currentTeams <= 16) {
+      nextRoundName = "octavos";
+    } else {
+      nextRoundName = "16avos";
+    }
+
+    // Evitar duplicar rondas con el mismo nombre y número de matches
+    const alreadyExists = rounds.some(
+      r => r.name === nextRoundName && r.matches === nextMatches
+    );
+    if (alreadyExists) break;
+
+    rounds.push({
+      name: nextRoundName,
+      matches: nextMatches,
+      teamsIn: currentTeams,
+    });
+    
+    currentTeams = nextMatches;
   }
 
-  const playoffMatchesPayload: any[] = [];
-  pairs.forEach((p, idx) => {
-    playoffMatchesPayload.push({
-      tournament_id: tournamentId,
-      user_uid: user.id,
-      phase: "playoff",
-      tournament_group_id: null,
-      team1_id: p.team1_id,
-      team2_id: p.team2_id,
-      status: "scheduled",
+  // Crear todos los partidos de todas las rondas
+  const allMatches: Array<{
+    round: string;
+    bracket_pos: number;
+    team1_id: number | null;
+    team2_id: number | null;
+    source_team1: string | null;
+    source_team2: string | null;
+  }> = [];
+
+  // Primera ronda: asignar equipos reales usando seeding (1 vs último, 2 vs penúltimo, etc.)
+  const byeTeam = hasBye ? qualifiedTeams[firstRoundMatches] : null;
+  
+  for (let i = 0; i < firstRoundMatches; i++) {
+    const t1 = qualifiedTeams[i];
+    const t2 = qualifiedTeams[n - 1 - i];
+    allMatches.push({
+      round: firstRoundName,
+      bracket_pos: i + 1,
+      team1_id: t1.team_id,
+      team2_id: t2.team_id,
+      source_team1: null,
+      source_team2: null,
     });
-  });
+  }
+
+  // Generar rondas siguientes
+  for (let r = 1; r < rounds.length; r++) {
+    const round = rounds[r];
+    const prevRound = rounds[r - 1];
+
+    // Rondas normales: ganadores avanzan
+    const prevRoundLabel = prevRound.name.charAt(0).toUpperCase() + prevRound.name.slice(1);
+    const prevHasBye = prevRound.teamsIn % 2 === 1;
+    const prevWinners = prevRound.matches; // ganadores de matches
+    const prevByeCount = prevHasBye ? 1 : 0;
+    const totalAdvancing = prevWinners + prevByeCount;
+
+    // Si hay bye de la ronda anterior y es la primera ronda después de la inicial
+    const hasByeFromPrev = r === 1 && byeTeam !== null;
+    
+    for (let i = 0; i < round.matches; i++) {
+      const matchNum = i + 1;
+      const prevMatch1 = i * 2 + 1;
+      const prevMatch2 = i * 2 + 2;
+
+      let team1Id: number | null = null;
+      let team2Id: number | null = null;
+      let source1: string | null = null;
+      let source2: string | null = null;
+
+      // Si hay bye de la ronda anterior, asignarlo al primer match
+      if (hasByeFromPrev && i === 0 && byeTeam) {
+        team1Id = byeTeam.team_id;
+        source1 = null;
+        source2 = `Ganador ${prevRoundLabel}${prevMatch1}`;
+      } else {
+        // Match normal: ambos equipos vienen de matches previos
+        source1 = `Ganador ${prevRoundLabel}${prevMatch1}`;
+        // Si hay bye y este es el último match, el segundo equipo puede ser el bye
+        if (hasByeFromPrev && prevMatch2 > prevRound.matches && byeTeam) {
+          team2Id = byeTeam.team_id;
+          source2 = null;
+        } else if (prevMatch2 <= prevRound.matches) {
+          source2 = `Ganador ${prevRoundLabel}${prevMatch2}`;
+        } else {
+          // No hay segundo match previo (caso edge)
+          source2 = null;
+        }
+      }
+
+      allMatches.push({
+        round: round.name,
+        bracket_pos: matchNum,
+        team1_id: team1Id,
+        team2_id: team2Id,
+        source_team1: source1,
+        source_team2: source2,
+      });
+    }
+  }
+
+  // Insertar todos los partidos en la base de datos
+  const playoffMatchesPayload: any[] = allMatches.map((m) => ({
+    tournament_id: tournamentId,
+    user_uid: user.id,
+    phase: "playoff",
+    tournament_group_id: null,
+    team1_id: m.team1_id,
+    team2_id: m.team2_id,
+    status: "scheduled",
+  }));
 
   const { data: createdMatches, error: cmError } = await supabase
     .from("tournament_matches")
@@ -314,14 +436,15 @@ export async function POST(_req: Request, { params }: RouteParams) {
     );
   }
 
-  const playoffRows: any[] = createdMatches.map((m, idx) => ({
+  // Crear las filas de tournament_playoffs con referencias correctas
+  const playoffRows: any[] = allMatches.map((m, idx) => ({
     tournament_id: tournamentId,
     user_uid: user.id,
-    match_id: m.id,
-    round: roundName,
-    bracket_pos: idx + 1,
-    source_team1: null,
-    source_team2: null,
+    match_id: createdMatches[idx].id,
+    round: m.round,
+    bracket_pos: m.bracket_pos,
+    source_team1: m.source_team1,
+    source_team2: m.source_team2,
   }));
 
   const { error: tpError } = await supabase
