@@ -260,29 +260,92 @@ export async function POST(_req: Request, { params }: RouteParams) {
     );
   }
 
-  // ordenar: por grupo, luego posición (1°,2°,3°)
+  // ordenar: primero por posición (1°, 2°, 3°), luego por grupo
+  // Esto asegura que los primeros de cada zona estén al principio y pasen directo cuando hay byes
   qualifiedTeams.sort((a, b) => {
-    if (a.from_group_id !== b.from_group_id) {
-      return a.from_group_id - b.from_group_id;
+    if (a.pos !== b.pos) {
+      return a.pos - b.pos; // Primero todos los 1°, luego 2°, luego 3°
     }
-    return a.pos - b.pos;
+    return a.from_group_id - b.from_group_id; // Dentro de la misma posición, por grupo
   });
 
   const n = qualifiedTeams.length;
 
-  // Determinar la primera ronda según cantidad de equipos
-  const getFirstRoundName = (count: number): string => {
-    if (count >= 16) return "16avos";
-    if (count >= 8) return "octavos";
-    if (count >= 4) return "cuartos";
-    if (count >= 2) return "semifinal";
-    return "final";
+  // Calcular cuántos equipos deben jugar en la primera ronda
+  // La idea es que la siguiente ronda tenga un número par de equipos (preferiblemente potencia de 2)
+  const calculateFirstRound = (totalTeams: number): {
+    firstRoundName: string;
+    teamsPlaying: number;
+    teamsWithBye: number;
+    nextRoundSize: number;
+  } => {
+    if (totalTeams <= 2) {
+      return { firstRoundName: "final", teamsPlaying: totalTeams, teamsWithBye: 0, nextRoundSize: 2 };
+    }
+
+    // Determinar el tamaño objetivo de la siguiente ronda
+    // Queremos la potencia de 2 más cercana que sea >= totalTeams/2
+    let nextRoundSize = 2;
+    if (totalTeams > 16) nextRoundSize = 16;
+    else if (totalTeams > 8) nextRoundSize = 8;
+    else if (totalTeams > 4) nextRoundSize = 4;
+    else nextRoundSize = 2;
+
+    // Calcular cuántos equipos deben jugar para llenar la siguiente ronda
+    // Estrategia: queremos que la siguiente ronda tenga nextRoundSize equipos
+    // Si totalTeams > nextRoundSize: algunos pasan directo
+    // Si totalTeams <= nextRoundSize: todos juegan
+    
+    let teamsPlaying: number;
+    let teamsWithBye: number;
+
+    if (totalTeams > nextRoundSize) {
+      // Algunos pasan directo
+      // Queremos: teamsPlaying/2 + teamsWithBye = nextRoundSize
+      // Donde: teamsWithBye = totalTeams - teamsPlaying
+      // Resolviendo: teamsPlaying = 2 * (totalTeams - nextRoundSize)
+      teamsPlaying = 2 * (totalTeams - nextRoundSize);
+      teamsWithBye = totalTeams - teamsPlaying;
+      
+      // Validar que teamsPlaying sea par y positivo
+      if (teamsPlaying <= 0 || teamsPlaying % 2 !== 0) {
+        // Si la fórmula no funciona, usar una estrategia alternativa:
+        // Hacer que el máximo número par de equipos juegue
+        teamsPlaying = totalTeams % 2 === 0 ? totalTeams : totalTeams - 1;
+        teamsWithBye = totalTeams - teamsPlaying;
+        
+        // Ajustar nextRoundSize si es necesario
+        const actualNextRoundSize = Math.floor(teamsPlaying / 2) + teamsWithBye;
+        if (actualNextRoundSize !== nextRoundSize && actualNextRoundSize > 0) {
+          // Ajustar el nombre de la ronda si cambió el tamaño
+          if (actualNextRoundSize === 2) {
+            nextRoundSize = 2;
+          } else if (actualNextRoundSize <= 4) {
+            nextRoundSize = 4;
+          } else if (actualNextRoundSize <= 8) {
+            nextRoundSize = 8;
+          }
+        }
+      }
+    } else {
+      // Todos juegan en la primera ronda
+      teamsPlaying = totalTeams;
+      teamsWithBye = 0;
+    }
+
+    // Determinar el nombre de la primera ronda
+    let firstRoundName = "cuartos";
+    if (nextRoundSize === 16) firstRoundName = "16avos";
+    else if (nextRoundSize === 8) firstRoundName = "octavos";
+    else if (nextRoundSize === 4) firstRoundName = "cuartos";
+    else if (nextRoundSize === 2) firstRoundName = "semifinal";
+
+    return { firstRoundName, teamsPlaying, teamsWithBye, nextRoundSize };
   };
 
-  const firstRoundName = getFirstRoundName(n);
-  const firstRoundMatches = Math.floor(n / 2);
-  const hasBye = n % 2 === 1;
-  const teamsAdvancing = firstRoundMatches + (hasBye ? 1 : 0);
+  const { firstRoundName, teamsPlaying, teamsWithBye, nextRoundSize } = calculateFirstRound(n);
+  const firstRoundMatches = Math.floor(teamsPlaying / 2);
+  const teamsAdvancing = firstRoundMatches + teamsWithBye;
 
   // Generar todas las rondas necesarias
   type RoundInfo = {
@@ -294,7 +357,7 @@ export async function POST(_req: Request, { params }: RouteParams) {
   const rounds: RoundInfo[] = [{
     name: firstRoundName,
     matches: firstRoundMatches,
-    teamsIn: n,
+    teamsIn: teamsPlaying,
   }];
 
   // Calcular rondas siguientes
@@ -340,12 +403,15 @@ export async function POST(_req: Request, { params }: RouteParams) {
     source_team2: string | null;
   }> = [];
 
-  // Primera ronda: asignar equipos reales usando seeding (1 vs último, 2 vs penúltimo, etc.)
-  const byeTeam = hasBye ? qualifiedTeams[firstRoundMatches] : null;
+  // Primera ronda: los mejores seeds pasan directo, los restantes juegan
+  // Ejemplo con 6 equipos: seeds 1-2 pasan directo, seeds 3-6 juegan cuartos
+  const teamsPlayingInFirstRound = qualifiedTeams.slice(teamsWithBye);
+  const teamsWithByeList = qualifiedTeams.slice(0, teamsWithBye);
   
+  // Crear matches de la primera ronda con los equipos que juegan
   for (let i = 0; i < firstRoundMatches; i++) {
-    const t1 = qualifiedTeams[i];
-    const t2 = qualifiedTeams[n - 1 - i];
+    const t1 = teamsPlayingInFirstRound[i];
+    const t2 = teamsPlayingInFirstRound[teamsPlayingInFirstRound.length - 1 - i];
     allMatches.push({
       round: firstRoundName,
       bracket_pos: i + 1,
@@ -360,55 +426,65 @@ export async function POST(_req: Request, { params }: RouteParams) {
   for (let r = 1; r < rounds.length; r++) {
     const round = rounds[r];
     const prevRound = rounds[r - 1];
-
-    // Rondas normales: ganadores avanzan
     const prevRoundLabel = prevRound.name.charAt(0).toUpperCase() + prevRound.name.slice(1);
-    const prevHasBye = prevRound.teamsIn % 2 === 1;
-    const prevWinners = prevRound.matches; // ganadores de matches
-    const prevByeCount = prevHasBye ? 1 : 0;
-    const totalAdvancing = prevWinners + prevByeCount;
 
-    // Si hay bye de la ronda anterior y es la primera ronda después de la inicial
-    const hasByeFromPrev = r === 1 && byeTeam !== null;
-    
-    for (let i = 0; i < round.matches; i++) {
-      const matchNum = i + 1;
-      const prevMatch1 = i * 2 + 1;
-      const prevMatch2 = i * 2 + 2;
+    // Si es la primera ronda después de la inicial, asignar los equipos con bye
+    if (r === 1 && teamsWithBye > 0) {
+      // Distribuir los equipos con bye en diferentes matches (uno por match)
+      // Luego completar con ganadores de la primera ronda
+      let byeIndex = 0;
+      let winnerIndex = 0;
 
-      let team1Id: number | null = null;
-      let team2Id: number | null = null;
-      let source1: string | null = null;
-      let source2: string | null = null;
+      for (let i = 0; i < round.matches; i++) {
+        const matchNum = i + 1;
+        let team1Id: number | null = null;
+        let team2Id: number | null = null;
+        let source1: string | null = null;
+        let source2: string | null = null;
 
-      // Si hay bye de la ronda anterior, asignarlo al primer match
-      if (hasByeFromPrev && i === 0 && byeTeam) {
-        team1Id = byeTeam.team_id;
-        source1 = null;
-        source2 = `Ganador ${prevRoundLabel}${prevMatch1}`;
-      } else {
-        // Match normal: ambos equipos vienen de matches previos
-        source1 = `Ganador ${prevRoundLabel}${prevMatch1}`;
-        // Si hay bye y este es el último match, el segundo equipo puede ser el bye
-        if (hasByeFromPrev && prevMatch2 > prevRound.matches && byeTeam) {
-          team2Id = byeTeam.team_id;
-          source2 = null;
-        } else if (prevMatch2 <= prevRound.matches) {
-          source2 = `Ganador ${prevRoundLabel}${prevMatch2}`;
+        // Estrategia: distribuir un bye por match (si hay disponibles)
+        // Esto asegura que los primeros de cada zona estén en diferentes cruces
+        if (byeIndex < teamsWithBye) {
+          // Asignar un bye a team1 de este match
+          team1Id = teamsWithByeList[byeIndex].team_id;
+          source1 = null;
+          byeIndex++;
+          
+          // El segundo equipo es un ganador de la ronda anterior
+          source2 = `Ganador ${prevRoundLabel}${winnerIndex + 1}`;
+          winnerIndex++;
         } else {
-          // No hay segundo match previo (caso edge)
-          source2 = null;
+          // Ya no hay más byes, ambos equipos son ganadores
+          source1 = `Ganador ${prevRoundLabel}${winnerIndex + 1}`;
+          source2 = `Ganador ${prevRoundLabel}${winnerIndex + 2}`;
+          winnerIndex += 2;
         }
-      }
 
-      allMatches.push({
-        round: round.name,
-        bracket_pos: matchNum,
-        team1_id: team1Id,
-        team2_id: team2Id,
-        source_team1: source1,
-        source_team2: source2,
-      });
+        allMatches.push({
+          round: round.name,
+          bracket_pos: matchNum,
+          team1_id: team1Id,
+          team2_id: team2Id,
+          source_team1: source1,
+          source_team2: source2,
+        });
+      }
+    } else {
+      // Rondas normales: solo ganadores avanzan
+      for (let i = 0; i < round.matches; i++) {
+        const matchNum = i + 1;
+        const prevMatch1 = i * 2 + 1;
+        const prevMatch2 = i * 2 + 2;
+
+        allMatches.push({
+          round: round.name,
+          bracket_pos: matchNum,
+          team1_id: null,
+          team2_id: null,
+          source_team1: `Ganador ${prevRoundLabel}${prevMatch1}`,
+          source_team2: `Ganador ${prevRoundLabel}${prevMatch2}`,
+        });
+      }
     }
   }
 
