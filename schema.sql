@@ -330,7 +330,7 @@ CREATE TABLE tournament_matches (
     phase               VARCHAR(20) NOT NULL DEFAULT 'group'
                         CHECK (phase IN ('group', 'playoff')),
 
-    tournament_group_id BIGINT REFERENCES tournament_groups(id), -- NULL en playoffs
+    tournament_group_id BIGINT REFERENCES tournament_groups(id),
 
     team1_id            BIGINT NOT NULL REFERENCES tournament_teams(id),
     team2_id            BIGINT NOT NULL REFERENCES tournament_teams(id),
@@ -338,11 +338,25 @@ CREATE TABLE tournament_matches (
     court_id            BIGINT REFERENCES courts(id),
     match_date          DATE,
     start_time          TIME,
-    end_time            TIME,  -- normalmente start_time + 1 hora
+    end_time            TIME,
 
     status              VARCHAR(20) NOT NULL DEFAULT 'scheduled'
                         CHECK (status IN ('scheduled', 'in_progress', 'finished', 'cancelled')),
 
+    -- 🔹 Flag para indicar si el tercer set es super tie-break
+    has_super_tiebreak  BOOLEAN NOT NULL DEFAULT FALSE,
+
+    -- 🔹 Resultados por set (games)
+    set1_team1_games    INTEGER,
+    set1_team2_games    INTEGER,
+
+    set2_team1_games    INTEGER,
+    set2_team2_games    INTEGER,
+
+    set3_team1_games    INTEGER,
+    set3_team2_games    INTEGER,
+
+    -- 🔹 Totales (podés recalcularlos desde los sets)
     team1_sets          INTEGER DEFAULT 0,
     team2_sets          INTEGER DEFAULT 0,
     team1_games_total   INTEGER DEFAULT 0,

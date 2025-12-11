@@ -43,6 +43,7 @@ const pageNames: { [key: string]: string } = {
   "/admin/suppliers": "Proveedores",
   "/admin/purchases-history": "Historial de compras",
   "/admin/court-slots": "Turnos de canchas",
+  "/admin/tournaments": "Torneos",
 };
 
 type NavItem = {
