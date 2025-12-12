@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Loader2Icon, PlusIcon, TrashIcon, LockIcon } from "lucide-react";
+import { TournamentScheduleDialog, ScheduleConfig } from "@/components/tournament-schedule-dialog";
 
 type Tournament = {
   id: number;
@@ -52,6 +53,7 @@ export default function TeamsTab({ tournament }: { tournament: Tournament }) {
   const [creating, setCreating] = useState(false);
   const [closing, setClosing] = useState(false);
   const [hasGroups, setHasGroups] = useState(false);
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
 
   const [player1Id, setPlayer1Id] = useState<string>("none");
   const [player2Id, setPlayer2Id] = useState<string>("none");
@@ -133,12 +135,29 @@ export default function TeamsTab({ tournament }: { tournament: Tournament }) {
     }
   };
 
-  const handleCloseRegistration = async () => {
+  // Calcular cantidad aproximada de partidos (round robin)
+  const calculateMatchCount = () => {
+    if (teams.length < 2) return 0;
+    // Estimación: cada grupo de 3-4 equipos tiene ~3-6 partidos
+    // Asumimos grupos de 3-4 equipos
+    const avgGroupSize = 3.5;
+    const numGroups = Math.ceil(teams.length / avgGroupSize);
+    const matchesPerGroup = 3; // promedio
+    return numGroups * matchesPerGroup;
+  };
+
+  const matchCount = calculateMatchCount();
+
+  const handleCloseRegistration = async (scheduleConfig?: ScheduleConfig) => {
     try {
       setClosing(true);
       const res = await fetch(
         `/api/tournaments/${tournament.id}/close-registration`,
-        { method: "POST" }
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(scheduleConfig || {}),
+        }
       );
       if (!res.ok) {
         console.error("Error closing registration");
@@ -178,7 +197,7 @@ export default function TeamsTab({ tournament }: { tournament: Tournament }) {
             disabled={
               tournament.status !== "draft" || teams.length < 3 || closing || hasGroups
             }
-            onClick={handleCloseRegistration}
+            onClick={() => setScheduleDialogOpen(true)}
           >
             {closing && (
               <Loader2Icon className="mr-1 h-4 w-4 animate-spin" />
@@ -296,6 +315,13 @@ export default function TeamsTab({ tournament }: { tournament: Tournament }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <TournamentScheduleDialog
+        open={scheduleDialogOpen}
+        onOpenChange={setScheduleDialogOpen}
+        onConfirm={handleCloseRegistration}
+        matchCount={matchCount}
+      />
     </Card>
   );
 }
