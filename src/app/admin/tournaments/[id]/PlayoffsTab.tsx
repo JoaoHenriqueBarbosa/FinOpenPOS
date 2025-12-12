@@ -357,6 +357,7 @@ export default function PlayoffsTab({ tournament }: { tournament: Tournament }) 
             rounds={rounds}
             matchesByRound={matchesByRound}
             onMatchClick={setSelectedMatchId}
+            selectedMatchId={selectedMatchId}
           />
         </div>
 

@@ -20,6 +20,7 @@ type BracketProps = {
   rounds: string[];
   matchesByRound: Record<string, Match[]>;
   onMatchClick?: (matchId: number) => void;
+  selectedMatchId?: number | null;
 };
 
 const getRoundLabel = (round: string): string => {
@@ -33,7 +34,7 @@ const getRoundLabel = (round: string): string => {
   return labels[round] || round;
 };
 
-export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick }: BracketProps) {
+export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, selectedMatchId }: BracketProps) {
   // Crear matches fantasma para equipos con bye
   // Si un equipo tiene bye en una ronda, debe aparecer como un "match" en la ronda anterior
   // con solo ese equipo (sin oponente)
@@ -165,18 +166,48 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick }: Br
     return map;
   }, [bracketRounds]);
 
-  // Usar useEffect para agregar event listeners después de que el bracket se renderice
+  // Usar useEffect para agregar event listeners y highlight después de que el bracket se renderice
   const bracketRef = React.useRef<HTMLDivElement>(null);
 
+  // Agregar estilos CSS para highlight naranja y cambiar azules a verdes
   React.useEffect(() => {
-    if (!bracketRef.current || !onMatchClick) return;
+    const styleId = 'bracket-highlight-styles';
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = `
+        .bracket-match-selected {
+          background-color: rgba(249, 115, 22, 0.15) !important;
+          border: 2px solid rgb(249, 115, 22) !important;
+          border-radius: 4px;
+          transition: all 0.2s;
+        }
+        /* Cambiar colores azules a verdes en los match boxes */
+        [class*="seed"] {
+          background-color: #2D5016 !important;
+        }
+        [class*="seed"] svg,
+        [class*="seed"] path,
+        [class*="seed"] rect {
+          fill: #2D5016 !important;
+        }
+        /* Final en color marrón */
+        [class*="seed"]:has([class*="final"]) {
+          background-color: #8B4513 !important;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (!bracketRef.current) return;
 
     const handleClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       
       // Buscar el elemento padre que contiene el seed completo
       let current: HTMLElement | null = target;
-      let seedElement: HTMLElement | null = null;
       
       // Buscar un elemento que contenga ambos equipos
       while (current && current !== bracketRef.current) {
@@ -192,7 +223,6 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick }: Br
             const hasTeam2 = lines.some(l => l.includes(team2));
             
             if (hasTeam1 && hasTeam2) {
-              console.log("Seed clicked - Match ID:", matchId, "Teams:", team1, "vs", team2);
               onMatchClick(matchId);
               return;
             }
@@ -202,11 +232,43 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick }: Br
       }
     };
 
+    // Función para actualizar highlights
+    const updateHighlights = () => {
+      // Remover highlights anteriores
+      bracketRef.current?.querySelectorAll('.bracket-match-selected').forEach(el => {
+        el.classList.remove('bracket-match-selected');
+      });
+
+      if (selectedMatchId) {
+        // Buscar el elemento que corresponde al match seleccionado
+        const allElements = bracketRef.current?.querySelectorAll('*');
+        allElements?.forEach((el) => {
+          const text = el.textContent || '';
+          if (!text.trim()) return;
+
+          for (const [key, matchId] of teamNamesToMatchId.entries()) {
+            if (matchId === selectedMatchId) {
+              const [team1, team2] = key.split('|');
+              const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+              const hasTeam1 = lines.some(l => l.includes(team1));
+              const hasTeam2 = lines.some(l => l.includes(team2));
+              
+              if (hasTeam1 && hasTeam2) {
+                (el as HTMLElement).classList.add('bracket-match-selected');
+                return;
+              }
+            }
+          }
+        });
+      }
+    };
+
     const timeout = setTimeout(() => {
       if (bracketRef.current) {
         bracketRef.current.addEventListener('click', handleClick);
+        updateHighlights();
       }
-    }, 100);
+    }, 150);
 
     return () => {
       clearTimeout(timeout);
@@ -214,7 +276,7 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick }: Br
         bracketRef.current.removeEventListener('click', handleClick);
       }
     };
-  }, [onMatchClick, teamNamesToMatchId]);
+  }, [onMatchClick, teamNamesToMatchId, selectedMatchId]);
 
   return (
     <div className="w-full overflow-auto" style={{ maxHeight: "90vh" }}>
