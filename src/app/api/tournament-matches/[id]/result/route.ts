@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { validateMatchSets } from "@/lib/match-validation";
 
 type RouteParams = { params: { id: string } };
 
@@ -88,14 +89,28 @@ export async function POST(req: Request, { params }: RouteParams) {
     }
   }
 
+  // Validar los sets antes de guardar
+  const validation = validateMatchSets(
+    { team1: set1_team1_games, team2: set1_team2_games },
+    { team1: set2_team1_games, team2: set2_team2_games },
+    { team1: set3_team1_games, team2: set3_team2_games },
+    hasSuperTiebreak
+  );
+
+  if (!validation.valid) {
+    return NextResponse.json(
+      { error: validation.error || "Invalid set scores" },
+      { status: 400 }
+    );
+  }
+
   // Determinar el ganador
   const winnerTeamId = team1Sets > team2Sets ? match.team1_id : match.team2_id;
 
-  // Actualizar el match
+  // Actualizar el match (has_super_tiebreak ya no es una columna en tournament_matches)
   const { error: updateError } = await supabase
     .from("tournament_matches")
     .update({
-      has_super_tiebreak: hasSuperTiebreak,
       set1_team1_games,
       set1_team2_games,
       set2_team1_games,

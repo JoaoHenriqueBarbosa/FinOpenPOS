@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 
 type Tournament = {
   id: number;
+  has_super_tiebreak: boolean;
 };
 
 type Group = {
@@ -85,13 +86,22 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [closingGroups, setClosingGroups] = useState(false);
+  const [hasPlayoffs, setHasPlayoffs] = useState(false);
 
   const load = async () => {
     try {
-      const res = await fetch(`/api/tournaments/${tournament.id}/groups`);
-      if (!res.ok) throw new Error("Failed to fetch groups");
-      const json = (await res.json()) as ApiResponse;
-      setData(json);
+      const [groupsRes, playoffsRes] = await Promise.all([
+        fetch(`/api/tournaments/${tournament.id}/groups`),
+        fetch(`/api/tournaments/${tournament.id}/playoffs`),
+      ]);
+      if (groupsRes.ok) {
+        const json = (await groupsRes.json()) as ApiResponse;
+        setData(json);
+      }
+      if (playoffsRes.ok) {
+        const playoffsData = await playoffsRes.json();
+        setHasPlayoffs(playoffsData && playoffsData.length > 0);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -160,7 +170,7 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
           variant="outline"
           size="sm"
           onClick={handleCloseGroups}
-          disabled={closingGroups}
+          disabled={closingGroups || hasPlayoffs}
         >
           {closingGroups && (
             <Loader2Icon className="h-3 w-3 animate-spin mr-1" />
@@ -241,7 +251,13 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
                       </div>
                       
                       {/* Nombres de equipos con inputs de resultados */}
-                      <MatchResultInlineForm match={m} team1Name={team1Name} team2Name={team2Name} onSaved={load} />
+                      <MatchResultInlineForm 
+                        match={m} 
+                        team1Name={team1Name} 
+                        team2Name={team2Name} 
+                        hasSuperTiebreak={tournament.has_super_tiebreak}
+                        onSaved={load} 
+                      />
                     </div>
                   );
                 })}

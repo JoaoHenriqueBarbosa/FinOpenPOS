@@ -51,6 +51,7 @@ export default function TeamsTab({ tournament }: { tournament: Tournament }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [closing, setClosing] = useState(false);
+  const [hasGroups, setHasGroups] = useState(false);
 
   const [player1Id, setPlayer1Id] = useState<string>("none");
   const [player2Id, setPlayer2Id] = useState<string>("none");
@@ -58,15 +59,20 @@ export default function TeamsTab({ tournament }: { tournament: Tournament }) {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [teamsRes, playersRes] = await Promise.all([
+        const [teamsRes, playersRes, groupsRes] = await Promise.all([
           fetch(`/api/tournaments/${tournament.id}/teams`),
           fetch("/api/players"), // adaptá si usás /api/customers
+          fetch(`/api/tournaments/${tournament.id}/groups`),
         ]);
         if (teamsRes.ok) {
           setTeams(await teamsRes.json());
         }
         if (playersRes.ok) {
           setPlayers(await playersRes.json());
+        }
+        if (groupsRes.ok) {
+          const groupsData = await groupsRes.json();
+          setHasGroups(groupsData.groups && groupsData.groups.length > 0);
         }
       } catch (err) {
         console.error("Error fetching teams/players:", err);
@@ -170,7 +176,7 @@ export default function TeamsTab({ tournament }: { tournament: Tournament }) {
             variant="outline"
             size="sm"
             disabled={
-              tournament.status !== "draft" || teams.length < 3 || closing
+              tournament.status !== "draft" || teams.length < 3 || closing || hasGroups
             }
             onClick={handleCloseRegistration}
           >

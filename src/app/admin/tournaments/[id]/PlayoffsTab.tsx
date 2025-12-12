@@ -14,7 +14,10 @@ import { Badge } from "@/components/ui/badge";
 import { TournamentBracketV2 } from "@/components/tournament-bracket-v2";
 import { MatchResultInlineForm } from "@/components/match-result-inline-form";
 
-type Tournament = { id: number };
+type Tournament = { 
+  id: number;
+  has_super_tiebreak: boolean;
+};
 
 type PlayoffRow = {
   id: number;
@@ -225,7 +228,17 @@ export default function PlayoffsTab({ tournament }: { tournament: Tournament }) 
     });
   });
 
-  const selectedMatch = rows.find(r => r.match?.id === selectedMatchId)?.match;
+  const selectedRow = rows.find(r => r.match?.id === selectedMatchId);
+  const selectedMatch = selectedRow?.match;
+  
+  // Determinar si el match seleccionado usa super tiebreak
+  // Si es cuartos, semifinal o final, siempre false
+  // De lo contrario, usar el valor del torneo
+  const hasSuperTiebreak = selectedRow 
+    ? (selectedRow.round === "cuartos" || selectedRow.round === "semifinal" || selectedRow.round === "final")
+      ? false
+      : tournament.has_super_tiebreak
+    : false;
 
   return (
     <Card className="border-none shadow-none p-0">
@@ -286,6 +299,7 @@ export default function PlayoffsTab({ tournament }: { tournament: Tournament }) 
               match={selectedMatch}
               team1Name={teamLabel(selectedMatch.team1)}
               team2Name={teamLabel(selectedMatch.team2)}
+              hasSuperTiebreak={hasSuperTiebreak}
               onSaved={() => {
                 load();
               }}

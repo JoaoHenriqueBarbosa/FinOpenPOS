@@ -45,6 +45,29 @@ export async function POST(_req: Request, { params }: RouteParams) {
     );
   }
 
+  // Verificar si ya existen playoffs
+  const { data: existingPlayoffs, error: existingPlayoffsError } = await supabase
+    .from("tournament_playoffs")
+    .select("id")
+    .eq("tournament_id", tournamentId)
+    .eq("user_uid", user.id)
+    .limit(1);
+
+  if (existingPlayoffsError) {
+    console.error("Error checking existing playoffs:", existingPlayoffsError);
+    return NextResponse.json(
+      { error: "Failed to check existing playoffs" },
+      { status: 500 }
+    );
+  }
+
+  if (existingPlayoffs && existingPlayoffs.length > 0) {
+    return NextResponse.json(
+      { error: "Playoffs already generated for this tournament" },
+      { status: 400 }
+    );
+  }
+
   // 2) grupos
   const { data: groups, error: gError } = await supabase
     .from("tournament_groups")

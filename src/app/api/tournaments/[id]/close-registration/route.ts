@@ -35,6 +35,29 @@ export async function POST(_req: Request, { params }: RouteParams) {
     );
   }
 
+  // Verificar si ya existen grupos
+  const { data: existingGroups, error: existingGroupsError } = await supabase
+    .from("tournament_groups")
+    .select("id")
+    .eq("tournament_id", tournamentId)
+    .eq("user_uid", user.id)
+    .limit(1);
+
+  if (existingGroupsError) {
+    console.error("Error checking existing groups:", existingGroupsError);
+    return NextResponse.json(
+      { error: "Failed to check existing groups" },
+      { status: 500 }
+    );
+  }
+
+  if (existingGroups && existingGroups.length > 0) {
+    return NextResponse.json(
+      { error: "Groups already generated for this tournament" },
+      { status: 400 }
+    );
+  }
+
   // 2) traer equipos
   const { data: teams, error: teamsError } = await supabase
     .from("tournament_teams")
