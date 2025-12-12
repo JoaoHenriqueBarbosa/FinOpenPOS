@@ -22,6 +22,8 @@ export async function GET(_req: Request, { params }: RouteParams) {
       id,
       round,
       bracket_pos,
+      source_team1,
+      source_team2,
       match:match_id (
         id,
         status,
