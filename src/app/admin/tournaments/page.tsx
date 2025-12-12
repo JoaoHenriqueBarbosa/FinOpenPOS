@@ -19,6 +19,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Loader2Icon, PlusIcon } from "lucide-react";
 
 type Tournament = {
@@ -35,6 +36,7 @@ export default function TournamentsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
+  const [hasSuperTiebreak, setHasSuperTiebreak] = useState(false);
   const [creating, setCreating] = useState(false);
   const router = useRouter();
 
@@ -61,7 +63,7 @@ export default function TournamentsPage() {
       const res = await fetch("/api/tournaments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, category }),
+        body: JSON.stringify({ name, category, has_super_tiebreak: hasSuperTiebreak }),
       });
       if (!res.ok) {
         console.error("Error creating tournament");
@@ -71,6 +73,7 @@ export default function TournamentsPage() {
       setDialogOpen(false);
       setName("");
       setCategory("");
+      setHasSuperTiebreak(false);
       setTournaments((prev) => [created, ...prev]);
       router.push(`/admin/tournaments/${created.id}`);
     } catch (err) {
@@ -147,6 +150,19 @@ export default function TournamentsPage() {
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
                 placeholder="Ej: 7ma, 6ta, Mixto"
+              />
+            </div>
+            <div className="flex items-center justify-between space-x-2 py-2">
+              <div className="space-y-0.5">
+                <Label htmlFor="super-tiebreak">Super Tie-Break en 3er set</Label>
+                <p className="text-xs text-muted-foreground">
+                  Se aplicará a todos los matches excepto cuartos, semifinal y final
+                </p>
+              </div>
+              <Switch
+                id="super-tiebreak"
+                checked={hasSuperTiebreak}
+                onCheckedChange={setHasSuperTiebreak}
               />
             </div>
           </div>
