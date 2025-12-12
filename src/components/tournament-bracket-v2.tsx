@@ -1,6 +1,7 @@
 "use client";
 
-import { Bracket, RoundProps, SeedProps } from "@oliverlooney/react-brackets";
+import React from "react";
+import { Bracket, RoundProps, SeedProps, Seed } from "@oliverlooney/react-brackets";
 
 type Match = {
   id: number;
@@ -141,18 +142,84 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick }: Br
     };
   });
 
+  // Crear un mapa de nombres de equipos a match IDs para identificar clicks
+  const teamNamesToMatchId = React.useMemo(() => {
+    const map = new Map<string, number>();
+    bracketRounds.forEach(round => {
+      round.seeds.forEach(seed => {
+        if (seed.id && typeof seed.id === 'number' && seed.id > 0 && seed.teams) {
+          const hasBothTeams = seed.teams.length >= 2 &&
+            seed.teams[0]?.name && 
+            seed.teams[0].name !== "—" &&
+            seed.teams[1]?.name && 
+            seed.teams[1].name !== "—";
+          
+          if (hasBothTeams) {
+            // Crear una clave única con ambos nombres de equipos
+            const key = `${seed.teams[0].name}|${seed.teams[1].name}`;
+            map.set(key, seed.id as number);
+          }
+        }
+      });
+    });
+    return map;
+  }, [bracketRounds]);
+
+  // Usar useEffect para agregar event listeners después de que el bracket se renderice
+  const bracketRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!bracketRef.current || !onMatchClick) return;
+
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      
+      // Buscar el elemento padre que contiene el seed completo
+      let current: HTMLElement | null = target;
+      let seedElement: HTMLElement | null = null;
+      
+      // Buscar un elemento que contenga ambos equipos
+      while (current && current !== bracketRef.current) {
+        const text = current.textContent || '';
+        // Buscar en el mapa por combinaciones de nombres de equipos
+        for (const [key, matchId] of teamNamesToMatchId.entries()) {
+          const [team1, team2] = key.split('|');
+          // Verificar que el texto contenga ambos nombres de equipos
+          if (text.includes(team1) && text.includes(team2)) {
+            // Verificar que este elemento contiene ambos equipos (no solo uno)
+            const lines = text.split('\n').filter(l => l.trim());
+            const hasTeam1 = lines.some(l => l.includes(team1));
+            const hasTeam2 = lines.some(l => l.includes(team2));
+            
+            if (hasTeam1 && hasTeam2) {
+              console.log("Seed clicked - Match ID:", matchId, "Teams:", team1, "vs", team2);
+              onMatchClick(matchId);
+              return;
+            }
+          }
+        }
+        current = current.parentElement;
+      }
+    };
+
+    const timeout = setTimeout(() => {
+      if (bracketRef.current) {
+        bracketRef.current.addEventListener('click', handleClick);
+      }
+    }, 100);
+
+    return () => {
+      clearTimeout(timeout);
+      if (bracketRef.current) {
+        bracketRef.current.removeEventListener('click', handleClick);
+      }
+    };
+  }, [onMatchClick, teamNamesToMatchId]);
+
   return (
     <div className="w-full overflow-auto" style={{ maxHeight: "90vh" }}>
-      <div className="p-6">
-        <Bracket
-          rounds={bracketRounds}
-          onSeedClick={(seed) => {
-            // No permitir click en matches fantasma (IDs negativos)
-            if (onMatchClick && seed?.id && seed.id > 0) {
-              onMatchClick(seed.id);
-            }
-          }}
-        />
+      <div className="p-6" ref={bracketRef}>
+        <Bracket rounds={bracketRounds} />
       </div>
     </div>
   );

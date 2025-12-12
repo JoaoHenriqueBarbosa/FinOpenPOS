@@ -326,6 +326,10 @@ export default function PlayoffsTab({ tournament }: { tournament: Tournament }) 
   });
 
   const selectedMatch = rows.find(r => r.match?.id === selectedMatchId)?.match;
+  
+  console.log("Selected match ID:", selectedMatchId);
+  console.log("Available match IDs:", rows.map(r => r.match?.id).filter(Boolean));
+  console.log("Selected match:", selectedMatch);
 
   return (
     <Card className="border-none shadow-none p-0">
@@ -346,16 +350,41 @@ export default function PlayoffsTab({ tournament }: { tournament: Tournament }) 
         </div>
 
         {/* Match result form (when a match is selected) */}
-        {selectedMatch && selectedMatch.team1 && selectedMatch.team2 && (
-          <div className="border rounded-lg p-4 bg-background">
+        {selectedMatch && selectedMatch.team1 && selectedMatch.team2 ? (
+          <div className="border rounded-lg p-4 bg-background shadow-sm">
             <div className="mb-4">
               <h3 className="font-semibold text-sm mb-2">
                 {teamLabel(selectedMatch.team1)} vs {teamLabel(selectedMatch.team2)}
               </h3>
+              {selectedMatch.status === "finished" && (
+                <Badge variant="outline" className="text-xs">
+                  Finalizado
+                </Badge>
+              )}
             </div>
-            <MatchResultForm match={selectedMatch} onSaved={() => { load(); setSelectedMatchId(null); }} />
+            <MatchResultForm 
+              match={selectedMatch} 
+              onSaved={() => { 
+                load(); 
+                setSelectedMatchId(null); 
+              }} 
+            />
           </div>
-        )}
+        ) : selectedMatch && (!selectedMatch.team1 || !selectedMatch.team2) ? (
+          <div className="border rounded-lg p-4 bg-muted/50">
+            <p className="text-sm text-muted-foreground">
+              Este match aún no tiene ambos equipos asignados. Esperá a que se completen los matches anteriores.
+            </p>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="mt-2"
+              onClick={() => setSelectedMatchId(null)}
+            >
+              Cerrar
+            </Button>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );
