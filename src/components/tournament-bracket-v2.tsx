@@ -38,6 +38,7 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, sele
   // Crear matches fantasma para equipos con bye
   // Si un equipo tiene bye en una ronda, debe aparecer como un "match" en la ronda anterior
   // con solo ese equipo (sin oponente)
+  // La librería espera que los matches estén en orden: match N de la siguiente ronda viene de matches 2N-1 y 2N
   const expandWithByeMatches = (roundIdx: number): Match[] => {
     const matches = matchesByRound[rounds[roundIdx]] || [];
     const sortedMatches = [...matches].sort((a, b) => a.bracketPos - b.bracketPos);
@@ -45,19 +46,25 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, sele
     // Verificar si hay byes en la siguiente ronda que necesitan matches fantasma en esta ronda
     if (roundIdx < rounds.length - 1) {
       const nextRoundMatches = matchesByRound[rounds[roundIdx + 1]] || [];
-      const expandedMatches: Match[] = [...sortedMatches];
-      let nextBracketPos = sortedMatches.length > 0 
-        ? Math.max(...sortedMatches.map(m => m.bracketPos)) + 1
-        : 1;
+      const sortedNextRound = [...nextRoundMatches].sort((a, b) => a.bracketPos - b.bracketPos);
+      
+      // Crear un mapa de posiciones para insertar matches fantasma en el lugar correcto
+      const expandedMatches: Match[] = [];
+      const ghostMatches: Match[] = [];
 
-      // Buscar equipos con bye en la siguiente ronda
-      nextRoundMatches.forEach((nextMatch) => {
+      // Primero, identificar todos los matches fantasma necesarios
+      sortedNextRound.forEach((nextMatch, nextIdx) => {
+        const nextMatchNum = nextMatch.bracketPos;
+        // La librería espera: match N viene de matches 2N-1 y 2N
+        const expectedPos1 = (nextMatchNum - 1) * 2 + 1;
+        const expectedPos2 = (nextMatchNum - 1) * 2 + 2;
+
         // Si sourceTeam1 es null pero team1 está asignado, es un bye
         if (!nextMatch.sourceTeam1 && nextMatch.team1) {
           const ghostMatch: Match = {
             id: -nextMatch.id, // ID negativo para identificar como fantasma
             round: rounds[roundIdx],
-            bracketPos: nextBracketPos++,
+            bracketPos: expectedPos1, // Posición basada en el match de la siguiente ronda
             team1: nextMatch.team1,
             team2: null, // Sin oponente (bye)
             winner: nextMatch.team1, // El ganador es el mismo equipo (pasa directo)
@@ -66,14 +73,14 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, sele
             sourceTeam1: null,
             sourceTeam2: null,
           };
-          expandedMatches.push(ghostMatch);
+          ghostMatches.push(ghostMatch);
         }
         // Si sourceTeam2 es null pero team2 está asignado, es un bye
         if (!nextMatch.sourceTeam2 && nextMatch.team2) {
           const ghostMatch: Match = {
             id: -nextMatch.id - 10000, // ID negativo diferente
             round: rounds[roundIdx],
-            bracketPos: nextBracketPos++,
+            bracketPos: expectedPos2, // Posición basada en el match de la siguiente ronda
             team1: nextMatch.team2,
             team2: null, // Sin oponente (bye)
             winner: nextMatch.team2, // El ganador es el mismo equipo (pasa directo)
@@ -82,11 +89,13 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, sele
             sourceTeam1: null,
             sourceTeam2: null,
           };
-          expandedMatches.push(ghostMatch);
+          ghostMatches.push(ghostMatch);
         }
       });
 
-      return expandedMatches.sort((a, b) => a.bracketPos - b.bracketPos);
+      // Combinar matches reales y fantasma, ordenados por bracketPos
+      const allMatches = [...sortedMatches, ...ghostMatches];
+      return allMatches.sort((a, b) => a.bracketPos - b.bracketPos);
     }
 
     // Para la última ronda, solo devolver los matches ordenados
