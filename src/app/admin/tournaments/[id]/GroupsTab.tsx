@@ -8,7 +8,7 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
-import { MatchResultForm } from "@/components/match-result-form";
+import { MatchResultInlineForm } from "@/components/match-result-inline-form";
 import { Loader2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -37,6 +37,9 @@ type Match = {
   tournament_group_id: number | null;
   status: string;
   has_super_tiebreak: boolean;
+  match_date: string | null;
+  start_time: string | null;
+  end_time: string | null;
   set1_team1_games: number | null;
   set1_team2_games: number | null;
   set2_team1_games: number | null;
@@ -59,6 +62,23 @@ function teamLabel(team: GroupTeam["team"]) {
   return `${team.player1?.first_name ?? ""} ${team.player1?.last_name ?? ""} / ${
     team.player2?.first_name ?? ""
   } ${team.player2?.last_name ?? ""}`;
+}
+
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return "Sin fecha";
+  const date = new Date(dateStr);
+  return date.toLocaleDateString("es-AR", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+}
+
+function formatTime(timeStr: string | null): string {
+  if (!timeStr) return "";
+  // timeStr viene como "HH:MM:SS" o "HH:MM"
+  const parts = timeStr.split(":");
+  return `${parts[0]}:${parts[1]}`;
 }
 
 
@@ -178,23 +198,54 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
               </div>
 
               {/* Partidos */}
-              <div className="space-y-2">
-                {matches.map((m) => (
-                  <div
-                    key={m.id}
-                    className="border rounded-md px-3 py-2 bg-background flex flex-col gap-1"
-                  >
-                    <div className="flex justify-between text-xs">
-                      <span className="font-medium">
-                        {teamLabel(m.team1)} vs {teamLabel(m.team2)}
-                      </span>
-                      <span className="text-[11px] text-muted-foreground">
-                        {m.status === "finished" ? "Finalizado" : "Pendiente"}
-                      </span>
+              <div className="space-y-3">
+                {matches.map((m) => {
+                  const team1Name = teamLabel(m.team1);
+                  const team2Name = teamLabel(m.team2);
+                  
+                  return (
+                    <div
+                      key={m.id}
+                      className="border rounded-lg bg-background shadow-sm overflow-hidden"
+                    >
+                      {/* Header con fecha, hora y estado */}
+                      <div className="bg-gray-50 border-b px-4 py-2">
+                        <div className="flex items-center gap-4 text-xs">
+                          {m.match_date && (
+                            <span className="font-medium text-muted-foreground">
+                              📅 {formatDate(m.match_date)}
+                            </span>
+                          )}
+                          {m.start_time && (
+                            <span className="text-muted-foreground">
+                              🕐 {formatTime(m.start_time)}
+                            </span>
+                          )}
+                          <span className={`ml-auto px-2 py-0.5 rounded text-[10px] font-medium ${
+                            m.status === "finished" 
+                              ? "bg-green-100 text-green-700" 
+                              : m.status === "in_progress"
+                              ? "bg-blue-100 text-blue-700"
+                              : m.status === "cancelled"
+                              ? "bg-red-100 text-red-700"
+                              : "bg-gray-100 text-gray-700"
+                          }`}>
+                            {m.status === "finished" 
+                              ? "Finalizado" 
+                              : m.status === "in_progress"
+                              ? "En curso"
+                              : m.status === "cancelled"
+                              ? "Cancelado"
+                              : "Programado"}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {/* Nombres de equipos con inputs de resultados */}
+                      <MatchResultInlineForm match={m} team1Name={team1Name} team2Name={team2Name} onSaved={load} />
                     </div>
-                    <MatchResultForm match={m} onSaved={load} />
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           );

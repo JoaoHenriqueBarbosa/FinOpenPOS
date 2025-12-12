@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2Icon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { TournamentBracketV2 } from "@/components/tournament-bracket-v2";
-import { MatchResultForm } from "@/components/match-result-form";
+import { MatchResultInlineForm } from "@/components/match-result-inline-form";
 
 type Tournament = { id: number };
 
@@ -26,6 +26,8 @@ type PlayoffRow = {
     id: number;
     status: string;
     has_super_tiebreak: boolean;
+    match_date: string | null;
+    start_time: string | null;
     set1_team1_games: number | null;
     set1_team2_games: number | null;
     set2_team1_games: number | null;
@@ -66,6 +68,23 @@ function teamLabelBracket(team: Match["team1"]) {
   if (!lastName1 && !lastName2) return "—";
   const result = `${lastName1} / ${lastName2}`.replace(/^\/\s*|\s*\/\s*$/g, "").trim();
   return result || "—";
+}
+
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return "Sin fecha";
+  const date = new Date(dateStr);
+  return date.toLocaleDateString("es-AR", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+}
+
+function formatTime(timeStr: string | null): string {
+  if (!timeStr) return "";
+  // timeStr viene como "HH:MM:SS" o "HH:MM"
+  const parts = timeStr.split(":");
+  return `${parts[0]}:${parts[1]}`;
 }
 
 
@@ -230,24 +249,47 @@ export default function PlayoffsTab({ tournament }: { tournament: Tournament }) 
 
         {/* Match result form (when a match is selected) */}
         {selectedMatch && selectedMatch.team1 && selectedMatch.team2 ? (
-          <div className="border rounded-lg p-4 bg-background shadow-sm">
-            <div className="mb-3">
-              <h3 className="font-semibold text-sm mb-2">
-                {teamLabel(selectedMatch.team1)} vs {teamLabel(selectedMatch.team2)}
-              </h3>
-              {selectedMatch.status === "finished" && (
-                <Badge variant="outline" className="text-xs">
-                  Finalizado
-                </Badge>
-              )}
+          <div className="border rounded-lg bg-background shadow-sm overflow-hidden">
+            {/* Header con fecha, hora y estado */}
+            <div className="bg-gray-50 border-b px-4 py-2">
+              <div className="flex items-center gap-4 text-xs">
+                {selectedMatch.match_date && (
+                  <span className="font-medium text-muted-foreground">
+                    📅 {formatDate(selectedMatch.match_date)}
+                  </span>
+                )}
+                {selectedMatch.start_time && (
+                  <span className="text-muted-foreground">
+                    🕐 {formatTime(selectedMatch.start_time)}
+                  </span>
+                )}
+                <span className={`ml-auto px-2 py-0.5 rounded text-[10px] font-medium ${
+                  selectedMatch.status === "finished" 
+                    ? "bg-green-100 text-green-700" 
+                    : selectedMatch.status === "in_progress"
+                    ? "bg-blue-100 text-blue-700"
+                    : selectedMatch.status === "cancelled"
+                    ? "bg-red-100 text-red-700"
+                    : "bg-gray-100 text-gray-700"
+                }`}>
+                  {selectedMatch.status === "finished" 
+                    ? "Finalizado" 
+                    : selectedMatch.status === "in_progress"
+                    ? "En curso"
+                    : selectedMatch.status === "cancelled"
+                    ? "Cancelado"
+                    : "Programado"}
+                </span>
+              </div>
             </div>
-            <MatchResultForm 
-              key={selectedMatch.id} // Key para forzar re-render cuando cambia el match
-              match={selectedMatch} 
-              onSaved={() => { 
-                load(); 
-                // No cerrar el formulario, mantener el match seleccionado
-              }} 
+            <MatchResultInlineForm
+              key={selectedMatch.id}
+              match={selectedMatch}
+              team1Name={teamLabel(selectedMatch.team1)}
+              team2Name={teamLabel(selectedMatch.team2)}
+              onSaved={() => {
+                load();
+              }}
             />
           </div>
         ) : selectedMatch && (!selectedMatch.team1 || !selectedMatch.team2) ? (

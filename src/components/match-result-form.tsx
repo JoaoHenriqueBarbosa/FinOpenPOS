@@ -146,7 +146,7 @@ export function MatchResultForm({ match, onSaved }: MatchResultFormProps) {
         />
       </div>
       <div className="flex items-center gap-1">
-        <Label className="text-[10px]">Super TB 3er set</Label>
+        <Label className="text-[10px]">Super TB</Label>
         <Switch
           checked={hasSTB}
           onCheckedChange={(v) => setHasSTB(v)}

@@ -28,6 +28,8 @@ export async function GET(_req: Request, { params }: RouteParams) {
         id,
         status,
         has_super_tiebreak,
+        match_date,
+        start_time,
         set1_team1_games,
         set1_team2_games,
         set2_team1_games,
