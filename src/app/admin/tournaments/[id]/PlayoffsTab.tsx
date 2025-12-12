@@ -13,6 +13,7 @@ import { Loader2Icon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { TournamentBracketV2 } from "@/components/tournament-bracket-v2";
 import { MatchResultInlineForm } from "@/components/match-result-inline-form";
+import { formatDate, formatTime } from "@/lib/date-utils";
 
 type Tournament = { 
   id: number;
@@ -71,24 +72,6 @@ function teamLabelBracket(team: Match["team1"]) {
   const result = `${lastName1} / ${lastName2}`.replace(/^\/\s*|\s*\/\s*$/g, "").trim();
   return result || "—";
 }
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "Sin fecha";
-  const date = new Date(dateStr);
-  return date.toLocaleDateString("es-AR", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
-}
-
-function formatTime(timeStr: string | null): string {
-  if (!timeStr) return "";
-  // timeStr viene como "HH:MM:SS" o "HH:MM"
-  const parts = timeStr.split(":");
-  return `${parts[0]}:${parts[1]}`;
-}
-
 
 export default function PlayoffsTab({ tournament }: { tournament: Tournament }) {
   const [rows, setRows] = useState<PlayoffRow[]>([]);

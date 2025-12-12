@@ -11,6 +11,7 @@ import {
 import { MatchResultInlineForm } from "@/components/match-result-inline-form";
 import { Loader2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { formatDate, formatTime } from "@/lib/date-utils";
 
 type Tournament = {
   id: number;
@@ -63,24 +64,6 @@ function teamLabel(team: GroupTeam["team"]) {
     team.player2?.first_name ?? ""
   } ${team.player2?.last_name ?? ""}`;
 }
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "Sin fecha";
-  const date = new Date(dateStr);
-  return date.toLocaleDateString("es-AR", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
-}
-
-function formatTime(timeStr: string | null): string {
-  if (!timeStr) return "";
-  // timeStr viene como "HH:MM:SS" o "HH:MM"
-  const parts = timeStr.split(":");
-  return `${parts[0]}:${parts[1]}`;
-}
-
 
 export default function GroupsTab({ tournament }: { tournament: Tournament }) {
   const [data, setData] = useState<ApiResponse | null>(null);
