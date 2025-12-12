@@ -8,14 +8,11 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
-import { Loader2Icon } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { CheckIcon } from "lucide-react";
+import { Loader2Icon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { TournamentBracketV2 } from "@/components/tournament-bracket-v2";
+import { MatchResultForm } from "@/components/match-result-form";
 
 type Tournament = { id: number };
 
@@ -71,132 +68,6 @@ function teamLabelBracket(team: Match["team1"]) {
   return result || "—";
 }
 
-function MatchResultForm({
-  match,
-  onSaved,
-}: {
-  match: NonNullable<PlayoffRow["match"]>;
-  onSaved: () => void;
-}) {
-  const [set1T1, setSet1T1] = useState<string>(
-    match.set1_team1_games?.toString() ?? ""
-  );
-  const [set1T2, setSet1T2] = useState<string>(
-    match.set1_team2_games?.toString() ?? ""
-  );
-  const [set2T1, setSet2T1] = useState<string>(
-    match.set2_team1_games?.toString() ?? ""
-  );
-  const [set2T2, setSet2T2] = useState<string>(
-    match.set2_team2_games?.toString() ?? ""
-  );
-  const [set3T1, setSet3T1] = useState<string>(
-    match.set3_team1_games?.toString() ?? ""
-  );
-  const [set3T2, setSet3T2] = useState<string>(
-    match.set3_team2_games?.toString() ?? ""
-  );
-  const [hasSTB, setHasSTB] = useState<boolean>(!!match.has_super_tiebreak);
-  const [saving, setSaving] = useState(false);
-
-  const handleSave = async () => {
-    const toNum = (v: string) =>
-      v === "" ? null : Number.isNaN(Number(v)) ? null : Number(v);
-
-    const sets = [
-      { team1: toNum(set1T1), team2: toNum(set1T2) },
-      { team1: toNum(set2T1), team2: toNum(set2T2) },
-      { team1: toNum(set3T1), team2: toNum(set3T2) },
-    ];
-
-    try {
-      setSaving(true);
-      const res = await fetch(`/api/tournament-matches/${match.id}/result`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          hasSuperTiebreak: hasSTB,
-          sets,
-        }),
-      });
-      if (!res.ok) {
-        console.error("Error saving playoff result");
-        return;
-      }
-      onSaved();
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="flex flex-wrap items-center gap-2 text-[11px]">
-      <div className="flex items-center gap-1">
-        <Input
-          className="w-10 h-7 px-2 text-xs"
-          value={set1T1}
-          onChange={(e) => setSet1T1(e.target.value)}
-          placeholder="-"
-        />
-        <span>-</span>
-        <Input
-          className="w-10 h-7 px-2 text-xs"
-          value={set1T2}
-          onChange={(e) => setSet1T2(e.target.value)}
-          placeholder="-"
-        />
-      </div>
-      <div className="flex items-center gap-1">
-        <Input
-          className="w-10 h-7 px-2 text-xs"
-          value={set2T1}
-          onChange={(e) => setSet2T1(e.target.value)}
-          placeholder="-"
-        />
-        <span>-</span>
-        <Input
-          className="w-10 h-7 px-2 text-xs"
-          value={set2T2}
-          onChange={(e) => setSet2T2(e.target.value)}
-          placeholder="-"
-        />
-      </div>
-      <div className="flex items-center gap-1">
-        <Input
-          className="w-10 h-7 px-2 text-xs"
-          value={set3T1}
-          onChange={(e) => setSet3T1(e.target.value)}
-          placeholder="-"
-        />
-        <span>-</span>
-        <Input
-          className="w-10 h-7 px-2 text-xs"
-          value={set3T2}
-          onChange={(e) => setSet3T2(e.target.value)}
-          placeholder="-"
-        />
-      </div>
-      <div className="flex items-center gap-1">
-        <Label className="text-[10px]">Super TB</Label>
-        <Switch
-          checked={hasSTB}
-          onCheckedChange={(v) => setHasSTB(v)}
-          className="scale-75"
-        />
-      </div>
-      <Button size="sm" className="h-7 text-xs px-3" onClick={handleSave}>
-        {saving ? (
-          <Loader2Icon className="h-3 w-3 animate-spin mr-1" />
-        ) : (
-          <CheckIcon className="h-3 w-3 mr-1" />
-        )}
-        Guardar
-      </Button>
-    </div>
-  );
-}
 
 export default function PlayoffsTab({ tournament }: { tournament: Tournament }) {
   const [rows, setRows] = useState<PlayoffRow[]>([]);
@@ -337,10 +208,6 @@ export default function PlayoffsTab({ tournament }: { tournament: Tournament }) 
   });
 
   const selectedMatch = rows.find(r => r.match?.id === selectedMatchId)?.match;
-  
-  console.log("Selected match ID:", selectedMatchId);
-  console.log("Available match IDs:", rows.map(r => r.match?.id).filter(Boolean));
-  console.log("Selected match:", selectedMatch);
 
   return (
     <Card className="border-none shadow-none p-0">
@@ -364,7 +231,7 @@ export default function PlayoffsTab({ tournament }: { tournament: Tournament }) 
         {/* Match result form (when a match is selected) */}
         {selectedMatch && selectedMatch.team1 && selectedMatch.team2 ? (
           <div className="border rounded-lg p-4 bg-background shadow-sm">
-            <div className="mb-4">
+            <div className="mb-3">
               <h3 className="font-semibold text-sm mb-2">
                 {teamLabel(selectedMatch.team1)} vs {teamLabel(selectedMatch.team2)}
               </h3>
@@ -375,10 +242,11 @@ export default function PlayoffsTab({ tournament }: { tournament: Tournament }) 
               )}
             </div>
             <MatchResultForm 
+              key={selectedMatch.id} // Key para forzar re-render cuando cambia el match
               match={selectedMatch} 
               onSaved={() => { 
                 load(); 
-                setSelectedMatchId(null); 
+                // No cerrar el formulario, mantener el match seleccionado
               }} 
             />
           </div>
@@ -396,7 +264,19 @@ export default function PlayoffsTab({ tournament }: { tournament: Tournament }) 
               Cerrar
             </Button>
           </div>
-        ) : null}
+        ) : selectedMatchId ? (
+          <div className="border rounded-lg p-4 bg-muted/50">
+            <p className="text-sm text-muted-foreground">
+              Cargando información del match...
+            </p>
+          </div>
+        ) : (
+          <div className="border rounded-lg p-6 bg-muted/30 text-center">
+            <p className="text-sm text-muted-foreground">
+              Seleccioná un match del bracket para cargar o editar su resultado
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
