@@ -83,7 +83,6 @@ export function MatchResultInlineForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          hasSuperTiebreak: false,
           sets,
         }),
       });

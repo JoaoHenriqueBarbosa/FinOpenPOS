@@ -274,6 +274,8 @@ CREATE TABLE tournaments (
     end_date    DATE,
     status      VARCHAR(20) NOT NULL DEFAULT 'draft'
                  CHECK (status IN ('draft', 'in_progress', 'finished', 'cancelled')),
+    -- 🔹 Flag para indicar si el tercer set es super tie-break (aplicado a todos los matches del torneo)
+    has_super_tiebreak  BOOLEAN NOT NULL DEFAULT FALSE,
     created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -344,6 +346,7 @@ CREATE TABLE tournament_matches (
                         CHECK (status IN ('scheduled', 'in_progress', 'finished', 'cancelled')),
 
     -- 🔹 Flag para indicar si el tercer set es super tie-break
+    -- Se hereda del torneo, excepto para cuartos, semifinal y final (siempre false)
     has_super_tiebreak  BOOLEAN NOT NULL DEFAULT FALSE,
 
     -- 🔹 Resultados por set (games)

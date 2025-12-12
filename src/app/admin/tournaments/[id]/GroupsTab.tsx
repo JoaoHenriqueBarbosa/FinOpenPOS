@@ -36,7 +36,6 @@ type Match = {
   id: number;
   tournament_group_id: number | null;
   status: string;
-  has_super_tiebreak: boolean;
   match_date: string | null;
   start_time: string | null;
   end_time: string | null;

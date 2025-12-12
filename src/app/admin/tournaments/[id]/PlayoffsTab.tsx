@@ -25,7 +25,6 @@ type PlayoffRow = {
   match: {
     id: number;
     status: string;
-    has_super_tiebreak: boolean;
     match_date: string | null;
     start_time: string | null;
     set1_team1_games: number | null;

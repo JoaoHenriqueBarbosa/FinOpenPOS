@@ -27,7 +27,6 @@ export async function GET(_req: Request, { params }: RouteParams) {
       match:match_id (
         id,
         status,
-        has_super_tiebreak,
         match_date,
         start_time,
         set1_team1_games,
