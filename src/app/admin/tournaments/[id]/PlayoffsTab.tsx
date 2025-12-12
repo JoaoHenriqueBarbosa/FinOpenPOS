@@ -60,6 +60,17 @@ function teamLabel(team: Match["team1"]) {
   } ${team.player2?.last_name ?? ""}`;
 }
 
+// Función para mostrar solo apellidos en el bracket
+function teamLabelBracket(team: Match["team1"]) {
+  if (!team) return "—";
+  if (team.display_name) return team.display_name;
+  const lastName1 = team.player1?.last_name ?? "";
+  const lastName2 = team.player2?.last_name ?? "";
+  if (!lastName1 && !lastName2) return "—";
+  const result = `${lastName1} / ${lastName2}`.replace(/^\/\s*|\s*\/\s*$/g, "").trim();
+  return result || "—";
+}
+
 function MatchResultForm({
   match,
   onSaved,
@@ -312,10 +323,10 @@ export default function PlayoffsTab({ tournament }: { tournament: Tournament }) 
       round: r.round,
       bracketPos: r.bracket_pos,
       team1: match.team1
-        ? { id: match.team1.id, name: teamLabel(match.team1) }
+        ? { id: match.team1.id, name: teamLabelBracket(match.team1) }
         : null,
       team2: match.team2
-        ? { id: match.team2.id, name: teamLabel(match.team2) }
+        ? { id: match.team2.id, name: teamLabelBracket(match.team2) }
         : null,
       winner: winner ? { id: winner.id } : undefined,
       isFinished: match.status === "finished",
