@@ -51,7 +51,7 @@ export async function GET(_req: Request, { params }: RouteParams) {
       sets_lost,
       games_won,
       games_lost,
-      points,
+      position,
       team:team_id (
         id,
         display_name,
@@ -62,9 +62,7 @@ export async function GET(_req: Request, { params }: RouteParams) {
     )
     .in("tournament_group_id", groupIds)
     .eq("user_uid", user.id)
-    .order("points", { ascending: false })
-    .order("sets_won", { ascending: false })
-    .order("games_won", { ascending: false });
+    .order("position", { ascending: true });
 
   if (sError) {
     console.error("GET standings error:", sError);

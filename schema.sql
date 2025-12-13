@@ -388,7 +388,7 @@ CREATE TABLE tournament_group_standings (
     sets_lost           INTEGER NOT NULL DEFAULT 0,
     games_won           INTEGER NOT NULL DEFAULT 0,
     games_lost          INTEGER NOT NULL DEFAULT 0,
-    points              INTEGER NOT NULL DEFAULT 0,
+    position            INTEGER,
 
     UNIQUE (tournament_group_id, team_id)
 );

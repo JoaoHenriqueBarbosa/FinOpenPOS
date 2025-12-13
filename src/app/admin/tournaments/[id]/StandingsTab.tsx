@@ -46,7 +46,7 @@ type Standing = {
   sets_lost: number;
   games_won: number;
   games_lost: number;
-  points: number;
+  position: number | null;
   team: Team | null;
 };
 
@@ -175,10 +175,17 @@ export default function StandingsTab({ tournament }: { tournament: Tournament })
           const groupStandings = data.standings
             .filter((s) => s.tournament_group_id === group.id)
             .sort((a, b) => {
-              // Ordenar por puntos, luego sets ganados, luego games ganados
-              if (b.points !== a.points) return b.points - a.points;
-              if (b.sets_won !== a.sets_won) return b.sets_won - a.sets_won;
-              return b.games_won - a.games_won;
+              // Ordenar por posición si está disponible, sino por partidos ganados, luego diferencia de sets, luego diferencia de games
+              if (a.position !== null && b.position !== null) {
+                return a.position - b.position;
+              }
+              if (b.wins !== a.wins) return b.wins - a.wins;
+              const aSetDiff = a.sets_won - a.sets_lost;
+              const bSetDiff = b.sets_won - b.sets_lost;
+              if (bSetDiff !== aSetDiff) return bSetDiff - aSetDiff;
+              const aGameDiff = a.games_won - a.games_lost;
+              const bGameDiff = b.games_won - b.games_lost;
+              return bGameDiff - aGameDiff;
             });
 
           const groupMatches = data.matches
@@ -225,21 +232,20 @@ export default function StandingsTab({ tournament }: { tournament: Tournament })
                         <TableHead className="text-center">P</TableHead>
                         <TableHead className="text-center">Sets</TableHead>
                         <TableHead className="text-center">Games</TableHead>
-                        <TableHead className="text-center font-bold">Pts</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {groupStandings.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={8} className="text-center text-muted-foreground py-4">
+                          <TableCell colSpan={7} className="text-center text-muted-foreground py-4">
                             No hay standings disponibles todavía
                           </TableCell>
                         </TableRow>
                       ) : (
-                        groupStandings.map((standing, index) => (
+                        groupStandings.map((standing) => (
                           <TableRow key={standing.id}>
                             <TableCell className="text-center font-semibold">
-                              {index + 1}
+                              {standing.position ?? "—"}
                             </TableCell>
                             <TableCell className="font-medium">
                               {teamLabelShort(standing.team)}
@@ -254,13 +260,16 @@ export default function StandingsTab({ tournament }: { tournament: Tournament })
                               {standing.losses}
                             </TableCell>
                             <TableCell className="text-center text-xs">
-                              {standing.sets_won}-{standing.sets_lost}
+                              {(() => {
+                                const diff = standing.sets_won - standing.sets_lost;
+                                return diff > 0 ? `+${diff}` : diff.toString();
+                              })()}
                             </TableCell>
                             <TableCell className="text-center text-xs">
-                              {standing.games_won}-{standing.games_lost}
-                            </TableCell>
-                            <TableCell className="text-center font-bold">
-                              {standing.points}
+                              {(() => {
+                                const diff = standing.games_won - standing.games_lost;
+                                return diff > 0 ? `+${diff}` : diff.toString();
+                              })()}
                             </TableCell>
                           </TableRow>
                         ))

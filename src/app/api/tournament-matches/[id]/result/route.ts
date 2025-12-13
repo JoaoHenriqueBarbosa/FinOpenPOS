@@ -49,7 +49,7 @@ export async function POST(req: Request, { params }: RouteParams) {
   // Obtener el match completo con información del torneo y fase
   const { data: match, error: matchError } = await supabase
     .from("tournament_matches")
-    .select("id, user_uid, tournament_id, phase, team1_id, team2_id")
+    .select("id, user_uid, tournament_id, phase, team1_id, team2_id, tournament_group_id")
     .eq("id", matchId)
     .single();
 
@@ -132,6 +132,148 @@ export async function POST(req: Request, { params }: RouteParams) {
       { error: "Failed to update match result" },
       { status: 500 }
     );
+  }
+
+  // Si es un match de fase de grupos, recalcular standings
+  if (match.phase === "group" && match.tournament_group_id) {
+    // Obtener todos los matches del grupo
+    const { data: groupMatches, error: groupMatchesError } = await supabase
+      .from("tournament_matches")
+      .select(
+        "id, tournament_group_id, team1_id, team2_id, team1_sets, team2_sets, team1_games_total, team2_games_total, status"
+      )
+      .eq("tournament_id", match.tournament_id)
+      .eq("phase", "group")
+      .eq("tournament_group_id", match.tournament_group_id)
+      .eq("user_uid", user.id);
+
+    if (!groupMatchesError && groupMatches) {
+      // Calcular standings
+      type Stand = {
+        team_id: number;
+        matches_played: number;
+        wins: number;
+        losses: number;
+        sets_won: number;
+        sets_lost: number;
+        games_won: number;
+        games_lost: number;
+      };
+
+      const standingsMap = new Map<number, Stand>();
+
+      const initStand = (teamId: number): Stand => ({
+        team_id: teamId,
+        matches_played: 0,
+        wins: 0,
+        losses: 0,
+        sets_won: 0,
+        sets_lost: 0,
+        games_won: 0,
+        games_lost: 0,
+      });
+
+      // Calcular estadísticas de todos los matches del grupo
+      for (const m of groupMatches) {
+        if (!m.team1_id || !m.team2_id || m.status !== "finished") continue;
+
+        if (!standingsMap.has(m.team1_id)) {
+          standingsMap.set(m.team1_id, initStand(m.team1_id));
+        }
+        if (!standingsMap.has(m.team2_id)) {
+          standingsMap.set(m.team2_id, initStand(m.team2_id));
+        }
+
+        const s1 = standingsMap.get(m.team1_id)!;
+        const s2 = standingsMap.get(m.team2_id)!;
+
+        s1.matches_played += 1;
+        s2.matches_played += 1;
+
+        const t1sets = m.team1_sets ?? 0;
+        const t2sets = m.team2_sets ?? 0;
+        const t1games = m.team1_games_total ?? 0;
+        const t2games = m.team2_games_total ?? 0;
+
+        s1.sets_won += t1sets;
+        s1.sets_lost += t2sets;
+        s2.sets_won += t2sets;
+        s2.sets_lost += t1sets;
+
+        s1.games_won += t1games;
+        s1.games_lost += t2games;
+        s2.games_won += t2games;
+        s2.games_lost += t1games;
+
+        if (t1sets > t2sets) {
+          s1.wins += 1;
+          s2.losses += 1;
+        } else if (t2sets > t1sets) {
+          s2.wins += 1;
+          s1.losses += 1;
+        }
+      }
+
+      // Obtener todos los equipos del grupo (incluso los que no han jugado)
+      const { data: groupTeams, error: groupTeamsError } = await supabase
+        .from("tournament_group_teams")
+        .select("team_id")
+        .eq("tournament_group_id", match.tournament_group_id)
+        .eq("user_uid", user.id);
+
+      if (!groupTeamsError && groupTeams) {
+        // Asegurar que todos los equipos tengan standings (incluso si no han jugado)
+        for (const gt of groupTeams) {
+          if (!standingsMap.has(gt.team_id)) {
+            standingsMap.set(gt.team_id, initStand(gt.team_id));
+          }
+        }
+
+        // Ordenar standings por: wins, diff sets, diff games
+        const sortedStats = Array.from(standingsMap.values()).sort((a, b) => {
+          if (b.wins !== a.wins) return b.wins - a.wins;
+          const aSetDiff = a.sets_won - a.sets_lost;
+          const bSetDiff = b.sets_won - b.sets_lost;
+          if (bSetDiff !== aSetDiff) return bSetDiff - aSetDiff;
+          const aGameDiff = a.games_won - a.games_lost;
+          const bGameDiff = b.games_won - b.games_lost;
+          return bGameDiff - aGameDiff;
+        });
+
+        // Eliminar standings antiguos del grupo
+        await supabase
+          .from("tournament_group_standings")
+          .delete()
+          .eq("tournament_group_id", match.tournament_group_id)
+          .eq("user_uid", user.id);
+
+        // Insertar nuevos standings con posición
+        const standingsInsert = sortedStats.map((s, index) => ({
+          tournament_group_id: match.tournament_group_id,
+          team_id: s.team_id,
+          user_uid: user.id,
+          matches_played: s.matches_played,
+          wins: s.wins,
+          losses: s.losses,
+          sets_won: s.sets_won,
+          sets_lost: s.sets_lost,
+          games_won: s.games_won,
+          games_lost: s.games_lost,
+          position: index + 1, // Guardar la posición (1, 2, 3, ...)
+        }));
+
+        if (standingsInsert.length > 0) {
+          const { error: standingsError } = await supabase
+            .from("tournament_group_standings")
+            .insert(standingsInsert);
+
+          if (standingsError) {
+            console.error("Error updating standings:", standingsError);
+            // No fallamos el request, solo logueamos el error
+          }
+        }
+      }
+    }
   }
 
   // Si es un match de playoffs, avanzar el ganador a la siguiente ronda

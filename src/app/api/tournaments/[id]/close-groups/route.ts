@@ -136,7 +136,6 @@ export async function POST(_req: Request, { params }: RouteParams) {
     sets_lost: number;
     games_won: number;
     games_lost: number;
-    points: number;
   };
 
   const standingsMap = new Map<number, Map<number, Stand>>();
@@ -151,7 +150,6 @@ export async function POST(_req: Request, { params }: RouteParams) {
     sets_lost: 0,
     games_won: 0,
     games_lost: 0,
-    points: 0,
   });
 
   for (const m of matches as MatchRow[]) {
@@ -190,11 +188,9 @@ export async function POST(_req: Request, { params }: RouteParams) {
     if (t1sets > t2sets) {
       s1.wins += 1;
       s2.losses += 1;
-      s1.points += 2;
     } else if (t2sets > t1sets) {
       s2.wins += 1;
       s1.losses += 1;
-      s2.points += 2;
     }
   }
 
@@ -222,7 +218,8 @@ export async function POST(_req: Request, { params }: RouteParams) {
     );
 
     stats.sort((a, b) => {
-      if (b.points !== a.points) return b.points - a.points;
+      // Ordenar por partidos ganados, luego diferencia de sets, luego diferencia de games
+      if (b.wins !== a.wins) return b.wins - a.wins;
       const aSetDiff = a.sets_won - a.sets_lost;
       const bSetDiff = b.sets_won - b.sets_lost;
       if (bSetDiff !== aSetDiff) return bSetDiff - aSetDiff;
@@ -231,8 +228,8 @@ export async function POST(_req: Request, { params }: RouteParams) {
       return bGameDiff - aGameDiff;
     });
 
-    // insertar standings
-    stats.forEach((s) =>
+    // insertar standings con posición
+    stats.forEach((s, index) =>
       standingsInsert.push({
         tournament_group_id: gid,
         team_id: s.team_id,
@@ -244,7 +241,7 @@ export async function POST(_req: Request, { params }: RouteParams) {
         sets_lost: s.sets_lost,
         games_won: s.games_won,
         games_lost: s.games_lost,
-        points: s.points,
+        position: index + 1, // Guardar la posición (1, 2, 3, ...)
       })
     );
 
