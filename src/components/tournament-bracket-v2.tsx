@@ -376,16 +376,16 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, sele
                   
                   scheduleDiv.textContent = scheduleText.join(' • ');
                   scheduleDiv.style.cssText = `
-                    font-size: 7px;
+                    font-size: 10px;
                     color: rgba(255, 255, 255, 0.85);
                     text-align: center;
                     padding: 2px 5px;
-                    background: rgba(0, 0, 0, 0.7);
+                    background: rgba(3, 48, 16, 0.7);
                     border-radius: 2px;
                     white-space: nowrap;
                     font-weight: 500;
                     line-height: 1.2;
-                    margin-bottom: 4px;
+                    margin-bottom: 0px;
                     pointer-events: none;
                   `;
                   
@@ -399,15 +399,15 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, sele
                   scoresDiv.className = 'bracket-scores';
                   scoresDiv.textContent = matchData.scores;
                   scoresDiv.style.cssText = `
-                    font-size: 9px;
+                    font-size: 10px;
                     color: rgba(255, 255, 255, 0.9);
                     font-weight: 600;
                     padding: 2px 6px;
-                    background: rgba(0, 0, 0, 0.7);
+                    background: rgba(3, 48, 16, 0.7);
                     border-radius: 2px;
                     line-height: 1.2;
                     white-space: nowrap;
-                    margin-top: 4px;
+                    margin-top: 0px;
                     pointer-events: none;
                   `;
                   
