@@ -452,8 +452,8 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, sele
                     if (rect.width < 300 && rect.height < 100 && rect.width > 0 && rect.height > 0) {
                       // Agregar highlight al fondo del elemento ganador
                       htmlEl.style.cssText += `
-                        background-color: rgba(34, 197, 94, 0.25) !important;
-                        border: 1px solid rgba(34, 197, 94, 0.5) !important;
+                        background-color: rgba(253, 102, 2, 0.93) !important;
+                        border: 1px solid rgba(253, 102, 2, 0.93) !important;
                         border-radius: 3px;
                       `;
                     }
