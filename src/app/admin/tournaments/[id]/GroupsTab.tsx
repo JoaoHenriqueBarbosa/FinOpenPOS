@@ -22,6 +22,7 @@ type Tournament = {
 type Group = {
   id: number;
   name: string;
+  group_order?: number;
 };
 
 type GroupTeam = {
@@ -64,6 +65,30 @@ function teamLabel(team: GroupTeam["team"]) {
   return `${team.player1?.first_name ?? ""} ${team.player1?.last_name ?? ""} / ${
     team.player2?.first_name ?? ""
   } ${team.player2?.last_name ?? ""}`;
+}
+
+// Función para obtener el color del grupo basado en su índice
+function getGroupColor(groupIndex: number): { bg: string; text: string; border: string; badgeBg: string; badgeText: string } {
+  const colorSchemes = [
+    // Azules
+    { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200", badgeBg: "bg-blue-100", badgeText: "text-blue-800" },
+    // Verdes
+    { bg: "bg-green-50", text: "text-green-700", border: "border-green-200", badgeBg: "bg-green-100", badgeText: "text-green-800" },
+    // Amarillos
+    { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", badgeBg: "bg-amber-100", badgeText: "text-amber-800" },
+    // Naranjas
+    { bg: "bg-orange-50", text: "text-orange-700", border: "border-orange-200", badgeBg: "bg-orange-100", badgeText: "text-orange-800" },
+    // Púrpuras
+    { bg: "bg-purple-50", text: "text-purple-700", border: "border-purple-200", badgeBg: "bg-purple-100", badgeText: "text-purple-800" },
+    // Rosas
+    { bg: "bg-pink-50", text: "text-pink-700", border: "border-pink-200", badgeBg: "bg-pink-100", badgeText: "text-pink-800" },
+    // Cyan
+    { bg: "bg-cyan-50", text: "text-cyan-700", border: "border-cyan-200", badgeBg: "bg-cyan-100", badgeText: "text-cyan-800" },
+    // Indigo
+    { bg: "bg-indigo-50", text: "text-indigo-700", border: "border-indigo-200", badgeBg: "bg-indigo-100", badgeText: "text-indigo-800" },
+  ];
+  
+  return colorSchemes[groupIndex % colorSchemes.length] || colorSchemes[0];
 }
 
 export default function GroupsTab({ tournament }: { tournament: Tournament }) {
@@ -206,10 +231,20 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
 
       <CardContent className="px-0 space-y-3">
         {(() => {
-          // Crear mapa de grupo id -> nombre de grupo
-          const groupMap = new Map<number, string>();
-          data.groups.forEach((g) => {
-            groupMap.set(g.id, g.name);
+          // Ordenar grupos por group_order o por nombre para consistencia
+          const sortedGroups = [...data.groups].sort((a, b) => {
+            // Si tienen group_order, usar eso
+            if (a.group_order !== undefined && b.group_order !== undefined) {
+              return a.group_order - b.group_order;
+            }
+            // Si no, ordenar por nombre
+            return a.name.localeCompare(b.name);
+          });
+
+          // Crear mapa de grupo id -> nombre de grupo y su índice (basado en orden)
+          const groupMap = new Map<number, { name: string; index: number }>();
+          sortedGroups.forEach((g, index) => {
+            groupMap.set(g.id, { name: g.name, index });
           });
 
           // Obtener todos los matches y ordenarlos por fecha y hora
@@ -233,17 +268,21 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
           return allMatches.map((m) => {
             const team1Name = teamLabel(m.team1);
             const team2Name = teamLabel(m.team2);
-            const groupName = m.tournament_group_id
-              ? groupMap.get(m.tournament_group_id) || "Sin grupo"
-              : "Sin grupo";
+            const groupInfo = m.tournament_group_id
+              ? groupMap.get(m.tournament_group_id)
+              : null;
+            const groupName = groupInfo?.name || "Sin grupo";
+            const groupColor = groupInfo
+              ? getGroupColor(groupInfo.index)
+              : { bg: "bg-gray-100", text: "text-gray-700", border: "border-gray-200", badgeBg: "bg-gray-200", badgeText: "text-gray-800" };
 
             return (
               <div
                 key={m.id}
-                className="border rounded-lg bg-background shadow-sm overflow-hidden"
+                className={`border rounded-lg shadow-sm overflow-hidden ${groupColor.border}`}
               >
                 {/* Header con grupo, fecha, hora y estado */}
-                <div className="bg-gray-50 border-b px-4 py-2">
+                <div className={`${groupColor.bg} border-b px-4 py-2`}>
                   {editingMatchId === m.id ? (
                     <div className="flex items-center gap-2">
                       <Input
@@ -278,8 +317,8 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
                     </div>
                   ) : (
                     <div className="flex items-center gap-4 text-xs">
-                      {/* Indicador de grupo */}
-                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-700">
+                      {/* Indicador de grupo con color */}
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${groupColor.badgeBg} ${groupColor.badgeText}`}>
                         {groupName}
                       </span>
                       {m.match_date && (
@@ -330,6 +369,10 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
                   team2Name={team2Name}
                   hasSuperTiebreak={tournament.has_super_tiebreak}
                   onSaved={load}
+                  groupColor={{
+                    bg: groupColor.bg,
+                    text: groupColor.text,
+                  }}
                 />
               </div>
             );

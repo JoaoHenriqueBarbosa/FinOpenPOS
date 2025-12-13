@@ -23,6 +23,10 @@ type MatchResultInlineFormProps = {
   team2Name: string;
   hasSuperTiebreak: boolean; // Whether this match uses super tiebreak for set 3
   onSaved: () => void;
+  groupColor?: {
+    bg: string;
+    text: string;
+  };
 };
 
 export function MatchResultInlineForm({
@@ -31,7 +35,11 @@ export function MatchResultInlineForm({
   team2Name,
   hasSuperTiebreak,
   onSaved,
+  groupColor,
 }: MatchResultInlineFormProps) {
+  // Colores por defecto si no se proporcionan
+  const bgColor = groupColor?.bg || "bg-blue-50";
+  const textColor = groupColor?.text || "text-blue-900";
   const [set1T1, setSet1T1] = useState<string>(
     match.set1_team1_games?.toString() ?? ""
   );
@@ -116,11 +124,11 @@ export function MatchResultInlineForm({
 
   return (
     <>
-      <div className="bg-blue-50 border-b px-4 py-3">
+      <div className={`${bgColor} border-b px-4 py-3`}>
         <div className="flex items-center justify-between gap-4">
           {/* Team 1 */}
           <div className="flex-1">
-            <div className="text-sm font-semibold text-blue-900 mb-3">
+            <div className={`text-sm font-semibold ${textColor} mb-3`}>
               {team1Name.split(" / ").map((name, idx) => (
                 <div key={idx}>{name}</div>
               ))}
@@ -181,7 +189,7 @@ export function MatchResultInlineForm({
           
           {/* Team 2 */}
           <div className="flex-1 text-right">
-            <div className="text-sm font-semibold text-blue-900 mb-3">
+            <div className={`text-sm font-semibold ${textColor} mb-3`}>
               {team2Name.split(" / ").map((name, idx) => (
                 <div key={idx}>{name}</div>
               ))}
