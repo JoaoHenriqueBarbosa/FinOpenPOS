@@ -298,18 +298,18 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, sele
       const team1Div = document.createElement('div');
       team1Div.className = 'bracket-team1-div';
       team1Div.textContent = team1Name;
-      team1Div.style.cssText = 'font-size: 12px; text-align: center; padding: 4px; width: 100%;';
+      team1Div.style.cssText = 'font-size: 12px; text-align: center; padding: 4px; width: 100%; color: rgba(255, 255, 255, 1);';
       if (seed.teams?.[0]?.isWinner) {
-        team1Div.style.cssText += 'background-color: rgba(253, 102, 2, 0.93); border-radius: 3px;';
+        team1Div.style.cssText += 'background-color: rgba(255, 215, 0, 0.9); border-radius: 3px; color: rgba(0, 0, 0, 0.9);';
       }
       wrapper.appendChild(team1Div);
 
       const team2Div = document.createElement('div');
       team2Div.className = 'bracket-team2-div';
       team2Div.textContent = team2Name;
-      team2Div.style.cssText = 'font-size: 12px; text-align: center; padding: 4px; width: 100%;';
+      team2Div.style.cssText = 'font-size: 12px; text-align: center; padding: 4px; width: 100%; color: rgba(255, 255, 255, 1);';
       if (seed.teams?.[1]?.isWinner) {
-        team2Div.style.cssText += 'background-color: rgba(253, 102, 2, 0.93); border-radius: 3px;';
+        team2Div.style.cssText += 'background-color: rgba(255, 215, 0, 0.9); border-radius: 3px; color: rgba(0, 0, 0, 0.9);';
       }
       wrapper.appendChild(team2Div);
 
