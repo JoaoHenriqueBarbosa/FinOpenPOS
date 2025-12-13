@@ -39,7 +39,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { name, description, category, start_date, end_date } = body;
+  const { name, description, category, start_date, end_date, has_super_tiebreak } = body;
 
   if (!name || !name.trim()) {
     return NextResponse.json({ error: "Name is required" }, { status: 400 });
@@ -54,6 +54,7 @@ export async function POST(request: Request) {
       category: category ?? null,
       start_date: start_date ?? null,
       end_date: end_date ?? null,
+      has_super_tiebreak: has_super_tiebreak ?? false,
       status: "draft",
     })
     .select("*")

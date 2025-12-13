@@ -2,8 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Loader2Icon, CheckIcon } from "lucide-react";
 
@@ -16,7 +14,6 @@ type MatchData = {
   set2_team2_games: number | null;
   set3_team1_games: number | null;
   set3_team2_games: number | null;
-  has_super_tiebreak: boolean | null;
 };
 
 type MatchResultFormProps = {
@@ -43,7 +40,6 @@ export function MatchResultForm({ match, onSaved }: MatchResultFormProps) {
   const [set3T2, setSet3T2] = useState<string>(
     match.set3_team2_games?.toString() ?? ""
   );
-  const [hasSTB, setHasSTB] = useState<boolean>(!!match.has_super_tiebreak);
   const [saving, setSaving] = useState(false);
 
   // Resetear valores cuando cambia el match
@@ -54,7 +50,6 @@ export function MatchResultForm({ match, onSaved }: MatchResultFormProps) {
     setSet2T2(match.set2_team2_games?.toString() ?? "");
     setSet3T1(match.set3_team1_games?.toString() ?? "");
     setSet3T2(match.set3_team2_games?.toString() ?? "");
-    setHasSTB(!!match.has_super_tiebreak);
   }, [
     match.id,
     match.set1_team1_games,
@@ -63,7 +58,6 @@ export function MatchResultForm({ match, onSaved }: MatchResultFormProps) {
     match.set2_team2_games,
     match.set3_team1_games,
     match.set3_team2_games,
-    match.has_super_tiebreak,
   ]);
 
   const handleSave = async () => {
@@ -82,7 +76,6 @@ export function MatchResultForm({ match, onSaved }: MatchResultFormProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          hasSuperTiebreak: hasSTB,
           sets,
         }),
       });
@@ -143,14 +136,6 @@ export function MatchResultForm({ match, onSaved }: MatchResultFormProps) {
           value={set3T2}
           onChange={(e) => setSet3T2(e.target.value)}
           placeholder="-"
-        />
-      </div>
-      <div className="flex items-center gap-1">
-        <Label className="text-[10px]">Super TB</Label>
-        <Switch
-          checked={hasSTB}
-          onCheckedChange={(v) => setHasSTB(v)}
-          className="scale-75"
         />
       </div>
       <Button size="sm" className="h-7 text-xs px-3" onClick={handleSave}>

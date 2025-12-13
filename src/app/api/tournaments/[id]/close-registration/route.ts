@@ -3,7 +3,57 @@ import { createClient } from "@/lib/supabase/server";
 
 type RouteParams = { params: { id: string } };
 
-export async function POST(_req: Request, { params }: RouteParams) {
+type ScheduleDay = {
+  date: string; // YYYY-MM-DD
+  startTime: string; // HH:MM
+  endTime: string; // HH:MM
+};
+
+type ScheduleConfig = {
+  days: ScheduleDay[];
+  matchDuration: number; // minutos entre partidos
+  courtIds: number[]; // IDs de las canchas a usar
+};
+
+// Función helper para generar slots de tiempo
+function generateTimeSlots(
+  days: ScheduleDay[],
+  matchDuration: number,
+  numCourts: number
+): Array<{ date: string; startTime: string; endTime: string }> {
+  const slots: Array<{ date: string; startTime: string; endTime: string }> = [];
+
+  days.forEach((day) => {
+    const [startH, startM] = day.startTime.split(":").map(Number);
+    const [endH, endM] = day.endTime.split(":").map(Number);
+    const startMinutes = startH * 60 + startM;
+    const endMinutes = endH * 60 + endM;
+
+    let currentMinutes = startMinutes;
+    while (currentMinutes + matchDuration <= endMinutes) {
+      const slotStartH = Math.floor(currentMinutes / 60);
+      const slotStartM = currentMinutes % 60;
+      const slotEndMinutes = currentMinutes + matchDuration;
+      const slotEndH = Math.floor(slotEndMinutes / 60);
+      const slotEndM = slotEndMinutes % 60;
+
+      // Agregar un slot por cada cancha disponible
+      for (let i = 0; i < numCourts; i++) {
+        slots.push({
+          date: day.date,
+          startTime: `${String(slotStartH).padStart(2, "0")}:${String(slotStartM).padStart(2, "0")}`,
+          endTime: `${String(slotEndH).padStart(2, "0")}:${String(slotEndM).padStart(2, "0")}`,
+        });
+      }
+
+      currentMinutes += matchDuration;
+    }
+  });
+
+  return slots;
+}
+
+export async function POST(req: Request, { params }: RouteParams) {
   const supabase = createClient();
   const {
     data: { user },
@@ -16,6 +66,16 @@ export async function POST(_req: Request, { params }: RouteParams) {
   if (Number.isNaN(tournamentId)) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
+
+  // Obtener configuración de horarios del body
+  const body = await req.json().catch(() => ({}));
+  const scheduleConfig: ScheduleConfig | undefined = body.days
+    ? {
+        days: body.days,
+        matchDuration: body.matchDuration || 60,
+        courtIds: body.courtIds || [],
+      }
+    : undefined;
 
   // 1) traer torneo
   const { data: t, error: terr } = await supabase
@@ -31,6 +91,29 @@ export async function POST(_req: Request, { params }: RouteParams) {
   if (t.status !== "draft") {
     return NextResponse.json(
       { error: "Registration already closed or tournament started" },
+      { status: 400 }
+    );
+  }
+
+  // Verificar si ya existen grupos
+  const { data: existingGroups, error: existingGroupsError } = await supabase
+    .from("tournament_groups")
+    .select("id")
+    .eq("tournament_id", tournamentId)
+    .eq("user_uid", user.id)
+    .limit(1);
+
+  if (existingGroupsError) {
+    console.error("Error checking existing groups:", existingGroupsError);
+    return NextResponse.json(
+      { error: "Failed to check existing groups" },
+      { status: 500 }
+    );
+  }
+
+  if (existingGroups && existingGroups.length > 0) {
+    return NextResponse.json(
+      { error: "Groups already generated for this tournament" },
       { status: 400 }
     );
   }
@@ -117,6 +200,9 @@ export async function POST(_req: Request, { params }: RouteParams) {
     tournament_group_id: number;
     team1_id: number;
     team2_id: number;
+    match_date: string | null;
+    start_time: string | null;
+    end_time: string | null;
   }[] = [];
 
   createdGroups.forEach((g, idx) => {
@@ -161,6 +247,79 @@ export async function POST(_req: Request, { params }: RouteParams) {
         { status: 500 }
       );
     }
+  }
+
+  // Asignar fechas y horarios a los partidos si hay configuración
+  if (scheduleConfig && scheduleConfig.days.length > 0) {
+    // Validar que haya canchas seleccionadas
+    if (!scheduleConfig.courtIds || scheduleConfig.courtIds.length === 0) {
+      return NextResponse.json(
+        { error: "Debes seleccionar al menos una cancha" },
+        { status: 400 }
+      );
+    }
+
+    // Verificar que las canchas seleccionadas existan y pertenezcan al usuario
+    const { data: courts, error: courtsError } = await supabase
+      .from("courts")
+      .select("id")
+      .eq("user_uid", user.id)
+      .in("id", scheduleConfig.courtIds)
+      .eq("is_active", true);
+
+    if (courtsError) {
+      console.error("Error fetching courts:", courtsError);
+      return NextResponse.json(
+        { error: "Failed to fetch courts" },
+        { status: 500 }
+      );
+    }
+
+    if (!courts || courts.length === 0) {
+      return NextResponse.json(
+        { error: "Las canchas seleccionadas no son válidas o no están activas" },
+        { status: 400 }
+      );
+    }
+
+    if (courts.length !== scheduleConfig.courtIds.length) {
+      return NextResponse.json(
+        { error: "Algunas canchas seleccionadas no son válidas" },
+        { status: 400 }
+      );
+    }
+
+    // Generar slots disponibles usando solo las canchas seleccionadas
+    const timeSlots = generateTimeSlots(
+      scheduleConfig.days,
+      scheduleConfig.matchDuration,
+      courts.length
+    );
+
+    if (timeSlots.length < matchesPayload.length) {
+      return NextResponse.json(
+        {
+          error: `Not enough time slots. Need ${matchesPayload.length} slots but only ${timeSlots.length} available.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    // Asignar slots a los partidos
+    matchesPayload.forEach((match, index) => {
+      const slot = timeSlots[index];
+      if (slot) {
+        match.match_date = slot.date;
+        match.start_time = slot.startTime;
+        // Calcular end_time (asumimos duración de 1.5 horas por partido)
+        const [startH, startM] = slot.startTime.split(":").map(Number);
+        const startMinutes = startH * 60 + startM;
+        const endMinutes = startMinutes + 90; // 1.5 horas
+        const endH = Math.floor(endMinutes / 60);
+        const endM = endMinutes % 60;
+        match.end_time = `${String(endH).padStart(2, "0")}:${String(endM).padStart(2, "0")}`;
+      }
+    });
   }
 
   // insertar matches

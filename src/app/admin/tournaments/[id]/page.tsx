@@ -24,6 +24,7 @@ type Tournament = {
   name: string;
   category: string | null;
   status: string;
+  has_super_tiebreak: boolean;
 };
 
 export default function TournamentDetailPage() {

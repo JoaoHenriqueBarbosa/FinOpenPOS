@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Loader2Icon, CheckIcon } from "lucide-react";
+import { validateMatchSets } from "@/lib/match-validation";
 
 // Tipo genérico para matches
 type MatchData = {
@@ -20,6 +21,7 @@ type MatchResultInlineFormProps = {
   match: MatchData;
   team1Name: string;
   team2Name: string;
+  hasSuperTiebreak: boolean; // Whether this match uses super tiebreak for set 3
   onSaved: () => void;
 };
 
@@ -27,6 +29,7 @@ export function MatchResultInlineForm({
   match,
   team1Name,
   team2Name,
+  hasSuperTiebreak,
   onSaved,
 }: MatchResultInlineFormProps) {
   const [set1T1, setSet1T1] = useState<string>(
@@ -48,6 +51,7 @@ export function MatchResultInlineForm({
     match.set3_team2_games?.toString() ?? ""
   );
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Resetear valores cuando cambia el match
   useEffect(() => {
@@ -77,23 +81,34 @@ export function MatchResultInlineForm({
       { team1: toNum(set3T1), team2: toNum(set3T2) },
     ];
 
+    // Validar antes de enviar
+    const validation = validateMatchSets(sets[0], sets[1], sets[2], hasSuperTiebreak);
+    if (!validation.valid) {
+      setError(validation.error || "Error de validación");
+      return;
+    }
+
+    setError(null);
+
     try {
       setSaving(true);
       const res = await fetch(`/api/tournament-matches/${match.id}/result`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          hasSuperTiebreak: false,
           sets,
         }),
       });
       if (!res.ok) {
-        console.error("Error saving result");
+        const errorData = await res.json().catch(() => ({}));
+        setError(errorData.error || "Error al guardar el resultado");
         return;
       }
+      setError(null);
       onSaved();
     } catch (err) {
       console.error(err);
+      setError("Error de conexión");
     } finally {
       setSaving(false);
     }
@@ -175,6 +190,13 @@ export function MatchResultInlineForm({
         </div>
       </div>
       
+      {/* Mensaje de error */}
+      {error && (
+        <div className="px-4 py-2 bg-red-50 border-t border-red-200">
+          <p className="text-xs text-red-700 font-medium">{error}</p>
+        </div>
+      )}
+
       {/* Botones de acción */}
       <div className="px-4 py-3 bg-white flex items-center justify-center">
         <Button size="sm" className="h-7 text-xs px-3" onClick={handleSave} disabled={saving}>

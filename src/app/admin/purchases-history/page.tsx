@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { formatDateTime } from "@/lib/date-utils";
 import {
   Card,
   CardHeader,
@@ -373,7 +374,7 @@ export default function PurchasesHistoryPage() {
                 <TableRow key={p.id}>
                   <TableCell>{p.id}</TableCell>
                   <TableCell>
-                    {new Date(p.created_at).toLocaleString()}
+                    {formatDateTime(p.created_at)}
                   </TableCell>
                   <TableCell>{p.supplier?.name ?? "-"}</TableCell>
                   <TableCell>{p.payment_method?.name ?? "-"}</TableCell>

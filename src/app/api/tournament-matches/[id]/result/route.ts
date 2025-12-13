@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { validateMatchSets } from "@/lib/match-validation";
 
 type RouteParams = { params: { id: string } };
 
@@ -16,8 +17,7 @@ export async function POST(req: Request, { params }: RouteParams) {
   }
 
   const body = await req.json();
-  const { hasSuperTiebreak, sets } = body as {
-    hasSuperTiebreak: boolean;
+  const { sets } = body as {
     sets: { team1: number | null; team2: number | null }[];
   };
 
@@ -57,14 +57,60 @@ export async function POST(req: Request, { params }: RouteParams) {
     return NextResponse.json({ error: "Match not found" }, { status: 404 });
   }
 
+  // Obtener el setting del torneo para has_super_tiebreak
+  const { data: tournament, error: tournamentError } = await supabase
+    .from("tournaments")
+    .select("has_super_tiebreak")
+    .eq("id", match.tournament_id)
+    .eq("user_uid", user.id)
+    .single();
+
+  if (tournamentError || !tournament) {
+    return NextResponse.json({ error: "Tournament not found" }, { status: 404 });
+  }
+
+  // Determinar si este match debe usar super tiebreak
+  // Si es fase de grupos: usar el valor del torneo
+  // Si es playoffs: usar el valor del torneo EXCEPTO para cuartos, semifinal y final (siempre false)
+  let hasSuperTiebreak = tournament.has_super_tiebreak;
+  
+  if (match.phase === "playoff") {
+    // Obtener la ronda del match
+    const { data: playoffInfo } = await supabase
+      .from("tournament_playoffs")
+      .select("round")
+      .eq("match_id", matchId)
+      .eq("user_uid", user.id)
+      .single();
+
+    // Si es cuartos, semifinal o final, siempre false
+    if (playoffInfo && (playoffInfo.round === "cuartos" || playoffInfo.round === "semifinal" || playoffInfo.round === "final")) {
+      hasSuperTiebreak = false;
+    }
+  }
+
+  // Validar los sets antes de guardar
+  const validation = validateMatchSets(
+    { team1: set1_team1_games, team2: set1_team2_games },
+    { team1: set2_team1_games, team2: set2_team2_games },
+    { team1: set3_team1_games, team2: set3_team2_games },
+    hasSuperTiebreak
+  );
+
+  if (!validation.valid) {
+    return NextResponse.json(
+      { error: validation.error || "Invalid set scores" },
+      { status: 400 }
+    );
+  }
+
   // Determinar el ganador
   const winnerTeamId = team1Sets > team2Sets ? match.team1_id : match.team2_id;
 
-  // Actualizar el match
+  // Actualizar el match (has_super_tiebreak ya no es una columna en tournament_matches)
   const { error: updateError } = await supabase
     .from("tournament_matches")
     .update({
-      has_super_tiebreak: !!hasSuperTiebreak,
       set1_team1_games,
       set1_team2_games,
       set2_team1_games,

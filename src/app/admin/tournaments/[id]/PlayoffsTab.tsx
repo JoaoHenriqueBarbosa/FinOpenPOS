@@ -13,8 +13,12 @@ import { Loader2Icon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { TournamentBracketV2 } from "@/components/tournament-bracket-v2";
 import { MatchResultInlineForm } from "@/components/match-result-inline-form";
+import { formatDate, formatTime } from "@/lib/date-utils";
 
-type Tournament = { id: number };
+type Tournament = { 
+  id: number;
+  has_super_tiebreak: boolean;
+};
 
 type PlayoffRow = {
   id: number;
@@ -25,7 +29,6 @@ type PlayoffRow = {
   match: {
     id: number;
     status: string;
-    has_super_tiebreak: boolean;
     match_date: string | null;
     start_time: string | null;
     set1_team1_games: number | null;
@@ -69,24 +72,6 @@ function teamLabelBracket(team: Match["team1"]) {
   const result = `${lastName1} / ${lastName2}`.replace(/^\/\s*|\s*\/\s*$/g, "").trim();
   return result || "—";
 }
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "Sin fecha";
-  const date = new Date(dateStr);
-  return date.toLocaleDateString("es-AR", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
-}
-
-function formatTime(timeStr: string | null): string {
-  if (!timeStr) return "";
-  // timeStr viene como "HH:MM:SS" o "HH:MM"
-  const parts = timeStr.split(":");
-  return `${parts[0]}:${parts[1]}`;
-}
-
 
 export default function PlayoffsTab({ tournament }: { tournament: Tournament }) {
   const [rows, setRows] = useState<PlayoffRow[]>([]);
@@ -226,7 +211,17 @@ export default function PlayoffsTab({ tournament }: { tournament: Tournament }) 
     });
   });
 
-  const selectedMatch = rows.find(r => r.match?.id === selectedMatchId)?.match;
+  const selectedRow = rows.find(r => r.match?.id === selectedMatchId);
+  const selectedMatch = selectedRow?.match;
+  
+  // Determinar si el match seleccionado usa super tiebreak
+  // Si es cuartos, semifinal o final, siempre false
+  // De lo contrario, usar el valor del torneo
+  const hasSuperTiebreak = selectedRow 
+    ? (selectedRow.round === "cuartos" || selectedRow.round === "semifinal" || selectedRow.round === "final")
+      ? false
+      : tournament.has_super_tiebreak
+    : false;
 
   return (
     <Card className="border-none shadow-none p-0">
@@ -287,6 +282,7 @@ export default function PlayoffsTab({ tournament }: { tournament: Tournament }) 
               match={selectedMatch}
               team1Name={teamLabel(selectedMatch.team1)}
               team2Name={teamLabel(selectedMatch.team2)}
+              hasSuperTiebreak={hasSuperTiebreak}
               onSaved={() => {
                 load();
               }}

@@ -15,7 +15,7 @@ export async function GET(request: Request) {
 
   let query = supabase
     .from('courts')
-    .select('id, name, is_active, created_at')
+    .select('id, name, is_active')
     .eq('user_uid', user.id);
 
   if (onlyActive) {
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
       name,
       is_active: body.is_active ?? true,
     })
-    .select('id, name, is_active, created_at')
+    .select('id, name, is_active')
     .single();
 
   if (error) {
