@@ -13,10 +13,12 @@ import { Loader2Icon, PencilIcon, CheckIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatDate, formatTime } from "@/lib/date-utils";
+import { TournamentScheduleDialog, ScheduleConfig } from "@/components/tournament-schedule-dialog";
 
 type Tournament = {
   id: number;
   has_super_tiebreak: boolean;
+  match_duration: number;
 };
 
 type Group = {
@@ -99,6 +101,7 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
   const [editingMatchId, setEditingMatchId] = useState<number | null>(null);
   const [editDate, setEditDate] = useState<string>("");
   const [editTime, setEditTime] = useState<string>("");
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
 
   const load = async () => {
     try {
@@ -126,21 +129,57 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tournament.id]);
 
-  const handleCloseGroups = async () => {
+  // Calcular estimado de matches de playoffs
+  const calculatePlayoffMatchCount = (): number => {
+    if (!data) return 0;
+    
+    // Calcular cuántos equipos clasifican
+    let totalQualified = 0;
+    data.groups.forEach((group) => {
+      const groupTeams = data.groupTeams.filter(gt => gt.tournament_group_id === group.id);
+      const size = groupTeams.length;
+      // Zonas de 3: pasan 2, zonas de 4: pasan 3
+      if (size === 4) {
+        totalQualified += 3;
+      } else {
+        totalQualified += 2;
+      }
+    });
+
+    if (totalQualified < 2) return 0;
+
+    // Calcular matches totales (suma de todas las rondas)
+    // Estimación: si hay N equipos, habrá aproximadamente N-1 matches en total
+    // Pero esto es una estimación conservadora
+    return Math.max(totalQualified - 1, 1);
+  };
+
+  const handleCloseGroups = () => {
+    setScheduleDialogOpen(true);
+  };
+
+  const handleConfirmSchedule = async (config: ScheduleConfig) => {
     try {
       setClosingGroups(true);
+      setScheduleDialogOpen(false);
       const res = await fetch(
         `/api/tournaments/${tournament.id}/close-groups`,
-        { method: "POST" }
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(config),
+        }
       );
       if (!res.ok) {
-        console.error("Error closing groups");
+        const errorData = await res.json().catch(() => ({}));
+        alert(errorData.error || "Error al generar playoffs");
         return;
       }
       // recargar todo para ver playoffs
       window.location.reload();
     } catch (err) {
       console.error(err);
+      alert("Error al generar playoffs");
     } finally {
       setClosingGroups(false);
     }
@@ -228,6 +267,14 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
           Generar playoffs
         </Button>
       </CardHeader>
+
+      <TournamentScheduleDialog
+        open={scheduleDialogOpen}
+        onOpenChange={setScheduleDialogOpen}
+        onConfirm={handleConfirmSchedule}
+        matchCount={calculatePlayoffMatchCount()}
+        tournamentMatchDuration={tournament.match_duration}
+      />
 
       <CardContent className="px-0 space-y-3">
         {(() => {

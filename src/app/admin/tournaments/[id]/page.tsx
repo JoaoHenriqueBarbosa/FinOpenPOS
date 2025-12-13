@@ -14,11 +14,12 @@ import {
   TabsTrigger,
   TabsContent,
 } from "@/components/ui/tabs";
-import { Loader2Icon } from "lucide-react";
+import { Loader2Icon, EditIcon, EyeIcon } from "lucide-react";
 import TeamsTab from "./TeamsTab";
 import GroupsTab from "./GroupsTab";
 import StandingsTab from "./StandingsTab";
 import PlayoffsTab from "./PlayoffsTab";
+import PlayoffsViewTab from "./PlayoffsViewTab";
 
 type Tournament = {
   id: number;
@@ -76,12 +77,32 @@ export default function TournamentDetailPage() {
       </CardHeader>
       <CardContent className="p-0 pt-2">
         <Tabs defaultValue="teams">
-          <TabsList>
-            <TabsTrigger value="teams">Equipos</TabsTrigger>
-            <TabsTrigger value="groups">Fase de grupos</TabsTrigger>
-            <TabsTrigger value="standings">Tabla de posiciones</TabsTrigger>
-            <TabsTrigger value="playoffs">Playoffs</TabsTrigger>
-          </TabsList>
+          <div className="space-y-3">
+            {/* Sección de edición */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground px-1">
+                <EditIcon className="h-3 w-3" />
+                <span>Edición</span>
+              </div>
+              <TabsList className="w-full justify-start">
+                <TabsTrigger value="teams">Equipos</TabsTrigger>
+                <TabsTrigger value="groups">Fase de grupos</TabsTrigger>
+                <TabsTrigger value="playoffs">Playoffs</TabsTrigger>
+              </TabsList>
+            </div>
+
+            {/* Sección de vista */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground px-1">
+                <EyeIcon className="h-3 w-3" />
+                <span>Vista</span>
+              </div>
+              <TabsList className="w-full justify-start">
+                <TabsTrigger value="standings">Tabla de posiciones</TabsTrigger>
+                <TabsTrigger value="playoffs-view">Vista de playoffs</TabsTrigger>
+              </TabsList>
+            </div>
+          </div>
 
           <TabsContent value="teams" className="pt-4">
             <TeamsTab tournament={tournament} />
@@ -97,6 +118,10 @@ export default function TournamentDetailPage() {
 
           <TabsContent value="playoffs" className="pt-4">
             <PlayoffsTab tournament={tournament} />
+          </TabsContent>
+
+          <TabsContent value="playoffs-view" className="pt-4">
+            <PlayoffsViewTab tournament={tournament} />
           </TabsContent>
         </Tabs>
       </CardContent>
