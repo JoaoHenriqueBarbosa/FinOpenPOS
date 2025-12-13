@@ -314,7 +314,15 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, sele
 
           // Limpiar el contenido original y agregar los 4 divs
           container.innerHTML = '';
-          container.style.cssText = 'display: flex; flex-direction: column; align-items: center; gap: 2px;';
+          container.style.cssText = `
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            background-color: rgba(230, 126, 29, 0.9);
+            border-radius: 4px;
+            padding: 4px;
+          `.replace(/\s+/g, ' ').trim();
           container.appendChild(scheduleDiv);
           container.appendChild(team1Div);
           container.appendChild(team2Div);
