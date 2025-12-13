@@ -287,18 +287,87 @@ export function TournamentScheduleDialog({
             ))}
           </div>
 
-          {/* Resumen */}
-          <div className="bg-muted p-3 rounded-lg space-y-1">
-            <p className="text-sm font-medium">
-              Partidos a programar: <span className="font-bold">{matchCount}</span>
-            </p>
-            <p className="text-sm">
-              Slots disponibles: <span className="font-bold">{availableSlots}</span>
-            </p>
-            {availableSlots < matchCount && (
-              <p className="text-xs text-red-600 font-medium">
-                ⚠️ No hay suficientes slots. Agregá más días u horarios.
+          {/* Resumen y vista previa de slots */}
+          <div className="bg-muted p-3 rounded-lg space-y-2">
+            <div className="space-y-1">
+              <p className="text-sm font-medium">
+                Partidos a programar: <span className="font-bold">{matchCount}</span>
               </p>
+              <p className="text-sm">
+                Slots disponibles: <span className="font-bold">{availableSlots}</span>
+              </p>
+              {availableSlots < matchCount && (
+                <p className="text-xs text-red-600 font-medium">
+                  ⚠️ No hay suficientes slots. Agregá más días u horarios.
+                </p>
+              )}
+            </div>
+
+            {/* Vista previa de slots generados */}
+            {selectedCourtIds.length > 0 && days.some((d) => d.date) && (
+              <div className="mt-3 pt-3 border-t">
+                <p className="text-xs font-medium mb-2">Vista previa de slots generados:</p>
+                <div className="max-h-48 overflow-y-auto space-y-2">
+                  {days
+                    .filter((d) => d.date)
+                    .map((day, dayIndex) => {
+                      const [startH, startM] = day.startTime.split(":").map(Number);
+                      const [endH, endM] = day.endTime.split(":").map(Number);
+                      const startMinutes = startH * 60 + startM;
+                      const endMinutes = endH * 60 + endM;
+
+                      // Generar slots para este día
+                      const slotsForDay: Array<{ time: string; courtName: string }> = [];
+                      let currentMinutes = startMinutes;
+                      let slotIndex = 0;
+
+                      while (currentMinutes + matchDuration <= endMinutes) {
+                        const slotStartH = Math.floor(currentMinutes / 60);
+                        const slotStartM = currentMinutes % 60;
+                        const slotTime = `${String(slotStartH).padStart(2, "0")}:${String(slotStartM).padStart(2, "0")}`;
+
+                        // Un slot por cada cancha seleccionada
+                        selectedCourtIds.forEach((courtId) => {
+                          const court = courts.find((c) => c.id === courtId);
+                          slotsForDay.push({
+                            time: slotTime,
+                            courtName: court?.name || `Cancha ${courtId}`,
+                          });
+                        });
+
+                        currentMinutes += matchDuration;
+                        slotIndex++;
+                      }
+
+                      return (
+                        <div key={dayIndex} className="space-y-1">
+                          <div className="text-xs font-semibold">
+                            {new Date(day.date).toLocaleDateString("es-AR", {
+                              weekday: "long",
+                              day: "numeric",
+                              month: "long",
+                            })}
+                          </div>
+                          <div className="grid grid-cols-2 gap-1 text-xs">
+                            {slotsForDay.slice(0, 10).map((slot, idx) => (
+                              <div
+                                key={idx}
+                                className="bg-background px-2 py-1 rounded border text-muted-foreground"
+                              >
+                                {slot.time} - {slot.courtName}
+                              </div>
+                            ))}
+                            {slotsForDay.length > 10 && (
+                              <div className="col-span-2 text-xs text-muted-foreground italic">
+                                ... y {slotsForDay.length - 10} slots más
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
             )}
           </div>
         </div>

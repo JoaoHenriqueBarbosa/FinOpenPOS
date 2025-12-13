@@ -3,6 +3,56 @@ import { createClient } from "@/lib/supabase/server";
 
 type RouteParams = { params: { id: string } };
 
+type ScheduleDay = {
+  date: string; // YYYY-MM-DD
+  startTime: string; // HH:MM
+  endTime: string; // HH:MM
+};
+
+type ScheduleConfig = {
+  days: ScheduleDay[];
+  matchDuration: number; // minutos entre partidos
+  courtIds: number[]; // IDs de las canchas a usar
+};
+
+// Función helper para generar slots de tiempo
+function generateTimeSlots(
+  days: ScheduleDay[],
+  matchDuration: number,
+  numCourts: number
+): Array<{ date: string; startTime: string; endTime: string }> {
+  const slots: Array<{ date: string; startTime: string; endTime: string }> = [];
+
+  days.forEach((day) => {
+    const [startH, startM] = day.startTime.split(":").map(Number);
+    const [endH, endM] = day.endTime.split(":").map(Number);
+    const startMinutes = startH * 60 + startM;
+    const endMinutes = endH * 60 + endM;
+
+    let currentMinutes = startMinutes;
+    while (currentMinutes + matchDuration <= endMinutes) {
+      const slotStartH = Math.floor(currentMinutes / 60);
+      const slotStartM = currentMinutes % 60;
+      const slotEndMinutes = currentMinutes + matchDuration;
+      const slotEndH = Math.floor(slotEndMinutes / 60);
+      const slotEndM = slotEndMinutes % 60;
+
+      // Agregar un slot por cada cancha disponible
+      for (let i = 0; i < numCourts; i++) {
+        slots.push({
+          date: day.date,
+          startTime: `${String(slotStartH).padStart(2, "0")}:${String(slotStartM).padStart(2, "0")}`,
+          endTime: `${String(slotEndH).padStart(2, "0")}:${String(slotEndM).padStart(2, "0")}`,
+        });
+      }
+
+      currentMinutes += matchDuration;
+    }
+  });
+
+  return slots;
+}
+
 type MatchRow = {
   id: number;
   tournament_group_id: number | null;
@@ -15,7 +65,7 @@ type MatchRow = {
   status: string;
 };
 
-export async function POST(_req: Request, { params }: RouteParams) {
+export async function POST(req: Request, { params }: RouteParams) {
   const supabase = createClient();
   const {
     data: { user },
@@ -27,10 +77,20 @@ export async function POST(_req: Request, { params }: RouteParams) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
 
+  // Obtener configuración de horarios del body
+  const body = await req.json().catch(() => ({}));
+  const scheduleConfig: ScheduleConfig | undefined = body.days
+    ? {
+        days: body.days,
+        matchDuration: body.matchDuration || 60,
+        courtIds: body.courtIds || [],
+      }
+    : undefined;
+
   // 1) torneo
   const { data: t, error: terr } = await supabase
     .from("tournaments")
-    .select("id, status, user_uid")
+    .select("id, status, user_uid, match_duration")
     .eq("id", tournamentId)
     .single();
 
@@ -246,9 +306,11 @@ export async function POST(_req: Request, { params }: RouteParams) {
     );
 
     // determinar cuántos clasifican por tamaño del grupo
+    // Zonas de 3 equipos: pasan 2
+    // Zonas de 4 equipos: pasan 3
     const size = groupTeamIds.length;
-    let qualifiersCount = 2;
-    if (size === 4) qualifiersCount = 3;
+    let qualifiersCount = 2; // Por defecto: zonas de 3 equipos
+    if (size === 4) qualifiersCount = 3; // Zonas de 4 equipos: pasan 3
 
     stats.slice(0, qualifiersCount).forEach((s, index) => {
       qualifiedTeams.push({
@@ -280,13 +342,47 @@ export async function POST(_req: Request, { params }: RouteParams) {
     );
   }
 
-  // ordenar: primero por posición (1°, 2°, 3°), luego por grupo
-  // Esto asegura que los primeros de cada zona estén al principio y pasen directo cuando hay byes
+  // Ordenar grupos por group_order para saber el orden de las zonas
+  const { data: groupsOrdered, error: groupsOrderError } = await supabase
+    .from("tournament_groups")
+    .select("id, group_order")
+    .eq("tournament_id", tournamentId)
+    .eq("user_uid", user.id)
+    .order("group_order", { ascending: true });
+
+  if (groupsOrderError || !groupsOrdered) {
+    console.error("Error fetching groups order:", groupsOrderError);
+    return NextResponse.json(
+      { error: "Failed to fetch groups order" },
+      { status: 500 }
+    );
+  }
+
+  // Crear mapa de group_id -> group_order
+  const groupOrderMap = new Map<number, number>();
+  groupsOrdered.forEach((g) => {
+    groupOrderMap.set(g.id, g.group_order);
+  });
+
+  // Ordenar qualifiedTeams según la nueva lógica:
+  // 1. Primero todos los 1ros en orden normal (A, B, C, ...)
+  // 2. Luego todos los 2dos en orden inverso (última, penúltima, ..., B, A)
+  // 3. Luego todos los 3ros en orden normal (A, B, C, ...)
   qualifiedTeams.sort((a, b) => {
     if (a.pos !== b.pos) {
       return a.pos - b.pos; // Primero todos los 1°, luego 2°, luego 3°
     }
-    return a.from_group_id - b.from_group_id; // Dentro de la misma posición, por grupo
+
+    const aGroupOrder = groupOrderMap.get(a.from_group_id) ?? 0;
+    const bGroupOrder = groupOrderMap.get(b.from_group_id) ?? 0;
+
+    if (a.pos === 2) {
+      // Para los 2dos: orden inverso (última zona primero)
+      return bGroupOrder - aGroupOrder;
+    } else {
+      // Para 1ros y 3ros: orden normal (primera zona primero)
+      return aGroupOrder - bGroupOrder;
+    }
   });
 
   const n = qualifiedTeams.length;
@@ -421,6 +517,10 @@ export async function POST(_req: Request, { params }: RouteParams) {
     team2_id: number | null;
     source_team1: string | null;
     source_team2: string | null;
+    match_date?: string | null;
+    start_time?: string | null;
+    end_time?: string | null;
+    court_id?: number | null;
   }> = [];
 
   // Primera ronda: los mejores seeds pasan directo, los restantes juegan
@@ -428,15 +528,51 @@ export async function POST(_req: Request, { params }: RouteParams) {
   const teamsPlayingInFirstRound = qualifiedTeams.slice(teamsWithBye);
   const teamsWithByeList = qualifiedTeams.slice(0, teamsWithBye);
   
-  // Crear matches de la primera ronda con los equipos que juegan
+  // Crear matches de la primera ronda con emparejamiento: más fuerte vs más débil
+  // Además, asegurar que 1ro y 2do de la misma zona no se crucen
   for (let i = 0; i < firstRoundMatches; i++) {
-    const t1 = teamsPlayingInFirstRound[i];
-    const t2 = teamsPlayingInFirstRound[teamsPlayingInFirstRound.length - 1 - i];
+    let t1Index = i;
+    let t2Index = teamsPlayingInFirstRound.length - 1 - i;
+    
+    // Verificar restricción: 1ro y 2do de la misma zona no deben cruzarse
+    let t1 = teamsPlayingInFirstRound[t1Index];
+    let t2 = teamsPlayingInFirstRound[t2Index];
+    
+    // Si ambos son de la misma zona y uno es 1ro y el otro 2do, ajustar
+    if (t1.from_group_id === t2.from_group_id && 
+        ((t1.pos === 1 && t2.pos === 2) || (t1.pos === 2 && t2.pos === 1))) {
+      // Buscar otro equipo para emparejar con t1 (buscar hacia atrás desde t2Index)
+      let foundAlternative = false;
+      for (let j = t2Index - 1; j > t1Index; j--) {
+        const altT2 = teamsPlayingInFirstRound[j];
+        if (altT2.from_group_id !== t1.from_group_id || 
+            (altT2.pos !== 1 && altT2.pos !== 2) ||
+            (t1.pos === 1 && altT2.pos !== 2) ||
+            (t1.pos === 2 && altT2.pos !== 1)) {
+          // Intercambiar
+          [teamsPlayingInFirstRound[t2Index], teamsPlayingInFirstRound[j]] = 
+            [teamsPlayingInFirstRound[j], teamsPlayingInFirstRound[t2Index]];
+          foundAlternative = true;
+          break;
+        }
+      }
+      
+      // Si no se encontró alternativa, intentar con el siguiente equipo del lado fuerte
+      if (!foundAlternative && t1Index + 1 < teamsPlayingInFirstRound.length - 1 - i) {
+        [teamsPlayingInFirstRound[t1Index], teamsPlayingInFirstRound[t1Index + 1]] = 
+          [teamsPlayingInFirstRound[t1Index + 1], teamsPlayingInFirstRound[t1Index]];
+        t1 = teamsPlayingInFirstRound[t1Index];
+      }
+    }
+    
+    const finalT1 = teamsPlayingInFirstRound[t1Index];
+    const finalT2 = teamsPlayingInFirstRound[teamsPlayingInFirstRound.length - 1 - i];
+    
     allMatches.push({
       round: firstRoundName,
       bracket_pos: i + 1,
-      team1_id: t1.team_id,
-      team2_id: t2.team_id,
+      team1_id: finalT1.team_id,
+      team2_id: finalT2.team_id,
       source_team1: null,
       source_team2: null,
     });
@@ -508,8 +644,71 @@ export async function POST(_req: Request, { params }: RouteParams) {
     }
   }
 
+  // Asignar horarios a los matches si se proporcionó configuración
+  const tournamentMatchDuration = t.match_duration ?? 60;
+  let timeSlots: Array<{ date: string; startTime: string; endTime: string }> = [];
+  
+  if (scheduleConfig && scheduleConfig.days.length > 0 && scheduleConfig.courtIds.length > 0) {
+    timeSlots = generateTimeSlots(
+      scheduleConfig.days,
+      scheduleConfig.matchDuration,
+      scheduleConfig.courtIds.length
+    );
+
+    // Validar que hay suficientes slots
+    if (timeSlots.length < allMatches.length) {
+      return NextResponse.json(
+        { error: `No hay suficientes slots disponibles. Se necesitan ${allMatches.length} slots pero solo hay ${timeSlots.length} disponibles.` },
+        { status: 400 }
+      );
+    }
+
+    // Calcular end_time para cada match
+    const calculateEndTime = (startTime: string): string => {
+      const [startH, startM] = startTime.split(":").map(Number);
+      const startMinutes = startH * 60 + startM;
+      const endMinutes = startMinutes + tournamentMatchDuration;
+      const endH = Math.floor(endMinutes / 60);
+      const endM = endMinutes % 60;
+      return `${String(endH).padStart(2, "0")}:${String(endM).padStart(2, "0")}`;
+    };
+
+    // Asignar slots secuencialmente a los matches
+    // Ordenar matches por ronda y posición para asignar horarios lógicamente
+    // Los más fuertes (primeros matches de la primera ronda) deben jugar primero
+    const sortedMatches = [...allMatches].sort((a, b) => {
+      const roundOrder: Record<string, number> = {
+        "16avos": 1,
+        "octavos": 2,
+        "cuartos": 3,
+        "semifinal": 4,
+        "final": 5,
+      };
+      const aOrder = roundOrder[a.round] || 999;
+      const bOrder = roundOrder[b.round] || 999;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      
+      // Dentro de la misma ronda, los primeros matches (más fuertes) van primero
+      // Esto da ventaja deportiva a los equipos más fuertes (más descanso)
+      return a.bracket_pos - b.bracket_pos;
+    });
+
+    sortedMatches.forEach((match, index) => {
+      if (index < timeSlots.length) {
+        const slot = timeSlots[index];
+        match.match_date = slot.date;
+        match.start_time = slot.startTime;
+        match.end_time = calculateEndTime(slot.startTime);
+        // Los slots se generan con un slot por cancha en cada intervalo
+        // Entonces el índice de la cancha es: index % numCourts
+        const courtIndex = index % scheduleConfig.courtIds.length;
+        match.court_id = scheduleConfig.courtIds[courtIndex];
+      }
+    });
+  }
+
   // Insertar todos los partidos en la base de datos
-  const playoffMatchesPayload: any[] = allMatches.map((m) => ({
+  const playoffMatchesPayload: any[] = allMatches.map((m: any) => ({
     tournament_id: tournamentId,
     user_uid: user.id,
     phase: "playoff",
@@ -517,6 +716,10 @@ export async function POST(_req: Request, { params }: RouteParams) {
     team1_id: m.team1_id,
     team2_id: m.team2_id,
     status: "scheduled",
+    match_date: m.match_date || null,
+    start_time: m.start_time || null,
+    end_time: m.end_time || null,
+    court_id: m.court_id || null,
   }));
 
   const { data: createdMatches, error: cmError } = await supabase
