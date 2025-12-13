@@ -37,6 +37,7 @@ export default function TournamentsPage() {
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
   const [hasSuperTiebreak, setHasSuperTiebreak] = useState(false);
+  const [matchDuration, setMatchDuration] = useState<number>(60);
   const [creating, setCreating] = useState(false);
   const router = useRouter();
 
@@ -63,7 +64,12 @@ export default function TournamentsPage() {
       const res = await fetch("/api/tournaments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, category, has_super_tiebreak: hasSuperTiebreak }),
+        body: JSON.stringify({ 
+          name, 
+          category, 
+          has_super_tiebreak: hasSuperTiebreak,
+          match_duration: matchDuration
+        }),
       });
       if (!res.ok) {
         console.error("Error creating tournament");
@@ -74,6 +80,7 @@ export default function TournamentsPage() {
       setName("");
       setCategory("");
       setHasSuperTiebreak(false);
+      setMatchDuration(60);
       setTournaments((prev) => [created, ...prev]);
       router.push(`/admin/tournaments/${created.id}`);
     } catch (err) {
@@ -151,6 +158,20 @@ export default function TournamentsPage() {
                 onChange={(e) => setCategory(e.target.value)}
                 placeholder="Ej: 7ma, 6ta, Mixto"
               />
+            </div>
+            <div className="space-y-1">
+              <Label>Duración del partido (minutos)</Label>
+              <Input
+                type="number"
+                min="30"
+                step="15"
+                value={matchDuration}
+                onChange={(e) => setMatchDuration(Number(e.target.value) || 90)}
+                placeholder="60"
+              />
+              <p className="text-xs text-muted-foreground">
+                Duración estimada de cada partido (por defecto 60 minutos)
+              </p>
             </div>
             <div className="flex items-center justify-between space-x-2 py-2">
               <div className="space-y-0.5">

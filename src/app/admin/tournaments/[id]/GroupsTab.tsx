@@ -9,8 +9,9 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { MatchResultInlineForm } from "@/components/match-result-inline-form";
-import { Loader2Icon } from "lucide-react";
+import { Loader2Icon, PencilIcon, CheckIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { formatDate, formatTime } from "@/lib/date-utils";
 
 type Tournament = {
@@ -70,6 +71,9 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
   const [loading, setLoading] = useState(true);
   const [closingGroups, setClosingGroups] = useState(false);
   const [hasPlayoffs, setHasPlayoffs] = useState(false);
+  const [editingMatchId, setEditingMatchId] = useState<number | null>(null);
+  const [editDate, setEditDate] = useState<string>("");
+  const [editTime, setEditTime] = useState<string>("");
 
   const load = async () => {
     try {
@@ -114,6 +118,44 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
       console.error(err);
     } finally {
       setClosingGroups(false);
+    }
+  };
+
+  const handleStartEdit = (match: Match) => {
+    setEditingMatchId(match.id);
+    // Convertir fecha a formato YYYY-MM-DD para el input
+    setEditDate(match.match_date ? match.match_date.split("T")[0] : "");
+    setEditTime(match.start_time || "");
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMatchId(null);
+    setEditDate("");
+    setEditTime("");
+  };
+
+  const handleSaveSchedule = async (matchId: number) => {
+    try {
+      const res = await fetch(`/api/tournament-matches/${matchId}/schedule`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          match_date: editDate || null,
+          start_time: editTime || null,
+        }),
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        alert(errorData.error || "Error al actualizar horario");
+        return;
+      }
+      setEditingMatchId(null);
+      setEditDate("");
+      setEditTime("");
+      load();
+    } catch (err) {
+      console.error(err);
+      alert("Error al actualizar horario");
     }
   };
 
@@ -202,35 +244,77 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
                     >
                       {/* Header con fecha, hora y estado */}
                       <div className="bg-gray-50 border-b px-4 py-2">
-                        <div className="flex items-center gap-4 text-xs">
-                          {m.match_date && (
-                            <span className="font-medium text-muted-foreground">
-                              📅 {formatDate(m.match_date)}
+                        {editingMatchId === m.id ? (
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="date"
+                              value={editDate}
+                              onChange={(e) => setEditDate(e.target.value)}
+                              className="h-7 text-xs"
+                            />
+                            <Input
+                              type="time"
+                              value={editTime}
+                              onChange={(e) => setEditTime(e.target.value)}
+                              className="h-7 text-xs"
+                              step="60"
+                            />
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2"
+                              onClick={() => handleSaveSchedule(m.id)}
+                            >
+                              <CheckIcon className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2"
+                              onClick={handleCancelEdit}
+                            >
+                              <XIcon className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-4 text-xs">
+                            {m.match_date && (
+                              <span className="font-medium text-muted-foreground">
+                                📅 {formatDate(m.match_date)}
+                              </span>
+                            )}
+                            {m.start_time && (
+                              <span className="text-muted-foreground">
+                                🕐 {formatTime(m.start_time)}
+                              </span>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 px-2 ml-auto"
+                              onClick={() => handleStartEdit(m)}
+                            >
+                              <PencilIcon className="h-3 w-3" />
+                            </Button>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                              m.status === "finished" 
+                                ? "bg-green-100 text-green-700" 
+                                : m.status === "in_progress"
+                                ? "bg-blue-100 text-blue-700"
+                                : m.status === "cancelled"
+                                ? "bg-red-100 text-red-700"
+                                : "bg-gray-100 text-gray-700"
+                            }`}>
+                              {m.status === "finished" 
+                                ? "Finalizado" 
+                                : m.status === "in_progress"
+                                ? "En curso"
+                                : m.status === "cancelled"
+                                ? "Cancelado"
+                                : "Programado"}
                             </span>
-                          )}
-                          {m.start_time && (
-                            <span className="text-muted-foreground">
-                              🕐 {formatTime(m.start_time)}
-                            </span>
-                          )}
-                          <span className={`ml-auto px-2 py-0.5 rounded text-[10px] font-medium ${
-                            m.status === "finished" 
-                              ? "bg-green-100 text-green-700" 
-                              : m.status === "in_progress"
-                              ? "bg-blue-100 text-blue-700"
-                              : m.status === "cancelled"
-                              ? "bg-red-100 text-red-700"
-                              : "bg-gray-100 text-gray-700"
-                          }`}>
-                            {m.status === "finished" 
-                              ? "Finalizado" 
-                              : m.status === "in_progress"
-                              ? "En curso"
-                              : m.status === "cancelled"
-                              ? "Cancelado"
-                              : "Programado"}
-                          </span>
-                        </div>
+                          </div>
+                        )}
                       </div>
                       
                       {/* Nombres de equipos con inputs de resultados */}

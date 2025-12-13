@@ -31,6 +31,7 @@ type TournamentScheduleDialogProps = {
   onOpenChange: (open: boolean) => void;
   onConfirm: (config: ScheduleConfig) => void;
   matchCount: number; // cantidad de partidos a programar
+  tournamentMatchDuration?: number; // duración del partido del torneo (en minutos)
 };
 
 type Court = {
@@ -44,6 +45,7 @@ export function TournamentScheduleDialog({
   onOpenChange,
   onConfirm,
   matchCount,
+  tournamentMatchDuration = 60,
 }: TournamentScheduleDialogProps) {
   const [days, setDays] = useState<ScheduleDay[]>([
     {
@@ -52,10 +54,17 @@ export function TournamentScheduleDialog({
       endTime: "22:00",
     },
   ]);
-  const [matchDuration, setMatchDuration] = useState<number>(60); // 1 hora por defecto
+  const [matchDuration, setMatchDuration] = useState<number>(tournamentMatchDuration);
   const [courts, setCourts] = useState<Court[]>([]);
   const [selectedCourtIds, setSelectedCourtIds] = useState<number[]>([]);
   const [loadingCourts, setLoadingCourts] = useState(false);
+
+  // Resetear matchDuration cuando cambia el valor del torneo o se abre el diálogo
+  useEffect(() => {
+    if (open) {
+      setMatchDuration(tournamentMatchDuration);
+    }
+  }, [open, tournamentMatchDuration]);
 
   // Cargar canchas al abrir el diálogo
   useEffect(() => {
@@ -207,7 +216,7 @@ export function TournamentScheduleDialog({
               onChange={(e) => setMatchDuration(Number(e.target.value))}
             />
             <p className="text-xs text-muted-foreground">
-              Intervalo entre el inicio de cada partido (ej: 60 = cada 1 hora)
+              Intervalo entre el inicio de cada partido. Valor del torneo: {tournamentMatchDuration} minutos
             </p>
           </div>
 
