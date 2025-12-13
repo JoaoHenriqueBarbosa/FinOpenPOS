@@ -62,6 +62,19 @@ function teamLabel(team: Match["team1"]) {
   } ${team.player2?.last_name ?? ""}`;
 }
 
+// Función para obtener el color de la ronda
+function getRoundColor(round: string): { bg: string; text: string; border: string; badgeBg: string; badgeText: string } {
+  const roundColors: Record<string, { bg: string; text: string; border: string; badgeBg: string; badgeText: string }> = {
+    "16avos": { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200", badgeBg: "bg-blue-100", badgeText: "text-blue-800" },
+    "octavos": { bg: "bg-green-50", text: "text-green-700", border: "border-green-200", badgeBg: "bg-green-100", badgeText: "text-green-800" },
+    "cuartos": { bg: "bg-pink-50", text: "text-pink-700", border: "border-pink-200", badgeBg: "bg-pink-100", badgeText: "text-pink-800" },
+    "semifinal": { bg: "bg-orange-50", text: "text-orange-700", border: "border-orange-200", badgeBg: "bg-orange-100", badgeText: "text-orange-800" },
+    "final": { bg: "bg-purple-50", text: "text-purple-700", border: "border-purple-200", badgeBg: "bg-purple-100", badgeText: "text-purple-800" },
+  };
+  
+  return roundColors[round] || { bg: "bg-gray-50", text: "text-gray-700", border: "border-gray-200", badgeBg: "bg-gray-100", badgeText: "text-gray-800" };
+}
+
 export default function PlayoffsTab({ tournament }: { tournament: Tournament }) {
   const [rows, setRows] = useState<PlayoffRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -214,6 +227,7 @@ export default function PlayoffsTab({ tournament }: { tournament: Tournament }) 
           const team1Name = teamLabel(match.team1);
           const team2Name = teamLabel(match.team2);
           const isEditing = editingMatchId === match.id;
+          const roundColor = getRoundColor(row.round);
           
           // Determinar si el match usa super tiebreak
           const hasSuperTiebreak = (row.round === "cuartos" || row.round === "semifinal" || row.round === "final")
@@ -223,10 +237,10 @@ export default function PlayoffsTab({ tournament }: { tournament: Tournament }) 
           return (
             <div
               key={match.id}
-              className="border rounded-lg shadow-sm overflow-hidden"
+              className={`border rounded-lg shadow-sm overflow-hidden ${roundColor.border}`}
             >
               {/* Header con ronda, fecha, hora y estado */}
-              <div className="bg-gray-50 border-b px-4 py-2">
+              <div className={`${roundColor.bg} border-b px-4 py-2`}>
                 {isEditing ? (
                   <div className="flex items-center gap-2">
                     <Input
@@ -261,7 +275,7 @@ export default function PlayoffsTab({ tournament }: { tournament: Tournament }) 
                   </div>
                 ) : (
                   <div className="flex items-center gap-4 text-xs flex-wrap">
-                    <Badge variant="outline" className="text-[10px]">
+                    <Badge variant="outline" className={`text-[10px] ${roundColor.badgeBg} ${roundColor.badgeText} border-current`}>
                       {getRoundLabel(row.round)}
                     </Badge>
                     {match.match_date && (
@@ -311,13 +325,14 @@ export default function PlayoffsTab({ tournament }: { tournament: Tournament }) 
                   team1Name={team1Name}
                   team2Name={team2Name}
                   hasSuperTiebreak={hasSuperTiebreak}
+                  groupColor={{ bg: roundColor.bg, text: roundColor.text }}
                   onSaved={() => {
                     load();
                   }}
                 />
               ) : (
-                <div className="p-4 bg-muted/50">
-                  <p className="text-sm text-muted-foreground">
+                <div className={`p-4 ${roundColor.bg}`}>
+                  <p className={`text-sm ${roundColor.text}`}>
                     Este match aún no tiene ambos equipos asignados. Esperá a que se completen los matches anteriores.
                   </p>
                 </div>

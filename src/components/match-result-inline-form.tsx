@@ -206,7 +206,7 @@ export function MatchResultInlineForm({
       )}
 
       {/* Botones de acción */}
-      <div className="px-4 py-3 bg-white flex items-center justify-center">
+      <div className={`px-4 py-3 ${bgColor} flex items-center justify-center`}>
         <Button size="sm" className="h-7 text-xs px-3" onClick={handleSave} disabled={saving}>
           {saving ? (
             <>
