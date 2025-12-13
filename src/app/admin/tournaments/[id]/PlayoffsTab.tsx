@@ -210,6 +210,8 @@ export default function PlayoffsTab({ tournament }: { tournament: Tournament }) 
     scores?: string;
     sourceTeam1?: string | null;
     sourceTeam2?: string | null;
+    matchDate?: string | null;
+    startTime?: string | null;
   }>> = {};
 
   rows.forEach((r) => {
@@ -252,6 +254,8 @@ export default function PlayoffsTab({ tournament }: { tournament: Tournament }) 
       scores,
       sourceTeam1: r.source_team1,
       sourceTeam2: r.source_team2,
+      matchDate: match.match_date || null,
+      startTime: match.start_time || null,
     });
   });
 
