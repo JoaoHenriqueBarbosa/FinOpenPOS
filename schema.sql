@@ -276,6 +276,8 @@ CREATE TABLE tournaments (
                  CHECK (status IN ('draft', 'in_progress', 'finished', 'cancelled')),
     -- 🔹 Flag para indicar si el tercer set es super tie-break (aplicado a todos los matches del torneo)
     has_super_tiebreak  BOOLEAN NOT NULL DEFAULT FALSE,
+    -- 🔹 Duración estimada de un partido en minutos (por defecto 60 minutos = 1 hora)
+    match_duration      INTEGER NOT NULL DEFAULT 60,
     created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -30,6 +30,7 @@ import { TournamentScheduleDialog, ScheduleConfig } from "@/components/tournamen
 type Tournament = {
   id: number;
   status: string;
+  match_duration: number;
 };
 
 type Player = {
@@ -321,6 +322,7 @@ export default function TeamsTab({ tournament }: { tournament: Tournament }) {
         onOpenChange={setScheduleDialogOpen}
         onConfirm={handleCloseRegistration}
         matchCount={matchCount}
+        tournamentMatchDuration={tournament.match_duration}
       />
     </Card>
   );

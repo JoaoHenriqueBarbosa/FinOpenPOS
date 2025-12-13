@@ -9,7 +9,8 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2Icon } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Loader2Icon, PencilIcon, CheckIcon, XIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { TournamentBracketV2 } from "@/components/tournament-bracket-v2";
 import { MatchResultInlineForm } from "@/components/match-result-inline-form";
@@ -77,6 +78,9 @@ export default function PlayoffsTab({ tournament }: { tournament: Tournament }) 
   const [rows, setRows] = useState<PlayoffRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMatchId, setSelectedMatchId] = useState<number | null>(null);
+  const [editingSchedule, setEditingSchedule] = useState(false);
+  const [editDate, setEditDate] = useState<string>("");
+  const [editTime, setEditTime] = useState<string>("");
 
   const load = async () => {
     try {
@@ -95,6 +99,46 @@ export default function PlayoffsTab({ tournament }: { tournament: Tournament }) 
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tournament.id]);
+
+  const handleStartEditSchedule = () => {
+    if (selectedMatch) {
+      setEditingSchedule(true);
+      setEditDate(selectedMatch.match_date ? selectedMatch.match_date.split("T")[0] : "");
+      setEditTime(selectedMatch.start_time || "");
+    }
+  };
+
+  const handleCancelEditSchedule = () => {
+    setEditingSchedule(false);
+    setEditDate("");
+    setEditTime("");
+  };
+
+  const handleSaveSchedule = async () => {
+    if (!selectedMatch) return;
+    try {
+      const res = await fetch(`/api/tournament-matches/${selectedMatch.id}/schedule`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          match_date: editDate || null,
+          start_time: editTime || null,
+        }),
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        alert(errorData.error || "Error al actualizar horario");
+        return;
+      }
+      setEditingSchedule(false);
+      setEditDate("");
+      setEditTime("");
+      load();
+    } catch (err) {
+      console.error(err);
+      alert("Error al actualizar horario");
+    }
+  };
 
   if (loading) {
     return (
@@ -247,35 +291,77 @@ export default function PlayoffsTab({ tournament }: { tournament: Tournament }) 
           <div className="border rounded-lg bg-background shadow-sm overflow-hidden">
             {/* Header con fecha, hora y estado */}
             <div className="bg-gray-50 border-b px-4 py-2">
-              <div className="flex items-center gap-4 text-xs">
-                {selectedMatch.match_date && (
-                  <span className="font-medium text-muted-foreground">
-                    📅 {formatDate(selectedMatch.match_date)}
+              {editingSchedule ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="date"
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                    className="h-7 text-xs"
+                  />
+                  <Input
+                    type="time"
+                    value={editTime}
+                    onChange={(e) => setEditTime(e.target.value)}
+                    className="h-7 text-xs"
+                    step="60"
+                  />
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2"
+                    onClick={handleSaveSchedule}
+                  >
+                    <CheckIcon className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2"
+                    onClick={handleCancelEditSchedule}
+                  >
+                    <XIcon className="h-3 w-3" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-4 text-xs">
+                  {selectedMatch.match_date && (
+                    <span className="font-medium text-muted-foreground">
+                      📅 {formatDate(selectedMatch.match_date)}
+                    </span>
+                  )}
+                  {selectedMatch.start_time && (
+                    <span className="text-muted-foreground">
+                      🕐 {formatTime(selectedMatch.start_time)}
+                    </span>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 px-2 ml-auto"
+                    onClick={handleStartEditSchedule}
+                  >
+                    <PencilIcon className="h-3 w-3" />
+                  </Button>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                    selectedMatch.status === "finished" 
+                      ? "bg-green-100 text-green-700" 
+                      : selectedMatch.status === "in_progress"
+                      ? "bg-blue-100 text-blue-700"
+                      : selectedMatch.status === "cancelled"
+                      ? "bg-red-100 text-red-700"
+                      : "bg-gray-100 text-gray-700"
+                  }`}>
+                    {selectedMatch.status === "finished" 
+                      ? "Finalizado" 
+                      : selectedMatch.status === "in_progress"
+                      ? "En curso"
+                      : selectedMatch.status === "cancelled"
+                      ? "Cancelado"
+                      : "Programado"}
                   </span>
-                )}
-                {selectedMatch.start_time && (
-                  <span className="text-muted-foreground">
-                    🕐 {formatTime(selectedMatch.start_time)}
-                  </span>
-                )}
-                <span className={`ml-auto px-2 py-0.5 rounded text-[10px] font-medium ${
-                  selectedMatch.status === "finished" 
-                    ? "bg-green-100 text-green-700" 
-                    : selectedMatch.status === "in_progress"
-                    ? "bg-blue-100 text-blue-700"
-                    : selectedMatch.status === "cancelled"
-                    ? "bg-red-100 text-red-700"
-                    : "bg-gray-100 text-gray-700"
-                }`}>
-                  {selectedMatch.status === "finished" 
-                    ? "Finalizado" 
-                    : selectedMatch.status === "in_progress"
-                    ? "En curso"
-                    : selectedMatch.status === "cancelled"
-                    ? "Cancelado"
-                    : "Programado"}
-                </span>
-              </div>
+                </div>
+              )}
             </div>
             <MatchResultInlineForm
               key={selectedMatch.id}
