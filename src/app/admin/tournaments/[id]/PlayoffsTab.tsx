@@ -12,7 +12,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2Icon, PencilIcon, CheckIcon, XIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { TournamentBracketV2 } from "@/components/tournament-bracket-v2";
 import { MatchResultInlineForm } from "@/components/match-result-inline-form";
 import { formatDate, formatTime } from "@/lib/date-utils";
 
@@ -63,22 +62,10 @@ function teamLabel(team: Match["team1"]) {
   } ${team.player2?.last_name ?? ""}`;
 }
 
-// Función para mostrar solo apellidos en el bracket
-function teamLabelBracket(team: Match["team1"]) {
-  if (!team) return "—";
-  if (team.display_name) return team.display_name;
-  const lastName1 = team.player1?.last_name ?? "";
-  const lastName2 = team.player2?.last_name ?? "";
-  if (!lastName1 && !lastName2) return "—";
-  const result = `${lastName1} / ${lastName2}`.replace(/^\/\s*|\s*\/\s*$/g, "").trim();
-  return result || "—";
-}
-
 export default function PlayoffsTab({ tournament }: { tournament: Tournament }) {
   const [rows, setRows] = useState<PlayoffRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedMatchId, setSelectedMatchId] = useState<number | null>(null);
-  const [editingSchedule, setEditingSchedule] = useState(false);
+  const [editingMatchId, setEditingMatchId] = useState<number | null>(null);
   const [editDate, setEditDate] = useState<string>("");
   const [editTime, setEditTime] = useState<string>("");
 
@@ -100,24 +87,24 @@ export default function PlayoffsTab({ tournament }: { tournament: Tournament }) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tournament.id]);
 
-  const handleStartEditSchedule = () => {
-    if (selectedMatch) {
-      setEditingSchedule(true);
-      setEditDate(selectedMatch.match_date ? selectedMatch.match_date.split("T")[0] : "");
-      setEditTime(selectedMatch.start_time || "");
+  const handleStartEditSchedule = (matchId: number) => {
+    const row = rows.find(r => r.match?.id === matchId);
+    if (row?.match) {
+      setEditingMatchId(matchId);
+      setEditDate(row.match.match_date ? row.match.match_date.split("T")[0] : "");
+      setEditTime(row.match.start_time || "");
     }
   };
 
   const handleCancelEditSchedule = () => {
-    setEditingSchedule(false);
+    setEditingMatchId(null);
     setEditDate("");
     setEditTime("");
   };
 
-  const handleSaveSchedule = async () => {
-    if (!selectedMatch) return;
+  const handleSaveSchedule = async (matchId: number) => {
     try {
-      const res = await fetch(`/api/tournament-matches/${selectedMatch.id}/schedule`, {
+      const res = await fetch(`/api/tournament-matches/${matchId}/schedule`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -130,7 +117,7 @@ export default function PlayoffsTab({ tournament }: { tournament: Tournament }) 
         alert(errorData.error || "Error al actualizar horario");
         return;
       }
-      setEditingSchedule(false);
+      setEditingMatchId(null);
       setEditDate("");
       setEditTime("");
       load();
@@ -162,7 +149,7 @@ export default function PlayoffsTab({ tournament }: { tournament: Tournament }) 
     );
   }
 
-  // Organizar rondas en orden
+  // Organizar rondas en orden para mostrar en badges
   const roundOrder: Record<string, number> = {
     "16avos": 1,
     "octavos": 2,
@@ -171,240 +158,173 @@ export default function PlayoffsTab({ tournament }: { tournament: Tournament }) 
     "final": 5,
   };
 
-  const rounds = Array.from(new Set(rows.map((r) => r.round))).sort(
-    (a, b) => (roundOrder[a] || 99) - (roundOrder[b] || 99)
-  );
-
-  // Función para obtener el ganador de un match
-  const getWinner = (match: NonNullable<PlayoffRow["match"]>) => {
-    if (match.status !== "finished") return null;
-    let team1Sets = 0;
-    let team2Sets = 0;
-    
-    if (match.set1_team1_games !== null && match.set1_team2_games !== null) {
-      if (match.set1_team1_games > match.set1_team2_games) team1Sets++;
-      else if (match.set1_team2_games > match.set1_team1_games) team2Sets++;
-    }
-    if (match.set2_team1_games !== null && match.set2_team2_games !== null) {
-      if (match.set2_team1_games > match.set2_team2_games) team1Sets++;
-      else if (match.set2_team2_games > match.set2_team1_games) team2Sets++;
-    }
-    if (match.set3_team1_games !== null && match.set3_team2_games !== null) {
-      if (match.set3_team1_games > match.set3_team2_games) team1Sets++;
-      else if (match.set3_team2_games > match.set3_team1_games) team2Sets++;
-    }
-    
-    if (team1Sets === 0 && team2Sets === 0) return null;
-    return team1Sets > team2Sets ? match.team1 : match.team2;
+  const getRoundLabel = (round: string): string => {
+    const labels: Record<string, string> = {
+      "16avos": "16avos de Final",
+      "octavos": "Octavos de Final",
+      "cuartos": "Cuartos de Final",
+      "semifinal": "Semifinal",
+      "final": "Final",
+    };
+    return labels[round] || round;
   };
 
-  // Preparar datos para el bracket
-  const matchesByRound: Record<string, Array<{
-    id: number;
-    round: string;
-    bracketPos: number;
-    team1: { id: number; name: string } | null;
-    team2: { id: number; name: string } | null;
-    winner?: { id: number } | null;
-    isFinished: boolean;
-    scores?: string;
-    sourceTeam1?: string | null;
-    sourceTeam2?: string | null;
-    matchDate?: string | null;
-    startTime?: string | null;
-  }>> = {};
+  // Obtener todos los matches y ordenarlos por fecha y hora
+  const allMatches = rows
+    .filter(r => r.match !== null)
+    .map(r => ({ ...r, match: r.match! }))
+    .sort((a, b) => {
+      const matchA = a.match;
+      const matchB = b.match;
+      
+      // Primero por fecha
+      if (matchA.match_date && matchB.match_date) {
+        const dateCompare = matchA.match_date.localeCompare(matchB.match_date);
+        if (dateCompare !== 0) return dateCompare;
+      } else if (matchA.match_date) return -1;
+      else if (matchB.match_date) return 1;
 
-  rows.forEach((r) => {
-    if (!r.match) return;
-    const match = r.match;
-    const winner = getWinner(match);
-    
-    const scores = match.status === "finished" && match.team1 && match.team2
-      ? [
-          match.set1_team1_games !== null && match.set1_team2_games !== null
-            ? `${match.set1_team1_games}-${match.set1_team2_games}`
-            : null,
-          match.set2_team1_games !== null && match.set2_team2_games !== null
-            ? `${match.set2_team1_games}-${match.set2_team2_games}`
-            : null,
-          match.set3_team1_games !== null && match.set3_team2_games !== null
-            ? `${match.set3_team1_games}-${match.set3_team2_games}`
-            : null,
-        ]
-          .filter(Boolean)
-          .join(" • ")
-      : undefined;
+      // Luego por hora
+      if (matchA.start_time && matchB.start_time) {
+        return matchA.start_time.localeCompare(matchB.start_time);
+      } else if (matchA.start_time) return -1;
+      else if (matchB.start_time) return 1;
 
-    if (!matchesByRound[r.round]) {
-      matchesByRound[r.round] = [];
-    }
-
-    matchesByRound[r.round].push({
-      id: match.id,
-      round: r.round,
-      bracketPos: r.bracket_pos,
-      team1: match.team1
-        ? { id: match.team1.id, name: teamLabelBracket(match.team1) }
-        : null,
-      team2: match.team2
-        ? { id: match.team2.id, name: teamLabelBracket(match.team2) }
-        : null,
-      winner: winner ? { id: winner.id } : undefined,
-      isFinished: match.status === "finished",
-      scores,
-      sourceTeam1: r.source_team1,
-      sourceTeam2: r.source_team2,
-      matchDate: match.match_date || null,
-      startTime: match.start_time || null,
+      // Finalmente por ronda y posición
+      const roundCompare = (roundOrder[a.round] || 99) - (roundOrder[b.round] || 99);
+      if (roundCompare !== 0) return roundCompare;
+      
+      return a.bracket_pos - b.bracket_pos;
     });
-  });
-
-  const selectedRow = rows.find(r => r.match?.id === selectedMatchId);
-  const selectedMatch = selectedRow?.match;
-  
-  // Determinar si el match seleccionado usa super tiebreak
-  // Si es cuartos, semifinal o final, siempre false
-  // De lo contrario, usar el valor del torneo
-  const hasSuperTiebreak = selectedRow 
-    ? (selectedRow.round === "cuartos" || selectedRow.round === "semifinal" || selectedRow.round === "final")
-      ? false
-      : tournament.has_super_tiebreak
-    : false;
 
   return (
-    <Card className="border-none shadow-none p-0">
+    <Card className="border-none shadow-none p-0 space-y-4">
       <CardHeader className="px-0 pt-0">
         <CardTitle>Playoffs</CardTitle>
         <CardDescription>
-          Visualizá el cuadro y cargá los resultados de cada cruce.
+          Cargá resultados set por set. Los partidos están ordenados por horario.
         </CardDescription>
       </CardHeader>
-      <CardContent className="px-0 pt-4 space-y-6">
-        {/* Bracket visualization */}
-        <div className="bg-muted/20 rounded-lg p-6">
-          <TournamentBracketV2
-            rounds={rounds}
-            matchesByRound={matchesByRound}
-            onMatchClick={setSelectedMatchId}
-            selectedMatchId={selectedMatchId}
-          />
-        </div>
 
-        {/* Match result form (when a match is selected) */}
-        {selectedMatch && selectedMatch.team1 && selectedMatch.team2 ? (
-          <div className="border rounded-lg bg-background shadow-sm overflow-hidden">
-            {/* Header con fecha, hora y estado */}
-            <div className="bg-gray-50 border-b px-4 py-2">
-              {editingSchedule ? (
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="date"
-                    value={editDate}
-                    onChange={(e) => setEditDate(e.target.value)}
-                    className="h-7 text-xs"
-                  />
-                  <Input
-                    type="time"
-                    value={editTime}
-                    onChange={(e) => setEditTime(e.target.value)}
-                    className="h-7 text-xs"
-                    step="60"
-                  />
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 px-2"
-                    onClick={handleSaveSchedule}
-                  >
-                    <CheckIcon className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 px-2"
-                    onClick={handleCancelEditSchedule}
-                  >
-                    <XIcon className="h-3 w-3" />
-                  </Button>
-                </div>
+      <CardContent className="px-0 space-y-3">
+        {allMatches.map((row) => {
+          const match = row.match;
+          if (!match) return null;
+
+          const team1Name = teamLabel(match.team1);
+          const team2Name = teamLabel(match.team2);
+          const isEditing = editingMatchId === match.id;
+          
+          // Determinar si el match usa super tiebreak
+          const hasSuperTiebreak = (row.round === "cuartos" || row.round === "semifinal" || row.round === "final")
+            ? false
+            : tournament.has_super_tiebreak;
+
+          return (
+            <div
+              key={match.id}
+              className="border rounded-lg shadow-sm overflow-hidden"
+            >
+              {/* Header con ronda, fecha, hora y estado */}
+              <div className="bg-gray-50 border-b px-4 py-2">
+                {isEditing ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="date"
+                      value={editDate}
+                      onChange={(e) => setEditDate(e.target.value)}
+                      className="h-7 text-xs"
+                    />
+                    <Input
+                      type="time"
+                      value={editTime}
+                      onChange={(e) => setEditTime(e.target.value)}
+                      className="h-7 text-xs"
+                      step="60"
+                    />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2"
+                      onClick={() => handleSaveSchedule(match.id)}
+                    >
+                      <CheckIcon className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2"
+                      onClick={handleCancelEditSchedule}
+                    >
+                      <XIcon className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-4 text-xs flex-wrap">
+                    <Badge variant="outline" className="text-[10px]">
+                      {getRoundLabel(row.round)}
+                    </Badge>
+                    {match.match_date && (
+                      <span className="font-medium text-muted-foreground">
+                        📅 {formatDate(match.match_date)}
+                      </span>
+                    )}
+                    {match.start_time && (
+                      <span className="text-muted-foreground">
+                        🕐 {formatTime(match.start_time)}
+                      </span>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 px-2 ml-auto"
+                      onClick={() => handleStartEditSchedule(match.id)}
+                    >
+                      <PencilIcon className="h-3 w-3" />
+                    </Button>
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                      match.status === "finished" 
+                        ? "bg-green-100 text-green-700" 
+                        : match.status === "in_progress"
+                        ? "bg-blue-100 text-blue-700"
+                        : match.status === "cancelled"
+                        ? "bg-red-100 text-red-700"
+                        : "bg-gray-100 text-gray-700"
+                    }`}>
+                      {match.status === "finished" 
+                        ? "Finalizado" 
+                        : match.status === "in_progress"
+                        ? "En curso"
+                        : match.status === "cancelled"
+                        ? "Cancelado"
+                        : "Programado"}
+                    </span>
+                  </div>
+                )}
+              </div>
+              
+              {/* Formulario de resultado */}
+              {match.team1 && match.team2 ? (
+                <MatchResultInlineForm
+                  key={match.id}
+                  match={match}
+                  team1Name={team1Name}
+                  team2Name={team2Name}
+                  hasSuperTiebreak={hasSuperTiebreak}
+                  onSaved={() => {
+                    load();
+                  }}
+                />
               ) : (
-                <div className="flex items-center gap-4 text-xs">
-                  {selectedMatch.match_date && (
-                    <span className="font-medium text-muted-foreground">
-                      📅 {formatDate(selectedMatch.match_date)}
-                    </span>
-                  )}
-                  {selectedMatch.start_time && (
-                    <span className="text-muted-foreground">
-                      🕐 {formatTime(selectedMatch.start_time)}
-                    </span>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-6 px-2 ml-auto"
-                    onClick={handleStartEditSchedule}
-                  >
-                    <PencilIcon className="h-3 w-3" />
-                  </Button>
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
-                    selectedMatch.status === "finished" 
-                      ? "bg-green-100 text-green-700" 
-                      : selectedMatch.status === "in_progress"
-                      ? "bg-blue-100 text-blue-700"
-                      : selectedMatch.status === "cancelled"
-                      ? "bg-red-100 text-red-700"
-                      : "bg-gray-100 text-gray-700"
-                  }`}>
-                    {selectedMatch.status === "finished" 
-                      ? "Finalizado" 
-                      : selectedMatch.status === "in_progress"
-                      ? "En curso"
-                      : selectedMatch.status === "cancelled"
-                      ? "Cancelado"
-                      : "Programado"}
-                  </span>
+                <div className="p-4 bg-muted/50">
+                  <p className="text-sm text-muted-foreground">
+                    Este match aún no tiene ambos equipos asignados. Esperá a que se completen los matches anteriores.
+                  </p>
                 </div>
               )}
             </div>
-            <MatchResultInlineForm
-              key={selectedMatch.id}
-              match={selectedMatch}
-              team1Name={teamLabel(selectedMatch.team1)}
-              team2Name={teamLabel(selectedMatch.team2)}
-              hasSuperTiebreak={hasSuperTiebreak}
-              onSaved={() => {
-                load();
-              }}
-            />
-          </div>
-        ) : selectedMatch && (!selectedMatch.team1 || !selectedMatch.team2) ? (
-          <div className="border rounded-lg p-4 bg-muted/50">
-            <p className="text-sm text-muted-foreground">
-              Este match aún no tiene ambos equipos asignados. Esperá a que se completen los matches anteriores.
-            </p>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="mt-2"
-              onClick={() => setSelectedMatchId(null)}
-            >
-              Cerrar
-            </Button>
-          </div>
-        ) : selectedMatchId ? (
-          <div className="border rounded-lg p-4 bg-muted/50">
-            <p className="text-sm text-muted-foreground">
-              Cargando información del match...
-            </p>
-          </div>
-        ) : (
-          <div className="border rounded-lg p-6 bg-muted/30 text-center">
-            <p className="text-sm text-muted-foreground">
-              Seleccioná un match del bracket para cargar o editar su resultado
-            </p>
-          </div>
-        )}
+          );
+        })}
       </CardContent>
     </Card>
   );
