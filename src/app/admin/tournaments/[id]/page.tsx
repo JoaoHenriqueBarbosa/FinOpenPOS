@@ -17,6 +17,7 @@ import {
 import { Loader2Icon } from "lucide-react";
 import TeamsTab from "./TeamsTab";
 import GroupsTab from "./GroupsTab";
+import StandingsTab from "./StandingsTab";
 import PlayoffsTab from "./PlayoffsTab";
 
 type Tournament = {
@@ -78,6 +79,7 @@ export default function TournamentDetailPage() {
           <TabsList>
             <TabsTrigger value="teams">Equipos</TabsTrigger>
             <TabsTrigger value="groups">Fase de grupos</TabsTrigger>
+            <TabsTrigger value="standings">Tabla de posiciones</TabsTrigger>
             <TabsTrigger value="playoffs">Playoffs</TabsTrigger>
           </TabsList>
 
@@ -87,6 +89,10 @@ export default function TournamentDetailPage() {
 
           <TabsContent value="groups" className="pt-4">
             <GroupsTab tournament={tournament} />
+          </TabsContent>
+
+          <TabsContent value="standings" className="pt-4">
+            <StandingsTab tournament={tournament} />
           </TabsContent>
 
           <TabsContent value="playoffs" className="pt-4">
