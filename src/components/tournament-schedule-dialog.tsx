@@ -205,9 +205,9 @@ export function TournamentScheduleDialog({
             )}
           </div>
 
-          {/* Duración entre partidos */}
+          {/* Duración de partidos */}
           <div className="space-y-2">
-            <Label>Duración entre partidos (minutos)</Label>
+            <Label>Duración estimada de partidos (minutos)</Label>
             <Input
               type="number"
               min="30"
@@ -215,9 +215,6 @@ export function TournamentScheduleDialog({
               value={matchDuration}
               onChange={(e) => setMatchDuration(Number(e.target.value))}
             />
-            <p className="text-xs text-muted-foreground">
-              Intervalo entre el inicio de cada partido. Valor del torneo: {tournamentMatchDuration} minutos
-            </p>
           </div>
 
           {/* Días */}
