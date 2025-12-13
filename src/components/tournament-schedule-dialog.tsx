@@ -233,30 +233,18 @@ export function TournamentScheduleDialog({
               >
                 <div className="flex-1 space-y-2">
                   <div>
-                    <Label className="text-xs">Fecha (dd/mm/yyyy)</Label>
+                    <Label className="text-xs">Fecha</Label>
                     <Input
                       type="date"
-                      lang="es-AR"
                       value={day.date}
                       onChange={(e) =>
                         updateDay(index, "date", e.target.value)
                       }
                     />
-                    {day.date && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {(() => {
-                          const date = new Date(day.date + "T00:00:00");
-                          const dayStr = String(date.getDate()).padStart(2, "0");
-                          const monthStr = String(date.getMonth() + 1).padStart(2, "0");
-                          const yearStr = date.getFullYear();
-                          return `${dayStr}/${monthStr}/${yearStr}`;
-                        })()}
-                      </p>
-                    )}
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <Label className="text-xs">Hora inicio (24h)</Label>
+                      <Label className="text-xs">Hora inicio</Label>
                       <Input
                         type="time"
                         step="60"
@@ -265,14 +253,9 @@ export function TournamentScheduleDialog({
                           updateDay(index, "startTime", e.target.value)
                         }
                       />
-                      {day.startTime && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {day.startTime}
-                        </p>
-                      )}
                     </div>
                     <div>
-                      <Label className="text-xs">Hora fin (24h)</Label>
+                      <Label className="text-xs">Hora fin</Label>
                       <Input
                         type="time"
                         step="60"
@@ -281,11 +264,6 @@ export function TournamentScheduleDialog({
                           updateDay(index, "endTime", e.target.value)
                         }
                       />
-                      {day.endTime && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {day.endTime}
-                        </p>
-                      )}
                     </div>
                   </div>
                 </div>
