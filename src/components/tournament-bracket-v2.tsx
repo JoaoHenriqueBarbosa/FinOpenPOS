@@ -2,6 +2,7 @@
 
 import React from "react";
 import { Bracket, RoundProps, SeedProps, Seed } from "@oliverlooney/react-brackets";
+import { formatDate, formatTime } from "@/lib/date-utils";
 
 type Match = {
   id: number;
@@ -14,6 +15,8 @@ type Match = {
   scores?: string;
   sourceTeam1?: string | null;
   sourceTeam2?: string | null;
+  matchDate?: string | null;
+  startTime?: string | null;
 };
 
 type BracketProps = {
@@ -142,6 +145,14 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, sele
       if (match.scores) {
         (seed as any).scores = match.scores;
       }
+      
+      // Agregar fecha y hora como metadata
+      if (match.matchDate) {
+        (seed as any).matchDate = match.matchDate;
+      }
+      if (match.startTime) {
+        (seed as any).startTime = match.startTime;
+      }
 
       return seed;
     });
@@ -152,9 +163,9 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, sele
     };
   });
 
-  // Crear un mapa de nombres de equipos a match IDs para identificar clicks
-  const teamNamesToMatchId = React.useMemo(() => {
-    const map = new Map<string, number>();
+  // Crear un mapa de nombres de equipos a match IDs y metadata para identificar clicks y mostrar info
+  const teamNamesToMatchData = React.useMemo(() => {
+    const map = new Map<string, { id: number; matchDate?: string | null; startTime?: string | null; scores?: string }>();
     bracketRounds.forEach(round => {
       round.seeds.forEach(seed => {
         if (seed.id && typeof seed.id === 'number' && seed.id > 0 && seed.teams) {
@@ -167,7 +178,12 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, sele
           if (hasBothTeams) {
             // Crear una clave única con ambos nombres de equipos
             const key = `${seed.teams[0].name}|${seed.teams[1].name}`;
-            map.set(key, seed.id as number);
+            map.set(key, {
+              id: seed.id as number,
+              matchDate: (seed as any).matchDate,
+              startTime: (seed as any).startTime,
+              scores: (seed as any).scores,
+            });
           }
         }
       });
@@ -215,6 +231,11 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, sele
     const handleClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       
+      // No hacer click si se hace click en el horario o scores
+      if (target.classList.contains('bracket-schedule') || target.classList.contains('bracket-scores')) {
+        return;
+      }
+      
       // Buscar el elemento padre que contiene el seed completo
       let current: HTMLElement | null = target;
       
@@ -222,7 +243,7 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, sele
       while (current && current !== bracketRef.current) {
         const text = current.textContent || '';
         // Buscar en el mapa por combinaciones de nombres de equipos
-        for (const [key, matchId] of teamNamesToMatchId.entries()) {
+        for (const [key, matchData] of teamNamesToMatchData.entries()) {
           const [team1, team2] = key.split('|');
           // Verificar que el texto contenga ambos nombres de equipos
           if (text.includes(team1) && text.includes(team2)) {
@@ -232,13 +253,217 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, sele
             const hasTeam2 = lines.some(l => l.includes(team2));
             
             if (hasTeam1 && hasTeam2) {
-              onMatchClick(matchId);
+              onMatchClick?.(matchData.id);
               return;
             }
           }
         }
         current = current.parentElement;
       }
+    };
+
+    // Función para inyectar horarios y scores en los match boxes sin romper el layout
+    const injectScheduleAndScores = () => {
+      if (!bracketRef.current) return;
+
+      // Remover elementos anteriores de horarios y scores
+      bracketRef.current.querySelectorAll('.bracket-schedule, .bracket-scores').forEach(el => el.remove());
+
+      // Crear un mapa de match IDs a datos para acceso rápido
+      const matchIdToData = new Map<number, { matchDate?: string | null; startTime?: string | null; scores?: string }>();
+      for (const matchData of teamNamesToMatchData.values()) {
+        matchIdToData.set(matchData.id, {
+          matchDate: matchData.matchDate,
+          startTime: matchData.startTime,
+          scores: matchData.scores,
+        });
+      }
+
+      // Buscar cada match box usando los IDs de los seeds
+      bracketRounds.forEach((round) => {
+        round.seeds.forEach((seed) => {
+          if (!seed.id || typeof seed.id !== 'number' || seed.id <= 0) return;
+          
+          const matchData = matchIdToData.get(seed.id);
+          // Continuar incluso si no hay horario, para agregar highlight al ganador
+          // Pero necesitamos al menos tener datos del match o scores para mostrar algo
+          if (!matchData && (!seed.winner && !seed.teams?.some(t => t.isWinner))) return;
+
+          if (!seed.teams || seed.teams.length < 2) return;
+          const team1Name = seed.teams[0]?.name;
+          const team2Name = seed.teams[1]?.name;
+          
+          if (!team1Name || team1Name === "—" || !team2Name || team2Name === "—") return;
+
+          // Buscar el elemento que contiene ambos nombres de equipos
+          // Usar una estrategia más conservadora: buscar elementos con estructura de seed
+          const allElements = bracketRef.current?.querySelectorAll('*');
+          if (!allElements) return;
+
+          let bestMatch: HTMLElement | null = null;
+          let bestScore = Infinity;
+
+          allElements.forEach((el) => {
+            const htmlEl = el as HTMLElement;
+            const text = htmlEl.textContent || '';
+            
+            // Verificar que contiene ambos equipos
+            if (!text.includes(team1Name) || !text.includes(team2Name)) return;
+
+            // Verificar que es un elemento razonable (no muy grande, no muy pequeño)
+            const rect = htmlEl.getBoundingClientRect();
+            if (rect.width < 50 || rect.height < 30) return; // Muy pequeño, probablemente texto individual
+            if (rect.width > 500 || rect.height > 200) return; // Muy grande, probablemente contenedor de ronda
+
+            // Calcular un "score" basado en qué tan específico es el match
+            // Preferir elementos más pequeños que contengan exactamente estos equipos
+            const lines = text.split('\n').filter(l => l.trim());
+            const team1Line = lines.findIndex(l => l.includes(team1Name));
+            const team2Line = lines.findIndex(l => l.includes(team2Name));
+            
+            if (team1Line >= 0 && team2Line >= 0) {
+              const lineDiff = Math.abs(team1Line - team2Line);
+              // Preferir elementos donde los equipos están cerca (líneas consecutivas o cercanas)
+              if (lineDiff <= 5) {
+                const score = rect.width * rect.height + lineDiff * 10;
+                if (score < bestScore) {
+                  bestScore = score;
+                  bestMatch = htmlEl;
+                }
+              }
+            }
+          });
+
+          if (bestMatch) {
+            // No modificar el tamaño del match box, dejarlo como está
+            
+            // Crear horario arriba y resultado abajo del match box
+            if (matchData && (matchData.matchDate || matchData.startTime || matchData.scores)) {
+              // Buscar el contenedor padre del match box para insertar los labels
+              let parentContainer: HTMLElement | null = bestMatch.parentElement;
+              
+              // Si no hay parent o es el contenedor principal del bracket, crear un wrapper
+              if (!parentContainer || parentContainer === bracketRef.current) {
+                // Crear un wrapper alrededor del match box
+                const wrapper = document.createElement('div');
+                wrapper.style.cssText = `
+                  position: relative;
+                  display: flex;
+                  flex-direction: column;
+                  align-items: center;
+                `;
+                
+                if (bestMatch.parentElement) {
+                  bestMatch.parentElement.insertBefore(wrapper, bestMatch);
+                  wrapper.appendChild(bestMatch);
+                  parentContainer = wrapper;
+                }
+              }
+              
+              if (parentContainer) {
+                // Crear contenedor para el horario ARRIBA del match box
+                if (matchData.matchDate || matchData.startTime) {
+                  const scheduleDiv = document.createElement('div');
+                  scheduleDiv.className = 'bracket-schedule';
+                  
+                  const scheduleText: string[] = [];
+                  if (matchData.matchDate) {
+                    scheduleText.push(formatDate(matchData.matchDate));
+                  }
+                  if (matchData.startTime) {
+                    scheduleText.push(formatTime(matchData.startTime));
+                  }
+                  
+                  scheduleDiv.textContent = scheduleText.join(' • ');
+                  scheduleDiv.style.cssText = `
+                    font-size: 7px;
+                    color: rgba(255, 255, 255, 0.85);
+                    text-align: center;
+                    padding: 2px 5px;
+                    background: rgba(0, 0, 0, 0.7);
+                    border-radius: 2px;
+                    white-space: nowrap;
+                    font-weight: 500;
+                    line-height: 1.2;
+                    margin-bottom: 4px;
+                    pointer-events: none;
+                  `;
+                  
+                  // Insertar el horario antes del match box
+                  parentContainer.insertBefore(scheduleDiv, bestMatch);
+                }
+                
+                // Crear contenedor para el resultado ABAJO del match box
+                if (matchData.scores) {
+                  const scoresDiv = document.createElement('div');
+                  scoresDiv.className = 'bracket-scores';
+                  scoresDiv.textContent = matchData.scores;
+                  scoresDiv.style.cssText = `
+                    font-size: 9px;
+                    color: rgba(255, 255, 255, 0.9);
+                    font-weight: 600;
+                    padding: 2px 6px;
+                    background: rgba(0, 0, 0, 0.7);
+                    border-radius: 2px;
+                    line-height: 1.2;
+                    white-space: nowrap;
+                    margin-top: 4px;
+                    pointer-events: none;
+                  `;
+                  
+                  // Insertar el resultado después del match box
+                  parentContainer.insertBefore(scoresDiv, bestMatch.nextSibling);
+                }
+              }
+            }
+
+            // Agregar highlight al equipo ganador
+            // Usar isWinner del seed si está disponible, o buscar por winner id
+            let winnerName: string | undefined;
+            if (seed.teams) {
+              const winnerTeam = seed.teams.find(t => t.isWinner);
+              if (winnerTeam) {
+                winnerName = winnerTeam.name;
+              } else if (seed.winner) {
+                const winnerById = seed.teams.find(t => t?.id === seed.winner?.id);
+                winnerName = winnerById?.name;
+              }
+            }
+            
+            if (winnerName && team1Name && team2Name) {
+              // Esperar un poco para que el DOM se estabilice después de la renderización
+              setTimeout(() => {
+                // Buscar elementos que contengan el nombre del ganador
+                const allTextElements = bestMatch.querySelectorAll('*');
+                allTextElements.forEach((el) => {
+                  const htmlEl = el as HTMLElement;
+                  const text = htmlEl.textContent || '';
+                  
+                  // Verificar si este elemento contiene el nombre del ganador
+                  const otherTeamName = winnerName === team1Name ? team2Name : team1Name;
+                  const containsWinner = text.includes(winnerName);
+                  const containsOther = text.includes(otherTeamName);
+                  
+                  // Si contiene el ganador pero no el otro equipo, y el texto es relativamente corto
+                  // (para evitar contenedores que incluyan ambos equipos)
+                  if (containsWinner && !containsOther && text.length < 100) {
+                    // Verificar que no sea un contenedor muy grande
+                    const rect = htmlEl.getBoundingClientRect();
+                    if (rect.width < 300 && rect.height < 100 && rect.width > 0 && rect.height > 0) {
+                      // Agregar highlight al fondo del elemento ganador
+                      htmlEl.style.cssText += `
+                        background-color: rgba(34, 197, 94, 0.25) !important;
+                        border: 1px solid rgba(34, 197, 94, 0.5) !important;
+                        border-radius: 3px;
+                      `;
+                    }
+                  }
+                });
+              }, 100);
+            }
+          }
+        });
+      });
     };
 
     // Función para actualizar highlights
@@ -255,8 +480,8 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, sele
           const text = el.textContent || '';
           if (!text.trim()) return;
 
-          for (const [key, matchId] of teamNamesToMatchId.entries()) {
-            if (matchId === selectedMatchId) {
+          for (const [key, matchData] of teamNamesToMatchData.entries()) {
+            if (matchData.id === selectedMatchId) {
               const [team1, team2] = key.split('|');
               const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
               const hasTeam1 = lines.some(l => l.includes(team1));
@@ -275,6 +500,7 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, sele
     const timeout = setTimeout(() => {
       if (bracketRef.current) {
         bracketRef.current.addEventListener('click', handleClick);
+        injectScheduleAndScores();
         updateHighlights();
       }
     }, 150);
@@ -285,7 +511,7 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, sele
         bracketRef.current.removeEventListener('click', handleClick);
       }
     };
-  }, [onMatchClick, teamNamesToMatchId, selectedMatchId]);
+  }, [onMatchClick, teamNamesToMatchData, selectedMatchId]);
 
   return (
     <div className="w-full overflow-auto" style={{ maxHeight: "90vh" }}>

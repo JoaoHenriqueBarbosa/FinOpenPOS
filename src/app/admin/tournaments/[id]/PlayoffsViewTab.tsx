@@ -220,57 +220,137 @@ export default function PlayoffsViewTab({ tournament }: { tournament: Tournament
           />
         </div>
 
-        {/* Información adicional de matches */}
-        <div className="mt-6 space-y-3">
-          <h3 className="text-sm font-semibold">Información de partidos</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {rows
-              .filter((r) => r.match && r.match.team1 && r.match.team2)
-              .map((r) => {
-                const match = r.match!;
-                return (
-                  <div
-                    key={r.id}
-                    className="border rounded-lg p-3 bg-background"
-                  >
-                    <div className="text-xs font-semibold mb-2">
-                      {r.round.charAt(0).toUpperCase() + r.round.slice(1)} - Match {r.bracket_pos}
-                    </div>
-                    <div className="space-y-1 text-sm">
-                      <div className="font-medium">
-                        {teamLabelBracket(match.team1)} vs {teamLabelBracket(match.team2)}
-                      </div>
-                      {match.match_date && (
-                        <div className="text-xs text-muted-foreground">
-                          📅 {formatDate(match.match_date)}
-                          {match.start_time && ` • 🕐 ${formatTime(match.start_time)}`}
-                        </div>
-                      )}
-                      {match.status === "finished" && match.set1_team1_games !== null && (
-                        <div className="text-xs font-semibold text-green-600">
-                          {match.set1_team1_games}-{match.set1_team2_games} •{" "}
-                          {match.set2_team1_games}-{match.set2_team2_games}
-                          {match.set3_team1_games !== null && ` • ${match.set3_team1_games}-${match.set3_team2_games}`}
-                        </div>
-                      )}
-                      <div className={`text-xs px-2 py-0.5 rounded inline-block ${
-                        match.status === "finished"
-                          ? "bg-green-100 text-green-700"
-                          : match.status === "in_progress"
-                          ? "bg-blue-100 text-blue-700"
-                          : "bg-gray-100 text-gray-700"
-                      }`}>
-                        {match.status === "finished"
-                          ? "Finalizado"
-                          : match.status === "in_progress"
-                          ? "En curso"
-                          : "Programado"}
-                      </div>
+        {/* Información adicional de matches - ordenada por fecha/hora */}
+        <div className="mt-6 space-y-4">
+          <h3 className="text-sm font-semibold">Cronograma de partidos</h3>
+          
+          {/* Partidos con horario programado */}
+          {(() => {
+            const matchesWithSchedule = rows
+              .filter((r) => r.match && r.match.team1 && r.match.team2 && r.match.match_date)
+              .sort((a, b) => {
+                const aDate = a.match!.match_date || "";
+                const bDate = b.match!.match_date || "";
+                if (aDate !== bDate) return aDate.localeCompare(bDate);
+                const aTime = a.match!.start_time || "";
+                const bTime = b.match!.start_time || "";
+                return aTime.localeCompare(bTime);
+              });
+
+            const matchesWithoutSchedule = rows
+              .filter((r) => r.match && r.match.team1 && r.match.team2 && !r.match.match_date);
+
+            return (
+              <>
+                {matchesWithSchedule.length > 0 && (
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      Partidos programados
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {matchesWithSchedule.map((r) => {
+                        const match = r.match!;
+                        return (
+                          <div
+                            key={r.id}
+                            className="border rounded-lg p-4 bg-background hover:shadow-md transition-shadow"
+                          >
+                            <div className="flex items-start justify-between mb-2">
+                              <div className="text-xs font-semibold text-muted-foreground">
+                                {r.round.charAt(0).toUpperCase() + r.round.slice(1)} - Match {r.bracket_pos}
+                              </div>
+                              <div className={`text-xs px-2 py-0.5 rounded ${
+                                match.status === "finished"
+                                  ? "bg-green-100 text-green-700"
+                                  : match.status === "in_progress"
+                                  ? "bg-blue-100 text-blue-700"
+                                  : "bg-gray-100 text-gray-700"
+                              }`}>
+                                {match.status === "finished"
+                                  ? "Finalizado"
+                                  : match.status === "in_progress"
+                                  ? "En curso"
+                                  : "Programado"}
+                              </div>
+                            </div>
+                            
+                            <div className="space-y-2">
+                              <div className="font-medium text-sm">
+                                {teamLabelBracket(match.team1)} vs {teamLabelBracket(match.team2)}
+                              </div>
+                              
+                              {/* Horario destacado */}
+                              <div className="bg-muted/50 rounded-md p-2 space-y-1">
+                                {match.match_date && (
+                                  <div className="flex items-center gap-2 text-sm font-semibold">
+                                    <span>📅</span>
+                                    <span>{formatDate(match.match_date)}</span>
+                                  </div>
+                                )}
+                                {match.start_time && (
+                                  <div className="flex items-center gap-2 text-sm font-semibold">
+                                    <span>🕐</span>
+                                    <span>{formatTime(match.start_time)}</span>
+                                  </div>
+                                )}
+                              </div>
+                              
+                              {match.status === "finished" && match.set1_team1_games !== null && (
+                                <div className="text-xs font-semibold text-green-600 pt-1">
+                                  {match.set1_team1_games}-{match.set1_team2_games} •{" "}
+                                  {match.set2_team1_games}-{match.set2_team2_games}
+                                  {match.set3_team1_games !== null && ` • ${match.set3_team1_games}-${match.set3_team2_games}`}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-                );
-              })}
-          </div>
+                )}
+
+                {/* Partidos sin horario */}
+                {matchesWithoutSchedule.length > 0 && (
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      Partidos sin programar
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {matchesWithoutSchedule.map((r) => {
+                        const match = r.match!;
+                        return (
+                          <div
+                            key={r.id}
+                            className="border rounded-lg p-3 bg-muted/30"
+                          >
+                            <div className="text-xs font-semibold mb-2 text-muted-foreground">
+                              {r.round.charAt(0).toUpperCase() + r.round.slice(1)} - Match {r.bracket_pos}
+                            </div>
+                            <div className="space-y-1 text-sm">
+                              <div className="font-medium">
+                                {teamLabelBracket(match.team1)} vs {teamLabelBracket(match.team2)}
+                              </div>
+                              <div className="text-xs text-muted-foreground italic">
+                                Sin horario programado
+                              </div>
+                              {match.status === "finished" && match.set1_team1_games !== null && (
+                                <div className="text-xs font-semibold text-green-600">
+                                  {match.set1_team1_games}-{match.set1_team2_games} •{" "}
+                                  {match.set2_team1_games}-{match.set2_team2_games}
+                                  {match.set3_team1_games !== null && ` • ${match.set3_team1_games}-${match.set3_team2_games}`}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
       </CardContent>
     </Card>
