@@ -10,10 +10,18 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2Icon, PencilIcon, CheckIcon, XIcon } from "lucide-react";
+import { Loader2Icon, PencilIcon, CheckIcon, XIcon, TrashIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { MatchResultForm } from "@/components/match-result-form";
 import { formatDate, formatTime } from "@/lib/date-utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type Tournament = { 
   id: number;
@@ -81,6 +89,8 @@ export default function PlayoffsTab({ tournament }: { tournament: Tournament }) 
   const [editingMatchId, setEditingMatchId] = useState<number | null>(null);
   const [editDate, setEditDate] = useState<string>("");
   const [editTime, setEditTime] = useState<string>("");
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const load = async () => {
     try {
@@ -137,6 +147,29 @@ export default function PlayoffsTab({ tournament }: { tournament: Tournament }) 
     } catch (err) {
       console.error(err);
       alert("Error al actualizar horario");
+    }
+  };
+
+  const handleDeletePlayoffs = async () => {
+    try {
+      setDeleting(true);
+      const res = await fetch(`/api/tournaments/${tournament.id}/playoffs`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        alert(errorData.error || "Error al eliminar playoffs");
+        return;
+      }
+      setShowDeleteDialog(false);
+      load();
+      // Recargar la página para actualizar el estado en otros tabs
+      window.location.reload();
+    } catch (err) {
+      console.error(err);
+      alert("Error al eliminar playoffs");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -213,10 +246,34 @@ export default function PlayoffsTab({ tournament }: { tournament: Tournament }) 
   return (
     <Card className="border-none shadow-none p-0 space-y-4">
       <CardHeader className="px-0 pt-0">
-        <CardTitle>Playoffs</CardTitle>
-        <CardDescription>
-          Cargá resultados set por set. Los partidos están ordenados por horario.
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>Playoffs</CardTitle>
+            <CardDescription>
+              Cargá resultados set por set. Los partidos están ordenados por horario.
+            </CardDescription>
+          </div>
+          {rows.length > 0 && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setShowDeleteDialog(true)}
+              disabled={deleting}
+            >
+              {deleting ? (
+                <>
+                  <Loader2Icon className="h-4 w-4 animate-spin mr-2" />
+                  Eliminando...
+                </>
+              ) : (
+                <>
+                  <TrashIcon className="h-4 w-4 mr-2" />
+                  Eliminar Playoffs
+                </>
+              )}
+            </Button>
+          )}
+        </div>
       </CardHeader>
 
       <CardContent className="px-0 space-y-3">
@@ -341,6 +398,45 @@ export default function PlayoffsTab({ tournament }: { tournament: Tournament }) 
           );
         })}
       </CardContent>
+
+      {/* Diálogo de confirmación para eliminar playoffs */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar eliminación de playoffs</DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro de que deseas eliminar todos los playoffs? Esta acción eliminará:
+              <ul className="list-disc list-inside mt-2 space-y-1">
+                <li>Todos los partidos de playoffs</li>
+                <li>Todos los resultados cargados</li>
+                <li>Todo el cuadro de playoffs</li>
+              </ul>
+              <p className="mt-2 font-semibold text-amber-600">
+                Esta acción no se puede deshacer. Podrás volver a generar los playoffs desde la fase de grupos.
+              </p>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteDialog(false)}
+              disabled={deleting}
+            >
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleDeletePlayoffs} disabled={deleting}>
+              {deleting ? (
+                <>
+                  <Loader2Icon className="h-4 w-4 animate-spin mr-2" />
+                  Eliminando...
+                </>
+              ) : (
+                "Confirmar y eliminar"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
