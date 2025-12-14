@@ -110,7 +110,7 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, sele
     // Para cada ronda, expandir con matches fantasma si es necesario
     const matches = expandWithByeMatches(roundIdx);
 
-    const seeds: SeedProps[] = matches.map((match) => {
+      const seeds: SeedProps[] = matches.map((match) => {
       // Construir información de horario
       const scheduleParts: string[] = [];
       if (match.matchDate) {
@@ -126,28 +126,30 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, sele
       const team2Name = match.team2 ? match.team2.name : "—";
       const scoresText = match.scores || "";
 
-      // Guardar información adicional en el seed para usarla después
+      // Usar un formato especial con el ID del match para identificarlo directamente
+      // Formato: [MATCH_ID]schedule|team1|team2|scores
+      const separator = '|';
+      const team1DisplayName = `[${match.id}]${scheduleText}${separator}${team1Name}${separator}${team2Name}${separator}${scoresText}`;
+
       const seed: SeedProps = {
         id: match.id,
         teams: [
-          match.team1
-            ? {
-                name: team1Name,
-                id: match.team1.id,
-              }
-            : { name: team1Name, id: null },
-          match.team2
-            ? {
-                name: team2Name,
-                id: match.team2.id,
-              }
-            : { name: team2Name, id: null },
+          {
+            name: team1DisplayName || "—",
+            id: match.team1?.id || null,
+          },
+          {
+            name: "", // Segundo team vacío
+            id: match.team2?.id || null,
+          },
         ],
       };
 
-      // Agregar metadata para estructurar en 4 divs
+      // Guardar metadata para estilos y lógica
       (seed as any).scheduleText = scheduleText;
       (seed as any).scoresText = scoresText;
+      (seed as any).team1Name = team1Name;
+      (seed as any).team2Name = team2Name;
 
       // Marcar ganador si existe
       if (match.winner) {
@@ -172,10 +174,10 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, sele
     const map = new Map<number, { team1Name: string; team2Name: string }>();
     bracketRounds.forEach(round => {
       round.seeds.forEach((seed: any) => {
-        if (seed.id && typeof seed.id === 'number' && seed.id > 0 && seed.teams && seed.teams.length >= 3) {
-          // teams[1] es la primera pareja, teams[2] es la segunda pareja
-          const team1Name = seed.teams[1]?.name || '';
-          const team2Name = seed.teams[2]?.name || '';
+        if (seed.id && typeof seed.id === 'number' && seed.id > 0 && seed.teams && seed.teams.length >= 2) {
+          // teams[0] es la primera pareja, teams[1] es la segunda pareja
+          const team1Name = seed.teams[0]?.name || '';
+          const team2Name = seed.teams[1]?.name || '';
           if (team1Name && team2Name && team1Name !== "—" && team2Name !== "—") {
             map.set(seed.id as number, { team1Name, team2Name });
           }
@@ -187,9 +189,9 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, sele
 
   const bracketRef = React.useRef<HTMLDivElement>(null);
 
-  // Agregar estilos CSS para highlight naranja y cambiar azules a verdes
+  // Agregar estilos CSS para estructurar los matches directamente desde los datos
   React.useEffect(() => {
-    const styleId = 'bracket-highlight-styles';
+    const styleId = 'bracket-match-styles';
     if (!document.getElementById(styleId)) {
       const style = document.createElement('style');
       style.id = styleId;
@@ -213,122 +215,124 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, sele
         [class*="seed"]:has([class*="final"]) {
           background-color: #8B4513 !important;
         }
+        /* Estructurar el contenido del match usando white-space: pre-line para preservar saltos de línea */
+        [class*="seed"] [class*="seedTeam"] {
+          display: flex !important;
+          flex-direction: column !important;
+          align-items: center !important;
+          gap: 2px !important;
+          background-color: rgba(230, 126, 29, 0.9) !important;
+          border-radius: 4px !important;
+          padding: 4px !important;
+          width: 100% !important;
+          white-space: pre-line !important;
+          text-align: center !important;
+        }
+        /* Ocultar el segundo team (está vacío) */
+        [class*="seed"] [class*="seedTeam"]:nth-child(2) {
+          display: none !important;
+        }
+        /* Estilizar las líneas individuales usando :nth-line (si está disponible) o usar spans */
+        /* Como :nth-line no está ampliamente soportado, usaremos JavaScript para estructurar */
       `;
       document.head.appendChild(style);
     }
   }, []);
 
-  // Estructurar cada match en 4 divs después del render
+  // Estructurar matches directamente desde los datos cuando se renderizan
   React.useEffect(() => {
     if (!bracketRef.current) return;
 
-    const structureMatches = () => {
-      bracketRounds.forEach((round) => {
-        round.seeds.forEach((seed: any) => {
-          if (!seed.id || typeof seed.id !== 'number' || seed.id <= 0) return;
-          
-          const scheduleText = seed.scheduleText || '';
-          const scoresText = seed.scoresText || '';
-          const team1Name = seed.teams?.[0]?.name || "—";
-          const team2Name = seed.teams?.[1]?.name || "—";
-
-          // Buscar el contenedor del seed por el contenido de los equipos
-          const allElements = bracketRef.current?.querySelectorAll('*');
-          if (!allElements) return;
-
-          let seedContainer: HTMLElement | null = null;
-          allElements.forEach((el) => {
-            const htmlEl = el as HTMLElement;
-            const text = htmlEl.textContent || '';
-            const rect = htmlEl.getBoundingClientRect();
-            
-            // Verificar que es un contenedor razonable
-            if (rect.width < 50 || rect.height < 30) return;
-            if (rect.width > 500 || rect.height > 200) return;
-            
-            // Verificar que contiene ambos equipos
-            if (text.includes(team1Name) && text.includes(team2Name) && team1Name !== "—" && team2Name !== "—") {
-              // Verificar que no es un contenedor muy grande
-              const childCount = htmlEl.children.length;
-              if (childCount < 50) {
-                seedContainer = htmlEl;
-              }
-            }
-          });
-
-          if (!seedContainer) return;
-          
-          // Asegurar que es un HTMLElement
-          const container = seedContainer as HTMLElement;
-
-          // Verificar si ya está estructurado
-          if (container.querySelector('.bracket-schedule-div')) return;
-
-          // Crear los 4 divs
-          const scheduleDiv = document.createElement('div');
-          scheduleDiv.className = 'bracket-schedule-div';
-          scheduleDiv.textContent = scheduleText;
-          scheduleDiv.style.cssText = `
-            font-size: 10px;
-            color: rgba(255, 255, 255, 0.85);
-            text-align: center;
-            padding: 2px 5px;
-            background: rgba(3, 48, 16, 0.7);
-            border-radius: 2px;
-            white-space: nowrap;
-            font-weight: 500;
-            line-height: 1.2;
-            margin-bottom: 2px;
-          `.replace(/\s+/g, ' ').trim();
-
-          const team1Div = document.createElement('div');
-          team1Div.className = 'bracket-team1-div';
-          team1Div.textContent = team1Name;
-          team1Div.style.cssText = 'font-size: 12px; text-align: center; padding: 4px;';
-          if (seed.teams?.[0]?.isWinner) {
-            team1Div.style.cssText += 'background-color: rgba(253, 102, 2, 0.93); border-radius: 3px;';
-          }
-
-          const team2Div = document.createElement('div');
-          team2Div.className = 'bracket-team2-div';
-          team2Div.textContent = team2Name;
-          team2Div.style.cssText = 'font-size: 12px; text-align: center; padding: 4px;';
-          if (seed.teams?.[1]?.isWinner) {
-            team2Div.style.cssText += 'background-color: rgba(253, 102, 2, 0.93); border-radius: 3px;';
-          }
-
-          const scoresDiv = document.createElement('div');
-          scoresDiv.className = 'bracket-scores-div';
-          scoresDiv.textContent = scoresText;
-          scoresDiv.style.cssText = `
-            font-size: 10px;
-            color: rgba(255, 255, 255, 0.9);
-            font-weight: 600;
-            padding: 2px 6px;
-            background: rgba(3, 48, 16, 0.7);
-            border-radius: 2px;
-            line-height: 1.2;
-            white-space: nowrap;
-            margin-top: 2px;
-          `.replace(/\s+/g, ' ').trim();
-
-          // Limpiar el contenido original y agregar los 4 divs
-          container.innerHTML = '';
-          container.style.cssText = `
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 2px;
-            background-color: rgba(230, 126, 29, 0.9);
-            border-radius: 4px;
-            padding: 4px;
-          `.replace(/\s+/g, ' ').trim();
-          container.appendChild(scheduleDiv);
-          container.appendChild(team1Div);
-          container.appendChild(team2Div);
-          container.appendChild(scoresDiv);
-        });
+    // Crear un mapa de seed ID -> datos del seed para acceso directo
+    const seedDataMap = new Map<number, any>();
+    bracketRounds.forEach((round) => {
+      round.seeds.forEach((seed: any) => {
+        if (seed.id) {
+          seedDataMap.set(seed.id, seed);
+        }
       });
+    });
+
+    const structureMatch = (container: HTMLElement, seedId: number) => {
+      const seed = seedDataMap.get(seedId);
+      if (!seed || container.querySelector('.bracket-match-structured')) return;
+
+      const scheduleText = seed.scheduleText || '';
+      const scoresText = seed.scoresText || '';
+      const team1Name = seed.team1Name || "—";
+      const team2Name = seed.team2Name || "—";
+
+      // Crear los 4 divs directamente desde los datos
+      const wrapper = document.createElement('div');
+      wrapper.className = 'bracket-match-structured';
+      wrapper.style.cssText = `
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        background-color: rgba(230, 126, 29, 0.9);
+        border-radius: 4px;
+        padding: 4px;
+        width: 100%;
+      `.replace(/\s+/g, ' ').trim();
+
+      if (scheduleText) {
+        const scheduleDiv = document.createElement('div');
+        scheduleDiv.className = 'bracket-schedule-div';
+        scheduleDiv.textContent = scheduleText;
+        scheduleDiv.style.cssText = `
+          font-size: 10px;
+          color: rgba(255, 255, 255, 0.85);
+          text-align: center;
+          padding: 2px 5px;
+          background: rgba(3, 48, 16, 0.7);
+          border-radius: 2px;
+          white-space: nowrap;
+          font-weight: 500;
+          line-height: 1.2;
+          margin-bottom: 2px;
+        `.replace(/\s+/g, ' ').trim();
+        wrapper.appendChild(scheduleDiv);
+      }
+
+      const team1Div = document.createElement('div');
+      team1Div.className = 'bracket-team1-div';
+      team1Div.textContent = team1Name;
+      team1Div.style.cssText = 'font-size: 12px; text-align: center; padding: 4px; width: 100%; color: rgba(255, 255, 255, 1);';
+      if (seed.teams?.[0]?.isWinner) {
+        team1Div.style.cssText += 'background-color: rgba(255, 215, 0, 0.9); border-radius: 3px; color: rgba(0, 0, 0, 0.9);';
+      }
+      wrapper.appendChild(team1Div);
+
+      const team2Div = document.createElement('div');
+      team2Div.className = 'bracket-team2-div';
+      team2Div.textContent = team2Name;
+      team2Div.style.cssText = 'font-size: 12px; text-align: center; padding: 4px; width: 100%; color: rgba(255, 255, 255, 1);';
+      if (seed.teams?.[1]?.isWinner) {
+        team2Div.style.cssText += 'background-color: rgba(255, 215, 0, 0.9); border-radius: 3px; color: rgba(0, 0, 0, 0.9);';
+      }
+      wrapper.appendChild(team2Div);
+
+      if (scoresText) {
+        const scoresDiv = document.createElement('div');
+        scoresDiv.className = 'bracket-scores-div';
+        scoresDiv.textContent = scoresText;
+        scoresDiv.style.cssText = `
+          font-size: 10px;
+          color: rgba(255, 255, 255, 0.9);
+          font-weight: 600;
+          padding: 2px 6px;
+          background: rgba(3, 48, 16, 0.7);
+          border-radius: 2px;
+          line-height: 1.2;
+          white-space: nowrap;
+          margin-top: 2px;
+        `.replace(/\s+/g, ' ').trim();
+        wrapper.appendChild(scoresDiv);
+      }
+
+      container.innerHTML = '';
+      container.appendChild(wrapper);
     };
 
     const handleClick = (e: MouseEvent) => {
@@ -375,9 +379,35 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, sele
       }
     };
 
+    // Estructurar matches existentes usando el ID del match directamente desde el texto
+    const structureExistingMatches = () => {
+      bracketRounds.forEach((round) => {
+        round.seeds.forEach((seed: any) => {
+          if (!seed.id) return;
+          // Buscar el contenedor que contiene el ID del match en el formato [ID]
+          const allElements = bracketRef.current?.querySelectorAll('*');
+          allElements?.forEach((el) => {
+            const text = el.textContent || '';
+            // Buscar el formato [ID] en el texto
+            const matchIdPattern = new RegExp(`\\[${seed.id}\\]`);
+            if (matchIdPattern.test(text)) {
+              const htmlEl = el as HTMLElement;
+              const rect = htmlEl.getBoundingClientRect();
+              // Verificar que es un contenedor razonable
+              if (rect.width >= 50 && rect.width <= 500 && rect.height >= 30 && rect.height <= 200 && 
+                  !htmlEl.querySelector('.bracket-match-structured')) {
+                structureMatch(htmlEl, seed.id);
+                return;
+              }
+            }
+          });
+        });
+      });
+    };
+
     const timeout = setTimeout(() => {
       if (bracketRef.current) {
-        structureMatches();
+        structureExistingMatches();
         bracketRef.current.addEventListener('click', handleClick);
         updateHighlights();
       }
