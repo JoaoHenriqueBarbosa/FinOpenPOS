@@ -82,6 +82,71 @@ export async function POST(req: Request, { params }: RouteParams) {
     );
   }
 
+  // Validar que los jugadores no estén ya en otro equipo del mismo torneo
+  const { data: existingTeams, error: existingTeamsError } = await supabase
+    .from("tournament_teams")
+    .select(`
+      id,
+      player1_id,
+      player2_id,
+      player1:player1_id (id, first_name, last_name),
+      player2:player2_id (id, first_name, last_name)
+    `)
+    .eq("tournament_id", tournamentId)
+    .eq("user_uid", user.id);
+
+  if (existingTeamsError) {
+    console.error("Error checking existing teams:", existingTeamsError);
+    return NextResponse.json(
+      { error: "Failed to validate team" },
+      { status: 500 }
+    );
+  }
+
+  if (existingTeams) {
+    // Obtener información del jugador 1 que se está intentando agregar
+    const { data: player1Data, error: player1Error } = await supabase
+      .from("players")
+      .select("id, first_name, last_name")
+      .eq("id", player1_id)
+      .single();
+
+    // Obtener información del jugador 2 que se está intentando agregar
+    const { data: player2Data, error: player2Error } = await supabase
+      .from("players")
+      .select("id, first_name, last_name")
+      .eq("id", player2_id)
+      .single();
+
+    // Verificar si player1_id ya está en algún equipo
+    const player1InTeam = existingTeams.find(
+      (team) => team.player1_id === player1_id || team.player2_id === player1_id
+    );
+    if (player1InTeam) {
+      const playerName = player1Data 
+        ? `${player1Data.first_name} ${player1Data.last_name}`
+        : "el jugador 1";
+      return NextResponse.json(
+        { error: `${playerName} ya está registrado en otro equipo de este torneo` },
+        { status: 400 }
+      );
+    }
+
+    // Verificar si player2_id ya está en algún equipo
+    const player2InTeam = existingTeams.find(
+      (team) => team.player1_id === player2_id || team.player2_id === player2_id
+    );
+    if (player2InTeam) {
+      const playerName = player2Data 
+        ? `${player2Data.first_name} ${player2Data.last_name}`
+        : "el jugador 2";
+      return NextResponse.json(
+        { error: `${playerName} ya está registrado en otro equipo de este torneo` },
+        { status: 400 }
+      );
+    }
+  }
+
   const { data, error } = await supabase
     .from("tournament_teams")
     .insert({

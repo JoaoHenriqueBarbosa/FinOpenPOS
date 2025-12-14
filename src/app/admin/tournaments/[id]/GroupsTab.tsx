@@ -8,12 +8,20 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
-import { MatchResultInlineForm } from "@/components/match-result-inline-form";
-import { Loader2Icon, PencilIcon, CheckIcon, XIcon } from "lucide-react";
+import { MatchResultForm } from "@/components/match-result-form";
+import { Loader2Icon, PencilIcon, CheckIcon, XIcon, TrashIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatDate, formatTime } from "@/lib/date-utils";
 import { TournamentScheduleDialog, ScheduleConfig } from "@/components/tournament-schedule-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type Tournament = {
   id: number;
@@ -102,6 +110,8 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
   const [editDate, setEditDate] = useState<string>("");
   const [editTime, setEditTime] = useState<string>("");
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const load = async () => {
     try {
@@ -223,6 +233,29 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
     }
   };
 
+  const handleDeleteGroups = async () => {
+    try {
+      setDeleting(true);
+      const res = await fetch(`/api/tournaments/${tournament.id}/groups`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        alert(errorData.error || "Error al eliminar fase de grupos");
+        return;
+      }
+      setShowDeleteDialog(false);
+      load();
+      // Recargar la página para actualizar el estado en otros tabs
+      window.location.reload();
+    } catch (err) {
+      console.error(err);
+      alert("Error al eliminar fase de grupos");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="h-[200px] flex items-center justify-center">
@@ -255,17 +288,39 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
             cargados, podés cerrar la fase y generar los playoffs.
           </CardDescription>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleCloseGroups}
-          disabled={closingGroups || hasPlayoffs}
-        >
-          {closingGroups && (
-            <Loader2Icon className="h-3 w-3 animate-spin mr-1" />
+        <div className="flex gap-2">
+          {data && data.groups.length > 0 && !hasPlayoffs && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setShowDeleteDialog(true)}
+              disabled={deleting}
+            >
+              {deleting ? (
+                <>
+                  <Loader2Icon className="h-3 w-3 animate-spin mr-1" />
+                  Eliminando...
+                </>
+              ) : (
+                <>
+                  <TrashIcon className="h-3 w-3 mr-1" />
+                  Eliminar Grupos
+                </>
+              )}
+            </Button>
           )}
-          Generar playoffs
-        </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleCloseGroups}
+            disabled={closingGroups || hasPlayoffs}
+          >
+            {closingGroups && (
+              <Loader2Icon className="h-3 w-3 animate-spin mr-1" />
+            )}
+            Generar playoffs
+          </Button>
+        </div>
       </CardHeader>
 
       <TournamentScheduleDialog
@@ -410,7 +465,7 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
                 </div>
 
                 {/* Nombres de equipos con inputs de resultados */}
-                <MatchResultInlineForm
+                <MatchResultForm
                   match={m}
                   team1Name={team1Name}
                   team2Name={team2Name}
@@ -420,12 +475,55 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
                     bg: groupColor.bg,
                     text: groupColor.text,
                   }}
+                  disabled={hasPlayoffs}
+                  disabledMessage="No se pueden modificar los resultados de zona una vez generados los playoffs"
                 />
               </div>
             );
           });
         })()}
       </CardContent>
+
+      {/* Diálogo de confirmación para eliminar fase de grupos */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar eliminación de fase de grupos</DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro de que deseas eliminar toda la fase de grupos? Esta acción eliminará:
+              <ul className="list-disc list-inside mt-2 space-y-1">
+                <li>Todos los grupos</li>
+                <li>Todos los partidos de grupos</li>
+                <li>Todos los resultados cargados</li>
+                <li>Todas las tablas de posiciones</li>
+                <li>Todas las asignaciones de equipos a grupos</li>
+              </ul>
+              <p className="mt-2 font-semibold text-amber-600">
+                Esta acción no se puede deshacer. Podrás volver a generar los grupos desde la fase de inscripción.
+              </p>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteDialog(false)}
+              disabled={deleting}
+            >
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteGroups} disabled={deleting}>
+              {deleting ? (
+                <>
+                  <Loader2Icon className="h-4 w-4 animate-spin mr-2" />
+                  Eliminando...
+                </>
+              ) : (
+                "Confirmar y eliminar"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
