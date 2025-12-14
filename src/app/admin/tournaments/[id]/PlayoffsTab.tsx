@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2Icon, PencilIcon, CheckIcon, XIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { MatchResultInlineForm } from "@/components/match-result-inline-form";
+import { MatchResultForm } from "@/components/match-result-form";
 import { formatDate, formatTime } from "@/lib/date-utils";
 
 type Tournament = { 
@@ -319,7 +319,7 @@ export default function PlayoffsTab({ tournament }: { tournament: Tournament }) 
               
               {/* Formulario de resultado */}
               {match.team1 && match.team2 ? (
-                <MatchResultInlineForm
+                <MatchResultForm
                   key={match.id}
                   match={match}
                   team1Name={team1Name}

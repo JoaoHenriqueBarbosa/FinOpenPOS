@@ -8,7 +8,7 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
-import { MatchResultInlineForm } from "@/components/match-result-inline-form";
+import { MatchResultForm } from "@/components/match-result-form";
 import { Loader2Icon, PencilIcon, CheckIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -410,7 +410,7 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
                 </div>
 
                 {/* Nombres de equipos con inputs de resultados */}
-                <MatchResultInlineForm
+                <MatchResultForm
                   match={m}
                   team1Name={team1Name}
                   team2Name={team2Name}
