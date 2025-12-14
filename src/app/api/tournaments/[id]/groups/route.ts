@@ -247,5 +247,18 @@ export async function DELETE(_req: Request, { params }: RouteParams) {
     );
   }
 
+  // Cambiar el estado del torneo a "draft"
+  const { error: tournamentUpdateError } = await supabase
+    .from("tournaments")
+    .update({ status: "draft" })
+    .eq("id", tournamentId)
+    .eq("user_uid", user.id);
+
+  if (tournamentUpdateError) {
+    console.error("Error updating tournament status:", tournamentUpdateError);
+    // No fallamos el request completo, solo logueamos el error
+    // Los grupos ya fueron eliminados, así que continuamos
+  }
+
   return NextResponse.json({ ok: true, message: "Groups phase deleted successfully" });
 }
