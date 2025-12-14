@@ -16,15 +16,22 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectTrigger,
-  SelectContent,
-  SelectItem,
-  SelectValue,
-} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Loader2Icon, PlusIcon, TrashIcon, LockIcon } from "lucide-react";
+import { Loader2Icon, PlusIcon, TrashIcon, LockIcon, ChevronsUpDown, CheckIcon } from "lucide-react";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import { TournamentScheduleDialog, ScheduleConfig } from "@/components/tournament-schedule-dialog";
 
 type Tournament = {
@@ -58,6 +65,13 @@ export default function TeamsTab({ tournament }: { tournament: Tournament }) {
 
   const [player1Id, setPlayer1Id] = useState<string>("none");
   const [player2Id, setPlayer2Id] = useState<string>("none");
+  const [error, setError] = useState<string | null>(null);
+  const [player1Open, setPlayer1Open] = useState(false);
+  const [player2Open, setPlayer2Open] = useState(false);
+  const [player1PopoverWidth, setPlayer1PopoverWidth] = useState(0);
+  const [player2PopoverWidth, setPlayer2PopoverWidth] = useState(0);
+  const [player1Search, setPlayer1Search] = useState("");
+  const [player2Search, setPlayer2Search] = useState("");
 
   useEffect(() => {
     const fetchData = async () => {
@@ -88,12 +102,25 @@ export default function TeamsTab({ tournament }: { tournament: Tournament }) {
 
   const fullName = (p: Player) => `${p.first_name} ${p.last_name}`;
 
+  // Filtrar jugadores por búsqueda (subcadena en nombre o apellido)
+  const filterPlayers = (search: string) => {
+    if (!search.trim()) return players;
+    const searchLower = search.toLowerCase().trim();
+    return players.filter(
+      (p) =>
+        p.first_name.toLowerCase().includes(searchLower) ||
+        p.last_name.toLowerCase().includes(searchLower) ||
+        fullName(p).toLowerCase().includes(searchLower)
+    );
+  };
+
   const handleCreate = useCallback(async () => {
     if (player1Id === "none" || player2Id === "none") return;
     if (player1Id === player2Id) return;
 
     try {
       setCreating(true);
+      setError(null);
       const res = await fetch(`/api/tournaments/${tournament.id}/teams`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -104,7 +131,8 @@ export default function TeamsTab({ tournament }: { tournament: Tournament }) {
       });
 
       if (!res.ok) {
-        console.error("Error creating team");
+        const errorData = await res.json().catch(() => ({}));
+        setError(errorData.error || "Error al crear el equipo");
         return;
       }
 
@@ -113,8 +141,10 @@ export default function TeamsTab({ tournament }: { tournament: Tournament }) {
       setDialogOpen(false);
       setPlayer1Id("none");
       setPlayer2Id("none");
+      setError(null);
     } catch (err) {
       console.error(err);
+      setError("Error de conexión");
     } finally {
       setCreating(false);
     }
@@ -253,7 +283,19 @@ export default function TeamsTab({ tournament }: { tournament: Tournament }) {
         )}
       </CardContent>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog 
+        open={dialogOpen} 
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) {
+            setError(null);
+            setPlayer1Id("none");
+            setPlayer2Id("none");
+            setPlayer1Search("");
+            setPlayer2Search("");
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Nuevo equipo</DialogTitle>
@@ -261,42 +303,141 @@ export default function TeamsTab({ tournament }: { tournament: Tournament }) {
           <div className="space-y-3">
             <div className="space-y-1">
               <Label>Jugador 1</Label>
-              <Select
-                value={player1Id}
-                onValueChange={(v) => setPlayer1Id(v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Elegí un jugador" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Seleccionar...</SelectItem>
-                  {players.map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>
-                      {fullName(p)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={player1Open} onOpenChange={setPlayer1Open}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={player1Open}
+                    className="w-full justify-between"
+                    ref={(element) => {
+                      if (element) {
+                        setPlayer1PopoverWidth(element.offsetWidth);
+                      }
+                    }}
+                  >
+                    {player1Id !== "none"
+                      ? fullName(players.find((p) => String(p.id) === player1Id)!)
+                      : "Elegí un jugador..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent 
+                  className="p-0" 
+                  align="start"
+                  style={{ width: player1PopoverWidth || "var(--radix-popover-trigger-width)" }}
+                >
+                  <Command shouldFilter={false}>
+                    <CommandInput 
+                      placeholder="Buscar por nombre o apellido..." 
+                      value={player1Search}
+                      onValueChange={setPlayer1Search}
+                    />
+                    <CommandList>
+                      {filterPlayers(player1Search).length === 0 ? (
+                        <CommandEmpty>No se encontró ningún jugador.</CommandEmpty>
+                      ) : (
+                        <CommandGroup>
+                          {filterPlayers(player1Search).map((player) => (
+                            <CommandItem
+                              key={player.id}
+                              value={`${player.first_name} ${player.last_name}`}
+                              onSelect={() => {
+                                setPlayer1Id(String(player.id));
+                                setPlayer1Open(false);
+                                setPlayer1Search("");
+                                setError(null);
+                              }}
+                            >
+                              <CheckIcon
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  player1Id === String(player.id)
+                                    ? "opacity-100"
+                                    : "opacity-0"
+                                )}
+                              />
+                              {fullName(player)}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      )}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="space-y-1">
               <Label>Jugador 2</Label>
-              <Select
-                value={player2Id}
-                onValueChange={(v) => setPlayer2Id(v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Elegí un jugador" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Seleccionar...</SelectItem>
-                  {players.map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>
-                      {fullName(p)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={player2Open} onOpenChange={setPlayer2Open}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={player2Open}
+                    className="w-full justify-between"
+                    ref={(element) => {
+                      if (element) {
+                        setPlayer2PopoverWidth(element.offsetWidth);
+                      }
+                    }}
+                  >
+                    {player2Id !== "none"
+                      ? fullName(players.find((p) => String(p.id) === player2Id)!)
+                      : "Elegí un jugador..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent 
+                  className="p-0" 
+                  align="start"
+                  style={{ width: player2PopoverWidth || "var(--radix-popover-trigger-width)" }}
+                >
+                  <Command shouldFilter={false}>
+                    <CommandInput 
+                      placeholder="Buscar por nombre o apellido..." 
+                      value={player2Search}
+                      onValueChange={setPlayer2Search}
+                    />
+                    <CommandList>
+                      {filterPlayers(player2Search).length === 0 ? (
+                        <CommandEmpty>No se encontró ningún jugador.</CommandEmpty>
+                      ) : (
+                        <CommandGroup>
+                          {filterPlayers(player2Search).map((player) => (
+                            <CommandItem
+                              key={player.id}
+                              value={`${player.first_name} ${player.last_name}`}
+                              onSelect={() => {
+                                setPlayer2Id(String(player.id));
+                                setPlayer2Open(false);
+                                setPlayer2Search("");
+                                setError(null);
+                              }}
+                            >
+                              <CheckIcon
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  player2Id === String(player.id)
+                                    ? "opacity-100"
+                                    : "opacity-0"
+                                )}
+                              />
+                              {fullName(player)}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      )}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
+            {error && (
+              <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-sm text-red-700 font-medium">{error}</p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button
