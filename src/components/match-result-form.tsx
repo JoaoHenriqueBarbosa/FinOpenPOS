@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Loader2Icon, CheckIcon } from "lucide-react";
+import { Loader2Icon, CheckIcon, TrashIcon } from "lucide-react";
 import { validateMatchSets } from "@/lib/match-validation";
 import {
   Dialog,
@@ -80,6 +80,8 @@ export function MatchResultForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showClearDialog, setShowClearDialog] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   // Resetear valores cuando cambia el match
   useEffect(() => {
@@ -173,6 +175,45 @@ export function MatchResultForm({
     }
   };
 
+  const performClear = async () => {
+    try {
+      setClearing(true);
+      setError(null);
+      const res = await fetch(`/api/tournament-matches/${match.id}/result`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        setError(errorData.error || "Error al limpiar el resultado");
+        setShowClearDialog(false);
+        return;
+      }
+      setShowClearDialog(false);
+      // Resetear los valores locales
+      setSet1T1("");
+      setSet1T2("");
+      setSet2T1("");
+      setSet2T2("");
+      setSet3T1("");
+      setSet3T2("");
+      onSaved();
+    } catch (err) {
+      console.error(err);
+      setError("Error de conexión");
+      setShowClearDialog(false);
+    } finally {
+      setClearing(false);
+    }
+  };
+
+  const handleClear = () => {
+    // Si está deshabilitado, no hacer nada (igual que handleSave)
+    if (disabled) return;
+    
+    // Siempre mostrar diálogo de confirmación (igual que guardar cuando hay resultado)
+    setShowClearDialog(true);
+  };
+
   // Layout compacto (sin nombres de equipos)
   if (!isInline) {
     return (
@@ -236,6 +277,22 @@ export function MatchResultForm({
           )}
           Guardar
         </Button>
+        {hasExistingResult() && (
+          <Button 
+            size="sm" 
+            variant="destructive" 
+            className="h-7 text-xs px-3" 
+            onClick={handleClear} 
+            disabled={clearing || saving || disabled}
+          >
+            {clearing ? (
+              <Loader2Icon className="h-3 w-3 animate-spin mr-1" />
+            ) : (
+              <TrashIcon className="h-3 w-3 mr-1" />
+            )}
+            Limpiar
+          </Button>
+        )}
         {error && (
           <div className="w-full text-xs text-red-600 mt-1">{error}</div>
         )}
@@ -269,12 +326,43 @@ export function MatchResultForm({
                   "Confirmar y guardar"
                 )}
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-    );
-  }
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={showClearDialog} onOpenChange={setShowClearDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar limpieza de resultado</DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro de que deseas limpiar el resultado de este partido? 
+              Esta acción eliminará todos los sets y reseteará el estado del partido. 
+              Esta acción no se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowClearDialog(false)}
+              disabled={clearing}
+            >
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={performClear} disabled={clearing}>
+              {clearing ? (
+                <>
+                  <Loader2Icon className="h-3 w-3 animate-spin mr-1" />
+                  Limpiando...
+                </>
+              ) : (
+                "Confirmar y limpiar"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
 
   // Layout inline (con nombres de equipos)
   return (
@@ -368,19 +456,42 @@ export function MatchResultForm({
 
       {/* Botones de acción */}
       <div className={`px-4 py-3 ${bgColor} flex flex-col items-center justify-center gap-2`}>
-        <Button size="sm" className="h-7 text-xs px-3" onClick={handleSave} disabled={saving || disabled}>
-          {saving ? (
-            <>
-              <Loader2Icon className="h-3 w-3 animate-spin mr-1" />
-              Guardando...
-            </>
-          ) : (
-            <>
-              <CheckIcon className="h-3 w-3 mr-1" />
-              Guardar
-            </>
+        <div className="flex gap-2">
+          <Button size="sm" className="h-7 text-xs px-3" onClick={handleSave} disabled={saving || disabled}>
+            {saving ? (
+              <>
+                <Loader2Icon className="h-3 w-3 animate-spin mr-1" />
+                Guardando...
+              </>
+            ) : (
+              <>
+                <CheckIcon className="h-3 w-3 mr-1" />
+                Guardar
+              </>
+            )}
+          </Button>
+          {hasExistingResult() && (
+            <Button 
+              size="sm" 
+              variant="destructive" 
+              className="h-7 text-xs px-3" 
+              onClick={handleClear} 
+              disabled={clearing || saving || disabled}
+            >
+              {clearing ? (
+                <>
+                  <Loader2Icon className="h-3 w-3 animate-spin mr-1" />
+                  Limpiando...
+                </>
+              ) : (
+                <>
+                  <TrashIcon className="h-3 w-3 mr-1" />
+                  Limpiar
+                </>
+              )}
+            </Button>
           )}
-        </Button>
+        </div>
         {disabled && disabledMessage && (
           <p className="text-xs text-amber-600 italic text-center">{disabledMessage}</p>
         )}
@@ -412,6 +523,37 @@ export function MatchResultForm({
                 </>
               ) : (
                 "Confirmar y guardar"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={showClearDialog} onOpenChange={setShowClearDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar limpieza de resultado</DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro de que deseas limpiar el resultado de este partido? 
+              Esta acción eliminará todos los sets y reseteará el estado del partido. 
+              Esta acción no se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowClearDialog(false)}
+              disabled={clearing}
+            >
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={performClear} disabled={clearing}>
+              {clearing ? (
+                <>
+                  <Loader2Icon className="h-3 w-3 animate-spin mr-1" />
+                  Limpiando...
+                </>
+              ) : (
+                "Confirmar y limpiar"
               )}
             </Button>
           </DialogFooter>
