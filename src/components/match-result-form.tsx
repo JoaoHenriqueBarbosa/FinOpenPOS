@@ -38,6 +38,9 @@ type MatchResultFormProps = {
   };
   // Layout: "compact" (sin nombres) o "inline" (con nombres)
   layout?: "compact" | "inline";
+  // Si está deshabilitado (ej: cuando ya hay playoffs generados)
+  disabled?: boolean;
+  disabledMessage?: string; // Mensaje a mostrar cuando está deshabilitado
 };
 
 export function MatchResultForm({
@@ -48,6 +51,8 @@ export function MatchResultForm({
   hasSuperTiebreak = false,
   groupColor,
   layout = team1Name && team2Name ? "inline" : "compact",
+  disabled = false,
+  disabledMessage = "No se pueden modificar los resultados de zona una vez generados los playoffs",
 }: MatchResultFormProps) {
   // Colores por defecto si no se proporcionan
   const bgColor = groupColor?.bg || "bg-blue-50";
@@ -156,6 +161,9 @@ export function MatchResultForm({
   };
 
   const handleSave = () => {
+    // Si está deshabilitado, no hacer nada
+    if (disabled) return;
+    
     // Si ya tiene un resultado, mostrar diálogo de confirmación
     if (hasExistingResult()) {
       setShowConfirmDialog(true);
@@ -169,52 +177,58 @@ export function MatchResultForm({
   if (!isInline) {
     return (
       <div className="flex flex-wrap items-center gap-2 text-xs">
-        <div className="flex items-center gap-1">
-          <Input
-            className="w-10 h-7 px-2 text-xs"
-            value={set1T1}
-            onChange={(e) => setSet1T1(e.target.value)}
-            placeholder="-"
-          />
-          <span>-</span>
-          <Input
-            className="w-10 h-7 px-2 text-xs"
-            value={set1T2}
-            onChange={(e) => setSet1T2(e.target.value)}
-            placeholder="-"
-          />
-        </div>
-        <div className="flex items-center gap-1">
-          <Input
-            className="w-10 h-7 px-2 text-xs"
-            value={set2T1}
-            onChange={(e) => setSet2T1(e.target.value)}
-            placeholder="-"
-          />
-          <span>-</span>
-          <Input
-            className="w-10 h-7 px-2 text-xs"
-            value={set2T2}
-            onChange={(e) => setSet2T2(e.target.value)}
-            placeholder="-"
-          />
-        </div>
-        <div className="flex items-center gap-1">
-          <Input
-            className="w-10 h-7 px-2 text-xs"
-            value={set3T1}
-            onChange={(e) => setSet3T1(e.target.value)}
-            placeholder="-"
-          />
-          <span>-</span>
-          <Input
-            className="w-10 h-7 px-2 text-xs"
-            value={set3T2}
-            onChange={(e) => setSet3T2(e.target.value)}
-            placeholder="-"
-          />
-        </div>
-        <Button size="sm" className="h-7 text-xs px-3" onClick={handleSave} disabled={saving}>
+            <div className="flex items-center gap-1">
+              <Input
+                className="w-10 h-7 px-2 text-xs"
+                value={set1T1}
+                onChange={(e) => setSet1T1(e.target.value)}
+                placeholder="-"
+                disabled={disabled}
+              />
+              <span>-</span>
+              <Input
+                className="w-10 h-7 px-2 text-xs"
+                value={set1T2}
+                onChange={(e) => setSet1T2(e.target.value)}
+                placeholder="-"
+                disabled={disabled}
+              />
+            </div>
+            <div className="flex items-center gap-1">
+              <Input
+                className="w-10 h-7 px-2 text-xs"
+                value={set2T1}
+                onChange={(e) => setSet2T1(e.target.value)}
+                placeholder="-"
+                disabled={disabled}
+              />
+              <span>-</span>
+              <Input
+                className="w-10 h-7 px-2 text-xs"
+                value={set2T2}
+                onChange={(e) => setSet2T2(e.target.value)}
+                placeholder="-"
+                disabled={disabled}
+              />
+            </div>
+            <div className="flex items-center gap-1">
+              <Input
+                className="w-10 h-7 px-2 text-xs"
+                value={set3T1}
+                onChange={(e) => setSet3T1(e.target.value)}
+                placeholder="-"
+                disabled={disabled}
+              />
+              <span>-</span>
+              <Input
+                className="w-10 h-7 px-2 text-xs"
+                value={set3T2}
+                onChange={(e) => setSet3T2(e.target.value)}
+                placeholder="-"
+                disabled={disabled}
+              />
+            </div>
+        <Button size="sm" className="h-7 text-xs px-3" onClick={handleSave} disabled={saving || disabled}>
           {saving ? (
             <Loader2Icon className="h-3 w-3 animate-spin mr-1" />
           ) : (
@@ -224,6 +238,9 @@ export function MatchResultForm({
         </Button>
         {error && (
           <div className="w-full text-xs text-red-600 mt-1">{error}</div>
+        )}
+        {disabled && disabledMessage && (
+          <div className="w-full text-xs text-amber-600 mt-1 italic">{disabledMessage}</div>
         )}
         <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
           <DialogContent>
@@ -282,6 +299,7 @@ export function MatchResultForm({
                 value={set1T1}
                 onChange={(e) => setSet1T1(e.target.value)}
                 placeholder="-"
+                disabled={disabled}
               />
               <span className="text-xs text-muted-foreground">-</span>
               <Input
@@ -289,6 +307,7 @@ export function MatchResultForm({
                 value={set1T2}
                 onChange={(e) => setSet1T2(e.target.value)}
                 placeholder="-"
+                disabled={disabled}
               />
             </div>
             {/* Set 2 */}
@@ -298,6 +317,7 @@ export function MatchResultForm({
                 value={set2T1}
                 onChange={(e) => setSet2T1(e.target.value)}
                 placeholder="-"
+                disabled={disabled}
               />
               <span className="text-xs text-muted-foreground">-</span>
               <Input
@@ -305,6 +325,7 @@ export function MatchResultForm({
                 value={set2T2}
                 onChange={(e) => setSet2T2(e.target.value)}
                 placeholder="-"
+                disabled={disabled}
               />
             </div>
             {/* Set 3 */}
@@ -314,6 +335,7 @@ export function MatchResultForm({
                 value={set3T1}
                 onChange={(e) => setSet3T1(e.target.value)}
                 placeholder="-"
+                disabled={disabled}
               />
               <span className="text-xs text-muted-foreground">-</span>
               <Input
@@ -321,6 +343,7 @@ export function MatchResultForm({
                 value={set3T2}
                 onChange={(e) => setSet3T2(e.target.value)}
                 placeholder="-"
+                disabled={disabled}
               />
             </div>
           </div>
@@ -344,8 +367,8 @@ export function MatchResultForm({
       )}
 
       {/* Botones de acción */}
-      <div className={`px-4 py-3 ${bgColor} flex items-center justify-center`}>
-        <Button size="sm" className="h-7 text-xs px-3" onClick={handleSave} disabled={saving}>
+      <div className={`px-4 py-3 ${bgColor} flex flex-col items-center justify-center gap-2`}>
+        <Button size="sm" className="h-7 text-xs px-3" onClick={handleSave} disabled={saving || disabled}>
           {saving ? (
             <>
               <Loader2Icon className="h-3 w-3 animate-spin mr-1" />
@@ -358,6 +381,9 @@ export function MatchResultForm({
             </>
           )}
         </Button>
+        {disabled && disabledMessage && (
+          <p className="text-xs text-amber-600 italic text-center">{disabledMessage}</p>
+        )}
       </div>
 
       {/* Diálogo de confirmación */}

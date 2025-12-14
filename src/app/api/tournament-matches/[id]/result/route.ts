@@ -57,6 +57,23 @@ export async function POST(req: Request, { params }: RouteParams) {
     return NextResponse.json({ error: "Match not found" }, { status: 404 });
   }
 
+  // Validar: si es un match de zona (group) y ya hay playoffs generados, no permitir modificar
+  if (match.phase === "group") {
+    const { data: existingPlayoffs, error: playoffsCheckError } = await supabase
+      .from("tournament_playoffs")
+      .select("id")
+      .eq("tournament_id", match.tournament_id)
+      .eq("user_uid", user.id)
+      .limit(1);
+
+    if (!playoffsCheckError && existingPlayoffs && existingPlayoffs.length > 0) {
+      return NextResponse.json(
+        { error: "No se pueden modificar los resultados de zona una vez generados los playoffs" },
+        { status: 403 }
+      );
+    }
+  }
+
   // Obtener el setting del torneo para has_super_tiebreak
   const { data: tournament, error: tournamentError } = await supabase
     .from("tournaments")

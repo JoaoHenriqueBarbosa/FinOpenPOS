@@ -420,6 +420,8 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
                     bg: groupColor.bg,
                     text: groupColor.text,
                   }}
+                  disabled={hasPlayoffs}
+                  disabledMessage="No se pueden modificar los resultados de zona una vez generados los playoffs"
                 />
               </div>
             );
