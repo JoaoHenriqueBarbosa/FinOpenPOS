@@ -41,6 +41,7 @@ type GroupTeam = {
   team: {
     id: number;
     display_name: string | null;
+    seed_number: number | null;
     player1: { first_name: string; last_name: string } | null;
     player2: { first_name: string; last_name: string } | null;
   } | null;
@@ -63,10 +64,25 @@ type Match = {
   team2: GroupTeam["team"];
 };
 
+type Standing = {
+  id: number;
+  tournament_group_id: number;
+  team_id: number;
+  position: number;
+  matches_played: number;
+  wins: number;
+  losses: number;
+  sets_won: number;
+  sets_lost: number;
+  games_won: number;
+  games_lost: number;
+};
+
 type ApiResponse = {
   groups: Group[];
   groupTeams: GroupTeam[];
   matches: Match[];
+  standings?: Standing[];
 };
 
 function teamLabel(team: GroupTeam["team"]) {
@@ -112,6 +128,9 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
+  const [showRegenerateScheduleDialog, setShowRegenerateScheduleDialog] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
 
   const load = async () => {
     try {
@@ -256,6 +275,41 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
     }
   };
 
+  const handleRegenerateSchedule = () => {
+    setShowRegenerateDialog(true);
+  };
+
+  const handleConfirmRegenerateSchedule = async (config: ScheduleConfig) => {
+    try {
+      setRegenerating(true);
+      setShowRegenerateDialog(false);
+      const res = await fetch(
+        `/api/tournaments/${tournament.id}/regenerate-schedule`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(config),
+        }
+      );
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        alert(errorData.error || "Error al regenerar horarios");
+        return;
+      }
+      load();
+    } catch (err) {
+      console.error(err);
+      alert("Error al regenerar horarios");
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  // Contar partidos con horarios asignados
+  const matchesWithSchedule = (data?.matches ?? []).filter(
+    (m) => m.match_date && m.start_time
+  ).length;
+
   if (loading) {
     return (
       <div className="h-[200px] flex items-center justify-center">
@@ -312,6 +366,21 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
           <Button
             variant="outline"
             size="sm"
+            onClick={handleRegenerateSchedule}
+            disabled={regenerating || hasPlayoffs}
+          >
+            {regenerating ? (
+              <>
+                <Loader2Icon className="h-3 w-3 animate-spin mr-1" />
+                Regenerando...
+              </>
+            ) : (
+              "Regenerar horarios"
+            )}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleCloseGroups}
             disabled={closingGroups || hasPlayoffs}
           >
@@ -328,6 +397,14 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
         onOpenChange={setScheduleDialogOpen}
         onConfirm={handleConfirmSchedule}
         matchCount={calculatePlayoffMatchCount()}
+        tournamentMatchDuration={tournament.match_duration}
+      />
+
+      <TournamentScheduleDialog
+        open={showRegenerateScheduleDialog}
+        onOpenChange={setShowRegenerateScheduleDialog}
+        onConfirm={handleConfirmRegenerateSchedule}
+        matchCount={data?.matches.length || 0}
         tournamentMatchDuration={tournament.match_duration}
       />
 
@@ -349,138 +426,161 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
             groupMap.set(g.id, { name: g.name, index });
           });
 
-          // Obtener todos los matches y ordenarlos por fecha y hora
-          const allMatches = [...data.matches].sort((a, b) => {
-            // Primero por fecha
-            if (a.match_date && b.match_date) {
-              const dateCompare = a.match_date.localeCompare(b.match_date);
-              if (dateCompare !== 0) return dateCompare;
-            } else if (a.match_date) return -1;
-            else if (b.match_date) return 1;
-
-            // Luego por hora
-            if (a.start_time && b.start_time) {
-              return a.start_time.localeCompare(b.start_time);
-            } else if (a.start_time) return -1;
-            else if (b.start_time) return 1;
-
-            return 0;
+          // Agrupar matches por grupo
+          const matchesByGroup = new Map<number, Match[]>();
+          data.matches.forEach((m) => {
+            if (m.tournament_group_id) {
+              if (!matchesByGroup.has(m.tournament_group_id)) {
+                matchesByGroup.set(m.tournament_group_id, []);
+              }
+              matchesByGroup.get(m.tournament_group_id)!.push(m);
+            }
           });
 
-          return allMatches.map((m) => {
-            const team1Name = teamLabel(m.team1);
-            const team2Name = teamLabel(m.team2);
-            const groupInfo = m.tournament_group_id
-              ? groupMap.get(m.tournament_group_id)
-              : null;
-            const groupName = groupInfo?.name || "Sin grupo";
+          return sortedGroups.map((group) => {
+            const groupInfo = groupMap.get(group.id);
             const groupColor = groupInfo
               ? getGroupColor(groupInfo.index)
               : { bg: "bg-gray-100", text: "text-gray-700", border: "border-gray-200", badgeBg: "bg-gray-200", badgeText: "text-gray-800" };
+            
+            const groupMatches = matchesByGroup.get(group.id) || [];
+
+            // Ordenar matches por fecha y hora
+            const sortedMatches = [...groupMatches].sort((a, b) => {
+              if (a.match_date && b.match_date) {
+                const dateCompare = a.match_date.localeCompare(b.match_date);
+                if (dateCompare !== 0) return dateCompare;
+              } else if (a.match_date) return -1;
+              else if (b.match_date) return 1;
+
+              if (a.start_time && b.start_time) {
+                return a.start_time.localeCompare(b.start_time);
+              } else if (a.start_time) return -1;
+              else if (b.start_time) return 1;
+
+              return 0;
+            });
 
             return (
-              <div
-                key={m.id}
-                className={`border rounded-lg shadow-sm overflow-hidden ${groupColor.border}`}
-              >
-                {/* Header con grupo, fecha, hora y estado */}
-                <div className={`${groupColor.bg} border-b px-4 py-2`}>
-                  {editingMatchId === m.id ? (
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="date"
-                        value={editDate}
-                        onChange={(e) => setEditDate(e.target.value)}
-                        className="h-7 text-xs"
-                      />
-                      <Input
-                        type="time"
-                        value={editTime}
-                        onChange={(e) => setEditTime(e.target.value)}
-                        className="h-7 text-xs"
-                        step="60"
-                      />
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 px-2"
-                        onClick={() => handleSaveSchedule(m.id)}
-                      >
-                        <CheckIcon className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 px-2"
-                        onClick={handleCancelEdit}
-                      >
-                        <XIcon className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-4 text-xs">
-                      {/* Indicador de grupo con color */}
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${groupColor.badgeBg} ${groupColor.badgeText}`}>
-                        {groupName}
-                      </span>
-                      {m.match_date && (
-                        <span className="font-medium text-muted-foreground">
-                          📅 {formatDate(m.match_date)}
-                        </span>
-                      )}
-                      {m.start_time && (
-                        <span className="text-muted-foreground">
-                          🕐 {formatTime(m.start_time)}
-                        </span>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-6 px-2 ml-auto"
-                        onClick={() => handleStartEdit(m)}
-                      >
-                        <PencilIcon className="h-3 w-3" />
-                      </Button>
-                      <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-medium ${
-                          m.status === "finished"
-                            ? "bg-green-100 text-green-700"
-                            : m.status === "in_progress"
-                            ? "bg-blue-100 text-blue-700"
-                            : m.status === "cancelled"
-                            ? "bg-red-100 text-red-700"
-                            : "bg-gray-100 text-gray-700"
-                        }`}
-                      >
-                        {m.status === "finished"
-                          ? "Finalizado"
-                          : m.status === "in_progress"
-                          ? "En curso"
-                          : m.status === "cancelled"
-                          ? "Cancelado"
-                          : "Programado"}
-                      </span>
-                    </div>
-                  )}
-                </div>
+              <div key={group.id} className="space-y-3">
+                {/* Partidos del grupo */}
+                {sortedMatches.map((m) => {
+                  const team1Name = teamLabel(m.team1);
+                  const team2Name = teamLabel(m.team2);
+                  const groupInfo = m.tournament_group_id
+                    ? groupMap.get(m.tournament_group_id)
+                    : null;
+                  const groupName = groupInfo?.name || "Sin grupo";
+                  const groupColor = groupInfo
+                    ? getGroupColor(groupInfo.index)
+                    : { bg: "bg-gray-100", text: "text-gray-700", border: "border-gray-200", badgeBg: "bg-gray-200", badgeText: "text-gray-800" };
 
-                {/* Nombres de equipos con inputs de resultados */}
-                <MatchResultForm
-                  match={m}
-                  team1Name={team1Name}
-                  team2Name={team2Name}
-                  hasSuperTiebreak={tournament.has_super_tiebreak}
-                  onSaved={load}
-                  groupColor={{
-                    bg: groupColor.bg,
-                    text: groupColor.text,
-                  }}
-                  disabled={hasPlayoffs}
-                  disabledMessage="No se pueden modificar los resultados de zona una vez generados los playoffs"
-                />
+                  return (
+                    <div
+                      key={m.id}
+                      className={`border rounded-lg shadow-sm overflow-hidden ${groupColor.border}`}
+                    >
+                      {/* Header con grupo, fecha, hora y estado */}
+                      <div className={`${groupColor.bg} border-b px-4 py-2`}>
+                        {editingMatchId === m.id ? (
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="date"
+                              value={editDate}
+                              onChange={(e) => setEditDate(e.target.value)}
+                              className="h-7 text-xs"
+                            />
+                            <Input
+                              type="time"
+                              value={editTime}
+                              onChange={(e) => setEditTime(e.target.value)}
+                              className="h-7 text-xs"
+                              step="60"
+                            />
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2"
+                              onClick={() => handleSaveSchedule(m.id)}
+                            >
+                              <CheckIcon className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2"
+                              onClick={handleCancelEdit}
+                            >
+                              <XIcon className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-4 text-xs">
+                            {/* Indicador de grupo con color */}
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${groupColor.badgeBg} ${groupColor.badgeText}`}>
+                              {groupName}
+                            </span>
+                            {m.match_date && (
+                              <span className="font-medium text-muted-foreground">
+                                📅 {formatDate(m.match_date)}
+                              </span>
+                            )}
+                            {m.start_time && (
+                              <span className="text-muted-foreground">
+                                🕐 {formatTime(m.start_time)}
+                              </span>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 px-2 ml-auto"
+                              onClick={() => handleStartEdit(m)}
+                            >
+                              <PencilIcon className="h-3 w-3" />
+                            </Button>
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                                m.status === "finished"
+                                  ? "bg-green-100 text-green-700"
+                                  : m.status === "in_progress"
+                                  ? "bg-blue-100 text-blue-700"
+                                  : m.status === "cancelled"
+                                  ? "bg-red-100 text-red-700"
+                                  : "bg-gray-100 text-gray-700"
+                              }`}
+                            >
+                              {m.status === "finished"
+                                ? "Finalizado"
+                                : m.status === "in_progress"
+                                ? "En curso"
+                                : m.status === "cancelled"
+                                ? "Cancelado"
+                                : "Programado"}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Nombres de equipos con inputs de resultados */}
+                      <MatchResultForm
+                        match={m}
+                        team1Name={team1Name}
+                        team2Name={team2Name}
+                        hasSuperTiebreak={tournament.has_super_tiebreak}
+                        onSaved={load}
+                        groupColor={{
+                          bg: groupColor.bg,
+                          text: groupColor.text,
+                        }}
+                        disabled={hasPlayoffs}
+                        disabledMessage="No se pueden modificar los resultados de zona una vez generados los playoffs"
+                      />
+                    </div>
+                  );
+                })}
               </div>
             );
-          });
+          })
         })()}
       </CardContent>
 
@@ -520,6 +620,52 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
               ) : (
                 "Confirmar y eliminar"
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de confirmación para regenerar horarios */}
+      <Dialog open={showRegenerateDialog} onOpenChange={setShowRegenerateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Regenerar horarios de partidos</DialogTitle>
+            <DialogDescription>
+              {matchesWithSchedule > 0 ? (
+                <>
+                  <p className="font-semibold text-amber-600 mb-2">
+                    ⚠️ Advertencia: {matchesWithSchedule} partido{matchesWithSchedule !== 1 ? "s" : ""} ya {matchesWithSchedule !== 1 ? "tienen" : "tiene"} horarios asignados.
+                  </p>
+                  <p className="mb-2">
+                    Al regenerar los horarios, se sobreescribirán los horarios existentes de todos los partidos de fase de grupos que aún no tengan resultados cargados.
+                  </p>
+                </>
+              ) : (
+                <p>
+                  Se asignarán horarios a todos los partidos de fase de grupos que aún no tengan resultados cargados.
+                </p>
+              )}
+              <p className="mt-2 text-sm text-muted-foreground">
+                Los partidos que ya tienen resultados no se modificarán.
+              </p>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowRegenerateDialog(false)}
+              disabled={regenerating}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => {
+                setShowRegenerateDialog(false);
+                setShowRegenerateScheduleDialog(true);
+              }}
+              disabled={regenerating}
+            >
+              Continuar
             </Button>
           </DialogFooter>
         </DialogContent>

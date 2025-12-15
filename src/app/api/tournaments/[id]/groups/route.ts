@@ -47,6 +47,7 @@ export async function GET(_req: Request, { params }: RouteParams) {
       team:team_id (
         id,
         display_name,
+        seed_number,
         player1:player1_id ( first_name, last_name ),
         player2:player2_id ( first_name, last_name )
       )
@@ -109,10 +110,39 @@ export async function GET(_req: Request, { params }: RouteParams) {
     );
   }
 
+  // standings por grupo
+  const { data: standings, error: sError } = await supabase
+    .from("tournament_group_standings")
+    .select(
+      `
+      id,
+      tournament_group_id,
+      team_id,
+      position,
+      matches_played,
+      wins,
+      losses,
+      sets_won,
+      sets_lost,
+      games_won,
+      games_lost
+    `
+    )
+    .in("tournament_group_id", groupIds)
+    .eq("user_uid", user.id)
+    .order("tournament_group_id", { ascending: true })
+    .order("position", { ascending: true });
+
+  if (sError) {
+    console.error("GET standings error:", sError);
+    // No fallamos el request, solo logueamos el error
+  }
+
   return NextResponse.json({
     groups,
     groupTeams: groupTeams ?? [],
     matches: matches ?? [],
+    standings: standings ?? [],
   });
 }
 

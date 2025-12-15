@@ -48,8 +48,10 @@ type PlayoffRow = {
   } | null;
 };
 
+type Team = NonNullable<PlayoffRow["match"]>["team1"];
+
 // Función para mostrar solo apellidos en el bracket
-function teamLabelBracket(team: PlayoffRow["match"]["team1"]) {
+function teamLabelBracket(team: Team) {
   if (!team) return "—";
   if (team.display_name) return team.display_name;
   const lastName1 = team.player1?.last_name ?? "";

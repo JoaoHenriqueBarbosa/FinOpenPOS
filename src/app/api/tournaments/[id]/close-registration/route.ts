@@ -1,57 +1,12 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import {
+  ScheduleConfig,
+  GroupMatchPayload,
+  scheduleGroupMatches,
+} from "@/lib/tournament-scheduler";
 
 type RouteParams = { params: { id: string } };
-
-type ScheduleDay = {
-  date: string; // YYYY-MM-DD
-  startTime: string; // HH:MM
-  endTime: string; // HH:MM
-};
-
-type ScheduleConfig = {
-  days: ScheduleDay[];
-  matchDuration: number; // minutos entre partidos
-  courtIds: number[]; // IDs de las canchas a usar
-};
-
-// Función helper para generar slots de tiempo
-function generateTimeSlots(
-  days: ScheduleDay[],
-  matchDuration: number,
-  numCourts: number
-): Array<{ date: string; startTime: string; endTime: string }> {
-  const slots: Array<{ date: string; startTime: string; endTime: string }> = [];
-
-  days.forEach((day) => {
-    const [startH, startM] = day.startTime.split(":").map(Number);
-    const [endH, endM] = day.endTime.split(":").map(Number);
-    const startMinutes = startH * 60 + startM;
-    const endMinutes = endH * 60 + endM;
-
-    let currentMinutes = startMinutes;
-    while (currentMinutes + matchDuration <= endMinutes) {
-      const slotStartH = Math.floor(currentMinutes / 60);
-      const slotStartM = currentMinutes % 60;
-      const slotEndMinutes = currentMinutes + matchDuration;
-      const slotEndH = Math.floor(slotEndMinutes / 60);
-      const slotEndM = slotEndMinutes % 60;
-
-      // Agregar un slot por cada cancha disponible
-      for (let i = 0; i < numCourts; i++) {
-        slots.push({
-          date: day.date,
-          startTime: `${String(slotStartH).padStart(2, "0")}:${String(slotStartM).padStart(2, "0")}`,
-          endTime: `${String(slotEndH).padStart(2, "0")}:${String(slotEndM).padStart(2, "0")}`,
-        });
-      }
-
-      currentMinutes += matchDuration;
-    }
-  });
-
-  return slots;
-}
 
 export async function POST(req: Request, { params }: RouteParams) {
   const supabase = createClient();
@@ -191,19 +146,12 @@ export async function POST(req: Request, { params }: RouteParams) {
 
   // asignar equipos a cada grupo
   let index = 0;
-  const groupTeamsPayload: { tournament_group_id: number; team_id: number; user_uid: string }[] =
-    [];
-  const matchesPayload: {
-    tournament_id: number;
-    user_uid: string;
-    phase: "group";
+  const groupTeamsPayload: {
     tournament_group_id: number;
-    team1_id: number;
-    team2_id: number;
-    match_date: string | null;
-    start_time: string | null;
-    end_time: string | null;
+    team_id: number;
+    user_uid: string;
   }[] = [];
+  const matchesPayload: GroupMatchPayload[] = [];
 
   createdGroups.forEach((g, idx) => {
     const size = groupSizes[idx] ?? 3;
@@ -219,18 +167,82 @@ export async function POST(req: Request, { params }: RouteParams) {
       });
     });
 
-    // round robin para este grupo
-    for (let i = 0; i < idsForGroup.length; i++) {
-      for (let j = i + 1; j < idsForGroup.length; j++) {
-        matchesPayload.push({
-          tournament_id: tournamentId,
-          user_uid: user.id,
-          phase: "group",
-          tournament_group_id: g.id,
-          team1_id: idsForGroup[i],
-          team2_id: idsForGroup[j],
-        });
+    // Generar partidos según el tamaño del grupo
+    if (size === 3) {
+      // Round robin para grupos de 3 equipos (todos contra todos = 3 partidos)
+      for (let i = 0; i < idsForGroup.length; i++) {
+        for (let j = i + 1; j < idsForGroup.length; j++) {
+          matchesPayload.push({
+            tournament_id: tournamentId,
+            user_uid: user.id,
+            phase: "group",
+            tournament_group_id: g.id,
+            team1_id: idsForGroup[i],
+            team2_id: idsForGroup[j],
+            match_date: null,
+            start_time: null,
+            end_time: null,
+          });
+        }
       }
+    } else if (size === 4) {
+      // Formato especial para grupos de 4 equipos (4 partidos)
+      // Primera ronda (match_order 1-2):
+      // - Partido 1: 1 vs 4
+      // - Partido 2: 2 vs 3
+      matchesPayload.push({
+        tournament_id: tournamentId,
+        user_uid: user.id,
+        phase: "group",
+        tournament_group_id: g.id,
+        team1_id: idsForGroup[0], // 1
+        team2_id: idsForGroup[3], // 4
+        match_date: null,
+        start_time: null,
+        end_time: null,
+        match_order: 1,
+      });
+      matchesPayload.push({
+        tournament_id: tournamentId,
+        user_uid: user.id,
+        phase: "group",
+        tournament_group_id: g.id,
+        team1_id: idsForGroup[1], // 2
+        team2_id: idsForGroup[2], // 3
+        match_date: null,
+        start_time: null,
+        end_time: null,
+        match_order: 2,
+      });
+      
+      // Segunda ronda (match_order 3-4):
+      // - Partido 3: Ganador 1vs4 vs Ganador 2vs3 (ronda de ganadores) -> 1ro y 2do
+      // - Partido 4: Perdedor 1vs4 vs Perdedor 2vs3 (ronda de perdedores) -> 3ro
+      // Estos partidos se crearán sin equipos asignados (null) y se actualizarán cuando se jueguen los de primera ronda
+      matchesPayload.push({
+        tournament_id: tournamentId,
+        user_uid: user.id,
+        phase: "group",
+        tournament_group_id: g.id,
+        team1_id: null, // Se asignará cuando se juegue el partido 1
+        team2_id: null, // Se asignará cuando se juegue el partido 2
+        match_date: null,
+        start_time: null,
+        end_time: null,
+        match_order: 3,
+      });
+      matchesPayload.push({
+        tournament_id: tournamentId,
+        user_uid: user.id,
+        phase: "group",
+        tournament_group_id: g.id,
+        team1_id: null, // Se asignará cuando se juegue el partido 1
+        team2_id: null, // Se asignará cuando se juegue el partido 2
+        match_date: null,
+        start_time: null,
+        end_time: null,
+        match_order: 4,
+      });
     }
   });
 
@@ -292,259 +304,20 @@ export async function POST(req: Request, { params }: RouteParams) {
     // Duración del partido del torneo (setting del torneo)
     const matchDurationMinutes = t.match_duration ?? 60;
 
-    // Generar slots disponibles usando solo las canchas seleccionadas
-    const timeSlots = generateTimeSlots(
+    const schedulerResult = scheduleGroupMatches(
+      matchesPayload,
       scheduleConfig.days,
-      scheduleConfig.matchDuration,
-      courts.length
+      matchDurationMinutes,
+      scheduleConfig.courtIds
     );
 
-    if (timeSlots.length < matchesPayload.length) {
-      return NextResponse.json(
-        {
-          error: `Not enough time slots. Need ${matchesPayload.length} slots but only ${timeSlots.length} available.`,
-        },
-        { status: 400 }
+    // Si no se pudieron asignar horarios, continuar igual pero sin horarios
+    // Los partidos se crearán sin match_date, start_time, end_time
+    if (!schedulerResult.success) {
+      console.warn(
+        `No se pudieron asignar horarios automáticamente: ${schedulerResult.error}. Los partidos se crearán sin horarios.`
       );
-    }
-
-    // Asignar slots a los partidos considerando que un team no puede jugar 2 partidos seguidos
-    // Idealmente: 1 partido, descanso de 1 hora, siguiente partido
-    
-    // Crear un mapa de partidos por team
-    const matchesByTeam = new Map<number, typeof matchesPayload>();
-    matchesPayload.forEach((match) => {
-      [match.team1_id, match.team2_id].forEach((teamId) => {
-        if (!matchesByTeam.has(teamId)) {
-          matchesByTeam.set(teamId, []);
-        }
-        matchesByTeam.get(teamId)!.push(match);
-      });
-    });
-
-    // Función para convertir tiempo a minutos del día (0-1440)
-    const timeToMinutesOfDay = (time: string): number => {
-      const [hours, minutes] = time.split(":").map(Number);
-      return hours * 60 + minutes;
-    };
-
-    // Función para verificar si un slot es válido para un match
-    // Regla simple: si un equipo juega a las 15:00 y la duración es 60 min, puede volver a jugar a las 17:00 (15:00 + 2x60)
-    const isValidSlot = (
-      match: typeof matchesPayload[0],
-      slot: { date: string; startTime: string; endTime: string },
-      assignedMatches: Map<typeof matchesPayload[0], { date: string; startTime: string; endTime: string; slotIndex: number }>
-    ): boolean => {
-      const slotStartMinutes = timeToMinutesOfDay(slot.startTime);
-      const minTimeBetweenMatches = matchDurationMinutes * 2; // 2 partidos de duración
-
-      // Verificar conflictos con otros partidos del mismo team
-      for (const [assignedMatch, assignedSlot] of assignedMatches.entries()) {
-        // Si el match asignado involucra al mismo team
-        const sharedTeam = 
-          assignedMatch.team1_id === match.team1_id ||
-          assignedMatch.team1_id === match.team2_id ||
-          assignedMatch.team2_id === match.team1_id ||
-          assignedMatch.team2_id === match.team2_id;
-
-        if (sharedTeam) {
-          // Si es el mismo día, verificar tiempo mínimo
-          if (slot.date === assignedSlot.date) {
-            const assignedStartMinutes = timeToMinutesOfDay(assignedSlot.startTime);
-            
-            // Calcular diferencia de tiempo
-            const timeDifference = Math.abs(slotStartMinutes - assignedStartMinutes);
-            
-            // Debe haber al menos 2x duración del partido entre partidos del mismo equipo
-            if (timeDifference < minTimeBetweenMatches) {
-              return false;
-            }
-          }
-        }
-      }
-      return true;
-    };
-
-    // Asignar slots de manera inteligente
-    const assignedMatches = new Map<typeof matchesPayload[0], { date: string; startTime: string; endTime: string; slotIndex: number }>();
-    const usedSlots = new Set<number>();
-
-    // Función helper para calcular end_time
-    const calculateEndTime = (startTime: string): string => {
-      const [startH, startM] = startTime.split(":").map(Number);
-      const startMinutes = startH * 60 + startM;
-      const endMinutes = startMinutes + matchDurationMinutes;
-      const endH = Math.floor(endMinutes / 60);
-      const endM = endMinutes % 60;
-      return `${String(endH).padStart(2, "0")}:${String(endM).padStart(2, "0")}`;
-    };
-
-
-    // Función para intentar asignar todos los matches y retornar el resultado
-    const tryAssignMatches = (matchesOrder: typeof matchesPayload[]): {
-      success: boolean;
-      assignments: Map<number, { date: string; startTime: string; endTime: string; slotIndex: number }>; // key: índice en matchesPayload
-      score: number;
-    } => {
-      const testAssignedMatches = new Map<number, { date: string; startTime: string; endTime: string; slotIndex: number }>();
-      const testUsedSlots = new Set<number>();
-      const matchIndices = matchesOrder.map(m => matchesPayload.indexOf(m)).filter(idx => idx !== -1);
-
-      for (let orderIdx = 0; orderIdx < matchesOrder.length; orderIdx++) {
-        const match = matchesOrder[orderIdx];
-        const originalIdx = matchesPayload.indexOf(match);
-        if (originalIdx === -1) continue;
-        let assigned = false;
-
-        // Intentar encontrar un slot válido
-        for (let i = 0; i < timeSlots.length; i++) {
-          if (testUsedSlots.has(i)) continue;
-
-          const slot = timeSlots[i];
-          const slotStartMinutes = timeToMinutesOfDay(slot.startTime);
-          const minTimeBetweenMatches = matchDurationMinutes * 2;
-
-          // Verificar si es válido
-          let isValid = true;
-          for (const [assignedMatchIdx, assignedSlot] of testAssignedMatches.entries()) {
-            const assignedMatch = matchesPayload[assignedMatchIdx];
-            if (!assignedMatch) continue;
-            
-            const sharedTeam =
-              assignedMatch.team1_id === match.team1_id ||
-              assignedMatch.team1_id === match.team2_id ||
-              assignedMatch.team2_id === match.team1_id ||
-              assignedMatch.team2_id === match.team2_id;
-
-            if (sharedTeam && slot.date === assignedSlot.date) {
-              const assignedStartMinutes = timeToMinutesOfDay(assignedSlot.startTime);
-              const timeDifference = Math.abs(slotStartMinutes - assignedStartMinutes);
-              if (timeDifference < minTimeBetweenMatches) {
-                isValid = false;
-                break;
-              }
-            }
-          }
-
-          if (isValid) {
-            testAssignedMatches.set(originalIdx, {
-              date: slot.date,
-              startTime: slot.startTime,
-              endTime: calculateEndTime(slot.startTime),
-              slotIndex: i,
-            });
-            testUsedSlots.add(i);
-            assigned = true;
-            break;
-          }
-        }
-
-        // Si no se pudo asignar con restricciones, NO asignar (la restricción es innegociable)
-        if (!assigned) {
-          return { success: false, assignments: testAssignedMatches, score: Infinity };
-        }
-      }
-
-      // Calcular score basado en las asignaciones
-      const score = calculateAssignmentScoreFromIndices(testAssignedMatches);
-      return { success: true, assignments: testAssignedMatches, score };
-    };
-
-    // Función para calcular score desde índices
-    const calculateAssignmentScoreFromIndices = (
-      assignments: Map<number, { date: string; startTime: string; endTime: string; slotIndex: number }>
-    ): number => {
-      let totalGap = 0;
-      const teamMatches = new Map<number, Array<{ date: string; startTime: string }>>();
-
-      // Agrupar partidos por equipo
-      for (const [matchIdx, slot] of assignments.entries()) {
-        const match = matchesPayload[matchIdx];
-        if (!match) continue;
-        [match.team1_id, match.team2_id].forEach((teamId) => {
-          if (!teamMatches.has(teamId)) {
-            teamMatches.set(teamId, []);
-          }
-          teamMatches.get(teamId)!.push({ date: slot.date, startTime: slot.startTime });
-        });
-      }
-
-      // Calcular espacios entre partidos del mismo equipo
-      for (const [teamId, matches] of teamMatches.entries()) {
-        if (matches.length < 2) continue;
-
-        // Ordenar por fecha y hora
-        const sorted = [...matches].sort((a, b) => {
-          if (a.date !== b.date) return a.date.localeCompare(b.date);
-          return timeToMinutesOfDay(a.startTime) - timeToMinutesOfDay(b.startTime);
-        });
-
-        // Sumar espacios entre partidos consecutivos del mismo día
-        for (let i = 1; i < sorted.length; i++) {
-          if (sorted[i].date === sorted[i - 1].date) {
-            const gap = timeToMinutesOfDay(sorted[i].startTime) - timeToMinutesOfDay(sorted[i - 1].startTime);
-            totalGap += gap;
-          }
-        }
-      }
-
-      return totalGap;
-    };
-
-    // Generar diferentes órdenes de asignación para probar
-    const baseOrder = [...matchesPayload].sort((a, b) => {
-      const aTeam1Matches = matchesByTeam.get(a.team1_id)?.length || 0;
-      const aTeam2Matches = matchesByTeam.get(a.team2_id)?.length || 0;
-      const bTeam1Matches = matchesByTeam.get(b.team1_id)?.length || 0;
-      const bTeam2Matches = matchesByTeam.get(b.team2_id)?.length || 0;
-      const aMax = Math.max(aTeam1Matches, aTeam2Matches);
-      const bMax = Math.max(bTeam1Matches, bTeam2Matches);
-      return bMax - aMax;
-    });
-
-    // Probar diferentes órdenes (hasta 5 variaciones)
-    const ordersToTry = [
-      baseOrder,
-      [...baseOrder].reverse(),
-      [...baseOrder].sort(() => Math.random() - 0.5),
-      [...baseOrder].sort(() => Math.random() - 0.5),
-      [...baseOrder].sort(() => Math.random() - 0.5),
-    ];
-
-    let bestResult: { success: boolean; assignments: Map<number, { date: string; startTime: string; endTime: string; slotIndex: number }>; score: number } | null = null;
-
-    for (const order of ordersToTry) {
-      const result = tryAssignMatches(order);
-      if (result.success && (!bestResult || result.score < bestResult.score)) {
-        bestResult = result;
-      }
-    }
-
-    // Si no se encontró ninguna asignación válida, usar la primera que se pudo completar
-    if (!bestResult) {
-      const result = tryAssignMatches(baseOrder);
-      bestResult = result;
-    }
-
-    // Aplicar la mejor asignación encontrada
-    if (bestResult && bestResult.success) {
-      for (const [matchIdx, slot] of bestResult.assignments.entries()) {
-        const match = matchesPayload[matchIdx];
-        if (match) {
-          match.match_date = slot.date;
-          match.start_time = slot.startTime;
-          match.end_time = slot.endTime;
-        }
-      }
-    } else {
-      // Si no se pudo encontrar ninguna asignación válida que respete las restricciones, retornar error
-      // La restricción de no jugar 2 partidos seguidos es INNEGOCIABLE
-      return NextResponse.json(
-        {
-          error: `No se pudo asignar horarios para todos los partidos respetando la restricción de que un equipo no puede jugar 2 partidos seguidos. Intenta con más días/horarios disponibles o más canchas.`,
-        },
-        { status: 400 }
-      );
+      // Continuar con matchesPayload sin horarios asignados
     }
   }
 

@@ -119,10 +119,35 @@ export async function GET(_req: Request, { params }: RouteParams) {
     );
   }
 
+  // Traer equipos por grupo (para mostrar cuando no hay standings)
+  const { data: groupTeams, error: gtError } = await supabase
+    .from("tournament_group_teams")
+    .select(
+      `
+      id,
+      tournament_group_id,
+      team:team_id (
+        id,
+        display_name,
+        seed_number,
+        player1:player1_id ( first_name, last_name ),
+        player2:player2_id ( first_name, last_name )
+      )
+    `
+    )
+    .in("tournament_group_id", groupIds)
+    .eq("user_uid", user.id);
+
+  if (gtError) {
+    console.error("GET standings groupTeams error:", gtError);
+    // No fallamos el request, solo logueamos el error
+  }
+
   return NextResponse.json({
     groups: groups ?? [],
     standings: standings ?? [],
     matches: matches ?? [],
+    groupTeams: groupTeams ?? [],
   });
 }
 

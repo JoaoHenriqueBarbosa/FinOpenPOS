@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Bracket, RoundProps, SeedProps, Seed } from "@oliverlooney/react-brackets";
+import { Bracket, IRoundProps, ISeedProps, Seed } from "@oliverlooney/react-brackets";
 import { formatDate, formatTime } from "@/lib/date-utils";
 
 type Match = {
@@ -106,11 +106,11 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, sele
   };
 
   // Transformar nuestros datos al formato que espera react-brackets
-  const bracketRounds: RoundProps[] = rounds.map((round, roundIdx) => {
+  const bracketRounds: IRoundProps[] = rounds.map((round, roundIdx) => {
     // Para cada ronda, expandir con matches fantasma si es necesario
     const matches = expandWithByeMatches(roundIdx);
 
-      const seeds: SeedProps[] = matches.map((match) => {
+      const seeds: ISeedProps[] = matches.map((match) => {
       // Construir información de horario
       const scheduleParts: string[] = [];
       if (match.matchDate) {
@@ -131,7 +131,7 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, sele
       const separator = '|';
       const team1DisplayName = `[${match.id}]${scheduleText}${separator}${team1Name}${separator}${team2Name}${separator}${scoresText}`;
 
-      const seed: SeedProps = {
+      const seed: ISeedProps = {
         id: match.id,
         teams: [
           {

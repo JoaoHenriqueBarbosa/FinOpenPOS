@@ -68,10 +68,23 @@ type Match = {
   team2: Team | null;
 };
 
+type GroupTeam = {
+  id: number;
+  tournament_group_id: number;
+  team: {
+    id: number;
+    display_name: string | null;
+    seed_number: number | null;
+    player1: { first_name: string; last_name: string } | null;
+    player2: { first_name: string; last_name: string } | null;
+  } | null;
+};
+
 type ApiResponse = {
   groups: Group[];
   standings: Standing[];
   matches: Match[];
+  groupTeams?: GroupTeam[];
 };
 
 function teamLabel(team: Team | null): string {
@@ -235,45 +248,79 @@ export default function StandingsTab({ tournament }: { tournament: Tournament })
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {groupStandings.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={7} className="text-center text-muted-foreground py-4">
-                            No hay standings disponibles todavía
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        groupStandings.map((standing) => (
-                          <TableRow key={standing.id}>
-                            <TableCell className="text-center font-semibold">
-                              {standing.position ?? "—"}
-                            </TableCell>
-                            <TableCell className="font-medium">
-                              {teamLabelShort(standing.team)}
-                            </TableCell>
-                            <TableCell className="text-center">
-                              {standing.matches_played}
-                            </TableCell>
-                            <TableCell className="text-center text-green-600 font-semibold">
-                              {standing.wins}
-                            </TableCell>
-                            <TableCell className="text-center text-red-600 font-semibold">
-                              {standing.losses}
-                            </TableCell>
-                            <TableCell className="text-center text-xs">
-                              {(() => {
-                                const diff = standing.sets_won - standing.sets_lost;
-                                return diff > 0 ? `+${diff}` : diff.toString();
-                              })()}
-                            </TableCell>
-                            <TableCell className="text-center text-xs">
-                              {(() => {
-                                const diff = standing.games_won - standing.games_lost;
-                                return diff > 0 ? `+${diff}` : diff.toString();
-                              })()}
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
+                      {(() => {
+                        // Si hay standings, mostrarlos
+                        if (groupStandings.length > 0) {
+                          return groupStandings.map((standing) => (
+                            <TableRow key={standing.id}>
+                              <TableCell className="text-center font-semibold">
+                                {standing.position ?? "—"}
+                              </TableCell>
+                              <TableCell className="font-medium">
+                                {teamLabelShort(standing.team)}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                {standing.matches_played}
+                              </TableCell>
+                              <TableCell className="text-center text-green-600 font-semibold">
+                                {standing.wins}
+                              </TableCell>
+                              <TableCell className="text-center text-red-600 font-semibold">
+                                {standing.losses}
+                              </TableCell>
+                              <TableCell className="text-center text-xs">
+                                {(() => {
+                                  const diff = standing.sets_won - standing.sets_lost;
+                                  return diff > 0 ? `+${diff}` : diff.toString();
+                                })()}
+                              </TableCell>
+                              <TableCell className="text-center text-xs">
+                                {(() => {
+                                  const diff = standing.games_won - standing.games_lost;
+                                  return diff > 0 ? `+${diff}` : diff.toString();
+                                })()}
+                              </TableCell>
+                            </TableRow>
+                          ));
+                        } else {
+                          // Si no hay standings, mostrar equipos ordenados por seed
+                          const groupTeams = (data.groupTeams || []).filter(
+                            (gt) => gt.tournament_group_id === group.id
+                          );
+                          
+                          if (groupTeams.length === 0) {
+                            return (
+                              <TableRow>
+                                <TableCell colSpan={7} className="text-center text-muted-foreground py-4">
+                                  No hay equipos en este grupo
+                                </TableCell>
+                              </TableRow>
+                            );
+                          }
+                          
+                          return groupTeams
+                            .sort((a, b) => {
+                              const seedA = a.team?.seed_number ?? 999;
+                              const seedB = b.team?.seed_number ?? 999;
+                              return seedA - seedB;
+                            })
+                            .map((gt, index) => (
+                              <TableRow key={gt.id}>
+                                <TableCell className="text-center font-semibold">
+                                  {index + 1}
+                                </TableCell>
+                                <TableCell className="font-medium">
+                                  {gt.team ? teamLabelShort(gt.team) : "—"}
+                                </TableCell>
+                                <TableCell className="text-center">-</TableCell>
+                                <TableCell className="text-center">-</TableCell>
+                                <TableCell className="text-center">-</TableCell>
+                                <TableCell className="text-center">-</TableCell>
+                                <TableCell className="text-center">-</TableCell>
+                              </TableRow>
+                            ));
+                        }
+                      })()}
                     </TableBody>
                   </Table>
                 </div>
