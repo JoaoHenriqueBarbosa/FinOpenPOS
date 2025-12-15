@@ -289,7 +289,7 @@ export async function POST(req: Request, { params }: RouteParams) {
     );
   }
 
-  // Si es un match de fase de grupos, recalcular standings
+  // Si es un match de fase de grupos, recalcular standings y actualizar partidos de segunda ronda (si es zona de 4)
   if (match.phase === "group" && match.tournament_group_id) {
     // Obtener todos los matches del grupo
     const { data: groupMatches, error: groupMatchesError } = await supabase
@@ -300,9 +300,70 @@ export async function POST(req: Request, { params }: RouteParams) {
       .eq("tournament_id", match.tournament_id)
       .eq("phase", "group")
       .eq("tournament_group_id", match.tournament_group_id)
-      .eq("user_uid", user.id);
+      .eq("user_uid", user.id)
+      .order("id", { ascending: true });
 
     if (!groupMatchesError && groupMatches) {
+      // Verificar si es una zona de 4 equipos (tiene 4 partidos)
+      if (groupMatches.length === 4) {
+        // Identificar partidos de primera ronda (tienen equipos asignados) y segunda ronda (tienen null)
+        const firstRoundMatches = groupMatches.filter(m => m.team1_id && m.team2_id && m.id !== matchId);
+        const secondRoundMatches = groupMatches.filter(m => !m.team1_id || !m.team2_id);
+        
+        // Si acabamos de terminar un partido de primera ronda, actualizar los de segunda ronda
+        const justFinishedMatch = groupMatches.find(m => m.id === matchId);
+        if (justFinishedMatch && justFinishedMatch.team1_id && justFinishedMatch.team2_id && justFinishedMatch.status === "finished") {
+          // Este es un partido de primera ronda que acaba de terminar
+          // Obtener el otro partido de primera ronda
+          const otherFirstRoundMatch = firstRoundMatches.find(m => m.id !== matchId);
+          
+          if (otherFirstRoundMatch && otherFirstRoundMatch.status === "finished") {
+            // Ambos partidos de primera ronda están terminados, actualizar los de segunda ronda
+            const winner1 = (justFinishedMatch.team1_sets ?? 0) > (justFinishedMatch.team2_sets ?? 0) 
+              ? justFinishedMatch.team1_id 
+              : justFinishedMatch.team2_id;
+            const loser1 = (justFinishedMatch.team1_sets ?? 0) > (justFinishedMatch.team2_sets ?? 0) 
+              ? justFinishedMatch.team2_id 
+              : justFinishedMatch.team1_id;
+            
+            const winner2 = (otherFirstRoundMatch.team1_sets ?? 0) > (otherFirstRoundMatch.team2_sets ?? 0) 
+              ? otherFirstRoundMatch.team1_id 
+              : otherFirstRoundMatch.team2_id;
+            const loser2 = (otherFirstRoundMatch.team1_sets ?? 0) > (otherFirstRoundMatch.team2_sets ?? 0) 
+              ? otherFirstRoundMatch.team2_id 
+              : otherFirstRoundMatch.team1_id;
+            
+            // Partido 3: Ganador 1vs4 vs Ganador 2vs3 (ronda de ganadores)
+            // Partido 4: Perdedor 1vs4 vs Perdedor 2vs3 (ronda de perdedores)
+            const winnersMatch = secondRoundMatches[0]; // Primer partido de segunda ronda
+            const losersMatch = secondRoundMatches[1]; // Segundo partido de segunda ronda
+            
+            if (winnersMatch) {
+              await supabase
+                .from("tournament_matches")
+                .update({
+                  team1_id: winner1,
+                  team2_id: winner2,
+                  status: "scheduled", // Asegurar que esté en scheduled si estaba en otro estado
+                })
+                .eq("id", winnersMatch.id)
+                .eq("user_uid", user.id);
+            }
+            
+            if (losersMatch) {
+              await supabase
+                .from("tournament_matches")
+                .update({
+                  team1_id: loser1,
+                  team2_id: loser2,
+                  status: "scheduled", // Asegurar que esté en scheduled si estaba en otro estado
+                })
+                .eq("id", losersMatch.id)
+                .eq("user_uid", user.id);
+            }
+          }
+        }
+      }
       // Calcular standings
       type Stand = {
         team_id: number;
@@ -313,6 +374,7 @@ export async function POST(req: Request, { params }: RouteParams) {
         sets_lost: number;
         games_won: number;
         games_lost: number;
+        position?: number; // Para zonas de 4, posición final
       };
 
       const standingsMap = new Map<number, Stand>();
@@ -327,6 +389,41 @@ export async function POST(req: Request, { params }: RouteParams) {
         games_won: 0,
         games_lost: 0,
       });
+
+      // Verificar si es zona de 4 y todos los partidos están terminados
+      const isGroupOf4 = groupMatches.length === 4;
+      const allMatchesFinished = groupMatches.every(m => m.status === "finished" && m.team1_id && m.team2_id);
+      
+      if (isGroupOf4 && allMatchesFinished) {
+        // Lógica especial para zona de 4: posiciones basadas en segunda ronda
+        const sortedMatches = [...groupMatches].sort((a, b) => a.id - b.id);
+        const secondRoundMatches = sortedMatches.slice(2, 4);
+        const winnersMatch = secondRoundMatches[0]; // Partido de ganadores
+        const losersMatch = secondRoundMatches[1]; // Partido de perdedores
+        
+        if (winnersMatch && losersMatch && winnersMatch.team1_id && winnersMatch.team2_id && 
+            losersMatch.team1_id && losersMatch.team2_id) {
+          // Determinar posiciones finales
+          const winnerOfWinners = (winnersMatch.team1_sets ?? 0) > (winnersMatch.team2_sets ?? 0) 
+            ? winnersMatch.team1_id 
+            : winnersMatch.team2_id;
+          const loserOfWinners = (winnersMatch.team1_sets ?? 0) > (winnersMatch.team2_sets ?? 0) 
+            ? winnersMatch.team2_id 
+            : winnersMatch.team1_id;
+          const winnerOfLosers = (losersMatch.team1_sets ?? 0) > (losersMatch.team2_sets ?? 0) 
+            ? losersMatch.team1_id 
+            : losersMatch.team2_id;
+          const loserOfLosers = (losersMatch.team1_sets ?? 0) > (losersMatch.team2_sets ?? 0) 
+            ? losersMatch.team2_id 
+            : losersMatch.team1_id;
+          
+          // Inicializar standings con posiciones
+          standingsMap.set(winnerOfWinners, { ...initStand(winnerOfWinners), position: 1 });
+          standingsMap.set(loserOfWinners, { ...initStand(loserOfWinners), position: 2 });
+          standingsMap.set(winnerOfLosers, { ...initStand(winnerOfLosers), position: 3 });
+          standingsMap.set(loserOfLosers, { ...initStand(loserOfLosers), position: 4 });
+        }
+      }
 
       // Calcular estadísticas de todos los matches del grupo
       for (const m of groupMatches) {
@@ -384,8 +481,13 @@ export async function POST(req: Request, { params }: RouteParams) {
           }
         }
 
-        // Ordenar standings por: wins, diff sets, diff games
+        // Ordenar standings
+        // Si es zona de 4 y todos terminados, ordenar por posición
+        // Si no, ordenar por: wins, diff sets, diff games
         const sortedStats = Array.from(standingsMap.values()).sort((a, b) => {
+          if (isGroupOf4 && allMatchesFinished && a.position !== undefined && b.position !== undefined) {
+            return a.position - b.position;
+          }
           if (b.wins !== a.wins) return b.wins - a.wins;
           const aSetDiff = a.sets_won - a.sets_lost;
           const bSetDiff = b.sets_won - b.sets_lost;

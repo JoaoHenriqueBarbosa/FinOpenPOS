@@ -198,11 +198,12 @@ export async function POST(req: Request, { params }: RouteParams) {
     user_uid: string;
     phase: "group";
     tournament_group_id: number;
-    team1_id: number;
-    team2_id: number;
+    team1_id: number | null;
+    team2_id: number | null;
     match_date: string | null;
     start_time: string | null;
     end_time: string | null;
+    match_order?: number; // Para ordenar: 1-2 primera ronda, 3-4 segunda ronda
   }[] = [];
 
   createdGroups.forEach((g, idx) => {
@@ -219,18 +220,82 @@ export async function POST(req: Request, { params }: RouteParams) {
       });
     });
 
-    // round robin para este grupo
-    for (let i = 0; i < idsForGroup.length; i++) {
-      for (let j = i + 1; j < idsForGroup.length; j++) {
-        matchesPayload.push({
-          tournament_id: tournamentId,
-          user_uid: user.id,
-          phase: "group",
-          tournament_group_id: g.id,
-          team1_id: idsForGroup[i],
-          team2_id: idsForGroup[j],
-        });
+    // Generar partidos según el tamaño del grupo
+    if (size === 3) {
+      // Round robin para grupos de 3 equipos (todos contra todos = 3 partidos)
+      for (let i = 0; i < idsForGroup.length; i++) {
+        for (let j = i + 1; j < idsForGroup.length; j++) {
+          matchesPayload.push({
+            tournament_id: tournamentId,
+            user_uid: user.id,
+            phase: "group",
+            tournament_group_id: g.id,
+            team1_id: idsForGroup[i],
+            team2_id: idsForGroup[j],
+            match_date: null,
+            start_time: null,
+            end_time: null,
+          });
+        }
       }
+    } else if (size === 4) {
+      // Formato especial para grupos de 4 equipos (4 partidos)
+      // Primera ronda (match_order 1-2):
+      // - Partido 1: 1 vs 4
+      // - Partido 2: 2 vs 3
+      matchesPayload.push({
+        tournament_id: tournamentId,
+        user_uid: user.id,
+        phase: "group",
+        tournament_group_id: g.id,
+        team1_id: idsForGroup[0], // 1
+        team2_id: idsForGroup[3], // 4
+        match_date: null,
+        start_time: null,
+        end_time: null,
+        match_order: 1,
+      });
+      matchesPayload.push({
+        tournament_id: tournamentId,
+        user_uid: user.id,
+        phase: "group",
+        tournament_group_id: g.id,
+        team1_id: idsForGroup[1], // 2
+        team2_id: idsForGroup[2], // 3
+        match_date: null,
+        start_time: null,
+        end_time: null,
+        match_order: 2,
+      });
+      
+      // Segunda ronda (match_order 3-4):
+      // - Partido 3: Ganador 1vs4 vs Ganador 2vs3 (ronda de ganadores) -> 1ro y 2do
+      // - Partido 4: Perdedor 1vs4 vs Perdedor 2vs3 (ronda de perdedores) -> 3ro
+      // Estos partidos se crearán sin equipos asignados (null) y se actualizarán cuando se jueguen los de primera ronda
+      matchesPayload.push({
+        tournament_id: tournamentId,
+        user_uid: user.id,
+        phase: "group",
+        tournament_group_id: g.id,
+        team1_id: null, // Se asignará cuando se juegue el partido 1
+        team2_id: null, // Se asignará cuando se juegue el partido 2
+        match_date: null,
+        start_time: null,
+        end_time: null,
+        match_order: 3,
+      });
+      matchesPayload.push({
+        tournament_id: tournamentId,
+        user_uid: user.id,
+        phase: "group",
+        tournament_group_id: g.id,
+        team1_id: null, // Se asignará cuando se juegue el partido 1
+        team2_id: null, // Se asignará cuando se juegue el partido 2
+        match_date: null,
+        start_time: null,
+        end_time: null,
+        match_order: 4,
+      });
     }
   });
 
@@ -315,10 +380,12 @@ export async function POST(req: Request, { params }: RouteParams) {
     const matchesByTeam = new Map<number, typeof matchesPayload>();
     matchesPayload.forEach((match) => {
       [match.team1_id, match.team2_id].forEach((teamId) => {
-        if (!matchesByTeam.has(teamId)) {
-          matchesByTeam.set(teamId, []);
+        if (teamId !== null) {
+          if (!matchesByTeam.has(teamId)) {
+            matchesByTeam.set(teamId, []);
+          }
+          matchesByTeam.get(teamId)!.push(match);
         }
-        matchesByTeam.get(teamId)!.push(match);
       });
     });
 
@@ -339,7 +406,7 @@ export async function POST(req: Request, { params }: RouteParams) {
       const minTimeBetweenMatches = matchDurationMinutes * 2; // 2 partidos de duración
 
       // Verificar conflictos con otros partidos del mismo team
-      for (const [assignedMatch, assignedSlot] of assignedMatches.entries()) {
+      for (const [assignedMatch, assignedSlot] of Array.from(assignedMatches.entries())) {
         // Si el match asignado involucra al mismo team
         const sharedTeam = 
           assignedMatch.team1_id === match.team1_id ||
@@ -381,7 +448,7 @@ export async function POST(req: Request, { params }: RouteParams) {
 
 
     // Función para intentar asignar todos los matches y retornar el resultado
-    const tryAssignMatches = (matchesOrder: typeof matchesPayload[]): {
+    const tryAssignMatches = (matchesOrder: (typeof matchesPayload[0])[]): {
       success: boolean;
       assignments: Map<number, { date: string; startTime: string; endTime: string; slotIndex: number }>; // key: índice en matchesPayload
       score: number;
@@ -406,7 +473,7 @@ export async function POST(req: Request, { params }: RouteParams) {
 
           // Verificar si es válido
           let isValid = true;
-          for (const [assignedMatchIdx, assignedSlot] of testAssignedMatches.entries()) {
+          for (const [assignedMatchIdx, assignedSlot] of Array.from(testAssignedMatches.entries())) {
             const assignedMatch = matchesPayload[assignedMatchIdx];
             if (!assignedMatch) continue;
             
@@ -458,19 +525,21 @@ export async function POST(req: Request, { params }: RouteParams) {
       const teamMatches = new Map<number, Array<{ date: string; startTime: string }>>();
 
       // Agrupar partidos por equipo
-      for (const [matchIdx, slot] of assignments.entries()) {
+      for (const [matchIdx, slot] of Array.from(assignments.entries())) {
         const match = matchesPayload[matchIdx];
         if (!match) continue;
         [match.team1_id, match.team2_id].forEach((teamId) => {
-          if (!teamMatches.has(teamId)) {
-            teamMatches.set(teamId, []);
+          if (teamId !== null) {
+            if (!teamMatches.has(teamId)) {
+              teamMatches.set(teamId, []);
+            }
+            teamMatches.get(teamId)!.push({ date: slot.date, startTime: slot.startTime });
           }
-          teamMatches.get(teamId)!.push({ date: slot.date, startTime: slot.startTime });
         });
       }
 
       // Calcular espacios entre partidos del mismo equipo
-      for (const [teamId, matches] of teamMatches.entries()) {
+      for (const [teamId, matches] of Array.from(teamMatches.entries())) {
         if (matches.length < 2) continue;
 
         // Ordenar por fecha y hora
@@ -492,11 +561,20 @@ export async function POST(req: Request, { params }: RouteParams) {
     };
 
     // Generar diferentes órdenes de asignación para probar
+    // Priorizar partidos de primera ronda (match_order 1-2) antes que segunda ronda (match_order 3-4)
     const baseOrder = [...matchesPayload].sort((a, b) => {
-      const aTeam1Matches = matchesByTeam.get(a.team1_id)?.length || 0;
-      const aTeam2Matches = matchesByTeam.get(a.team2_id)?.length || 0;
-      const bTeam1Matches = matchesByTeam.get(b.team1_id)?.length || 0;
-      const bTeam2Matches = matchesByTeam.get(b.team2_id)?.length || 0;
+      // Primero ordenar por match_order (si existe) - primera ronda antes que segunda ronda
+      if (a.match_order !== undefined && b.match_order !== undefined) {
+        return a.match_order - b.match_order;
+      }
+      // Si uno tiene match_order y el otro no, el que tiene match_order va primero
+      if (a.match_order !== undefined) return -1;
+      if (b.match_order !== undefined) return 1;
+      // Si ninguno tiene match_order, usar la lógica original
+      const aTeam1Matches = matchesByTeam.get(a.team1_id ?? 0)?.length || 0;
+      const aTeam2Matches = matchesByTeam.get(a.team2_id ?? 0)?.length || 0;
+      const bTeam1Matches = matchesByTeam.get(b.team1_id ?? 0)?.length || 0;
+      const bTeam2Matches = matchesByTeam.get(b.team2_id ?? 0)?.length || 0;
       const aMax = Math.max(aTeam1Matches, aTeam2Matches);
       const bMax = Math.max(bTeam1Matches, bTeam2Matches);
       return bMax - aMax;
@@ -528,7 +606,7 @@ export async function POST(req: Request, { params }: RouteParams) {
 
     // Aplicar la mejor asignación encontrada
     if (bestResult && bestResult.success) {
-      for (const [matchIdx, slot] of bestResult.assignments.entries()) {
+      for (const [matchIdx, slot] of Array.from(bestResult.assignments.entries())) {
         const match = matchesPayload[matchIdx];
         if (match) {
           match.match_date = slot.date;

@@ -41,6 +41,7 @@ type GroupTeam = {
   team: {
     id: number;
     display_name: string | null;
+    seed_number: number | null;
     player1: { first_name: string; last_name: string } | null;
     player2: { first_name: string; last_name: string } | null;
   } | null;
@@ -63,10 +64,25 @@ type Match = {
   team2: GroupTeam["team"];
 };
 
+type Standing = {
+  id: number;
+  tournament_group_id: number;
+  team_id: number;
+  position: number;
+  matches_played: number;
+  wins: number;
+  losses: number;
+  sets_won: number;
+  sets_lost: number;
+  games_won: number;
+  games_lost: number;
+};
+
 type ApiResponse = {
   groups: Group[];
   groupTeams: GroupTeam[];
   matches: Match[];
+  standings?: Standing[];
 };
 
 function teamLabel(team: GroupTeam["team"]) {
@@ -349,138 +365,248 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
             groupMap.set(g.id, { name: g.name, index });
           });
 
-          // Obtener todos los matches y ordenarlos por fecha y hora
-          const allMatches = [...data.matches].sort((a, b) => {
-            // Primero por fecha
-            if (a.match_date && b.match_date) {
-              const dateCompare = a.match_date.localeCompare(b.match_date);
-              if (dateCompare !== 0) return dateCompare;
-            } else if (a.match_date) return -1;
-            else if (b.match_date) return 1;
-
-            // Luego por hora
-            if (a.start_time && b.start_time) {
-              return a.start_time.localeCompare(b.start_time);
-            } else if (a.start_time) return -1;
-            else if (b.start_time) return 1;
-
-            return 0;
+          // Agrupar matches por grupo
+          const matchesByGroup = new Map<number, Match[]>();
+          data.matches.forEach((m) => {
+            if (m.tournament_group_id) {
+              if (!matchesByGroup.has(m.tournament_group_id)) {
+                matchesByGroup.set(m.tournament_group_id, []);
+              }
+              matchesByGroup.get(m.tournament_group_id)!.push(m);
+            }
           });
 
-          return allMatches.map((m) => {
-            const team1Name = teamLabel(m.team1);
-            const team2Name = teamLabel(m.team2);
-            const groupInfo = m.tournament_group_id
-              ? groupMap.get(m.tournament_group_id)
-              : null;
-            const groupName = groupInfo?.name || "Sin grupo";
+          // Crear mapa de standings por grupo
+          const standingsByGroup = new Map<number, Standing[]>();
+          if (data.standings) {
+            data.standings.forEach((s) => {
+              if (!standingsByGroup.has(s.tournament_group_id)) {
+                standingsByGroup.set(s.tournament_group_id, []);
+              }
+              standingsByGroup.get(s.tournament_group_id)!.push(s);
+            });
+          }
+
+          return (
+            <>
+              {sortedGroups.map((group) => {
+            const groupInfo = groupMap.get(group.id);
             const groupColor = groupInfo
               ? getGroupColor(groupInfo.index)
               : { bg: "bg-gray-100", text: "text-gray-700", border: "border-gray-200", badgeBg: "bg-gray-200", badgeText: "text-gray-800" };
+            
+            const groupMatches = matchesByGroup.get(group.id) || [];
+            const groupStandings = standingsByGroup.get(group.id) || [];
+            const groupTeams = data.groupTeams.filter(gt => gt.tournament_group_id === group.id);
+
+            // Ordenar matches por fecha y hora
+            const sortedMatches = [...groupMatches].sort((a, b) => {
+              if (a.match_date && b.match_date) {
+                const dateCompare = a.match_date.localeCompare(b.match_date);
+                if (dateCompare !== 0) return dateCompare;
+              } else if (a.match_date) return -1;
+              else if (b.match_date) return 1;
+
+              if (a.start_time && b.start_time) {
+                return a.start_time.localeCompare(b.start_time);
+              } else if (a.start_time) return -1;
+              else if (b.start_time) return 1;
+
+              return 0;
+            });
 
             return (
-              <div
-                key={m.id}
-                className={`border rounded-lg shadow-sm overflow-hidden ${groupColor.border}`}
-              >
-                {/* Header con grupo, fecha, hora y estado */}
-                <div className={`${groupColor.bg} border-b px-4 py-2`}>
-                  {editingMatchId === m.id ? (
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="date"
-                        value={editDate}
-                        onChange={(e) => setEditDate(e.target.value)}
-                        className="h-7 text-xs"
-                      />
-                      <Input
-                        type="time"
-                        value={editTime}
-                        onChange={(e) => setEditTime(e.target.value)}
-                        className="h-7 text-xs"
-                        step="60"
-                      />
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 px-2"
-                        onClick={() => handleSaveSchedule(m.id)}
-                      >
-                        <CheckIcon className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 px-2"
-                        onClick={handleCancelEdit}
-                      >
-                        <XIcon className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-4 text-xs">
-                      {/* Indicador de grupo con color */}
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${groupColor.badgeBg} ${groupColor.badgeText}`}>
-                        {groupName}
-                      </span>
-                      {m.match_date && (
-                        <span className="font-medium text-muted-foreground">
-                          📅 {formatDate(m.match_date)}
-                        </span>
-                      )}
-                      {m.start_time && (
-                        <span className="text-muted-foreground">
-                          🕐 {formatTime(m.start_time)}
-                        </span>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-6 px-2 ml-auto"
-                        onClick={() => handleStartEdit(m)}
-                      >
-                        <PencilIcon className="h-3 w-3" />
-                      </Button>
-                      <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-medium ${
-                          m.status === "finished"
-                            ? "bg-green-100 text-green-700"
-                            : m.status === "in_progress"
-                            ? "bg-blue-100 text-blue-700"
-                            : m.status === "cancelled"
-                            ? "bg-red-100 text-red-700"
-                            : "bg-gray-100 text-gray-700"
-                        }`}
-                      >
-                        {m.status === "finished"
-                          ? "Finalizado"
-                          : m.status === "in_progress"
-                          ? "En curso"
-                          : m.status === "cancelled"
-                          ? "Cancelado"
-                          : "Programado"}
-                      </span>
-                    </div>
-                  )}
+              <div key={group.id} className="space-y-3">
+                {/* Tabla de posiciones */}
+                <div className={`border rounded-lg ${groupColor.border}`}>
+                  <div className={`${groupColor.bg} border-b px-4 py-2`}>
+                    <h3 className="font-semibold text-sm">{group.name} - Tabla de posiciones</h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Pos</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Equipo</th>
+                          <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">PJ</th>
+                          <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">G</th>
+                          <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">P</th>
+                          <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">Sets +/-</th>
+                          <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">Games +/-</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {(() => {
+                          // Si hay standings, usarlos ordenados por posición
+                          if (groupStandings.length > 0) {
+                            return groupStandings
+                              .sort((a, b) => a.position - b.position)
+                              .map((standing) => {
+                                const team = groupTeams.find(gt => gt.team?.id === standing.team_id)?.team;
+                                return (
+                                  <tr key={standing.id} className="hover:bg-gray-50">
+                                    <td className="px-3 py-2 font-medium">{standing.position}</td>
+                                    <td className="px-3 py-2">{team ? teamLabel(team) : "Equipo"}</td>
+                                    <td className="px-3 py-2 text-center">{standing.matches_played}</td>
+                                    <td className="px-3 py-2 text-center">{standing.wins}</td>
+                                    <td className="px-3 py-2 text-center">{standing.losses}</td>
+                                    <td className="px-3 py-2 text-center">
+                                      {standing.sets_won - standing.sets_lost > 0 ? "+" : ""}
+                                      {standing.sets_won - standing.sets_lost}
+                                    </td>
+                                    <td className="px-3 py-2 text-center">
+                                      {standing.games_won - standing.games_lost > 0 ? "+" : ""}
+                                      {standing.games_won - standing.games_lost}
+                                    </td>
+                                  </tr>
+                                );
+                              });
+                          } else {
+                            // Si no hay standings, mostrar equipos ordenados por seed
+                            return groupTeams
+                              .sort((a, b) => {
+                                const seedA = a.team?.seed_number ?? 999;
+                                const seedB = b.team?.seed_number ?? 999;
+                                return seedA - seedB;
+                              })
+                              .map((gt, index) => (
+                                <tr key={gt.id} className="hover:bg-gray-50">
+                                  <td className="px-3 py-2 font-medium">{index + 1}</td>
+                                  <td className="px-3 py-2">{gt.team ? teamLabel(gt.team) : "Equipo"}</td>
+                                  <td className="px-3 py-2 text-center">-</td>
+                                  <td className="px-3 py-2 text-center">-</td>
+                                  <td className="px-3 py-2 text-center">-</td>
+                                  <td className="px-3 py-2 text-center">-</td>
+                                  <td className="px-3 py-2 text-center">-</td>
+                                </tr>
+                              ));
+                          }
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
 
-                {/* Nombres de equipos con inputs de resultados */}
-                <MatchResultForm
-                  match={m}
-                  team1Name={team1Name}
-                  team2Name={team2Name}
-                  hasSuperTiebreak={tournament.has_super_tiebreak}
-                  onSaved={load}
-                  groupColor={{
-                    bg: groupColor.bg,
-                    text: groupColor.text,
-                  }}
-                  disabled={hasPlayoffs}
-                  disabledMessage="No se pueden modificar los resultados de zona una vez generados los playoffs"
-                />
+                {/* Partidos del grupo */}
+                {sortedMatches.map((m) => {
+                  const team1Name = teamLabel(m.team1);
+                  const team2Name = teamLabel(m.team2);
+                  const groupInfo = m.tournament_group_id
+                    ? groupMap.get(m.tournament_group_id)
+                    : null;
+                  const groupName = groupInfo?.name || "Sin grupo";
+                  const groupColor = groupInfo
+                    ? getGroupColor(groupInfo.index)
+                    : { bg: "bg-gray-100", text: "text-gray-700", border: "border-gray-200", badgeBg: "bg-gray-200", badgeText: "text-gray-800" };
+
+                  return (
+                    <div
+                      key={m.id}
+                      className={`border rounded-lg shadow-sm overflow-hidden ${groupColor.border}`}
+                    >
+                      {/* Header con grupo, fecha, hora y estado */}
+                      <div className={`${groupColor.bg} border-b px-4 py-2`}>
+                        {editingMatchId === m.id ? (
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="date"
+                              value={editDate}
+                              onChange={(e) => setEditDate(e.target.value)}
+                              className="h-7 text-xs"
+                            />
+                            <Input
+                              type="time"
+                              value={editTime}
+                              onChange={(e) => setEditTime(e.target.value)}
+                              className="h-7 text-xs"
+                              step="60"
+                            />
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2"
+                              onClick={() => handleSaveSchedule(m.id)}
+                            >
+                              <CheckIcon className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2"
+                              onClick={handleCancelEdit}
+                            >
+                              <XIcon className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-4 text-xs">
+                            {/* Indicador de grupo con color */}
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${groupColor.badgeBg} ${groupColor.badgeText}`}>
+                              {groupName}
+                            </span>
+                            {m.match_date && (
+                              <span className="font-medium text-muted-foreground">
+                                📅 {formatDate(m.match_date)}
+                              </span>
+                            )}
+                            {m.start_time && (
+                              <span className="text-muted-foreground">
+                                🕐 {formatTime(m.start_time)}
+                              </span>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 px-2 ml-auto"
+                              onClick={() => handleStartEdit(m)}
+                            >
+                              <PencilIcon className="h-3 w-3" />
+                            </Button>
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                                m.status === "finished"
+                                  ? "bg-green-100 text-green-700"
+                                  : m.status === "in_progress"
+                                  ? "bg-blue-100 text-blue-700"
+                                  : m.status === "cancelled"
+                                  ? "bg-red-100 text-red-700"
+                                  : "bg-gray-100 text-gray-700"
+                              }`}
+                            >
+                              {m.status === "finished"
+                                ? "Finalizado"
+                                : m.status === "in_progress"
+                                ? "En curso"
+                                : m.status === "cancelled"
+                                ? "Cancelado"
+                                : "Programado"}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Nombres de equipos con inputs de resultados */}
+                      <MatchResultForm
+                        match={m}
+                        team1Name={team1Name}
+                        team2Name={team2Name}
+                        hasSuperTiebreak={tournament.has_super_tiebreak}
+                        onSaved={load}
+                        groupColor={{
+                          bg: groupColor.bg,
+                          text: groupColor.text,
+                        }}
+                        disabled={hasPlayoffs}
+                        disabledMessage="No se pueden modificar los resultados de zona una vez generados los playoffs"
+                      />
+                    </div>
+                  );
+                })}
               </div>
             );
-          });
+          })}
+            </>
+          );
         })()}
       </CardContent>
 

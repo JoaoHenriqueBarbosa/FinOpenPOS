@@ -166,15 +166,46 @@ export default function TeamsTab({ tournament }: { tournament: Tournament }) {
     }
   };
 
-  // Calcular cantidad aproximada de partidos (round robin)
+  // Calcular cantidad exacta de partidos según el formato
   const calculateMatchCount = () => {
-    if (teams.length < 2) return 0;
-    // Estimación: cada grupo de 3-4 equipos tiene ~3-6 partidos
-    // Asumimos grupos de 3-4 equipos
-    const avgGroupSize = 3.5;
-    const numGroups = Math.ceil(teams.length / avgGroupSize);
-    const matchesPerGroup = 3; // promedio
-    return numGroups * matchesPerGroup;
+    if (teams.length < 3) return 0;
+    
+    const N = teams.length;
+    
+    // Calcular tamaños de grupos (misma lógica que en close-registration)
+    let baseGroups = Math.floor(N / 3);
+    const remainder = N % 3;
+    
+    if (baseGroups === 0) {
+      baseGroups = 1;
+    }
+    
+    const groupSizes: number[] = new Array(baseGroups).fill(3);
+    
+    if (remainder === 1 && baseGroups >= 1) {
+      groupSizes[0] = 4;
+    } else if (remainder === 2) {
+      if (baseGroups >= 2) {
+        groupSizes[0] = 4;
+        groupSizes[1] = 4;
+      } else if (baseGroups === 1) {
+        groupSizes[0] = 4;
+      }
+    }
+    
+    // Calcular partidos por grupo
+    // Zonas de 3: 3 partidos (round-robin)
+    // Zonas de 4: 4 partidos (nuevo formato)
+    let totalMatches = 0;
+    for (const size of groupSizes) {
+      if (size === 3) {
+        totalMatches += 3; // Round-robin: todos contra todos
+      } else if (size === 4) {
+        totalMatches += 4; // Nuevo formato: 1vs4, 2vs3, ganadores, perdedores
+      }
+    }
+    
+    return totalMatches;
   };
 
   const matchCount = calculateMatchCount();
