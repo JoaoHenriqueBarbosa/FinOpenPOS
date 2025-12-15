@@ -448,6 +448,8 @@ export async function POST(req: Request, { params }: RouteParams) {
 
 
     // Función para intentar asignar todos los matches y retornar el resultado
+    // Estrategia: intercalar partidos de diferentes grupos en la misma cancha
+    // Esto permite que diferentes equipos jueguen consecutivamente sin conflictos
     const tryAssignMatches = (matchesOrder: (typeof matchesPayload[0])[]): {
       success: boolean;
       assignments: Map<number, { date: string; startTime: string; endTime: string; slotIndex: number }>; // key: índice en matchesPayload
@@ -455,15 +457,52 @@ export async function POST(req: Request, { params }: RouteParams) {
     } => {
       const testAssignedMatches = new Map<number, { date: string; startTime: string; endTime: string; slotIndex: number }>();
       const testUsedSlots = new Set<number>();
-      const matchIndices = matchesOrder.map(m => matchesPayload.indexOf(m)).filter(idx => idx !== -1);
+      
+      // Agrupar partidos por grupo para poder intercalarlos
+      const matchesByGroup = new Map<number | null, typeof matchesPayload>();
+      matchesOrder.forEach((match) => {
+        const groupId = match.tournament_group_id ?? null;
+        if (!matchesByGroup.has(groupId)) {
+          matchesByGroup.set(groupId, []);
+        }
+        matchesByGroup.get(groupId)!.push(match);
+      });
 
-      for (let orderIdx = 0; orderIdx < matchesOrder.length; orderIdx++) {
-        const match = matchesOrder[orderIdx];
+      // Crear un orden intercalado: tomar un partido de cada grupo en rotación
+      // Esto asegura que partidos de diferentes zonas se asignen consecutivamente
+      const interleavedOrder: (typeof matchesPayload[0])[] = [];
+      const groupQueues = Array.from(matchesByGroup.entries()).map(([groupId, matches]) => ({
+        groupId,
+        matches: [...matches],
+        index: 0,
+      }));
+
+      // Intercalar hasta que todos los partidos estén en el orden
+      while (interleavedOrder.length < matchesOrder.length) {
+        let addedAny = false;
+        for (const queue of groupQueues) {
+          if (queue.index < queue.matches.length) {
+            interleavedOrder.push(queue.matches[queue.index]);
+            queue.index++;
+            addedAny = true;
+          }
+        }
+        if (!addedAny) break;
+      }
+
+      // Rastrear el último grupo asignado por cancha para intercalar mejor
+      const lastGroupByCourt = new Map<number, number | null>(); // courtIndex -> last groupId
+
+      // Ahora asignar los partidos en orden intercalado
+      for (const match of interleavedOrder) {
         const originalIdx = matchesPayload.indexOf(match);
         if (originalIdx === -1) continue;
         let assigned = false;
+        const matchGroupId = match.tournament_group_id ?? null;
 
-        // Intentar encontrar un slot válido
+        // Intentar encontrar un slot válido, priorizando canchas donde el último partido fue de otro grupo
+        const slotCandidates: Array<{ slotIndex: number; priority: number }> = [];
+        
         for (let i = 0; i < timeSlots.length; i++) {
           if (testUsedSlots.has(i)) continue;
 
@@ -471,17 +510,22 @@ export async function POST(req: Request, { params }: RouteParams) {
           const slotStartMinutes = timeToMinutesOfDay(slot.startTime);
           const minTimeBetweenMatches = matchDurationMinutes * 2;
 
-          // Verificar si es válido
+          // Verificar si es válido: solo verificar conflictos con equipos del mismo match
           let isValid = true;
           for (const [assignedMatchIdx, assignedSlot] of Array.from(testAssignedMatches.entries())) {
             const assignedMatch = matchesPayload[assignedMatchIdx];
             if (!assignedMatch) continue;
             
+            // Solo verificar si hay equipos compartidos
             const sharedTeam =
-              assignedMatch.team1_id === match.team1_id ||
-              assignedMatch.team1_id === match.team2_id ||
-              assignedMatch.team2_id === match.team1_id ||
-              assignedMatch.team2_id === match.team2_id;
+              (match.team1_id !== null && (
+                assignedMatch.team1_id === match.team1_id ||
+                assignedMatch.team2_id === match.team1_id
+              )) ||
+              (match.team2_id !== null && (
+                assignedMatch.team1_id === match.team2_id ||
+                assignedMatch.team2_id === match.team2_id
+              ));
 
             if (sharedTeam && slot.date === assignedSlot.date) {
               const assignedStartMinutes = timeToMinutesOfDay(assignedSlot.startTime);
@@ -494,16 +538,42 @@ export async function POST(req: Request, { params }: RouteParams) {
           }
 
           if (isValid) {
-            testAssignedMatches.set(originalIdx, {
-              date: slot.date,
-              startTime: slot.startTime,
-              endTime: calculateEndTime(slot.startTime),
-              slotIndex: i,
-            });
-            testUsedSlots.add(i);
-            assigned = true;
-            break;
+            // Calcular prioridad: preferir canchas donde el último partido fue de otro grupo
+            const courtIndex = i % courts.length;
+            const lastGroup = lastGroupByCourt.get(courtIndex);
+            let priority = 0;
+            
+            // Si la cancha no tiene un último grupo o es de otro grupo, mayor prioridad
+            if (lastGroup === undefined || lastGroup !== matchGroupId) {
+              priority = 1;
+            }
+            
+            slotCandidates.push({ slotIndex: i, priority });
           }
+        }
+
+        // Ordenar candidatos por prioridad (mayor primero) y luego por índice
+        slotCandidates.sort((a, b) => {
+          if (b.priority !== a.priority) return b.priority - a.priority;
+          return a.slotIndex - b.slotIndex;
+        });
+
+        // Asignar el mejor slot disponible
+        for (const candidate of slotCandidates) {
+          const i = candidate.slotIndex;
+          const slot = timeSlots[i];
+          const courtIndex = i % courts.length;
+          
+          testAssignedMatches.set(originalIdx, {
+            date: slot.date,
+            startTime: slot.startTime,
+            endTime: calculateEndTime(slot.startTime),
+            slotIndex: i,
+          });
+          testUsedSlots.add(i);
+          lastGroupByCourt.set(courtIndex, matchGroupId);
+          assigned = true;
+          break;
         }
 
         // Si no se pudo asignar con restricciones, NO asignar (la restricción es innegociable)
