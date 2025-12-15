@@ -344,6 +344,9 @@ CREATE TABLE tournament_matches (
     start_time          TIME,
     end_time            TIME,
 
+    -- 🔹 Orden del partido dentro de un grupo (para grupos de 4: 1-2 primera ronda, 3-4 segunda ronda)
+    match_order         INTEGER,
+
     status              VARCHAR(20) NOT NULL DEFAULT 'scheduled'
                         CHECK (status IN ('scheduled', 'in_progress', 'finished', 'cancelled')),
 

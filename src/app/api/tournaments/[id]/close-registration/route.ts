@@ -560,17 +560,17 @@ export async function POST(req: Request, { params }: RouteParams) {
       return totalGap;
     };
 
-    // Generar diferentes órdenes de asignación para probar
-    // Priorizar partidos de primera ronda (match_order 1-2) antes que segunda ronda (match_order 3-4)
-    const baseOrder = [...matchesPayload].sort((a, b) => {
-      // Primero ordenar por match_order (si existe) - primera ronda antes que segunda ronda
-      if (a.match_order !== undefined && b.match_order !== undefined) {
-        return a.match_order - b.match_order;
-      }
-      // Si uno tiene match_order y el otro no, el que tiene match_order va primero
-      if (a.match_order !== undefined) return -1;
-      if (b.match_order !== undefined) return 1;
-      // Si ninguno tiene match_order, usar la lógica original
+    // Separar partidos con match_order (grupos de 4) de los que no lo tienen (grupos de 3)
+    const matchesWithOrder = matchesPayload.filter(m => m.match_order !== undefined);
+    const matchesWithoutOrder = matchesPayload.filter(m => m.match_order === undefined);
+
+    // Ordenar partidos con match_order: 1-2 (primera ronda) antes que 3-4 (segunda ronda)
+    const orderedMatchesWithOrder = [...matchesWithOrder].sort((a, b) => {
+      return (a.match_order ?? 0) - (b.match_order ?? 0);
+    });
+
+    // Ordenar partidos sin match_order (grupos de 3) por la lógica original
+    const orderedMatchesWithoutOrder = [...matchesWithoutOrder].sort((a, b) => {
       const aTeam1Matches = matchesByTeam.get(a.team1_id ?? 0)?.length || 0;
       const aTeam2Matches = matchesByTeam.get(a.team2_id ?? 0)?.length || 0;
       const bTeam1Matches = matchesByTeam.get(b.team1_id ?? 0)?.length || 0;
@@ -580,13 +580,26 @@ export async function POST(req: Request, { params }: RouteParams) {
       return bMax - aMax;
     });
 
-    // Probar diferentes órdenes (hasta 5 variaciones)
+    // Orden base: primero los de primera ronda (1-2), luego segunda ronda (3-4), luego grupos de 3
+    const baseOrder = [...orderedMatchesWithOrder, ...orderedMatchesWithoutOrder];
+
+    // Probar diferentes órdenes, pero manteniendo el orden de los partidos con match_order
+    // Solo variar el orden de los partidos sin match_order (grupos de 3)
     const ordersToTry = [
-      baseOrder,
-      [...baseOrder].reverse(),
-      [...baseOrder].sort(() => Math.random() - 0.5),
-      [...baseOrder].sort(() => Math.random() - 0.5),
-      [...baseOrder].sort(() => Math.random() - 0.5),
+      baseOrder, // Orden original
+      // Variaciones solo de los partidos sin match_order
+      [
+        ...orderedMatchesWithOrder,
+        ...orderedMatchesWithoutOrder.reverse(),
+      ],
+      [
+        ...orderedMatchesWithOrder,
+        ...[...orderedMatchesWithoutOrder].sort(() => Math.random() - 0.5),
+      ],
+      [
+        ...orderedMatchesWithOrder,
+        ...[...orderedMatchesWithoutOrder].sort(() => Math.random() - 0.5),
+      ],
     ];
 
     let bestResult: { success: boolean; assignments: Map<number, { date: string; startTime: string; endTime: string; slotIndex: number }>; score: number } | null = null;

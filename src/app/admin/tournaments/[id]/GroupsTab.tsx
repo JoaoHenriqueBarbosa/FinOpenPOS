@@ -376,28 +376,13 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
             }
           });
 
-          // Crear mapa de standings por grupo
-          const standingsByGroup = new Map<number, Standing[]>();
-          if (data.standings) {
-            data.standings.forEach((s) => {
-              if (!standingsByGroup.has(s.tournament_group_id)) {
-                standingsByGroup.set(s.tournament_group_id, []);
-              }
-              standingsByGroup.get(s.tournament_group_id)!.push(s);
-            });
-          }
-
-          return (
-            <>
-              {sortedGroups.map((group) => {
+          return sortedGroups.map((group) => {
             const groupInfo = groupMap.get(group.id);
             const groupColor = groupInfo
               ? getGroupColor(groupInfo.index)
               : { bg: "bg-gray-100", text: "text-gray-700", border: "border-gray-200", badgeBg: "bg-gray-200", badgeText: "text-gray-800" };
             
             const groupMatches = matchesByGroup.get(group.id) || [];
-            const groupStandings = standingsByGroup.get(group.id) || [];
-            const groupTeams = data.groupTeams.filter(gt => gt.tournament_group_id === group.id);
 
             // Ordenar matches por fecha y hora
             const sortedMatches = [...groupMatches].sort((a, b) => {
@@ -417,76 +402,6 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
 
             return (
               <div key={group.id} className="space-y-3">
-                {/* Tabla de posiciones */}
-                <div className={`border rounded-lg ${groupColor.border}`}>
-                  <div className={`${groupColor.bg} border-b px-4 py-2`}>
-                    <h3 className="font-semibold text-sm">{group.name} - Tabla de posiciones</h3>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Pos</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Equipo</th>
-                          <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">PJ</th>
-                          <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">G</th>
-                          <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">P</th>
-                          <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">Sets +/-</th>
-                          <th className="px-3 py-2 text-center text-xs font-medium text-gray-700">Games +/-</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {(() => {
-                          // Si hay standings, usarlos ordenados por posición
-                          if (groupStandings.length > 0) {
-                            return groupStandings
-                              .sort((a, b) => a.position - b.position)
-                              .map((standing) => {
-                                const team = groupTeams.find(gt => gt.team?.id === standing.team_id)?.team;
-                                return (
-                                  <tr key={standing.id} className="hover:bg-gray-50">
-                                    <td className="px-3 py-2 font-medium">{standing.position}</td>
-                                    <td className="px-3 py-2">{team ? teamLabel(team) : "Equipo"}</td>
-                                    <td className="px-3 py-2 text-center">{standing.matches_played}</td>
-                                    <td className="px-3 py-2 text-center">{standing.wins}</td>
-                                    <td className="px-3 py-2 text-center">{standing.losses}</td>
-                                    <td className="px-3 py-2 text-center">
-                                      {standing.sets_won - standing.sets_lost > 0 ? "+" : ""}
-                                      {standing.sets_won - standing.sets_lost}
-                                    </td>
-                                    <td className="px-3 py-2 text-center">
-                                      {standing.games_won - standing.games_lost > 0 ? "+" : ""}
-                                      {standing.games_won - standing.games_lost}
-                                    </td>
-                                  </tr>
-                                );
-                              });
-                          } else {
-                            // Si no hay standings, mostrar equipos ordenados por seed
-                            return groupTeams
-                              .sort((a, b) => {
-                                const seedA = a.team?.seed_number ?? 999;
-                                const seedB = b.team?.seed_number ?? 999;
-                                return seedA - seedB;
-                              })
-                              .map((gt, index) => (
-                                <tr key={gt.id} className="hover:bg-gray-50">
-                                  <td className="px-3 py-2 font-medium">{index + 1}</td>
-                                  <td className="px-3 py-2">{gt.team ? teamLabel(gt.team) : "Equipo"}</td>
-                                  <td className="px-3 py-2 text-center">-</td>
-                                  <td className="px-3 py-2 text-center">-</td>
-                                  <td className="px-3 py-2 text-center">-</td>
-                                  <td className="px-3 py-2 text-center">-</td>
-                                  <td className="px-3 py-2 text-center">-</td>
-                                </tr>
-                              ));
-                          }
-                        })()}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
                 {/* Partidos del grupo */}
                 {sortedMatches.map((m) => {
                   const team1Name = teamLabel(m.team1);
@@ -604,9 +519,7 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
                 })}
               </div>
             );
-          })}
-            </>
-          );
+          })
         })()}
       </CardContent>
 
