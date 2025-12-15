@@ -179,322 +179,332 @@ export function scheduleGroupMatches(
     return bMax - aMax;
   });
 
-  // 5) Orden base: primero los de primera ronda (1-2), luego segunda ronda (3-4), luego grupos de 3
+  // 5) Generar diferentes ordenaciones para probar
+  // Orden base: primero los de primera ronda (1-2), luego segunda ronda (3-4), luego grupos de 3
   const baseOrder: GroupMatchPayload[] = [
     ...orderedMatches1_2,  // Primero todos los partidos 1 y 2
     ...orderedMatches3_4,  // Luego todos los partidos 3 y 4 (pero se asignarán respetando el slot libre)
     ...orderedMatchesWithoutOrder,  // Finalmente grupos de 3
   ];
 
-  // 6) Asignar partidos a slots respetando:
-  // - descanso mínimo por equipo (no dos turnos seguidos)
-  // - compactar los partidos de un mismo equipo lo máximo posible
+  // Generar variaciones de orden para grupos de 3 (los de match_order deben mantener su orden)
+  const ordersToTry: GroupMatchPayload[][] = [
+    baseOrder, // Orden original
+  ];
 
-  const assignments = new Map<number, Assignment>();
-  const usedSlots = new Set<number>();
+  // Variaciones: solo variar el orden de los grupos de 3 (mantener orden de grupos de 4)
+  if (orderedMatchesWithoutOrder.length > 0) {
+    // Variación 1: reverso
+    ordersToTry.push([
+      ...orderedMatches1_2,
+      ...orderedMatches3_4,
+      ...orderedMatchesWithoutOrder.reverse(),
+    ]);
 
-  // Mapa auxiliar: teamId -> lista de {date, startTime} ya asignados
-  const teamAssignments = new Map<
-    number,
-    Array<{ date: string; startTime: string }>
-  >();
+    // Variación 2: orden aleatorio (pero determinístico)
+    const shuffled = [...orderedMatchesWithoutOrder].sort(() => Math.random() - 0.5);
+    ordersToTry.push([
+      ...orderedMatches1_2,
+      ...orderedMatches3_4,
+      ...shuffled,
+    ]);
 
-  const minSlotsBetweenMatches = 1; // al menos 1 slot de diferencia (no seguidos)
-
-  for (const match of baseOrder) {
-    const matchIdx = matchesPayload.indexOf(match);
-    if (matchIdx === -1) {
-      continue;
+    // Variación 3: ordenado por grupo (si hay múltiples grupos de 3)
+    const sortedByGroup = [...orderedMatchesWithoutOrder].sort((a, b) => {
+      return a.tournament_group_id - b.tournament_group_id;
+    });
+    if (JSON.stringify(sortedByGroup) !== JSON.stringify(orderedMatchesWithoutOrder)) {
+      ordersToTry.push([
+        ...orderedMatches1_2,
+        ...orderedMatches3_4,
+        ...sortedByGroup,
+      ]);
     }
+  }
 
-    const validCandidates: Array<{
-      slotIndex: number;
-      score: number;
-      slot: TimeSlot;
-    }> = [];
+  // 6) Función interna para intentar asignar con un orden específico
+  const tryAssignWithOrder = (
+    order: GroupMatchPayload[]
+  ): { success: boolean; assignments: Map<number, Assignment>; totalScore: number } => {
+    const testAssignments = new Map<number, Assignment>();
+    const testUsedSlots = new Set<number>();
+    const testTeamAssignments = new Map<
+      number,
+      Array<{ date: string; startTime: string }>
+    >();
 
-    for (let i = 0; i < timeSlots.length; i++) {
-      if (usedSlots.has(i)) continue;
+    const minSlotsBetweenMatches = 1;
+    let totalScore = 0;
 
-      const slot = timeSlots[i];
-
-      // 1) Verificar descanso mínimo por equipo en ese día
-      // Solo verificar si el partido tiene equipos asignados
-      let valid = true;
-
-      const teamsInMatch = [match.team1_id, match.team2_id].filter(
-        (id): id is number => id !== null
-      );
-
-      // Si el partido tiene equipos, verificar descanso mínimo
-      if (teamsInMatch.length > 0) {
-        for (const teamId of teamsInMatch) {
-          const assignedForTeam = teamAssignments.get(teamId) || [];
-
-          for (const prev of assignedForTeam) {
-            if (prev.date !== slot.date) continue;
-
-            // Buscar índice de prev slot
-            const prevIndex = timeSlots.findIndex(
-              (s) => s.date === prev.date && s.startTime === prev.startTime
-            );
-            if (prevIndex === -1) continue;
-
-            const distance = Math.abs(i - prevIndex);
-            if (distance <= minSlotsBetweenMatches) {
-              valid = false;
-              break;
-            }
-          }
-
-          if (!valid) break;
-        }
+    for (const match of order) {
+      const matchIdx = matchesPayload.indexOf(match);
+      if (matchIdx === -1) {
+        continue;
       }
-      // Si el partido no tiene equipos (match_order 3 o 4 en grupos de 4), no hay restricción de descanso por equipo
 
-      if (!valid) continue;
+      const validCandidates: Array<{
+        slotIndex: number;
+        score: number;
+        slot: TimeSlot;
+      }> = [];
 
-      // 1.5) Validación especial para zonas de 4:
-      // - Entre match_order 2 y 3 debe haber al menos 1 slot libre
-      // - El partido 4 debe estar después del partido 3
-      if (match.match_order === 3) {
-        // Buscar el partido con match_order 2 del mismo grupo
-        const match2 = matchesPayload.find(
-          (m) =>
-            m.tournament_group_id === match.tournament_group_id &&
-            m.match_order === 2
+      for (let i = 0; i < timeSlots.length; i++) {
+        if (testUsedSlots.has(i)) continue;
+
+        const slot = timeSlots[i];
+        let valid = true;
+        const teamsInMatch = [match.team1_id, match.team2_id].filter(
+          (id): id is number => id !== null
         );
 
-        if (match2) {
-          const match2Idx = matchesPayload.indexOf(match2);
-          const match2Assignment = assignments.get(match2Idx);
+        // Validaciones (mismo código que antes)
+        if (teamsInMatch.length > 0) {
+          for (const teamId of teamsInMatch) {
+            const assignedForTeam = testTeamAssignments.get(teamId) || [];
+            for (const prev of assignedForTeam) {
+              if (prev.date !== slot.date) continue;
+              const prevIndex = timeSlots.findIndex(
+                (s) => s.date === prev.date && s.startTime === prev.startTime
+              );
+              if (prevIndex === -1) continue;
+              const distance = Math.abs(i - prevIndex);
+              if (distance <= minSlotsBetweenMatches) {
+                valid = false;
+                break;
+              }
+            }
+            if (!valid) break;
+          }
+        }
 
-          if (match2Assignment) {
-            // Solo validar si ambos partidos están en el mismo día
-            if (slot.date === match2Assignment.date) {
+        if (!valid) continue;
+
+        // Validaciones especiales para grupos de 4 (mismo código que antes)
+        if (match.match_order === 3) {
+          const match2 = matchesPayload.find(
+            (m) =>
+              m.tournament_group_id === match.tournament_group_id &&
+              m.match_order === 2
+          );
+          if (match2) {
+            const match2Idx = matchesPayload.indexOf(match2);
+            const match2Assignment = testAssignments.get(match2Idx);
+            if (match2Assignment && slot.date === match2Assignment.date) {
               const match2StartMinutes = timeToMinutesOfDay(match2Assignment.startTime);
               const match2EndMinutes = match2StartMinutes + matchDurationMinutes;
               const slotStartMinutes = timeToMinutesOfDay(slot.startTime);
-              
-              // El partido 3 debe empezar al menos un slot completo después de que termine el partido 2
-              // Es decir: slotStartMinutes >= match2EndMinutes + matchDurationMinutes
-              const minGapMinutes = matchDurationMinutes; // Un slot completo de descanso
+              const minGapMinutes = matchDurationMinutes;
               const gapMinutes = slotStartMinutes - match2EndMinutes;
-              
               if (gapMinutes < minGapMinutes) {
                 valid = false;
               }
             }
           }
         }
-      }
 
-      if (match.match_order === 4) {
-        // Buscar el partido con match_order 3 del mismo grupo
-        const match3 = matchesPayload.find(
-          (m) =>
-            m.tournament_group_id === match.tournament_group_id &&
-            m.match_order === 3
-        );
+        if (match.match_order === 4) {
+          const match3 = matchesPayload.find(
+            (m) =>
+              m.tournament_group_id === match.tournament_group_id &&
+              m.match_order === 3
+          );
+          if (match3) {
+            const match3Idx = matchesPayload.indexOf(match3);
+            const match3Assignment = testAssignments.get(match3Idx);
+            if (match3Assignment) {
+              if (slot.date === match3Assignment.date) {
+                const match3StartMinutes = timeToMinutesOfDay(match3Assignment.startTime);
+                const match3EndMinutes = match3StartMinutes + matchDurationMinutes;
+                const slotStartMinutes = timeToMinutesOfDay(slot.startTime);
+                if (slotStartMinutes < match3EndMinutes) {
+                  valid = false;
+                }
+              } else if (slot.date < match3Assignment.date) {
+                valid = false;
+              }
+            } else {
+              valid = false;
+            }
+          }
+        }
 
-        if (match3) {
-          const match3Idx = matchesPayload.indexOf(match3);
-          const match3Assignment = assignments.get(match3Idx);
+        if (!valid) continue;
 
-          if (match3Assignment) {
-            // El partido 4 debe estar después del partido 3 (mismo día o día siguiente)
-            if (slot.date === match3Assignment.date) {
+        // Calcular score (mismo código que antes)
+        let score = 0;
+
+        // Bonus por slots tempranos
+        const slotIndex = i;
+        const totalSlots = timeSlots.length;
+        if (slotIndex < totalSlots / 2) {
+          score += 100;
+        }
+
+        // Bonus para match_order 2
+        if (match.match_order === 2) {
+          const match3 = matchesPayload.find(
+            (m) =>
+              m.tournament_group_id === match.tournament_group_id &&
+              m.match_order === 3
+          );
+          if (match3) {
+            const matchEndMinutes = timeToMinutesOfDay(slot.startTime) + matchDurationMinutes;
+            const nextSlotStartMinutes = matchEndMinutes + matchDurationMinutes;
+            const availableSlotsAfter = timeSlots.filter(
+              (s, idx) =>
+                !testUsedSlots.has(idx) &&
+                s.date === slot.date &&
+                timeToMinutesOfDay(s.startTime) >= nextSlotStartMinutes
+            );
+            if (availableSlotsAfter.length > 0) {
+              score += 10000;
+            }
+          }
+        }
+
+        // Bonus para match_order 3
+        if (match.match_order === 3) {
+          const match2 = matchesPayload.find(
+            (m) =>
+              m.tournament_group_id === match.tournament_group_id &&
+              m.match_order === 2
+          );
+          if (match2) {
+            const match2Idx = matchesPayload.indexOf(match2);
+            const match2Assignment = testAssignments.get(match2Idx);
+            if (match2Assignment && slot.date === match2Assignment.date) {
+              const match2StartMinutes = timeToMinutesOfDay(match2Assignment.startTime);
+              const match2EndMinutes = match2StartMinutes + matchDurationMinutes;
+              const slotStartMinutes = timeToMinutesOfDay(slot.startTime);
+              const gapMinutes = slotStartMinutes - match2EndMinutes;
+              const idealGap = matchDurationMinutes;
+              if (gapMinutes === idealGap) {
+                score += 5000;
+              } else if (gapMinutes > idealGap && gapMinutes < idealGap * 3) {
+                score += 2000;
+              }
+            }
+          }
+        }
+
+        // Bonus para match_order 4
+        if (match.match_order === 4) {
+          const match3 = matchesPayload.find(
+            (m) =>
+              m.tournament_group_id === match.tournament_group_id &&
+              m.match_order === 3
+          );
+          if (match3) {
+            const match3Idx = matchesPayload.indexOf(match3);
+            const match3Assignment = testAssignments.get(match3Idx);
+            if (match3Assignment && slot.date === match3Assignment.date) {
               const match3StartMinutes = timeToMinutesOfDay(match3Assignment.startTime);
               const match3EndMinutes = match3StartMinutes + matchDurationMinutes;
               const slotStartMinutes = timeToMinutesOfDay(slot.startTime);
-              
-              // El partido 4 debe empezar después de que termine el partido 3
-              if (slotStartMinutes < match3EndMinutes) {
-                valid = false;
-              }
-            } else if (slot.date < match3Assignment.date) {
-              // No permitir asignar el partido 4 en un día anterior al partido 3
-              valid = false;
-            }
-          } else {
-            // Si el partido 3 aún no está asignado, no podemos asignar el 4
-            // Esto asegura que el partido 3 se asigne primero
-            valid = false;
-          }
-        }
-      }
-
-      if (!valid) continue;
-
-      // 2) Calcular score para compactar partidos de un mismo equipo en el día
-      let score = 0;
-
-      // Bonus especial para match_order 2: priorizar slots que dejen espacio para el partido 3
-      if (match.match_order === 2) {
-        // Buscar el partido con match_order 3 del mismo grupo
-        const match3 = matchesPayload.find(
-          (m) =>
-            m.tournament_group_id === match.tournament_group_id &&
-            m.match_order === 3
-        );
-
-        if (match3) {
-          // Calcular cuándo terminaría este partido si se asigna a este slot
-          const matchEndMinutes = timeToMinutesOfDay(slot.startTime) + matchDurationMinutes;
-          const nextSlotStartMinutes = matchEndMinutes + matchDurationMinutes; // Slot siguiente después del descanso
-          
-          // Verificar si hay slots disponibles después de este (para el partido 3)
-          const availableSlotsAfter = timeSlots.filter(
-            (s, idx) =>
-              !usedSlots.has(idx) &&
-              s.date === slot.date &&
-              timeToMinutesOfDay(s.startTime) >= nextSlotStartMinutes
-          );
-
-          // Bonus si hay slots disponibles para el partido 3
-          if (availableSlotsAfter.length > 0) {
-            score += 10000; // Bonus grande para priorizar estos slots
-          }
-        }
-      }
-
-      // Bonus especial para match_order 3: priorizar slots que estén justo después del slot libre del partido 2
-      if (match.match_order === 3) {
-        const match2 = matchesPayload.find(
-          (m) =>
-            m.tournament_group_id === match.tournament_group_id &&
-            m.match_order === 2
-        );
-
-        if (match2) {
-          const match2Idx = matchesPayload.indexOf(match2);
-          const match2Assignment = assignments.get(match2Idx);
-
-          if (match2Assignment && slot.date === match2Assignment.date) {
-            const match2StartMinutes = timeToMinutesOfDay(match2Assignment.startTime);
-            const match2EndMinutes = match2StartMinutes + matchDurationMinutes;
-            const slotStartMinutes = timeToMinutesOfDay(slot.startTime);
-            const gapMinutes = slotStartMinutes - match2EndMinutes;
-
-            // Bonus si el gap es exactamente 1 slot (matchDurationMinutes)
-            // Esto prioriza asignar el partido 3 justo después del slot libre
-            const idealGap = matchDurationMinutes;
-            if (gapMinutes === idealGap) {
-              score += 5000; // Bonus grande para el slot ideal
-            } else if (gapMinutes > idealGap && gapMinutes < idealGap * 3) {
-              // Bonus menor si está cerca del ideal (pero no muy lejos)
-              score += 2000;
-            }
-          }
-        }
-      }
-
-      // Bonus especial para match_order 4: priorizar slots que estén justo después del partido 3
-      if (match.match_order === 4) {
-        const match3 = matchesPayload.find(
-          (m) =>
-            m.tournament_group_id === match.tournament_group_id &&
-            m.match_order === 3
-        );
-
-        if (match3) {
-          const match3Idx = matchesPayload.indexOf(match3);
-          const match3Assignment = assignments.get(match3Idx);
-
-          if (match3Assignment && slot.date === match3Assignment.date) {
-            const match3StartMinutes = timeToMinutesOfDay(match3Assignment.startTime);
-            const match3EndMinutes = match3StartMinutes + matchDurationMinutes;
-            const slotStartMinutes = timeToMinutesOfDay(slot.startTime);
-            const gapMinutes = slotStartMinutes - match3EndMinutes;
-
-            // Bonus si está justo después del partido 3 (gap mínimo)
-            if (gapMinutes >= 0 && gapMinutes < matchDurationMinutes * 2) {
-              score += 3000; // Bonus para mantener los partidos 3 y 4 juntos
-            }
-          }
-        }
-      }
-
-      // Solo calcular score de compactación si el partido tiene equipos asignados
-      if (teamsInMatch.length > 0) {
-        for (const teamId of teamsInMatch) {
-          const assignedForTeam = teamAssignments.get(teamId) || [];
-          // Si ya tiene partidos ese día, queremos que esté lo más cerca posible (en slots)
-          const sameDayAssignments = assignedForTeam.filter(
-            (a) => a.date === slot.date
-          );
-
-          if (sameDayAssignments.length > 0) {
-            // Tomar el más cercano en tiempo como referencia
-            let bestDistanceMinutes = Infinity;
-
-            for (const a of sameDayAssignments) {
-              const refMinutes = timeToMinutesOfDay(a.startTime);
-              const currentMinutes = timeToMinutesOfDay(slot.startTime);
-              const diff = Math.abs(currentMinutes - refMinutes);
-              if (diff < bestDistanceMinutes) {
-                bestDistanceMinutes = diff;
+              const gapMinutes = slotStartMinutes - match3EndMinutes;
+              if (gapMinutes >= 0 && gapMinutes < matchDurationMinutes * 2) {
+                score += 3000;
               }
             }
-
-            // Mientras menor sea la distancia en minutos, mayor el score
-            // (agregamos una constante grande para que siempre sea positivo)
-            const maxReasonableGap = 6 * 60; // 6 horas
-            const normalized =
-              maxReasonableGap - Math.min(bestDistanceMinutes, maxReasonableGap);
-            score += normalized;
           }
         }
+
+        // Score de compactación
+        if (teamsInMatch.length > 0) {
+          for (const teamId of teamsInMatch) {
+            const assignedForTeam = testTeamAssignments.get(teamId) || [];
+            const sameDayAssignments = assignedForTeam.filter(
+              (a) => a.date === slot.date
+            );
+            if (sameDayAssignments.length > 0) {
+              let bestDistanceMinutes = Infinity;
+              for (const a of sameDayAssignments) {
+                const refMinutes = timeToMinutesOfDay(a.startTime);
+                const currentMinutes = timeToMinutesOfDay(slot.startTime);
+                const diff = Math.abs(currentMinutes - refMinutes);
+                if (diff < bestDistanceMinutes) {
+                  bestDistanceMinutes = diff;
+                }
+              }
+              const reasonableGap = 3 * 60;
+              if (bestDistanceMinutes <= reasonableGap) {
+                const normalized = reasonableGap - bestDistanceMinutes;
+                score += normalized * 0.5;
+              }
+            }
+          }
+        }
+
+        validCandidates.push({ slotIndex: i, score, slot });
       }
-      // Si el partido no tiene equipos (match_order 3 o 4), el score se basa solo en otras consideraciones (orden, etc.)
 
-      validCandidates.push({ slotIndex: i, score, slot });
-    }
-
-    if (!validCandidates.length) {
-      return {
-        success: false,
-        error:
-          "No se pudo asignar horarios para todos los partidos respetando el descanso mínimo. Intenta con más días/horarios disponibles o más canchas.",
-      };
-    }
-
-    // Elegir el candidato con mayor score (mejor compactación). Si empatan, el más temprano.
-    validCandidates.sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      return a.slotIndex - b.slotIndex;
-    });
-
-    const chosen = validCandidates[0];
-    usedSlots.add(chosen.slotIndex);
-
-    const endTime = calculateEndTime(
-      chosen.slot.startTime,
-      matchDurationMinutes
-    );
-
-    assignments.set(matchIdx, {
-      matchIdx,
-      date: chosen.slot.date,
-      startTime: chosen.slot.startTime,
-      endTime,
-      slotIndex: chosen.slotIndex,
-    });
-
-    // Actualizar mapa por equipo
-    for (const teamId of [match.team1_id, match.team2_id]) {
-      if (teamId === null) continue;
-      if (!teamAssignments.has(teamId)) {
-        teamAssignments.set(teamId, []);
+      if (!validCandidates.length) {
+        return { success: false, assignments: testAssignments, totalScore: -Infinity };
       }
-      teamAssignments.get(teamId)!.push({
+
+      validCandidates.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return a.slotIndex - b.slotIndex;
+      });
+
+      const chosen = validCandidates[0];
+      totalScore += chosen.score;
+      testUsedSlots.add(chosen.slotIndex);
+
+      const endTime = calculateEndTime(
+        chosen.slot.startTime,
+        matchDurationMinutes
+      );
+
+      testAssignments.set(matchIdx, {
+        matchIdx,
         date: chosen.slot.date,
         startTime: chosen.slot.startTime,
+        endTime,
+        slotIndex: chosen.slotIndex,
       });
+
+      for (const teamId of [match.team1_id, match.team2_id]) {
+        if (teamId === null) continue;
+        if (!testTeamAssignments.has(teamId)) {
+          testTeamAssignments.set(teamId, []);
+        }
+        testTeamAssignments.get(teamId)!.push({
+          date: chosen.slot.date,
+          startTime: chosen.slot.startTime,
+        });
+      }
+    }
+
+    return { success: true, assignments: testAssignments, totalScore };
+  };
+
+  // 7) Probar todas las ordenaciones y elegir la mejor
+  let bestResult: { success: boolean; assignments: Map<number, Assignment>; totalScore: number } | null = null;
+
+  for (const order of ordersToTry) {
+    const result = tryAssignWithOrder(order);
+    if (result.success && (!bestResult || result.totalScore > bestResult.totalScore)) {
+      bestResult = result;
     }
   }
 
-  // 8) Aplicar las asignaciones al payload original
+  // Si ninguna ordenación funcionó, usar la primera que se pudo completar
+  if (!bestResult) {
+    const result = tryAssignWithOrder(baseOrder);
+    bestResult = result;
+  }
+
+  if (!bestResult || !bestResult.success) {
+    return {
+      success: false,
+      error:
+        "No se pudo asignar horarios para todos los partidos respetando el descanso mínimo. Intenta con más días/horarios disponibles o más canchas.",
+    };
+  }
+
+  // 8) Aplicar las asignaciones del mejor resultado al payload original
+  const assignments = bestResult.assignments;
   for (const [idx, assignment] of Array.from(assignments.entries())) {
     const match = matchesPayload[idx];
     if (!match) continue;
