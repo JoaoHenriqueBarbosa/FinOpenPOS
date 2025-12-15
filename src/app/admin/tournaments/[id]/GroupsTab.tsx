@@ -128,6 +128,9 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
+  const [showRegenerateScheduleDialog, setShowRegenerateScheduleDialog] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
 
   const load = async () => {
     try {
@@ -272,6 +275,41 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
     }
   };
 
+  const handleRegenerateSchedule = () => {
+    setShowRegenerateDialog(true);
+  };
+
+  const handleConfirmRegenerateSchedule = async (config: ScheduleConfig) => {
+    try {
+      setRegenerating(true);
+      setShowRegenerateDialog(false);
+      const res = await fetch(
+        `/api/tournaments/${tournament.id}/regenerate-schedule`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(config),
+        }
+      );
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        alert(errorData.error || "Error al regenerar horarios");
+        return;
+      }
+      load();
+    } catch (err) {
+      console.error(err);
+      alert("Error al regenerar horarios");
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  // Contar partidos con horarios asignados
+  const matchesWithSchedule = (data?.matches ?? []).filter(
+    (m) => m.match_date && m.start_time
+  ).length;
+
   if (loading) {
     return (
       <div className="h-[200px] flex items-center justify-center">
@@ -328,6 +366,21 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
           <Button
             variant="outline"
             size="sm"
+            onClick={handleRegenerateSchedule}
+            disabled={regenerating || hasPlayoffs}
+          >
+            {regenerating ? (
+              <>
+                <Loader2Icon className="h-3 w-3 animate-spin mr-1" />
+                Regenerando...
+              </>
+            ) : (
+              "Regenerar horarios"
+            )}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleCloseGroups}
             disabled={closingGroups || hasPlayoffs}
           >
@@ -344,6 +397,14 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
         onOpenChange={setScheduleDialogOpen}
         onConfirm={handleConfirmSchedule}
         matchCount={calculatePlayoffMatchCount()}
+        tournamentMatchDuration={tournament.match_duration}
+      />
+
+      <TournamentScheduleDialog
+        open={showRegenerateScheduleDialog}
+        onOpenChange={setShowRegenerateScheduleDialog}
+        onConfirm={handleConfirmRegenerateSchedule}
+        matchCount={data?.matches.length || 0}
         tournamentMatchDuration={tournament.match_duration}
       />
 
@@ -559,6 +620,52 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
               ) : (
                 "Confirmar y eliminar"
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de confirmación para regenerar horarios */}
+      <Dialog open={showRegenerateDialog} onOpenChange={setShowRegenerateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Regenerar horarios de partidos</DialogTitle>
+            <DialogDescription>
+              {matchesWithSchedule > 0 ? (
+                <>
+                  <p className="font-semibold text-amber-600 mb-2">
+                    ⚠️ Advertencia: {matchesWithSchedule} partido{matchesWithSchedule !== 1 ? "s" : ""} ya {matchesWithSchedule !== 1 ? "tienen" : "tiene"} horarios asignados.
+                  </p>
+                  <p className="mb-2">
+                    Al regenerar los horarios, se sobreescribirán los horarios existentes de todos los partidos de fase de grupos que aún no tengan resultados cargados.
+                  </p>
+                </>
+              ) : (
+                <p>
+                  Se asignarán horarios a todos los partidos de fase de grupos que aún no tengan resultados cargados.
+                </p>
+              )}
+              <p className="mt-2 text-sm text-muted-foreground">
+                Los partidos que ya tienen resultados no se modificarán.
+              </p>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowRegenerateDialog(false)}
+              disabled={regenerating}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => {
+                setShowRegenerateDialog(false);
+                setShowRegenerateScheduleDialog(true);
+              }}
+              disabled={regenerating}
+            >
+              Continuar
             </Button>
           </DialogFooter>
         </DialogContent>
