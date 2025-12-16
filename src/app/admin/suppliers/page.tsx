@@ -44,20 +44,10 @@ import {
   Trash2,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
-type SupplierStatus = "active" | "inactive";
-
-type Supplier = {
-  id: number;
-  name: string;
-  contact_email: string | null;
-  phone: string | null;
-  notes: string | null;
-  status: SupplierStatus;
-};
+import type { SupplierDTO, SupplierStatus } from "@/models/dto/supplier";
 
 export default function SuppliersPage() {
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [suppliers, setSuppliers] = useState<SupplierDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,7 +60,7 @@ export default function SuppliersPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [supplierToDelete, setSupplierToDelete] = useState<Supplier | null>(
+  const [supplierToDelete, setSupplierToDelete] = useState<SupplierDTO | null>(
     null
   );
 
@@ -138,7 +128,7 @@ export default function SuppliersPage() {
     setIsDialogOpen(true);
   };
 
-  const openEditDialog = (supplier: Supplier) => {
+  const openEditDialog = (supplier: SupplierDTO) => {
     setEditingId(supplier.id);
     setName(supplier.name);
     setContactEmail(supplier.contact_email ?? "");

@@ -22,16 +22,10 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Loader2Icon, PlusIcon } from "lucide-react";
 
-type Tournament = {
-  id: number;
-  name: string;
-  description: string | null;
-  category: string | null;
-  status: string;
-};
+import type { TournamentListItem } from "@/models/dto/tournament";
 
 export default function TournamentsPage() {
-  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [tournaments, setTournaments] = useState<TournamentListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [name, setName] = useState("");

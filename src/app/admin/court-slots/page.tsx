@@ -39,36 +39,8 @@ import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { jsPDF } from "jspdf";
 
-type PaymentMethod = {
-  id: number;
-  name: string;
-};
-
-type CourtSlot = {
-  id: number;
-  slot_date: string;
-  start_time: string;
-  end_time: string;
-  was_played: boolean;
-  notes: string | null;
-
-  player1_payment_method_id: number | null;
-  player1_note: string | null;
-
-  player2_payment_method_id: number | null;
-  player2_note: string | null;
-
-  player3_payment_method_id: number | null;
-  player3_note: string | null;
-
-  player4_payment_method_id: number | null;
-  player4_note: string | null;
-
-  court: {
-    id: number;
-    name: string;
-  } | null;
-};
+import type { CourtSlotDTO } from "@/models/dto/court";
+import type { PaymentMethodDTO } from "@/models/dto/payment-method";
 
 const courtPillClasses = (courtName?: string | null) => {
   if (!courtName) {
@@ -127,7 +99,7 @@ async function fetchPaymentMethods(): Promise<PaymentMethod[]> {
   return res.json();
 }
 
-async function fetchCourtSlots(date: string): Promise<CourtSlot[]> {
+async function fetchCourtSlots(date: string): Promise<CourtSlotDTO[]> {
   const res = await fetch(`/api/court-slots?date=${date}`);
   if (!res.ok) throw new Error("Failed to fetch court slots");
   return res.json();
@@ -140,7 +112,7 @@ export default function CourtSlotsPage() {
   const queryClient = useQueryClient();
 
   // Estado local para UI instantánea
-  const [localSlots, setLocalSlots] = useState<CourtSlot[]>([]);
+  const [localSlots, setLocalSlots] = useState<CourtSlotDTO[]>([]);
 
   // Métodos de pago
   const {
@@ -221,25 +193,25 @@ export default function CourtSlotsPage() {
 
   // Actualizar un slot
   const updateSlotMutation = useMutation({
-    mutationFn: async (params: { slotId: number; patch: Partial<CourtSlot> }) => {
+    mutationFn: async (params: { slotId: number; patch: Partial<CourtSlotDTO> }) => {
       const res = await fetch(`/api/court-slots/${params.slotId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(params.patch),
       });
       if (!res.ok) throw new Error("Error updating court slot");
-      return (await res.json()) as CourtSlot;
+      return (await res.json()) as CourtSlotDTO;
     },
     onMutate: async ({ slotId, patch }) => {
       await queryClient.cancelQueries({ queryKey: ["court-slots", selectedDate] });
 
-      const previous = queryClient.getQueryData<CourtSlot[]>([
+      const previous = queryClient.getQueryData<CourtSlotDTO[]>([
         "court-slots",
         selectedDate,
       ]);
 
       if (previous) {
-        queryClient.setQueryData<CourtSlot[]>(
+        queryClient.setQueryData<CourtSlotDTO[]>(
           ["court-slots", selectedDate],
           previous.map((s) => (s.id === slotId ? { ...s, ...patch } : s))
         );
@@ -269,7 +241,7 @@ export default function CourtSlotsPage() {
   };
 
   // UI instantánea + PATCH en paralelo
-  const updateSlotField = (slotId: number, patch: Partial<CourtSlot>) => {
+  const updateSlotField = (slotId: number, patch: Partial<CourtSlotDTO>) => {
     setLocalSlots((prev) =>
       prev.map((slot) => (slot.id === slotId ? { ...slot, ...patch } : slot))
     );

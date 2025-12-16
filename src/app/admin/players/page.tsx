@@ -48,16 +48,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
-
-type PlayerStatus = "active" | "inactive";
-
-type Player = {
-  id: number;
-  first_name: string;
-  last_name: string;
-  phone: string;
-  status: PlayerStatus;
-};
+import type { PlayerDTO } from "@/models/dto/player";
+import type { PlayerStatus } from "@/models/db/player";
 
 export default function PlayersPage() {
   const [players, setPlayers] = useState<Player[]>([]);

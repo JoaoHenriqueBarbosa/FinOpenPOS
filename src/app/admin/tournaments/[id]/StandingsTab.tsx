@@ -19,75 +19,17 @@ import {
 import { Loader2Icon } from "lucide-react";
 import { formatDate, formatTime } from "@/lib/date-utils";
 
-type Tournament = {
-  id: number;
-};
+import type {
+  GroupDTO,
+  StandingDTO,
+  GroupTeamDTO,
+  GroupsApiResponse,
+  TeamDTO,
+  TournamentDTO,
+  ApiResponseStandings,
+} from "@/models/dto/tournament";
 
-type Group = {
-  id: number;
-  name: string;
-  group_order?: number;
-};
-
-type Team = {
-  id: number;
-  display_name: string | null;
-  player1: { first_name: string; last_name: string } | null;
-  player2: { first_name: string; last_name: string } | null;
-};
-
-type Standing = {
-  id: number;
-  tournament_group_id: number;
-  matches_played: number;
-  wins: number;
-  losses: number;
-  sets_won: number;
-  sets_lost: number;
-  games_won: number;
-  games_lost: number;
-  position: number | null;
-  team: Team | null;
-};
-
-type Match = {
-  id: number;
-  tournament_group_id: number | null;
-  status: string;
-  match_date: string | null;
-  start_time: string | null;
-  set1_team1_games: number | null;
-  set1_team2_games: number | null;
-  set2_team1_games: number | null;
-  set2_team2_games: number | null;
-  set3_team1_games: number | null;
-  set3_team2_games: number | null;
-  team1_sets: number | null;
-  team2_sets: number | null;
-  team1: Team | null;
-  team2: Team | null;
-};
-
-type GroupTeam = {
-  id: number;
-  tournament_group_id: number;
-  team: {
-    id: number;
-    display_name: string | null;
-    seed_number: number | null;
-    player1: { first_name: string; last_name: string } | null;
-    player2: { first_name: string; last_name: string } | null;
-  } | null;
-};
-
-type ApiResponse = {
-  groups: Group[];
-  standings: Standing[];
-  matches: Match[];
-  groupTeams?: GroupTeam[];
-};
-
-function teamLabel(team: Team | null): string {
+function teamLabel(team: TeamDTO | null | undefined): string {
   if (!team) return "—";
   if (team.display_name) return team.display_name;
   const p1 = team.player1
@@ -99,7 +41,7 @@ function teamLabel(team: Team | null): string {
   return [p1, p2].filter(Boolean).join(" / ");
 }
 
-function teamLabelShort(team: Team | null): string {
+function teamLabelShort(team: TeamDTO | null | undefined): string {
   if (!team) return "—";
   if (team.display_name) return team.display_name;
   const lastName1 = team.player1?.last_name ?? "";
@@ -123,15 +65,15 @@ function getGroupColor(groupIndex: number): { bg: string; text: string; border: 
   return colorSchemes[groupIndex % colorSchemes.length] || colorSchemes[0];
 }
 
-export default function StandingsTab({ tournament }: { tournament: Tournament }) {
-  const [data, setData] = useState<ApiResponse | null>(null);
+export default function StandingsTab({ tournament }: { tournament: Pick<TournamentDTO, "id"> }) {
+  const [data, setData] = useState<ApiResponseStandings | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
     try {
       const res = await fetch(`/api/tournaments/${tournament.id}/standings`);
       if (!res.ok) throw new Error("Failed to fetch standings");
-      const json = (await res.json()) as ApiResponse;
+      const json = (await res.json()) as ApiResponseStandings;
       setData(json);
     } catch (err) {
       console.error(err);

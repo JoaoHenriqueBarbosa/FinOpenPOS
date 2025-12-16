@@ -39,54 +39,23 @@ import {
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { OrderDTO, OrderItemDTO, OrderStatus } from "@/models/dto/order";
+import type { ProductDTO } from "@/models/dto/product";
+import type { PaymentMethodDTO } from "@/models/dto/payment-method";
 
-type OrderStatus = "open" | "closed" | "cancelled";
-
-type OrderItem = {
-  id: number;
-  product_id: number;
-  quantity: number;
-  unit_price: number;
-  product?: {
-    name: string;
-  } | null;
-};
-
-type Order = {
-  id: number;
-  status: OrderStatus;
-  total_amount: number;
-  created_at: string;
-  player?: {
-    name: string;
-  } | null;
-  items: OrderItem[];
-};
-
-type Product = {
-  id: number;
-  name: string;
-  price: number;
-};
-
-type PaymentMethod = {
-  id: number;
-  name: string;
-};
-
-async function fetchOrder(orderId: number): Promise<Order> {
+async function fetchOrder(orderId: number): Promise<OrderDTO> {
   const res = await fetch(`/api/orders/${orderId}`);
   if (!res.ok) throw new Error("No se pudo cargar la cuenta");
   return res.json();
 }
 
-async function fetchProducts(): Promise<Product[]> {
+async function fetchProducts(): Promise<ProductDTO[]> {
   const res = await fetch("/api/products");
   if (!res.ok) throw new Error("No se pudieron cargar los productos");
   return res.json();
 }
 
-async function fetchPaymentMethods(): Promise<PaymentMethod[]> {
+async function fetchPaymentMethods(): Promise<PaymentMethodDTO[]> {
   const res = await fetch("/api/payment-methods?onlyActive=true&scope=BAR");
   if (!res.ok) throw new Error("No se pudieron cargar los métodos de pago");
   return res.json();
@@ -97,7 +66,7 @@ export default function OrderDetailPage() {
   const router = useRouter();
   const orderId = Number(params?.id);
 
-  const [order, setOrder] = useState<Order | null>(null);
+  const [order, setOrder] = useState<OrderDTO | null>(null);
 
   // UI state para agregar ítem
   const [selectedProductId, setSelectedProductId] = useState<number | "none">(
@@ -192,7 +161,7 @@ export default function OrderDetailPage() {
       if (!res.ok) {
         throw new Error("Error agregando ítem");
       }
-      return (await res.json()) as Order;
+      return (await res.json()) as OrderDTO;
     },
     onMutate: ({ productId, quantity }) => {
       if (!order && !orderData) return { previousOrder: null };
@@ -206,7 +175,7 @@ export default function OrderDetailPage() {
         -Math.floor(Math.random() * 1_000_000) -
         (previousOrder.items.length ? previousOrder.items.length : 0);
 
-      const optimisticItem: OrderItem = {
+      const optimisticItem: OrderItemDTO = {
         id: tempId,
         product_id: product.id,
         quantity,
@@ -240,7 +209,7 @@ export default function OrderDetailPage() {
 
   // Actualizar cantidad
   const updateItemMutation = useMutation({
-    mutationFn: async (params: { item: OrderItem; newQty: number }) => {
+    mutationFn: async (params: { item: OrderItemDTO; newQty: number }) => {
       const { item, newQty } = params;
       const res = await fetch(`/api/orders/${orderId}/items/${item.id}`, {
         method: "PATCH",
@@ -253,7 +222,7 @@ export default function OrderDetailPage() {
       if (!res.ok) {
         throw new Error("Error actualizando ítem");
       }
-      return (await res.json()) as Order;
+      return (await res.json()) as OrderDTO;
     },
     onMutate: ({ item, newQty }) => {
       if (!order && !orderData) return { previousOrder: null };
@@ -287,14 +256,14 @@ export default function OrderDetailPage() {
 
   // Eliminar ítem
   const removeItemMutation = useMutation({
-    mutationFn: async (item: OrderItem) => {
+    mutationFn: async (item: OrderItemDTO) => {
       const res = await fetch(`/api/orders/${orderId}/items/${item.id}`, {
         method: "DELETE",
       });
       if (!res.ok) {
         throw new Error("Error eliminando ítem");
       }
-      return (await res.json()) as Order;
+      return (await res.json()) as OrderDTO;
     },
     onMutate: (item) => {
       if (!order && !orderData) return { previousOrder: null };
@@ -333,7 +302,7 @@ export default function OrderDetailPage() {
       if (!res.ok) {
         throw new Error("Error al cancelar la cuenta");
       }
-      return (await res.json()) as Order;
+      return (await res.json()) as OrderDTO;
     },
     onMutate: () => {
       if (!order && !orderData) return { previousOrder: null };
@@ -374,7 +343,7 @@ export default function OrderDetailPage() {
       if (!res.ok) {
         throw new Error("Error al cobrar la cuenta");
       }
-      return (await res.json()) as Order;
+      return (await res.json()) as OrderDTO;
     },
     onMutate: ({ amount }) => {
       if (!order && !orderData) return { previousOrder: null };
@@ -582,7 +551,9 @@ export default function OrderDetailPage() {
               <>
                 Cuenta #{displayOrder?.id}{" "}
                 <span className="text-sm text-muted-foreground">
-                  {displayOrder?.player?.name ?? "Sin nombre"}
+                  {displayOrder?.player
+                    ? `${displayOrder.player.first_name} ${displayOrder.player.last_name}`
+                    : "Sin nombre"}
                 </span>
               </>
             )}

@@ -50,23 +50,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-interface Product {
-  id: number;
-  name: string;
-  description: string | null;
-  price: number;
-  category_id: number | null;
-  is_active: boolean;
-}
-
-interface ProductCategory {
-  id: number;
-  name: string;
-}
+import type { ProductDTO } from "@/models/dto/product";
+import type { ProductCategoryDTO } from "@/models/dto/product";
 
 export default function Products() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<ProductCategory[]>([]);
+  const [products, setProducts] = useState<ProductDTO[]>([]);
+  const [categories, setCategories] = useState<ProductCategoryDTO[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState<{
     categoryId: "all" | number;
@@ -114,7 +103,7 @@ export default function Products() {
         }
         const productsData = await productsRes.json();
 
-        let categoriesData: ProductCategory[] = [];
+        let categoriesData: ProductCategoryDTO[] = [];
         if (categoriesRes.ok) {
           categoriesData = await categoriesRes.json();
         }

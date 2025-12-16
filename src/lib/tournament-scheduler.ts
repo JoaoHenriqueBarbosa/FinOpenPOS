@@ -4,17 +4,7 @@
 // - Descanso mínimo por equipo (no dos turnos seguidos el mismo día)
 // - Partidos de un mismo equipo en un día lo más compactos posible
 
-export type ScheduleDay = {
-  date: string; // YYYY-MM-DD
-  startTime: string; // HH:MM
-  endTime: string; // HH:MM
-};
-
-export type ScheduleConfig = {
-  days: ScheduleDay[];
-  matchDuration: number; // minutos entre partidos
-  courtIds: number[]; // IDs de las canchas a usar
-};
+import type { ScheduleDay, ScheduleConfig } from "@/models/dto/tournament";
 
 export type GroupMatchPayload = {
   tournament_id: number;

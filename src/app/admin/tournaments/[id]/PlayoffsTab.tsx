@@ -23,43 +23,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-type Tournament = { 
-  id: number;
-  has_super_tiebreak: boolean;
-};
+import type { PlayoffRow, TournamentDTO } from "@/models/dto/tournament";
+import type { MatchStatus } from "@/models/db/tournament";
 
-type PlayoffRow = {
-  id: number;
-  round: string;
-  bracket_pos: number;
-  source_team1: string | null;
-  source_team2: string | null;
-  match: {
-    id: number;
-    status: string;
-    match_date: string | null;
-    start_time: string | null;
-    set1_team1_games: number | null;
-    set1_team2_games: number | null;
-    set2_team1_games: number | null;
-    set2_team2_games: number | null;
-    set3_team1_games: number | null;
-    set3_team2_games: number | null;
-    team1: {
-      id: number;
-      display_name: string | null;
-      player1: { first_name: string; last_name: string } | null;
-      player2: { first_name: string; last_name: string } | null;
-    } | null;
-    team2: {
-      id: number;
-      display_name: string | null;
-      player1: { first_name: string; last_name: string } | null;
-      player2: { first_name: string; last_name: string } | null;
-    } | null;
-  } | null;
-};
-
+// Using Pick from TournamentDTO and MatchDTO
 type Match = NonNullable<PlayoffRow["match"]>;
 
 function teamLabel(team: Match["team1"]) {
@@ -83,7 +50,7 @@ function getRoundColor(round: string): { bg: string; text: string; border: strin
   return roundColors[round] || { bg: "bg-gray-50", text: "text-gray-700", border: "border-gray-200", badgeBg: "bg-gray-100", badgeText: "text-gray-800" };
 }
 
-export default function PlayoffsTab({ tournament }: { tournament: Tournament }) {
+export default function PlayoffsTab({ tournament }: { tournament: Pick<TournamentDTO, "id" | "has_super_tiebreak"> }) {
   const [rows, setRows] = useState<PlayoffRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingMatchId, setEditingMatchId] = useState<number | null>(null);
