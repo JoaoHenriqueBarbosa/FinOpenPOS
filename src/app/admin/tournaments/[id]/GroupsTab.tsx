@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Card,
   CardHeader,
@@ -66,11 +67,22 @@ function getGroupColor(groupIndex: number): { bg: string; text: string; border: 
   return colorSchemes[groupIndex % colorSchemes.length] || colorSchemes[0];
 }
 
+// Fetch functions para React Query
+async function fetchTournamentGroups(tournamentId: number): Promise<GroupsApiResponse> {
+  const res = await fetch(`/api/tournaments/${tournamentId}/groups`);
+  if (!res.ok) throw new Error("Failed to fetch groups");
+  return res.json();
+}
+
+async function fetchTournamentPlayoffs(tournamentId: number): Promise<any[]> {
+  const res = await fetch(`/api/tournaments/${tournamentId}/playoffs`);
+  if (!res.ok) throw new Error("Failed to fetch playoffs");
+  return res.json();
+}
+
 export default function GroupsTab({ tournament }: { tournament: Pick<TournamentDTO, "id" | "has_super_tiebreak" | "match_duration"> }) {
-  const [data, setData] = useState<GroupsApiResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [closingGroups, setClosingGroups] = useState(false);
-  const [hasPlayoffs, setHasPlayoffs] = useState(false);
   const [editingMatchId, setEditingMatchId] = useState<number | null>(null);
   const [editDate, setEditDate] = useState<string>("");
   const [editTime, setEditTime] = useState<string>("");
@@ -81,31 +93,31 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
   const [showRegenerateScheduleDialog, setShowRegenerateScheduleDialog] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
 
-  const load = async () => {
-    try {
-      const [groupsRes, playoffsRes] = await Promise.all([
-        fetch(`/api/tournaments/${tournament.id}/groups`),
-        fetch(`/api/tournaments/${tournament.id}/playoffs`),
-      ]);
-      if (groupsRes.ok) {
-        const json = (await groupsRes.json()) as GroupsApiResponse;
-        setData(json);
-      }
-      if (playoffsRes.ok) {
-        const playoffsData = await playoffsRes.json();
-        setHasPlayoffs(playoffsData && playoffsData.length > 0);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // React Query para compartir cache con TeamsTab
+  const {
+    data,
+    isLoading: loading,
+    refetch: refetchGroups,
+  } = useQuery({
+    queryKey: ["tournament-groups", tournament.id], // Mismo key que TeamsTab
+    queryFn: () => fetchTournamentGroups(tournament.id),
+    staleTime: 1000 * 30, // 30 segundos
+  });
 
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tournament.id]);
+  const {
+    data: playoffsData = [],
+  } = useQuery({
+    queryKey: ["tournament-playoffs", tournament.id],
+    queryFn: () => fetchTournamentPlayoffs(tournament.id),
+    staleTime: 1000 * 30,
+  });
+
+  const hasPlayoffs = playoffsData && playoffsData.length > 0;
+
+  // Función load ahora solo invalida cache
+  const load = () => {
+    queryClient.invalidateQueries({ queryKey: ["tournament-groups", tournament.id] });
+  };
 
   // Calcular estimado de matches de playoffs
   const calculatePlayoffMatchCount = (): number => {

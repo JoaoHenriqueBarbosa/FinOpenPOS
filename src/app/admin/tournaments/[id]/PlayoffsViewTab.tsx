@@ -26,27 +26,23 @@ function teamLabelBracket(team: TeamDTO | null) {
   return result || "—";
 }
 
+// Fetch function para React Query
+async function fetchTournamentPlayoffs(tournamentId: number): Promise<PlayoffRow[]> {
+  const res = await fetch(`/api/tournaments/${tournamentId}/playoffs`);
+  if (!res.ok) throw new Error("Failed to fetch playoffs");
+  return res.json();
+}
+
 export default function PlayoffsViewTab({ tournament }: { tournament: Pick<TournamentDTO, "id"> }) {
-  const [rows, setRows] = useState<PlayoffRow[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const load = async () => {
-    try {
-      const res = await fetch(`/api/tournaments/${tournament.id}/playoffs`);
-      if (!res.ok) throw new Error("Failed to fetch playoffs");
-      const data = (await res.json()) as PlayoffRow[];
-      setRows(data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tournament.id]);
+  // React Query para compartir cache con GroupsTab y PlayoffsTab
+  const {
+    data: rows = [],
+    isLoading: loading,
+  } = useQuery({
+    queryKey: ["tournament-playoffs", tournament.id], // Mismo key que GroupsTab y PlayoffsTab
+    queryFn: () => fetchTournamentPlayoffs(tournament.id),
+    staleTime: 1000 * 30, // 30 segundos
+  });
 
   if (loading) {
     return (

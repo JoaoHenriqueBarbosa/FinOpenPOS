@@ -92,24 +92,7 @@ export default function OrderDetailPage() {
     queryKey: ["order", orderId],
     queryFn: () => fetchOrder(orderId),
     enabled: !!orderId,
-  });
-
-  const {
-    data: products = [],
-    isLoading: loadingProducts,
-    isError: productsError,
-  } = useQuery({
-    queryKey: ["products"],
-    queryFn: fetchProducts,
-  });
-
-  const {
-    data: paymentMethods = [],
-    isLoading: loadingPM,
-    isError: pmError,
-  } = useQuery({
-    queryKey: ["payment-methods", "BAR"],
-    queryFn: fetchPaymentMethods,
+    staleTime: 1000 * 30, // 30 segundos - las órdenes pueden cambiar frecuentemente
   });
 
   // sincronizar order local cuando llega de la API
@@ -118,6 +101,35 @@ export default function OrderDetailPage() {
       setOrder(orderData);
     }
   }, [orderData]);
+
+  // Determinar si la orden está abierta para habilitar queries condicionales
+  // Usamos orderData directamente para evitar dependencias circulares
+  const isOrderOpenForQueries = (orderData?.status === "open") ?? false;
+  const hasItemsForQueries = (orderData?.items?.length ?? 0) > 0;
+
+  // Solo cargar products cuando la orden esté abierta (se necesitan para agregar items)
+  const {
+    data: products = [],
+    isLoading: loadingProducts,
+    isError: productsError,
+  } = useQuery({
+    queryKey: ["products"],
+    queryFn: fetchProducts,
+    enabled: isOrderOpenForQueries, // Solo cargar si la orden está abierta
+    staleTime: 1000 * 60 * 5, // 5 minutos - los productos no cambian frecuentemente
+  });
+
+  // Solo cargar payment methods cuando la orden esté abierta y tenga items (se necesitan para pagar)
+  const {
+    data: paymentMethods = [],
+    isLoading: loadingPM,
+    isError: pmError,
+  } = useQuery({
+    queryKey: ["payment-methods", "BAR"],
+    queryFn: fetchPaymentMethods,
+    enabled: isOrderOpenForQueries && hasItemsForQueries,
+    staleTime: 1000 * 60 * 10, // 10 minutos - los métodos de pago cambian raramente
+  });
 
   // toasts de error de carga
   useEffect(() => {

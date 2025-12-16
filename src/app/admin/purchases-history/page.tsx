@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useDebounce } from "@/hooks/useDebounce";
 import { formatDateTime } from "@/lib/date-utils";
 import {
   Card,
@@ -97,6 +99,9 @@ export default function PurchasesHistoryPage() {
     fetchData();
   }, []);
 
+  // Debounce search term para evitar filtros costosos en cada keystroke
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
+
   const filteredPurchases = useMemo(() => {
     return purchases.filter((p) => {
       if (
@@ -131,8 +136,8 @@ export default function PurchasesHistoryPage() {
         if (created >= to) return false;
       }
 
-      if (searchTerm.trim()) {
-        const term = searchTerm.toLowerCase();
+      if (debouncedSearchTerm.trim()) {
+        const term = debouncedSearchTerm.toLowerCase();
         const supplierName = p.supplier?.name.toLowerCase() ?? "";
         const pmName = p.payment_method?.name.toLowerCase() ?? "";
         const notes = p.notes?.toLowerCase() ?? "";
@@ -157,7 +162,7 @@ export default function PurchasesHistoryPage() {
     statusFilter,
     fromDate,
     toDate,
-    searchTerm,
+    debouncedSearchTerm,
   ]);
 
   const totalFiltered = filteredPurchases.reduce(

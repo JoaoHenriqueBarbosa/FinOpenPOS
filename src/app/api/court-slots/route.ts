@@ -13,7 +13,18 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const dateParam = url.searchParams.get("date");
-  const slotDate = dateParam || new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  // Asegurar que la fecha se interprete correctamente en zona horaria local
+  let slotDate: string;
+  if (dateParam) {
+    slotDate = dateParam;
+  } else {
+    // Crear fecha en zona horaria local, no UTC
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    slotDate = `${year}-${month}-${day}`;
+  }
 
   try {
     const { data, error } = await supabase

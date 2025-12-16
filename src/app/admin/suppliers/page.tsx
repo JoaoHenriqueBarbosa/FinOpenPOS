@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Card,
   CardHeader,
@@ -48,7 +49,6 @@ import type { SupplierDTO, SupplierStatus } from "@/models/dto/supplier";
 
 export default function SuppliersPage() {
   const [suppliers, setSuppliers] = useState<SupplierDTO[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -70,35 +70,40 @@ export default function SuppliersPage() {
   const [notes, setNotes] = useState("");
   const [status, setStatus] = useState<SupplierStatus>("active");
 
-  // Cargar suppliers
-  useEffect(() => {
-    const fetchSuppliers = async () => {
-      try {
-        const res = await fetch("/api/suppliers");
-        if (!res.ok) {
-          throw new Error("Failed to fetch suppliers");
-        }
-        const data = await res.json();
-        // Aseguramos fields opcionales
-        const normalized: Supplier[] = data.map((s: any) => ({
-          id: s.id,
-          name: s.name,
-          contact_email: s.contact_email ?? null,
-          phone: s.phone ?? null,
-          notes: s.notes ?? null,
-          status: (s.status ?? "active") as SupplierStatus,
-        }));
-        setSuppliers(normalized);
-      } catch (err) {
-        console.error(err);
-        setError((err as Error).message);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const queryClient = useQueryClient();
 
-    fetchSuppliers();
-  }, []);
+  // React Query para compartir cache con otros componentes
+  const {
+    data: suppliersData = [],
+    isLoading: loadingSuppliers,
+    refetch: refetchSuppliers,
+  } = useQuery({
+    queryKey: ["suppliers"], // Mismo key que PurchasesPage y PurchasesHistoryPage
+    queryFn: async () => {
+      const res = await fetch("/api/suppliers");
+      if (!res.ok) {
+        throw new Error("Failed to fetch suppliers");
+      }
+      const data = await res.json();
+      // Aseguramos fields opcionales
+      return data.map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        contact_email: s.contact_email ?? null,
+        phone: s.phone ?? null,
+        notes: s.notes ?? null,
+        status: (s.status ?? "active") as SupplierStatus,
+      }));
+    },
+    staleTime: 1000 * 60 * 5, // 5 minutos
+  });
+
+  // Sincronizar suppliersData con estado local para compatibilidad
+  useEffect(() => {
+    setSuppliers(suppliersData);
+  }, [suppliersData]);
+
+  const loading = loadingSuppliers;
 
   const filteredSuppliers = useMemo(() => {
     return suppliers.filter((s) => {
@@ -167,17 +172,8 @@ export default function SuppliersPage() {
         }
 
         const created = await res.json();
-        setSuppliers((prev) => [
-          ...prev,
-          {
-            id: created.id,
-            name: created.name,
-            contact_email: created.contact_email ?? null,
-            phone: created.phone ?? null,
-            notes: created.notes ?? null,
-            status: (created.status ?? "active") as SupplierStatus,
-          },
-        ]);
+        // Invalidar cache para refrescar datos
+        queryClient.invalidateQueries({ queryKey: ["suppliers"] });
       } else {
         // UPDATE
         const res = await fetch(`/api/suppliers/${editingId}`, {
@@ -192,20 +188,8 @@ export default function SuppliersPage() {
         }
 
         const updated = await res.json();
-        setSuppliers((prev) =>
-          prev.map((s) =>
-            s.id === updated.id
-              ? {
-                  id: updated.id,
-                  name: updated.name,
-                  contact_email: updated.contact_email ?? null,
-                  phone: updated.phone ?? null,
-                  notes: updated.notes ?? null,
-                  status: (updated.status ?? "active") as SupplierStatus,
-                }
-              : s
-          )
-        );
+        // Invalidar cache para refrescar datos
+        queryClient.invalidateQueries({ queryKey: ["suppliers"] });
       }
 
       setIsDialogOpen(false);
@@ -228,10 +212,8 @@ export default function SuppliersPage() {
         return;
       }
 
-      // Soft delete: lo sacamos de la lista
-      setSuppliers((prev) =>
-        prev.filter((s) => s.id !== supplierToDelete.id)
-      );
+      // Invalidar cache para refrescar datos
+      queryClient.invalidateQueries({ queryKey: ["suppliers"] });
       setSupplierToDelete(null);
       setIsDeleteDialogOpen(false);
     } catch (err) {

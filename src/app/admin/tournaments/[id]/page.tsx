@@ -27,6 +27,7 @@ export default function TournamentDetailPage() {
   const id = Number(params?.id);
   const [tournament, setTournament] = useState<TournamentDTO | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<string>("teams");
 
   useEffect(() => {
     if (!id || Number.isNaN(id)) return;
@@ -68,7 +69,7 @@ export default function TournamentDetailPage() {
         </CardTitle>
       </CardHeader>
       <CardContent className="p-0 pt-2">
-        <Tabs defaultValue="teams">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <div className="space-y-3">
             {/* Sección de edición */}
             <div className="space-y-2">
@@ -96,25 +97,36 @@ export default function TournamentDetailPage() {
             </div>
           </div>
 
-          <TabsContent value="teams" className="pt-4">
-            <TeamsTab tournament={tournament} />
-          </TabsContent>
+          {/* Solo renderizar el tab activo para evitar cargas innecesarias */}
+          {activeTab === "teams" && (
+            <TabsContent value="teams" className="pt-4">
+              <TeamsTab tournament={tournament} />
+            </TabsContent>
+          )}
 
-          <TabsContent value="groups" className="pt-4">
-            <GroupsTab tournament={tournament} />
-          </TabsContent>
+          {activeTab === "groups" && (
+            <TabsContent value="groups" className="pt-4">
+              <GroupsTab tournament={tournament} />
+            </TabsContent>
+          )}
 
-          <TabsContent value="standings" className="pt-4">
-            <StandingsTab tournament={tournament} />
-          </TabsContent>
+          {activeTab === "standings" && (
+            <TabsContent value="standings" className="pt-4">
+              <StandingsTab tournament={tournament} />
+            </TabsContent>
+          )}
 
-          <TabsContent value="playoffs" className="pt-4">
-            <PlayoffsTab tournament={tournament} />
-          </TabsContent>
+          {activeTab === "playoffs" && (
+            <TabsContent value="playoffs" className="pt-4">
+              <PlayoffsTab tournament={tournament} />
+            </TabsContent>
+          )}
 
-          <TabsContent value="playoffs-view" className="pt-4">
-            <PlayoffsViewTab tournament={tournament} />
-          </TabsContent>
+          {activeTab === "playoffs-view" && (
+            <TabsContent value="playoffs-view" className="pt-4">
+              <PlayoffsViewTab tournament={tournament} />
+            </TabsContent>
+          )}
         </Tabs>
       </CardContent>
     </Card>

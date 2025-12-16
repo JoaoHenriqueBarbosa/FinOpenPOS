@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useDebounce } from "@/hooks/useDebounce";
 import {
   Card,
   CardContent,
@@ -53,7 +55,6 @@ import type { PlayerStatus } from "@/models/db/player";
 
 export default function PlayersPage() {
   const [players, setPlayers] = useState<Player[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showNewPlayerDialog, setShowNewPlayerDialog] = useState(false);
   const [newPlayerFirstName, setNewPlayerFirstName] = useState("");
@@ -76,38 +77,48 @@ export default function PlayersPage() {
     null
   );
 
-  useEffect(() => {
-    const fetchPlayers = async () => {
-      try {
-        const response = await fetch("/api/players");
-        if (!response.ok) {
-          throw new Error("Failed to fetch players");
-        }
-        const data = await response.json();
-        setPlayers(data);
-      } catch (error) {
-        setError((error as Error).message);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const queryClient = useQueryClient();
 
-    fetchPlayers();
-  }, []);
+  // React Query para compartir cache con otros componentes
+  const {
+    data: playersData = [],
+    isLoading: loadingPlayers,
+    refetch: refetchPlayers,
+  } = useQuery({
+    queryKey: ["players"], // Mismo key que TeamsTab y OrdersPage
+    queryFn: async () => {
+      const response = await fetch("/api/players");
+      if (!response.ok) {
+        throw new Error("Failed to fetch players");
+      }
+      return response.json();
+    },
+    staleTime: 1000 * 60 * 5, // 5 minutos
+  });
+
+  // Sincronizar playersData con estado local para compatibilidad
+  useEffect(() => {
+    setPlayers(playersData);
+  }, [playersData]);
+
+  const loading = loadingPlayers;
+
+  // Debounce search term para evitar filtros costosos en cada keystroke
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
   const filteredPlayers = useMemo(() => {
     return players.filter((player) => {
       if (filters.status !== "all" && player.status !== filters.status) {
         return false;
       }
-      const term = searchTerm.toLowerCase();
+      const term = debouncedSearchTerm.toLowerCase();
       return (
         player.first_name.toLowerCase().includes(term) ||
         (player.last_name).toLowerCase().includes(term) ||
-        (player.phone).includes(searchTerm)
+        (player.phone).includes(debouncedSearchTerm)
       );
     });
-  }, [players, filters.status, searchTerm]);
+  }, [players, filters.status, debouncedSearchTerm]);
 
   const resetSelectedPlayer = () => {
     setSelectedPlayerId(null);
@@ -169,12 +180,9 @@ export default function PlayersPage() {
         throw new Error("Error updating player");
       }
 
-      const updatedPlayerData: Player = await response.json();
-      setPlayers((prev) =>
-        prev.map((c) =>
-          c.id === updatedPlayerData.id ? updatedPlayerData : c
-        )
-      );
+      await response.json();
+      // Invalidar cache para refrescar players
+      queryClient.invalidateQueries({ queryKey: ["players"] });
       setIsEditPlayerDialogOpen(false);
       resetSelectedPlayer();
     } catch (error) {
