@@ -13,17 +13,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import type { MatchDTO } from "@/models/dto/tournament";
 
-// Tipo genérico para matches
-type MatchData = {
-  id: number;
-  set1_team1_games: number | null;
-  set1_team2_games: number | null;
-  set2_team1_games: number | null;
-  set2_team2_games: number | null;
-  set3_team1_games: number | null;
-  set3_team2_games: number | null;
-};
+// Using Pick from MatchDTO for form data
+type MatchData = Pick<MatchDTO, "id" | "set1_team1_games" | "set1_team2_games" | "set2_team1_games" | "set2_team2_games" | "set3_team1_games" | "set3_team2_games">;
 
 type MatchResultFormProps = {
   match: MatchData;

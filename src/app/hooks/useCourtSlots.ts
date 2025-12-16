@@ -2,29 +2,12 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { CourtSlotDTO } from "@/models/dto/court";
 
-export type CourtSlot = {
-  id: number;
-  slot_date: string;
-  start_time: string;
-  end_time: string;
-  was_played: boolean;
-  notes: string | null;
-  player1_payment_method_id: number | null;
-  player1_note: string | null;
-  player2_payment_method_id: number | null;
-  player2_note: string | null;
-  player3_payment_method_id: number | null;
-  player3_note: string | null;
-  player4_payment_method_id: number | null;
-  player4_note: string | null;
-  court: {
-    id: number;
-    name: string;
-  } | null;
-};
+// Re-export for backward compatibility
+export type { CourtSlotDTO as CourtSlot };
 
-async function fetchCourtSlots(date: string): Promise<CourtSlot[]> {
+async function fetchCourtSlots(date: string): Promise<CourtSlotDTO[]> {
   const res = await fetch(`/api/court-slots?date=${date}`);
   if (!res.ok) throw new Error("Failed to fetch court slots");
   return res.json();
@@ -41,23 +24,23 @@ export function useCourtSlots(date: string) {
 export function useUpdateCourtSlot() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (params: { slotId: number; patch: Partial<CourtSlot> }) => {
+    mutationFn: async (params: { slotId: number; patch: Partial<CourtSlotDTO> }) => {
       const res = await fetch(`/api/court-slots/${params.slotId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(params.patch),
       });
       if (!res.ok) throw new Error("Error updating slot");
-      return res.json() as Promise<CourtSlot>;
+      return res.json() as Promise<CourtSlotDTO>;
     },
     // ✅ Optimistic update (opcional pero buenísimo)
     onMutate: async ({ slotId, patch }) => {
       await queryClient.cancelQueries({ queryKey: ["court-slots"] });
 
-      const prevData = queryClient.getQueryData<CourtSlot[]>(["court-slots"]);
+      const prevData = queryClient.getQueryData<CourtSlotDTO[]>(["court-slots"]);
 
       if (prevData) {
-        queryClient.setQueryData<CourtSlot[]>(
+        queryClient.setQueryData<CourtSlotDTO[]>(
           ["court-slots"],
           prevData.map((s) =>
             s.id === slotId ? { ...s, ...patch } : s
@@ -74,7 +57,7 @@ export function useUpdateCourtSlot() {
     },
     onSuccess: (updatedSlot) => {
       // Reemplazamos con el valor “real” del server
-      queryClient.setQueryData<CourtSlot[]>(
+      queryClient.setQueryData<CourtSlotDTO[]>(
         ["court-slots"],
         (old) =>
           old?.map((s) => (s.id === updatedSlot.id ? updatedSlot : s)) ?? []

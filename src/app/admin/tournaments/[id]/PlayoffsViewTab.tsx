@@ -11,47 +11,12 @@ import {
 import { Loader2Icon } from "lucide-react";
 import { TournamentBracketV2 } from "@/components/tournament-bracket-v2";
 import { formatDate, formatTime } from "@/lib/date-utils";
+import type { PlayoffRow, TeamDTO, TournamentDTO } from "@/models/dto/tournament";
 
-type Tournament = { 
-  id: number;
-};
-
-type PlayoffRow = {
-  id: number;
-  round: string;
-  bracket_pos: number;
-  source_team1: string | null;
-  source_team2: string | null;
-  match: {
-    id: number;
-    status: string;
-    match_date: string | null;
-    start_time: string | null;
-    set1_team1_games: number | null;
-    set1_team2_games: number | null;
-    set2_team1_games: number | null;
-    set2_team2_games: number | null;
-    set3_team1_games: number | null;
-    set3_team2_games: number | null;
-    team1: {
-      id: number;
-      display_name: string | null;
-      player1: { first_name: string; last_name: string } | null;
-      player2: { first_name: string; last_name: string } | null;
-    } | null;
-    team2: {
-      id: number;
-      display_name: string | null;
-      player1: { first_name: string; last_name: string } | null;
-      player2: { first_name: string; last_name: string } | null;
-    } | null;
-  } | null;
-};
-
-type Team = NonNullable<PlayoffRow["match"]>["team1"];
+// Using Pick from TournamentDTO
 
 // Función para mostrar solo apellidos en el bracket
-function teamLabelBracket(team: Team) {
+function teamLabelBracket(team: TeamDTO | null) {
   if (!team) return "—";
   if (team.display_name) return team.display_name;
   const lastName1 = team.player1?.last_name ?? "";
@@ -61,7 +26,7 @@ function teamLabelBracket(team: Team) {
   return result || "—";
 }
 
-export default function PlayoffsViewTab({ tournament }: { tournament: Tournament }) {
+export default function PlayoffsViewTab({ tournament }: { tournament: Pick<TournamentDTO, "id"> }) {
   const [rows, setRows] = useState<PlayoffRow[]>([]);
   const [loading, setLoading] = useState(true);
 

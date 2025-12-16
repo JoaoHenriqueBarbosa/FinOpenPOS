@@ -20,20 +20,12 @@ import GroupsTab from "./GroupsTab";
 import StandingsTab from "./StandingsTab";
 import PlayoffsTab from "./PlayoffsTab";
 import PlayoffsViewTab from "./PlayoffsViewTab";
-
-type Tournament = {
-  id: number;
-  name: string;
-  category: string | null;
-  status: string;
-  has_super_tiebreak: boolean;
-  match_duration: number;
-};
+import type { TournamentDTO } from "@/models/dto/tournament";
 
 export default function TournamentDetailPage() {
   const params = useParams();
   const id = Number(params?.id);
-  const [tournament, setTournament] = useState<Tournament | null>(null);
+  const [tournament, setTournament] = useState<TournamentDTO | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

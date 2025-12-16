@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import {
-  ScheduleConfig,
   GroupMatchPayload,
   scheduleGroupMatches,
 } from "@/lib/tournament-scheduler";
+import type { ScheduleConfig } from "@/models/dto/tournament";
 
 type RouteParams = { params: { id: string } };
 

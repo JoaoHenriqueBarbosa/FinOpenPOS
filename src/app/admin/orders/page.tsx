@@ -45,39 +45,18 @@ import {
 } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-
-type OrderStatus = "open" | "closed" | "cancelled";
-
-type Order = {
-  id: number;
-  player_id: number | null;
-  total_amount: number;
-  status: OrderStatus;
-  created_at: string;
-  player?: {
-    first_name: string;
-    last_name: string;
-  } | null;
-};
-
-type PlayerStatus = "active" | "inactive";
-
-type Player = {
-  id: number;
-  first_name: string;
-  last_name: string;
-  phone: string;
-  status?: PlayerStatus;
-};
+import type { OrderDTO, OrderStatus } from "@/models/dto/order";
+import type { PlayerDTO } from "@/models/dto/player";
+import type { PlayerStatus } from "@/models/db/player";
 
 // ---- fetchers ----
-async function fetchOrders(): Promise<Order[]> {
+async function fetchOrders(): Promise<OrderDTO[]> {
   const res = await fetch("/api/orders");
   if (!res.ok) throw new Error("Error al cargar las cuentas");
   return res.json();
 }
 
-async function fetchPlayers(): Promise<Player[]> {
+async function fetchPlayers(): Promise<PlayerDTO[]> {
   const res = await fetch("/api/players?onlyActive=true");
   if (!res.ok) throw new Error("Error al cargar los clientes");
   return res.json();
@@ -194,7 +173,7 @@ export default function OrdersPage() {
       if (!res.ok) {
         throw new Error("Error al crear la cuenta");
       }
-      return (await res.json()) as Order;
+      return (await res.json()) as OrderDTO;
     },
     onMutate: async (payload) => {
       setCreatingOrder(true);
@@ -202,7 +181,7 @@ export default function OrdersPage() {
       await queryClient.cancelQueries({ queryKey: ["orders"] });
 
       const previousOrders =
-        queryClient.getQueryData<Order[]>(["orders"]) ?? [];
+        queryClient.getQueryData<OrderDTO[]>(["orders"]) ?? [];
 
       // Podríamos hacer un optimista completo con id temporal,
       // pero como después igual vamos a reemplazar con el real,
@@ -221,7 +200,7 @@ export default function OrdersPage() {
       setCreatingOrder(false);
     },
     onSuccess: (newOrder) => {
-      queryClient.setQueryData<Order[]>(["orders"], (old) => [
+      queryClient.setQueryData<OrderDTO[]>(["orders"], (old) => [
         newOrder,
         ...(old ?? []),
       ]);
@@ -274,7 +253,7 @@ export default function OrdersPage() {
       await queryClient.cancelQueries({ queryKey: ["players", "onlyActive"] });
 
       const previousPlayers =
-        queryClient.getQueryData<Player[]>(["players", "onlyActive"]) ?? [];
+        queryClient.getQueryData<PlayerDTO[]>(["players", "onlyActive"]) ?? [];
 
       // Optimista: agregamos uno "fake" mientras tanto
       const tempId = -Math.floor(Math.random() * 1_000_000);
@@ -286,7 +265,7 @@ export default function OrdersPage() {
         status: payload.status,
       };
 
-      queryClient.setQueryData<Player[]>(
+      queryClient.setQueryData<PlayerDTO[]>(
         ["players", "onlyActive"],
         (old) => [optimisticPlayer, ...(old ?? [])]
       );
@@ -310,7 +289,7 @@ export default function OrdersPage() {
     },
     onSuccess: (newPlayer, _vars, ctx) => {
       // Reemplazamos el temp por el real
-      queryClient.setQueryData<Player[]>(
+      queryClient.setQueryData<PlayerDTO[]>(
         ["players", "onlyActive"],
         (old) => {
           const list = old ?? [];

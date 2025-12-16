@@ -28,23 +28,9 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { Loader2Icon, PlusIcon, TrashIcon } from "lucide-react";
-
-type Product = {
-  id: number;
-  name: string;
-  price: number;
-};
-
-type Supplier = {
-  id: number;
-  name: string;
-  status: string;
-};
-
-type PaymentMethod = {
-  id: number;
-  name: string;
-};
+import type { ProductNestedDTO } from "@/models/dto/product";
+import type { SupplierNestedDTO } from "@/models/dto/supplier";
+import type { PaymentMethodNestedDTO } from "@/models/dto/payment-method";
 
 type PurchaseLine = {
   id: number;
@@ -54,9 +40,9 @@ type PurchaseLine = {
 };
 
 export default function PurchasesPage() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [products, setProducts] = useState<ProductNestedDTO[]>([]);
+  const [suppliers, setSuppliers] = useState<SupplierNestedDTO[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodNestedDTO[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

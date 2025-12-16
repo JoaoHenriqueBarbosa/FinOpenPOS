@@ -43,19 +43,12 @@ import {
   Loader2Icon,
 } from "lucide-react";
 
-type Category = {
-  id: number;
-  name: string;
-  description: string | null;
-  color: string | null;
-  is_active: boolean;
-  created_at: string;
-};
+import type { ProductCategoryDTO } from "@/models/dto/product";
 
 type ActiveFilter = "all" | "active" | "inactive";
 
 export default function ProductCategoriesPage() {
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [categories, setCategories] = useState<ProductCategoryDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>("all");
@@ -72,7 +65,7 @@ export default function ProductCategoriesPage() {
 
   const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] =
     useState(false);
-  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(
+  const [categoryToDelete, setCategoryToDelete] = useState<ProductCategoryDTO | null>(
     null
   );
 
@@ -125,7 +118,7 @@ export default function ProductCategoriesPage() {
     setIsDialogOpen(true);
   };
 
-  const openEditDialog = (category: Category) => {
+  const openEditDialog = (category: ProductCategoryDTO) => {
     setSelectedCategoryId(category.id);
     setName(category.name);
     setDescription(category.description ?? "");
@@ -160,7 +153,7 @@ export default function ProductCategoriesPage() {
           return;
         }
 
-        const created: Category = await res.json();
+        const created: ProductCategoryDTO = await res.json();
         setCategories((prev) => [...prev, created]);
       } else if (selectedCategoryId) {
         // Edit
@@ -178,7 +171,7 @@ export default function ProductCategoriesPage() {
           return;
         }
 
-        const updated: Category = await res.json();
+        const updated: ProductCategoryDTO = await res.json();
         setCategories((prev) =>
           prev.map((c) => (c.id === updated.id ? updated : c))
         );

@@ -3,17 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 
 type RouteParams = { params: { id: string } };
 
-type ScheduleDay = {
-  date: string; // YYYY-MM-DD
-  startTime: string; // HH:MM
-  endTime: string; // HH:MM
-};
-
-type ScheduleConfig = {
-  days: ScheduleDay[];
-  matchDuration: number; // minutos entre partidos
-  courtIds: number[]; // IDs de las canchas a usar
-};
+import type { ScheduleDay, ScheduleConfig } from "@/models/dto/tournament";
 
 // Función helper para generar slots de tiempo
 function generateTimeSlots(
@@ -53,17 +43,10 @@ function generateTimeSlots(
   return slots;
 }
 
-type MatchRow = {
-  id: number;
-  tournament_group_id: number | null;
-  team1_id: number;
-  team2_id: number;
-  team1_sets: number | null;
-  team2_sets: number | null;
-  team1_games_total: number | null;
-  team2_games_total: number | null;
-  status: string;
-};
+import type { TournamentMatchDB } from "@/models/db/tournament";
+
+// Using Pick from TournamentMatchDB for internal processing
+type MatchRow = Pick<TournamentMatchDB, "id" | "tournament_group_id" | "team1_id" | "team2_id" | "team1_sets" | "team2_sets" | "team1_games_total" | "team2_games_total" | "status">;
 
 export async function POST(req: Request, { params }: RouteParams) {
   const supabase = createClient();

@@ -34,28 +34,12 @@ import {
 import { cn } from "@/lib/utils";
 import { TournamentScheduleDialog, ScheduleConfig } from "@/components/tournament-schedule-dialog";
 
-type Tournament = {
-  id: number;
-  status: string;
-  match_duration: number;
-};
+import type { PlayerDTO } from "@/models/dto/player";
+import type { TeamDTO, TournamentDTO } from "@/models/dto/tournament";
 
-type Player = {
-  id: number;
-  first_name: string;
-  last_name: string;
-};
-
-type Team = {
-  id: number;
-  display_name: string | null;
-  player1: { id: number; first_name: string; last_name: string };
-  player2: { id: number; first_name: string; last_name: string };
-};
-
-export default function TeamsTab({ tournament }: { tournament: Tournament }) {
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [players, setPlayers] = useState<Player[]>([]);
+export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDTO, "id" | "status" | "match_duration"> }) {
+  const [teams, setTeams] = useState<TeamDTO[]>([]);
+  const [players, setPlayers] = useState<PlayerDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -100,7 +84,7 @@ export default function TeamsTab({ tournament }: { tournament: Tournament }) {
     fetchData();
   }, [tournament.id]);
 
-  const fullName = (p: Player) => `${p.first_name} ${p.last_name}`;
+  const fullName = (p: PlayerDTO) => `${p.first_name} ${p.last_name}`;
 
   // Filtrar jugadores por búsqueda (subcadena en nombre o apellido)
   const filterPlayers = (search: string) => {

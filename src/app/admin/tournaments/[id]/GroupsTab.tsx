@@ -22,70 +22,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import type {
+  TournamentDTO,
+  GroupDTO,
+  GroupTeamDTO,
+  MatchDTO,
+  StandingDTO,
+  GroupsApiResponse,
+  TeamDTO,
+} from "@/models/dto/tournament";
 
-type Tournament = {
-  id: number;
-  has_super_tiebreak: boolean;
-  match_duration: number;
-};
+// Using TournamentDetailDTO from models
 
-type Group = {
-  id: number;
-  name: string;
-  group_order?: number;
-};
-
-type GroupTeam = {
-  id: number;
-  tournament_group_id: number;
-  team: {
-    id: number;
-    display_name: string | null;
-    seed_number: number | null;
-    player1: { first_name: string; last_name: string } | null;
-    player2: { first_name: string; last_name: string } | null;
-  } | null;
-};
-
-type Match = {
-  id: number;
-  tournament_group_id: number | null;
-  status: string;
-  match_date: string | null;
-  start_time: string | null;
-  end_time: string | null;
-  set1_team1_games: number | null;
-  set1_team2_games: number | null;
-  set2_team1_games: number | null;
-  set2_team2_games: number | null;
-  set3_team1_games: number | null;
-  set3_team2_games: number | null;
-  team1: GroupTeam["team"];
-  team2: GroupTeam["team"];
-};
-
-type Standing = {
-  id: number;
-  tournament_group_id: number;
-  team_id: number;
-  position: number;
-  matches_played: number;
-  wins: number;
-  losses: number;
-  sets_won: number;
-  sets_lost: number;
-  games_won: number;
-  games_lost: number;
-};
-
-type ApiResponse = {
-  groups: Group[];
-  groupTeams: GroupTeam[];
-  matches: Match[];
-  standings?: Standing[];
-};
-
-function teamLabel(team: GroupTeam["team"]) {
+function teamLabel(team: TeamDTO | null) {
   if (!team) return "Equipo";
   if (team.display_name) return team.display_name;
   return `${team.player1?.first_name ?? ""} ${team.player1?.last_name ?? ""} / ${
@@ -117,8 +66,8 @@ function getGroupColor(groupIndex: number): { bg: string; text: string; border: 
   return colorSchemes[groupIndex % colorSchemes.length] || colorSchemes[0];
 }
 
-export default function GroupsTab({ tournament }: { tournament: Tournament }) {
-  const [data, setData] = useState<ApiResponse | null>(null);
+export default function GroupsTab({ tournament }: { tournament: Pick<TournamentDTO, "id" | "has_super_tiebreak" | "match_duration"> }) {
+  const [data, setData] = useState<GroupsApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [closingGroups, setClosingGroups] = useState(false);
   const [hasPlayoffs, setHasPlayoffs] = useState(false);
@@ -139,7 +88,7 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
         fetch(`/api/tournaments/${tournament.id}/playoffs`),
       ]);
       if (groupsRes.ok) {
-        const json = (await groupsRes.json()) as ApiResponse;
+        const json = (await groupsRes.json()) as GroupsApiResponse;
         setData(json);
       }
       if (playoffsRes.ok) {
@@ -214,7 +163,7 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
     }
   };
 
-  const handleStartEdit = (match: Match) => {
+  const handleStartEdit = (match: MatchDTO) => {
     setEditingMatchId(match.id);
     // Convertir fecha a formato YYYY-MM-DD para el input
     setEditDate(match.match_date ? match.match_date.split("T")[0] : "");
@@ -427,7 +376,7 @@ export default function GroupsTab({ tournament }: { tournament: Tournament }) {
           });
 
           // Agrupar matches por grupo
-          const matchesByGroup = new Map<number, Match[]>();
+          const matchesByGroup = new Map<number, MatchDTO[]>();
           data.matches.forEach((m) => {
             if (m.tournament_group_id) {
               if (!matchesByGroup.has(m.tournament_group_id)) {

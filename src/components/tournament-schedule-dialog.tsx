@@ -13,18 +13,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PlusIcon, TrashIcon } from "lucide-react";
+import type { ScheduleDay, ScheduleConfig } from "@/models/dto/tournament";
 
-export type ScheduleDay = {
-  date: string; // YYYY-MM-DD
-  startTime: string; // HH:MM
-  endTime: string; // HH:MM
-};
-
-export type ScheduleConfig = {
-  days: ScheduleDay[];
-  matchDuration: number; // minutos entre partidos (ej: 60)
-  courtIds: number[]; // IDs de las canchas a usar
-};
+export type { ScheduleDay, ScheduleConfig };
 
 type TournamentScheduleDialogProps = {
   open: boolean;
@@ -34,11 +25,7 @@ type TournamentScheduleDialogProps = {
   tournamentMatchDuration?: number; // duración del partido del torneo (en minutos)
 };
 
-type Court = {
-  id: number;
-  name: string;
-  is_active: boolean;
-};
+import type { CourtDTO } from "@/models/dto/court";
 
 export function TournamentScheduleDialog({
   open,
@@ -77,7 +64,7 @@ export function TournamentScheduleDialog({
           }
           return res.json();
         })
-        .then((data: Court[] | { error?: string }) => {
+        .then((data: CourtDTO[] | { error?: string }) => {
           // Asegurar que sea un array
           const courtsArray = Array.isArray(data) ? data : [];
           setCourts(courtsArray);

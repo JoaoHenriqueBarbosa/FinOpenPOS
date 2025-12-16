@@ -41,39 +41,14 @@ import {
   FilterIcon,
   CalendarIcon,
 } from "lucide-react";
-
-type Supplier = {
-  id: number;
-  name: string;
-};
-
-type PaymentMethod = {
-  id: number;
-  name: string;
-};
-
-type PurchaseStatus = "pending" | "completed" | "cancelled";
-
-type Purchase = {
-  id: number;
-  total_amount: number;
-  status: PurchaseStatus;
-  notes: string | null;
-  created_at: string;
-  supplier: {
-    id: number;
-    name: string;
-  } | null;
-  payment_method: {
-    id: number;
-    name: string;
-  } | null;
-};
+import type { PurchaseDTO, PurchaseStatus } from "@/models/dto/purchase";
+import type { SupplierNestedDTO } from "@/models/dto/supplier";
+import type { PaymentMethodNestedDTO } from "@/models/dto/payment-method";
 
 export default function PurchasesHistoryPage() {
-  const [purchases, setPurchases] = useState<Purchase[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [purchases, setPurchases] = useState<PurchaseDTO[]>([]);
+  const [suppliers, setSuppliers] = useState<SupplierNestedDTO[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodNestedDTO[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [searchTerm, setSearchTerm] = useState("");
