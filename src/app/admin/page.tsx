@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Card,
   CardHeader,
@@ -8,336 +10,237 @@ import {
   CardDescription,
   CardFooter,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import {
-  ChartTooltipContent,
-  ChartTooltip,
-  ChartContainer,
-  ChartConfig,
-} from "@/components/ui/chart";
-import { Loader2Icon, TrendingUp } from "lucide-react";
-import {
-  Pie,
-  PieChart,
-  CartesianGrid,
-  XAxis,
-  Bar,
-  BarChart,
-  Line,
-  LineChart,
-} from "recharts";
+  Loader2Icon,
+  ShoppingCartIcon,
+  CalendarIcon,
+  TrophyIcon,
+  ArrowRightIcon,
+  DollarSignIcon,
+  UsersIcon,
+  PackageIcon,
+  TruckIcon,
+  LayersIcon,
+} from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+
+// Fetch functions
+async function fetchOpenOrdersCount(): Promise<number> {
+  const res = await fetch("/api/orders");
+  if (!res.ok) throw new Error("Failed to fetch orders");
+  const orders = await res.json();
+  return orders.filter((o: any) => o.status === "open").length;
+}
+
+async function fetchTodayCourtSlots(): Promise<number> {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  const dateStr = `${year}-${month}-${day}`;
+  
+  const res = await fetch(`/api/court-slots?date=${dateStr}`);
+  if (!res.ok) throw new Error("Failed to fetch court slots");
+  const slots = await res.json();
+  return slots.length;
+}
+
+async function fetchTotalRevenue(): Promise<number> {
+  const res = await fetch("/api/admin/revenue/total");
+  if (!res.ok) throw new Error("Failed to fetch revenue");
+  const data = await res.json();
+  return data.totalRevenue || 0;
+}
 
 export default function Page() {
-  const [totalRevenue, setTotalRevenue] = useState(0);
-  const [totalExpenses, setTotalExpenses] = useState(0);
-  const [totalProfit, setTotalProfit] = useState(0);
-  const [cashFlow, setCashFlow] = useState<{ date: string; amount: unknown }[]>([]);
-  const [revenueByCategory, setRevenueByCategory] = useState({});
-  const [expensesByCategory, setExpensesByCategory] = useState({});
-  const [profitMargin, setProfitMargin] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [
-          revenueRes,
-          expensesRes,
-          profitRes,
-          cashFlowRes,
-          revenueByCategoryRes,
-          expensesByCategoryRes,
-          profitMarginRes
-        ] = await Promise.all([
-          fetch('/api/admin/revenue/total'),
-          fetch('/api/admin/expenses/total'),
-          fetch('/api/admin/profit/total'),
-          fetch('/api/admin/cashflow'),
-          fetch('/api/admin/revenue/category'),
-          fetch('/api/admin/expenses/category'),
-          fetch('/api/admin/profit/margin')
-        ]);
+  // Queries para datos principales
+  const { data: openOrdersCount = 0, isLoading: loadingOrders } = useQuery({
+    queryKey: ["open-orders-count"],
+    queryFn: fetchOpenOrdersCount,
+    staleTime: 30 * 1000, // 30 segundos
+  });
 
-        const revenue = await revenueRes.json();
-        const expenses = await expensesRes.json();
-        const profit = await profitRes.json();
-        const cashFlowData = await cashFlowRes.json();
-        const revenueByCategoryData = await revenueByCategoryRes.json();
-        const expensesByCategoryData = await expensesByCategoryRes.json();
-        const profitMarginData = await profitMarginRes.json();
+  const { data: todaySlotsCount = 0, isLoading: loadingSlots } = useQuery({
+    queryKey: ["today-court-slots"],
+    queryFn: fetchTodayCourtSlots,
+    staleTime: 60 * 1000, // 1 minuto
+  });
 
-        setTotalRevenue(revenue.totalRevenue);
-        setTotalExpenses(expenses.totalExpenses);
-        setTotalProfit(profit.totalProfit);
-        setCashFlow(Object.entries(cashFlowData.cashFlow).map(([date, amount]) => ({ date, amount })));
-        setRevenueByCategory(revenueByCategoryData.revenueByCategory);
-        setExpensesByCategory(expensesByCategoryData.expensesByCategory);
-        setProfitMargin(profitMarginData.profitMargin);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const { data: totalRevenue = 0, isLoading: loadingRevenue } = useQuery({
+    queryKey: ["total-revenue"],
+    queryFn: fetchTotalRevenue,
+    staleTime: 5 * 60 * 1000, // 5 minutos
+  });
 
-    fetchData();
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="h-[80vh] flex items-center justify-center">
-        <Loader2Icon className="mx-auto h-12 w-12 animate-spin" />
-      </div>
-    );
-  }
+  const loading = loadingOrders || loadingSlots || loadingRevenue;
 
   return (
-    <div className="grid flex-1 items-start gap-4">
-      <div className="grid auto-rows-max items-start gap-4 lg:grid-cols-2 xl:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-            <DollarSignIcon className="w-4 h-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${totalRevenue.toFixed(2)}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total Expenses
-            </CardTitle>
-            <DollarSignIcon className="w-4 h-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${totalExpenses.toFixed(2)}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Profit (selling)</CardTitle>
-            <DollarSignIcon className="w-4 h-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${totalProfit.toFixed(2)}</div>
-          </CardContent>
-        </Card>
+    <div className="flex flex-col gap-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
       </div>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">
-              Revenue by Category
-            </CardTitle>
-            <PieChartIcon className="w-4 h-4 text-muted-foreground" />
+
+      {/* Sección Principal: Acciones Rápidas */}
+      <div className="grid gap-4 md:grid-cols-3">
+        {/* Ventas - Más importante */}
+        <Card className="border-2 hover:border-primary/50 transition-colors">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg font-semibold">Ventas</CardTitle>
+              <ShoppingCartIcon className="h-5 w-5 text-primary" />
+            </div>
+            <CardDescription>Gestión de cuentas y pedidos</CardDescription>
           </CardHeader>
-          <CardContent>
-            <PiechartcustomChart data={revenueByCategory} className="aspect-auto" />
+          <CardContent className="space-y-4">
+            {loading ? (
+              <div className="flex items-center justify-center h-20">
+                <Loader2Icon className="h-5 w-5 animate-spin" />
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Cuentas abiertas</span>
+                    <span className="text-2xl font-bold">{openOrdersCount}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Ingresos totales</span>
+                    <span className="text-lg font-semibold">${totalRevenue.toFixed(2)}</span>
+                  </div>
+                </div>
+                <Button
+                  className="w-full"
+                  onClick={() => router.push("/admin/orders")}
+                >
+                  Ver cuentas
+                  <ArrowRightIcon className="ml-2 h-4 w-4" />
+                </Button>
+              </>
+            )}
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">
-              Expenses by Category
-            </CardTitle>
-            <PieChartIcon className="w-4 h-4 text-muted-foreground" />
+
+        {/* Canchas - Segundo */}
+        <Card className="border-2 hover:border-primary/50 transition-colors">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg font-semibold">Canchas</CardTitle>
+              <CalendarIcon className="h-5 w-5 text-primary" />
+            </div>
+            <CardDescription>Gestión de turnos y reservas</CardDescription>
           </CardHeader>
-          <CardContent>
-            <PiechartcustomChart data={expensesByCategory} className="aspect-auto" />
+          <CardContent className="space-y-4">
+            {loading ? (
+              <div className="flex items-center justify-center h-20">
+                <Loader2Icon className="h-5 w-5 animate-spin" />
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Turnos hoy</span>
+                    <span className="text-2xl font-bold">{todaySlotsCount}</span>
+                  </div>
+                </div>
+                <Button
+                  className="w-full"
+                  variant="outline"
+                  onClick={() => router.push("/admin/court-slots")}
+                >
+                  Ver turnos
+                  <ArrowRightIcon className="ml-2 h-4 w-4" />
+                </Button>
+              </>
+            )}
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Profit Margin (selling)</CardTitle>
-            <BarChartIcon className="w-4 h-4 text-muted-foreground" />
+
+        {/* Torneos - Tercero */}
+        <Card className="border-2 hover:border-primary/50 transition-colors">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg font-semibold">Torneos</CardTitle>
+              <TrophyIcon className="h-5 w-5 text-primary" />
+            </div>
+            <CardDescription>Gestión de competencias</CardDescription>
           </CardHeader>
-          <CardContent>
-            <BarchartChart data={profitMargin} className="aspect-auto" />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Cash Flow</CardTitle>
-            <DollarSignIcon className="w-4 h-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <LinechartChart data={cashFlow} className="aspect-auto" />
+          <CardContent className="space-y-4">
+            <Button
+              className="w-full"
+              variant="outline"
+              onClick={() => router.push("/admin/tournaments")}
+            >
+              Ver torneos
+              <ArrowRightIcon className="ml-2 h-4 w-4" />
+            </Button>
           </CardContent>
         </Card>
       </div>
+
+      {/* Sección Secundaria: Funciones Esporádicas */}
+      <div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <Card className="hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => router.push("/admin/players")}>
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <UsersIcon className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Clientes</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <CardDescription className="text-xs">
+                Gestionar clientes y jugadores
+              </CardDescription>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => router.push("/admin/products")}>
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <PackageIcon className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Productos</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <CardDescription className="text-xs">
+                Gestionar productos y categorías
+              </CardDescription>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => router.push("/admin/purchases")}>
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <TruckIcon className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Compras</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <CardDescription className="text-xs">
+                Registrar compras y proveedores
+              </CardDescription>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => router.push("/admin/purchases-history")}>
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <LayersIcon className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Historial</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <CardDescription className="text-xs">
+                Ver historial de compras
+              </CardDescription>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
-
-function BarChartIcon(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <line x1="12" x2="12" y1="20" y2="10" />
-      <line x1="18" x2="18" y1="20" y2="4" />
-      <line x1="6" x2="6" y1="20" y2="16" />
-    </svg>
-  );
-}
-
-function BarchartChart({ data, ...props }: { data: any[] } & React.HTMLAttributes<HTMLDivElement>) {
-  const chartConfig = {
-    margin: {
-      label: "Margin",
-      color: "hsl(var(--chart-1))",
-    },
-  } satisfies ChartConfig;
-  return (
-    <div {...props}>
-      <ChartContainer config={chartConfig}>
-        <BarChart accessibilityLayer data={data}>
-          <CartesianGrid vertical={false} />
-          <XAxis
-            dataKey="date"
-            tickLine={false}
-            tickMargin={10}
-            axisLine={false}
-            tickFormatter={(value) => new Date(value).toLocaleDateString()}
-          />
-          <ChartTooltip
-            cursor={false}
-            content={<ChartTooltipContent indicator="dashed" />}
-          />
-          <Bar dataKey="margin" fill="var(--color-margin)" radius={4} />
-        </BarChart>
-      </ChartContainer>
-    </div>
-  );
-}
-
-function DollarSignIcon(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <line x1="12" x2="12" y1="2" y2="22" />
-      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-    </svg>
-  );
-}
-
-function LinechartChart({ data, ...props }: { data: any[] } & React.HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div {...props}>
-      <ChartContainer
-        config={{
-          amount: {
-            label: "Amount",
-            color: "hsl(var(--chart-1))",
-          },
-        }}
-      >
-        <LineChart
-          accessibilityLayer
-          data={data}
-          margin={{
-            left: 12,
-            right: 12,
-          }}
-        >
-          <CartesianGrid vertical={false} />
-          <XAxis
-            dataKey="date"
-            tickLine={false}
-            axisLine={false}
-            tickMargin={8}
-            tickFormatter={(value) => new Date(value).toLocaleDateString()}
-          />
-          <ChartTooltip
-            cursor={false}
-            content={<ChartTooltipContent hideLabel />}
-          />
-          <Line
-            dataKey="amount"
-            type="monotone"
-            stroke="var(--color-amount)"
-            strokeWidth={2}
-            dot={false}
-          />
-        </LineChart>
-      </ChartContainer>
-    </div>
-  );
-}
-
-function PieChartIcon(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M21.21 15.89A10 10 0 1 1 8 2.83" />
-      <path d="M22 12A10 10 0 0 0 12 2v10z" />
-    </svg>
-  );
-}
-
-function PiechartcustomChart({ data, ...props }: { data: Record<string, number> } & React.HTMLAttributes<HTMLDivElement>) {
-  const chartData = Object.entries(data).map(([category, value]) => ({
-    category,
-    value,
-    fill: `var(--color-${category})`,
-  }));
-
-  const chartConfig = Object.fromEntries(
-    Object.keys(data).map((category, index) => [
-      category,
-      {
-        label: category,
-        color: `hsl(var(--chart-${index + 1}))`,
-      },
-    ])
-  ) as ChartConfig;
-
-  return (
-    <div {...props}>
-      <ChartContainer config={chartConfig}>
-        <PieChart>
-          <ChartTooltip
-            cursor={false}
-            content={<ChartTooltipContent hideLabel />}
-          />
-          <Pie
-            data={chartData}
-            dataKey="value"
-            nameKey="category"
-            outerRadius={80}
-          />
-        </PieChart>
-      </ChartContainer>
-    </div>
-  );
-}
-
