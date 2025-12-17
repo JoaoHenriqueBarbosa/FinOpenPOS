@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useDebounce } from "@/hooks/useDebounce";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -35,16 +37,32 @@ import { cn } from "@/lib/utils";
 import { TournamentScheduleDialog, ScheduleConfig } from "@/components/tournament-schedule-dialog";
 
 import type { PlayerDTO } from "@/models/dto/player";
-import type { TeamDTO, TournamentDTO } from "@/models/dto/tournament";
+import type { TeamDTO, TournamentDTO, GroupsApiResponse } from "@/models/dto/tournament";
+
+// Fetch functions para React Query
+async function fetchTournamentTeams(tournamentId: number): Promise<TeamDTO[]> {
+  const res = await fetch(`/api/tournaments/${tournamentId}/teams`);
+  if (!res.ok) throw new Error("Failed to fetch teams");
+  return res.json();
+}
+
+async function fetchPlayers(): Promise<PlayerDTO[]> {
+  const res = await fetch("/api/players");
+  if (!res.ok) throw new Error("Failed to fetch players");
+  return res.json();
+}
+
+async function fetchTournamentGroups(tournamentId: number): Promise<GroupsApiResponse> {
+  const res = await fetch(`/api/tournaments/${tournamentId}/groups`);
+  if (!res.ok) throw new Error("Failed to fetch groups");
+  return res.json();
+}
 
 export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDTO, "id" | "status" | "match_duration"> }) {
-  const [teams, setTeams] = useState<TeamDTO[]>([]);
-  const [players, setPlayers] = useState<PlayerDTO[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [closing, setClosing] = useState(false);
-  const [hasGroups, setHasGroups] = useState(false);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
 
   const [player1Id, setPlayer1Id] = useState<string>("none");
@@ -56,47 +74,67 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
   const [player2PopoverWidth, setPlayer2PopoverWidth] = useState(0);
   const [player1Search, setPlayer1Search] = useState("");
   const [player2Search, setPlayer2Search] = useState("");
+  
+  // Debounce search terms para evitar filtros costosos en cada keystroke
+  const debouncedPlayer1Search = useDebounce(player1Search, 300);
+  const debouncedPlayer2Search = useDebounce(player2Search, 300);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [teamsRes, playersRes, groupsRes] = await Promise.all([
-          fetch(`/api/tournaments/${tournament.id}/teams`),
-          fetch("/api/players"), // adaptá si usás /api/customers
-          fetch(`/api/tournaments/${tournament.id}/groups`),
-        ]);
-        if (teamsRes.ok) {
-          setTeams(await teamsRes.json());
-        }
-        if (playersRes.ok) {
-          setPlayers(await playersRes.json());
-        }
-        if (groupsRes.ok) {
-          const groupsData = await groupsRes.json();
-          setHasGroups(groupsData.groups && groupsData.groups.length > 0);
-        }
-      } catch (err) {
-        console.error("Error fetching teams/players:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [tournament.id]);
+  // React Query para compartir cache entre componentes
+  const {
+    data: teams = [],
+    isLoading: loadingTeams,
+  } = useQuery({
+    queryKey: ["tournament-teams", tournament.id],
+    queryFn: () => fetchTournamentTeams(tournament.id),
+    staleTime: 1000 * 30, // 30 segundos
+  });
+
+  const {
+    data: players = [],
+    isLoading: loadingPlayers,
+  } = useQuery({
+    queryKey: ["players"], // Mismo key que otros componentes para compartir cache
+    queryFn: fetchPlayers,
+    staleTime: 1000 * 60 * 5, // 5 minutos - los players no cambian frecuentemente
+  });
+
+  const {
+    data: groupsData,
+    isLoading: loadingGroups,
+  } = useQuery({
+    queryKey: ["tournament-groups", tournament.id], // Mismo key que GroupsTab
+    queryFn: () => fetchTournamentGroups(tournament.id),
+    staleTime: 1000 * 30, // 30 segundos
+  });
+
+  const hasGroups = groupsData?.groups && groupsData.groups.length > 0;
+  const loading = loadingTeams || loadingPlayers || loadingGroups;
 
   const fullName = (p: PlayerDTO) => `${p.first_name} ${p.last_name}`;
 
   // Filtrar jugadores por búsqueda (subcadena en nombre o apellido)
-  const filterPlayers = (search: string) => {
-    if (!search.trim()) return players;
-    const searchLower = search.toLowerCase().trim();
+  // Usa useMemo para memoizar los resultados filtrados
+  const filteredPlayers1 = useMemo(() => {
+    if (!debouncedPlayer1Search.trim()) return players;
+    const searchLower = debouncedPlayer1Search.toLowerCase().trim();
     return players.filter(
       (p) =>
         p.first_name.toLowerCase().includes(searchLower) ||
         p.last_name.toLowerCase().includes(searchLower) ||
         fullName(p).toLowerCase().includes(searchLower)
     );
-  };
+  }, [players, debouncedPlayer1Search]);
+
+  const filteredPlayers2 = useMemo(() => {
+    if (!debouncedPlayer2Search.trim()) return players;
+    const searchLower = debouncedPlayer2Search.toLowerCase().trim();
+    return players.filter(
+      (p) =>
+        p.first_name.toLowerCase().includes(searchLower) ||
+        p.last_name.toLowerCase().includes(searchLower) ||
+        fullName(p).toLowerCase().includes(searchLower)
+    );
+  }, [players, debouncedPlayer2Search]);
 
   const handleCreate = useCallback(async () => {
     if (player1Id === "none" || player2Id === "none") return;
@@ -120,8 +158,9 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
         return;
       }
 
-      const created = await res.json();
-      setTeams((prev) => [...prev, created]);
+      await res.json();
+      // Invalidar cache para refrescar teams
+      queryClient.invalidateQueries({ queryKey: ["tournament-teams", tournament.id] });
       setDialogOpen(false);
       setPlayer1Id("none");
       setPlayer2Id("none");
@@ -144,7 +183,8 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
         console.error("Error deleting team");
         return;
       }
-      setTeams((prev) => prev.filter((t) => t.id !== teamId));
+        // Invalidar cache para refrescar teams
+        queryClient.invalidateQueries({ queryKey: ["tournament-teams", tournament.id] });
     } catch (err) {
       console.error(err);
     }
@@ -349,11 +389,11 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
                       onValueChange={setPlayer1Search}
                     />
                     <CommandList>
-                      {filterPlayers(player1Search).length === 0 ? (
+                      {filteredPlayers1.length === 0 ? (
                         <CommandEmpty>No se encontró ningún jugador.</CommandEmpty>
                       ) : (
                         <CommandGroup>
-                          {filterPlayers(player1Search).map((player) => (
+                          {filteredPlayers1.map((player) => (
                             <CommandItem
                               key={player.id}
                               value={`${player.first_name} ${player.last_name}`}
@@ -415,11 +455,11 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
                       onValueChange={setPlayer2Search}
                     />
                     <CommandList>
-                      {filterPlayers(player2Search).length === 0 ? (
+                      {filteredPlayers2.length === 0 ? (
                         <CommandEmpty>No se encontró ningún jugador.</CommandEmpty>
                       ) : (
                         <CommandGroup>
-                          {filterPlayers(player2Search).map((player) => (
+                          {filteredPlayers2.map((player) => (
                             <CommandItem
                               key={player.id}
                               value={`${player.first_name} ${player.last_name}`}

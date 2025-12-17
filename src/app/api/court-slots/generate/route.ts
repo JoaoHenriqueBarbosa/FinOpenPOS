@@ -16,7 +16,20 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json()) as GenerateBody;
-  const slotDate = body.date || new Date().toISOString().slice(0, 10);
+  // Asegurar que la fecha se interprete correctamente en zona horaria local
+  let slotDate: string;
+  if (body.date) {
+    slotDate = body.date;
+  } else {
+    // Crear fecha en zona horaria local, no UTC
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    slotDate = `${year}-${month}-${day}`;
+  }
+  
+  console.log('[generate] Received date:', body.date, 'Using slotDate:', slotDate);
 
   // 1) Buscar canchas activas del usuario
   const { data: courts, error: courtsError } = await supabase
@@ -100,10 +113,26 @@ export async function POST(request: Request) {
   const durationMinutes = slotConfig.durationMinutes;
 
   const timeSlots: { start: string; end: string }[] = [];
-  let current = new Date(`${slotDate}T${startHour}:00`);
-  const dayEnd = new Date(`${slotDate}T${endHour}:00`);
+  
+  // Crear fechas en zona horaria local para evitar problemas de UTC
+  const [year, month, day] = slotDate.split('-').map(Number);
+  const [startH, startM] = startHour.split(':').map(Number);
+  const [endH, endM] = endHour.split(':').map(Number);
+  
+  console.log('[generate] Parsed date components - year:', year, 'month:', month, 'day:', day);
+  console.log('[generate] Time range - start:', startHour, 'end:', endHour);
+  
+  let current = new Date(year, month - 1, day, startH, startM, 0);
+  const dayEnd = new Date(year, month - 1, day, endH, endM, 0);
+  
+  console.log('[generate] Created Date objects - current:', current.toISOString(), 'dayEnd:', dayEnd.toISOString());
+  console.log('[generate] Local date string - current:', current.toLocaleDateString(), 'dayEnd:', dayEnd.toLocaleDateString());
 
-  const toTimeString = (d: Date) => d.toTimeString().slice(0, 5); // HH:MM
+  const toTimeString = (d: Date) => {
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    return `${hours}:${minutes}`;
+  };
 
   while (current <= dayEnd) {
     const next = new Date(current.getTime() + durationMinutes * 60 * 1000);
@@ -129,16 +158,26 @@ export async function POST(request: Request) {
 
   try {
     // 4) Insertar nuevos slots por cada cancha activa (solo si no existían)
+    console.log('[generate] Generated', timeSlots.length, 'time slots');
+    if (timeSlots.length > 0) {
+      console.log('[generate] First slot:', timeSlots[0], 'Last slot:', timeSlots[timeSlots.length - 1]);
+    }
+    
     const payload = courts.flatMap((court) =>
       timeSlots.map((ts) => ({
         user_uid: user.id,
         court_id: court.id,
-        slot_date: slotDate,
+        slot_date: slotDate, // Usar la fecha original sin conversiones
         start_time: ts.start,
         end_time: ts.end,
         was_played: true,
       }))
     );
+    
+    console.log('[generate] Inserting', payload.length, 'slots for', courts.length, 'courts');
+    if (payload.length > 0) {
+      console.log('[generate] Sample payload - slot_date:', payload[0]?.slot_date, 'start_time:', payload[0]?.start_time);
+    }
 
     const { data, error: insertError } = await supabase
       .from("court_slots")

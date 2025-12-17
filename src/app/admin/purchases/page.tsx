@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Card,
   CardHeader,
@@ -43,8 +44,6 @@ export default function PurchasesPage() {
   const [products, setProducts] = useState<ProductNestedDTO[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierNestedDTO[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodNestedDTO[]>([]);
-
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const [selectedSupplierId, setSelectedSupplierId] = useState<number | "none">(
@@ -58,38 +57,61 @@ export default function PurchasesPage() {
     { id: 1, productId: "none", quantity: "", unitCost: "" },
   ]);
 
-  // Cargar productos, proveedores y métodos de pago
+  // Fetch functions para React Query
+  async function fetchProducts(): Promise<ProductNestedDTO[]> {
+    const res = await fetch("/api/products");
+    if (!res.ok) throw new Error("Failed to fetch products");
+    return res.json();
+  }
+
+  async function fetchSuppliers(): Promise<SupplierNestedDTO[]> {
+    const res = await fetch("/api/suppliers");
+    if (!res.ok) throw new Error("Failed to fetch suppliers");
+    return res.json();
+  }
+
+  async function fetchPaymentMethods(): Promise<PaymentMethodNestedDTO[]> {
+    const res = await fetch("/api/payment-methods?onlyActive=true&scope=BAR");
+    if (!res.ok) throw new Error("Failed to fetch payment methods");
+    return res.json();
+  }
+
+  // React Query para compartir cache con otros componentes
+  const {
+    data: productsData = [],
+    isLoading: loadingProducts,
+  } = useQuery({
+    queryKey: ["products"], // Mismo key que ProductsPage y OrderDetailPage
+    queryFn: fetchProducts,
+    staleTime: 1000 * 60 * 5, // 5 minutos
+  });
+
+  const {
+    data: suppliersData = [],
+    isLoading: loadingSuppliers,
+  } = useQuery({
+    queryKey: ["suppliers"], // Mismo key que SuppliersPage y PurchasesHistoryPage
+    queryFn: fetchSuppliers,
+    staleTime: 1000 * 60 * 5, // 5 minutos
+  });
+
+  const {
+    data: paymentMethodsData = [],
+    isLoading: loadingPM,
+  } = useQuery({
+    queryKey: ["payment-methods", "BAR"], // Mismo key que OrderDetailPage
+    queryFn: fetchPaymentMethods,
+    staleTime: 1000 * 60 * 10, // 10 minutos
+  });
+
+  // Sincronizar con estado local para compatibilidad
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [productsRes, suppliersRes, pmRes] = await Promise.all([
-          fetch("/api/products"),
-          fetch("/api/suppliers"),
-          fetch("/api/payment-methods?onlyActive=true&scope=BAR"),
-        ]);
+    setProducts(productsData);
+    setSuppliers(suppliersData);
+    setPaymentMethods(paymentMethodsData);
+  }, [productsData, suppliersData, paymentMethodsData]);
 
-        if (!productsRes.ok) throw new Error("Failed to fetch products");
-        const productsData = await productsRes.json();
-        setProducts(productsData);
-
-        if (suppliersRes.ok) {
-          const suppliersData = await suppliersRes.json();
-          setSuppliers(suppliersData);
-        }
-
-        if (pmRes.ok) {
-          const pmData = await pmRes.json();
-          setPaymentMethods(pmData);
-        }
-      } catch (err) {
-        console.error("Error fetching purchase dependencies:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
+  const loading = loadingProducts || loadingSuppliers || loadingPM;
 
   const addLine = () => {
     setLines((prev) => [

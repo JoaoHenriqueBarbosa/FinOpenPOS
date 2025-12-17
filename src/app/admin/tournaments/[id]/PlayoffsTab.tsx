@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Card,
   CardHeader,
@@ -50,32 +51,36 @@ function getRoundColor(round: string): { bg: string; text: string; border: strin
   return roundColors[round] || { bg: "bg-gray-50", text: "text-gray-700", border: "border-gray-200", badgeBg: "bg-gray-100", badgeText: "text-gray-800" };
 }
 
+// Fetch function para React Query
+async function fetchTournamentPlayoffs(tournamentId: number): Promise<PlayoffRow[]> {
+  const res = await fetch(`/api/tournaments/${tournamentId}/playoffs`);
+  if (!res.ok) throw new Error("Failed to fetch playoffs");
+  return res.json();
+}
+
 export default function PlayoffsTab({ tournament }: { tournament: Pick<TournamentDTO, "id" | "has_super_tiebreak"> }) {
-  const [rows, setRows] = useState<PlayoffRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [editingMatchId, setEditingMatchId] = useState<number | null>(null);
   const [editDate, setEditDate] = useState<string>("");
   const [editTime, setEditTime] = useState<string>("");
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const load = async () => {
-    try {
-      const res = await fetch(`/api/tournaments/${tournament.id}/playoffs`);
-      if (!res.ok) throw new Error("Failed to fetch playoffs");
-      const data = (await res.json()) as PlayoffRow[];
-      setRows(data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // React Query para compartir cache con GroupsTab y PlayoffsViewTab
+  const {
+    data: rows = [],
+    isLoading: loading,
+    refetch: refetchPlayoffs,
+  } = useQuery({
+    queryKey: ["tournament-playoffs", tournament.id], // Mismo key que GroupsTab y PlayoffsViewTab
+    queryFn: () => fetchTournamentPlayoffs(tournament.id),
+    staleTime: 1000 * 30, // 30 segundos
+  });
 
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tournament.id]);
+  // Función load ahora solo invalida cache
+  const load = () => {
+    queryClient.invalidateQueries({ queryKey: ["tournament-playoffs", tournament.id] });
+  };
 
   const handleStartEditSchedule = (matchId: number) => {
     const row = rows.find(r => r.match?.id === matchId);
@@ -110,7 +115,7 @@ export default function PlayoffsTab({ tournament }: { tournament: Pick<Tournamen
       setEditingMatchId(null);
       setEditDate("");
       setEditTime("");
-      load();
+      load(); // load() ahora invalida cache
     } catch (err) {
       console.error(err);
       alert("Error al actualizar horario");

@@ -106,9 +106,14 @@ async function fetchCourtSlots(date: string): Promise<CourtSlotDTO[]> {
 }
 
 export default function CourtSlotsPage() {
-  const [selectedDate, setSelectedDate] = useState<string>(() =>
-    new Date().toISOString().slice(0, 10)
-  );
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    // Crear fecha en zona horaria local, no UTC
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
   const queryClient = useQueryClient();
 
   // Estado local para UI instantánea
@@ -136,7 +141,8 @@ export default function CourtSlotsPage() {
     queryKey: ["court-slots", selectedDate],
     queryFn: () => fetchCourtSlots(selectedDate),
     enabled: !!selectedDate,
-    staleTime: 1000 * 60 * 2,
+    staleTime: 1000 * 60 * 5, // 5 minutos - los slots no cambian frecuentemente
+    gcTime: 1000 * 60 * 10, // 10 minutos en cache
   });
 
   useEffect(() => {
@@ -734,11 +740,16 @@ export default function CourtSlotsPage() {
                           </span>
                         </TableCell>
                         <TableCell>
-                          {format(
-                            new Date(slot.slot_date),
-                            "EEEE dd/MM/yyyy",
-                            { locale: es }
-                          ).toUpperCase()}
+                          {(() => {
+                            // Parsear fecha YYYY-MM-DD en zona horaria local
+                            const [year, month, day] = slot.slot_date.split('-').map(Number);
+                            const date = new Date(year, month - 1, day);
+                            return format(
+                              date,
+                              "EEEE dd/MM/yyyy",
+                              { locale: es }
+                            ).toUpperCase();
+                          })()}
                         </TableCell>
                         <TableCell>
                           {formatTime(slot.start_time)} -{" "}

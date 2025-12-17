@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Card,
   CardHeader,
@@ -65,27 +66,23 @@ function getGroupColor(groupIndex: number): { bg: string; text: string; border: 
   return colorSchemes[groupIndex % colorSchemes.length] || colorSchemes[0];
 }
 
+// Fetch function para React Query
+async function fetchTournamentStandings(tournamentId: number): Promise<ApiResponseStandings> {
+  const res = await fetch(`/api/tournaments/${tournamentId}/standings`);
+  if (!res.ok) throw new Error("Failed to fetch standings");
+  return res.json();
+}
+
 export default function StandingsTab({ tournament }: { tournament: Pick<TournamentDTO, "id"> }) {
-  const [data, setData] = useState<ApiResponseStandings | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const load = async () => {
-    try {
-      const res = await fetch(`/api/tournaments/${tournament.id}/standings`);
-      if (!res.ok) throw new Error("Failed to fetch standings");
-      const json = (await res.json()) as ApiResponseStandings;
-      setData(json);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tournament.id]);
+  // React Query para cache compartido
+  const {
+    data,
+    isLoading: loading,
+  } = useQuery({
+    queryKey: ["tournament-standings", tournament.id],
+    queryFn: () => fetchTournamentStandings(tournament.id),
+    staleTime: 1000 * 30, // 30 segundos
+  });
 
   if (loading) {
     return (

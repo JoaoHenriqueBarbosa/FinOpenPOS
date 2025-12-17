@@ -9,6 +9,8 @@ import {
   DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useDebounce } from "@/hooks/useDebounce";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -64,7 +66,6 @@ export default function Products() {
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [productsPerPage] = useState(10);
-  const [loading, setLoading] = useState(true);
   const [isAddProductDialogOpen, setIsAddProductDialogOpen] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState<number | null>(
     null
@@ -89,36 +90,50 @@ export default function Products() {
     setProductCategoryId("none");
   };
 
-  // Fetch products + categories
+  const queryClient = useQueryClient();
+
+  // Fetch functions para React Query
+  async function fetchProducts(): Promise<ProductDTO[]> {
+    const res = await fetch("/api/products");
+    if (!res.ok) throw new Error("Failed to fetch products");
+    return res.json();
+  }
+
+  async function fetchCategories(): Promise<ProductCategoryDTO[]> {
+    const res = await fetch("/api/product-categories?onlyActive=true");
+    if (!res.ok) return [];
+    return res.json();
+  }
+
+  // React Query para compartir cache con otros componentes
+  const {
+    data: productsData = [],
+    isLoading: loadingProducts,
+  } = useQuery({
+    queryKey: ["products"], // Mismo key que PurchasesPage y OrderDetailPage
+    queryFn: fetchProducts,
+    staleTime: 1000 * 60 * 5, // 5 minutos
+  });
+
+  const {
+    data: categoriesData = [],
+    isLoading: loadingCategories,
+  } = useQuery({
+    queryKey: ["product-categories", "onlyActive"],
+    queryFn: fetchCategories,
+    staleTime: 1000 * 60 * 10, // 10 minutos - las categorías cambian raramente
+  });
+
+  // Sincronizar con estado local para compatibilidad
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [productsRes, categoriesRes] = await Promise.all([
-          fetch("/api/products"),
-          fetch("/api/product-categories?onlyActive=true"),
-        ]);
+    setProducts(productsData);
+    setCategories(categoriesData);
+  }, [productsData, categoriesData]);
 
-        if (!productsRes.ok) {
-          throw new Error("Failed to fetch products");
-        }
-        const productsData = await productsRes.json();
+  const loading = loadingProducts || loadingCategories;
 
-        let categoriesData: ProductCategoryDTO[] = [];
-        if (categoriesRes.ok) {
-          categoriesData = await categoriesRes.json();
-        }
-
-        setProducts(productsData);
-        setCategories(categoriesData);
-      } catch (error) {
-        console.error("Error fetching products/categories:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
+  // Debounce search term para evitar filtros costosos en cada keystroke
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
@@ -129,13 +144,13 @@ export default function Products() {
         return false;
       }
 
-      const term = searchTerm.toLowerCase();
+      const term = debouncedSearchTerm.toLowerCase();
       return (
         product.name.toLowerCase().includes(term) ||
         (product.description ?? "").toLowerCase().includes(term)
       );
     });
-  }, [products, filters.categoryId, searchTerm]);
+  }, [products, filters.categoryId, debouncedSearchTerm]);
 
   const indexOfLastProduct = currentPage * productsPerPage;
   const indexOfFirstProduct = indexOfLastProduct - productsPerPage;
@@ -205,7 +220,8 @@ export default function Products() {
       }
 
       const addedProduct: Product = await response.json();
-      setProducts((prev) => [...prev, addedProduct]);
+      // Invalidar cache para refrescar datos
+      queryClient.invalidateQueries({ queryKey: ["products"] });
       setIsAddProductDialogOpen(false);
       resetSelectedProduct();
     } catch (error) {
@@ -248,11 +264,8 @@ export default function Products() {
       }
 
       const updatedProductFromServer: Product = await response.json();
-      setProducts((prev) =>
-        prev.map((p) =>
-          p.id === updatedProductFromServer.id ? updatedProductFromServer : p
-        )
-      );
+      // Invalidar cache para refrescar datos
+      queryClient.invalidateQueries({ queryKey: ["products"] });
       setIsEditProductDialogOpen(false);
       resetSelectedProduct();
     } catch (error) {
@@ -278,7 +291,8 @@ export default function Products() {
         return;
       }
 
-      setProducts((prev) => prev.filter((p) => p.id !== productToDelete.id));
+      // Invalidar cache para refrescar datos
+      queryClient.invalidateQueries({ queryKey: ["products"] });
       setIsDeleteConfirmationOpen(false);
       setProductToDelete(null);
     } catch (error) {

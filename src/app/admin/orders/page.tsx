@@ -71,7 +71,6 @@ export default function OrdersPage() {
 
   const [isNewOrderDialogOpen, setIsNewOrderDialogOpen] = useState(false);
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
-  const [creatingOrder, setCreatingOrder] = useState(false);
 
   // Popup rápido para nuevo cliente
   const [isNewPlayerDialogOpen, setIsNewPlayerDialogOpen] = useState(false);
@@ -149,7 +148,7 @@ export default function OrdersPage() {
 
   // ---- Mutations ----
 
-  // Crear cuenta
+  // Crear cuenta con optimistic update completo
   const createOrderMutation = useMutation({
     mutationFn: async (payload: { playerId: number | null }) => {
       const res = await fetch("/api/orders", {
@@ -159,16 +158,16 @@ export default function OrdersPage() {
       });
 
       if (res.status === 409) {
-      const body = await res.json();
-      const existingId = body?.orderId;
-      const err = new Error(
-        existingId
-          ? `El cliente ya tiene una cuenta abierta (#${existingId}).`
-          : "El cliente ya tiene una cuenta abierta."
-      );
-      (err as any).orderId = existingId;
-      throw err;
-    }
+        const body = await res.json();
+        const existingId = body?.orderId;
+        const err = new Error(
+          existingId
+            ? `El cliente ya tiene una cuenta abierta (#${existingId}).`
+            : "El cliente ya tiene una cuenta abierta."
+        );
+        (err as any).orderId = existingId;
+        throw err;
+      }
 
       if (!res.ok) {
         throw new Error("Error al crear la cuenta");
@@ -176,19 +175,50 @@ export default function OrdersPage() {
       return (await res.json()) as OrderDTO;
     },
     onMutate: async (payload) => {
-      setCreatingOrder(true);
-
+      // Cancelar queries en progreso para evitar conflictos
       await queryClient.cancelQueries({ queryKey: ["orders"] });
 
       const previousOrders =
         queryClient.getQueryData<OrderDTO[]>(["orders"]) ?? [];
 
-      // Podríamos hacer un optimista completo con id temporal,
-      // pero como después igual vamos a reemplazar con el real,
-      // acá solo devolvemos el snapshot por si hay que hacer rollback.
-      return { previousOrders };
+      // Optimistic update: crear orden temporal con datos del cliente
+      const player = players.find((p) => p.id === payload.playerId);
+      const tempId = -Math.floor(Math.random() * 1_000_000);
+      const optimisticOrder: OrderDTO = {
+        id: tempId,
+        player_id: payload.playerId,
+        status: "open",
+        total_amount: 0,
+        created_at: new Date().toISOString(),
+        items: [],
+        player: player
+          ? {
+              id: player.id,
+              first_name: player.first_name,
+              last_name: player.last_name,
+              phone: player.phone,
+              status: player.status,
+            }
+          : null,
+      };
+
+      // Actualizar cache inmediatamente
+      queryClient.setQueryData<OrderDTO[]>(["orders"], (old) => [
+        optimisticOrder,
+        ...(old ?? []),
+      ]);
+
+      // Cerrar diálogo y limpiar inmediatamente
+      setIsNewOrderDialogOpen(false);
+      setSelectedPlayerId(null);
+
+      // Navegar a la nueva orden inmediatamente
+      router.push(`/admin/orders/${tempId}`);
+
+      return { previousOrders, tempId, optimisticOrder };
     },
     onError: (err, _vars, ctx) => {
+      // Rollback en caso de error
       if (ctx?.previousOrders) {
         queryClient.setQueryData(["orders"], ctx.previousOrders);
       }
@@ -197,17 +227,26 @@ export default function OrdersPage() {
           ? err.message
           : "Error al crear la cuenta."
       );
-      setCreatingOrder(false);
+      // Volver a la lista si estábamos en la orden temporal
+      if (ctx?.tempId) {
+        router.push("/admin/orders");
+      }
     },
-    onSuccess: (newOrder) => {
-      queryClient.setQueryData<OrderDTO[]>(["orders"], (old) => [
-        newOrder,
-        ...(old ?? []),
-      ]);
+    onSuccess: (newOrder, _vars, ctx) => {
+      // Reemplazar orden optimista con la real
+      queryClient.setQueryData<OrderDTO[]>(["orders"], (old) => {
+        if (!old) return [newOrder];
+        // Remover la orden optimista y agregar la real
+        const filtered = old.filter((o) => o.id !== ctx?.tempId);
+        return [newOrder, ...filtered];
+      });
+
+      // Navegar a la orden real si estábamos en la temporal
+      if (ctx?.tempId) {
+        router.replace(`/admin/orders/${newOrder.id}`);
+      }
+
       toast.success("Cuenta creada.");
-      setIsNewOrderDialogOpen(false);
-      setSelectedPlayerId(null);
-      setCreatingOrder(false);
     },
   });
 
@@ -507,8 +546,11 @@ export default function OrdersPage() {
             >
               Cancelar
             </Button>
-            <Button onClick={handleCreateOrder} disabled={creatingOrder}>
-              {creatingOrder && (
+            <Button 
+              onClick={handleCreateOrder} 
+              disabled={createOrderMutation.isPending || !selectedPlayerId}
+            >
+              {createOrderMutation.isPending && (
                 <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
               )}
               Abrir cuenta
