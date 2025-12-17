@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   Card,
@@ -35,6 +35,7 @@ import {
   PlusIcon,
   MinusIcon,
   TrashIcon,
+  SaveIcon,
 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -68,6 +69,17 @@ export default function OrderDetailPage() {
 
   const [order, setOrder] = useState<OrderDTO | null>(null);
 
+  // Sistema de cola de cambios para guardado manual
+  type PendingChange = 
+    | { type: 'update'; itemId: number; quantity: number }
+    | { type: 'delete'; itemId: number }
+    | { type: 'add'; productId: number; quantity: number; tempId: number };
+  
+  const pendingChangesRef = useRef<PendingChange[]>([]);
+  const [hasPendingChanges, setHasPendingChanges] = useState(false);
+  const [savingChanges, setSavingChanges] = useState(false);
+
+
   // UI state para agregar ítem
   const [selectedProductId, setSelectedProductId] = useState<number | "none">(
     "none"
@@ -79,9 +91,7 @@ export default function OrderDetailPage() {
     number | "none"
   >("none");
 
-  // flags por ítem
-  const [updatingItemId, setUpdatingItemId] = useState<number | null>(null);
-  const [removingItemId, setRemovingItemId] = useState<number | null>(null);
+  // Ya no necesitamos estados separados - usamos isPending de las mutations
 
   // ---- Queries ----
   const {
@@ -161,7 +171,7 @@ export default function OrderDetailPage() {
 
   // Agregar ítem
   const addItemMutation = useMutation({
-    mutationFn: async (params: { productId: number; quantity: number }) => {
+    mutationFn: async (params: { productId: number; quantity: number; tempId: number }) => {
       const res = await fetch(`/api/orders/${orderId}/items`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -175,46 +185,21 @@ export default function OrderDetailPage() {
       }
       return (await res.json()) as OrderDTO;
     },
-    onMutate: ({ productId, quantity }) => {
-      if (!order && !orderData) return { previousOrder: null };
-
-      const previousOrder = order ?? orderData!;
-      const product = products.find((p) => p.id === productId);
-      if (!product) return { previousOrder };
-
-      // id temporal negativo
-      const tempId =
-        -Math.floor(Math.random() * 1_000_000) -
-        (previousOrder.items.length ? previousOrder.items.length : 0);
-
-      const optimisticItem: OrderItemDTO = {
-        id: tempId,
-        product_id: product.id,
-        quantity,
-        unit_price: product.price,
-        product: { name: product.name },
-      };
-
-      setOrder({
-        ...previousOrder,
-        items: [...previousOrder.items, optimisticItem],
-      });
-
-      setSelectedProductId("none");
-      setNewItemQty("");
-
-      return { previousOrder };
-    },
-    onError: (err, _vars, ctx) => {
-      if (ctx?.previousOrder) {
-        setOrder(ctx.previousOrder);
+    // No hacemos optimistic update aquí porque ya lo hacemos en handleAddItem
+    onError: (err, params) => {
+      // Si falla, remover el item temporal de la UI
+      if (order) {
+        setOrder({
+          ...order,
+          items: order.items.filter((i) => i.id !== params.tempId),
+        });
       }
       toast.error(
         err instanceof Error ? err.message : "Error agregando ítem."
       );
     },
     onSuccess: (updatedOrder) => {
-      // sincronizamos con lo que diga el backend
+      // Sincronizar con la respuesta del servidor
       setOrder(updatedOrder);
     },
   });
@@ -240,8 +225,7 @@ export default function OrderDetailPage() {
       if (!order && !orderData) return { previousOrder: null };
       const previousOrder = order ?? orderData!;
 
-      setUpdatingItemId(item.id);
-
+      // Actualizar UI inmediatamente
       setOrder({
         ...previousOrder,
         items: previousOrder.items.map((i) =>
@@ -255,14 +239,12 @@ export default function OrderDetailPage() {
       if (ctx?.previousOrder) {
         setOrder(ctx.previousOrder);
       }
-      setUpdatingItemId(null);
       toast.error(
         err instanceof Error ? err.message : "Error actualizando ítem."
       );
     },
     onSuccess: (updatedOrder) => {
       setOrder(updatedOrder);
-      setUpdatingItemId(null);
     },
   });
 
@@ -277,31 +259,27 @@ export default function OrderDetailPage() {
       }
       return (await res.json()) as OrderDTO;
     },
-    onMutate: (item) => {
-      if (!order && !orderData) return { previousOrder: null };
-      const previousOrder = order ?? orderData!;
-
-      setRemovingItemId(item.id);
-
-      setOrder({
-        ...previousOrder,
-        items: previousOrder.items.filter((i) => i.id !== item.id),
-      });
-
-      return { previousOrder };
-    },
-    onError: (err, _vars, ctx) => {
-      if (ctx?.previousOrder) {
-        setOrder(ctx.previousOrder);
+    // No hacemos optimistic update aquí porque ya lo hacemos en removeItem
+    // antes de llamar a la mutation
+    onError: (err, item) => {
+      // Si falla, restaurar el item en la UI
+      if (order) {
+        // Agregar el item de vuelta a la lista
+        const itemExists = order.items.some((i) => i.id === item.id);
+        if (!itemExists) {
+          setOrder({
+            ...order,
+            items: [...order.items, item].sort((a, b) => a.id - b.id),
+          });
+        }
       }
-      setRemovingItemId(null);
       toast.error(
         err instanceof Error ? err.message : "Error eliminando ítem."
       );
     },
     onSuccess: (updatedOrder) => {
+      // Sincronizar con la respuesta del servidor
       setOrder(updatedOrder);
-      setRemovingItemId(null);
     },
   });
 
@@ -386,9 +364,73 @@ export default function OrderDetailPage() {
   });
 
   // flags combinados
-  const savingItemsAdd = addItemMutation.isPending;
   const paying = payOrderMutation.isPending;
   const cancelling = cancelOrderMutation.isPending;
+
+  // Función para guardar todos los cambios pendientes - envía toda la orden en una sola petición
+  const handleSaveChanges = useCallback(async () => {
+    if (!order || !orderId) {
+      return;
+    }
+
+    setSavingChanges(true);
+    const previousOrder = { ...order };
+
+    try {
+      // Preparar items para enviar (solo los que tienen product_id válido)
+      const itemsToSend = order.items
+        .filter((item) => item.product_id && item.quantity > 0)
+        .map((item) => ({
+          id: item.id > 0 ? item.id : undefined, // IDs temporales negativos se envían como undefined
+          product_id: item.product_id,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+        }));
+
+      const res = await fetch(`/api/orders/${orderId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: itemsToSend }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Error al guardar cambios");
+      }
+
+      const updatedOrder = (await res.json()) as OrderDTO;
+      setOrder(updatedOrder);
+      pendingChangesRef.current = [];
+      setHasPendingChanges(false);
+      toast.success("Cambios guardados correctamente");
+    } catch (error) {
+      // En caso de error, restaurar orden anterior
+      setOrder(previousOrder);
+      setHasPendingChanges(true);
+      toast.error(
+        error instanceof Error ? error.message : "Error al guardar cambios. Intenta nuevamente."
+      );
+    } finally {
+      setSavingChanges(false);
+    }
+  }, [order, orderId]);
+
+  // Detectar Enter para guardar cambios
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Enter para guardar (solo si no estamos en un input/textarea)
+      if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        const target = e.target as HTMLElement;
+        if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA' && hasPendingChanges) {
+          e.preventDefault();
+          handleSaveChanges();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [hasPendingChanges, handleSaveChanges]);
 
   const getStatusBadge = (status: OrderStatus) => {
     switch (status) {
@@ -411,8 +453,43 @@ export default function OrderDetailPage() {
     }
   };
 
+  const updateItemQuantity = useCallback(
+    (item: OrderItemDTO, newQty: number) => {
+      if (!displayOrder || !orderId) return;
+      if (newQty <= 0) {
+        removeItem(item);
+        return;
+      }
+
+      // Actualizar UI inmediatamente (optimistic update)
+      if (order) {
+        setOrder({
+          ...order,
+          items: order.items.map((i) =>
+            i.id === item.id ? { ...i, quantity: newQty } : i
+          ),
+        });
+      }
+
+      // Agregar a la cola de cambios pendientes
+      // Si ya hay un cambio pendiente para este item, reemplazarlo
+      const existingIndex = pendingChangesRef.current.findIndex(
+        (c) => c.type === 'update' && c.itemId === item.id
+      );
+      
+      if (existingIndex >= 0) {
+        pendingChangesRef.current[existingIndex] = { type: 'update', itemId: item.id, quantity: newQty };
+      } else {
+        pendingChangesRef.current.push({ type: 'update', itemId: item.id, quantity: newQty });
+      }
+
+      setHasPendingChanges(true);
+    },
+    [displayOrder, orderId, order]
+  );
+
   const handleAddItem = useCallback(() => {
-    if (!displayOrder || !orderId) return;
+    if (!displayOrder || !orderId || !order) return;
 
     if (selectedProductId === "none") {
       toast.error("Elegí un producto.");
@@ -428,18 +505,20 @@ export default function OrderDetailPage() {
     }
 
     const productIdNumber = Number(selectedProductId);
+    const product = products.find((p) => p.id === productIdNumber);
+    if (!product) {
+      toast.error("Producto no encontrado.");
+      return;
+    }
 
     // Buscar si ya existe un item con ese producto en la orden
-    const existingItem = displayOrder.items.find(
+    const existingItem = order.items.find(
       (i) => i.product_id === productIdNumber
     );
 
     if (existingItem) {
-      // Si existe, sumamos la cantidad al mismo ítem
-      updateItemMutation.mutate({
-        item: existingItem,
-        newQty: existingItem.quantity + qty,
-      });
+      // Si existe, sumamos la cantidad al mismo ítem usando updateItemQuantity
+      updateItemQuantity(existingItem, existingItem.quantity + qty);
 
       // limpiamos UI
       setSelectedProductId("none");
@@ -447,39 +526,79 @@ export default function OrderDetailPage() {
       return;
     }
 
-    // Si no existe, creamos un nuevo order_item
-    addItemMutation.mutate({
-      productId: productIdNumber,
+    // Si no existe, crear item optimista y agregar a la cola
+    const tempId =
+      -Math.floor(Math.random() * 1_000_000) -
+      (order.items.length ? order.items.length : 0);
+
+    const optimisticItem: OrderItemDTO = {
+      id: tempId,
+      product_id: product.id,
       quantity: qty,
+      unit_price: product.price,
+      product: { name: product.name },
+    };
+
+    // Actualizar UI inmediatamente
+    setOrder({
+      ...order,
+      items: [...order.items, optimisticItem],
     });
+
+    // Limpiar UI inmediatamente
+    setSelectedProductId("none");
+    setNewItemQty("");
+
+    // Agregar a la cola de cambios pendientes
+    pendingChangesRef.current.push({ 
+      type: 'add', 
+      productId: productIdNumber, 
+      quantity: qty, 
+      tempId 
+    });
+    setHasPendingChanges(true);
   }, [
     displayOrder,
     orderId,
     selectedProductId,
     newItemQty,
     addItemMutation,
-    updateItemMutation,
+    updateItemQuantity,
+    order,
+    products,
   ]);
 
-  const updateItemQuantity = useCallback(
-    (item: OrderItem, newQty: number) => {
-      if (!displayOrder || !orderId) return;
-      if (newQty <= 0) {
-        removeItemMutation.mutate(item);
-        return;
-      }
-
-      updateItemMutation.mutate({ item, newQty });
-    },
-    [displayOrder, orderId, updateItemMutation, removeItemMutation]
-  );
+  // Limpiar cambios pendientes al desmontar (opcional: podrías guardar antes de desmontar)
+  useEffect(() => {
+    return () => {
+      // Si hay cambios pendientes al desmontar, podrías guardarlos automáticamente
+      // o mostrar una advertencia. Por ahora solo limpiamos.
+      pendingChangesRef.current = [];
+    };
+  }, []);
 
   const removeItem = useCallback(
-    (item: OrderItem) => {
+    (item: OrderItemDTO) => {
       if (!displayOrder || !orderId) return;
-      removeItemMutation.mutate(item);
+
+      // Actualizar UI inmediatamente (optimistic update)
+      if (order) {
+        setOrder({
+          ...order,
+          items: order.items.filter((i) => i.id !== item.id),
+        });
+      }
+
+      // Remover cualquier cambio pendiente de este item (update o delete)
+      pendingChangesRef.current = pendingChangesRef.current.filter(
+        (c) => !(c.type === 'update' && c.itemId === item.id) && !(c.type === 'delete' && c.itemId === item.id)
+      );
+
+      // Agregar eliminación a la cola
+      pendingChangesRef.current.push({ type: 'delete', itemId: item.id });
+      setHasPendingChanges(true);
     },
-    [displayOrder, orderId, removeItemMutation]
+    [displayOrder, orderId, order]
   );
 
   const handleCancel = useCallback(() => {
@@ -591,10 +710,19 @@ export default function OrderDetailPage() {
         {/* Items de la cuenta */}
         <Card>
           <CardHeader>
-            <CardTitle>Consumos</CardTitle>
-            <CardDescription>
-              Agregá productos y ajustá cantidades de esta cuenta.
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Consumos</CardTitle>
+                <CardDescription>
+                  Agregá productos y ajustá cantidades de esta cuenta.
+                </CardDescription>
+              </div>
+              {hasPendingChanges && (
+                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300">
+                  Cambios pendientes
+                </Badge>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
@@ -654,11 +782,7 @@ export default function OrderDetailPage() {
                               size="icon"
                               variant="outline"
                               className="h-7 w-7"
-                              disabled={
-                                !isOrderOpen ||
-                                updatingItemId === item.id ||
-                                removingItemId === item.id
-                              }
+                              disabled={!isOrderOpen}
                               onClick={() =>
                                 updateItemQuantity(item, item.quantity - 1)
                               }
@@ -672,11 +796,7 @@ export default function OrderDetailPage() {
                               size="icon"
                               variant="outline"
                               className="h-7 w-7"
-                              disabled={
-                                !isOrderOpen ||
-                                updatingItemId === item.id ||
-                                removingItemId === item.id
-                              }
+                              disabled={!isOrderOpen}
                               onClick={() =>
                                 updateItemQuantity(item, item.quantity + 1)
                               }
@@ -693,7 +813,7 @@ export default function OrderDetailPage() {
                           <Button
                             size="icon"
                             variant="ghost"
-                            disabled={!isOrderOpen || removingItemId === item.id}
+                            disabled={!isOrderOpen}
                             onClick={() => removeItem(item)}
                           >
                             <TrashIcon className="w-4 h-4" />
@@ -708,6 +828,27 @@ export default function OrderDetailPage() {
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-4 border-t pt-4">
+            {/* Botón de guardar cambios - grande y visible */}
+            {hasPendingChanges && (
+              <Button
+                size="lg"
+                className="w-full h-12 text-base font-semibold"
+                onClick={handleSaveChanges}
+                disabled={savingChanges || !isOrderOpen}
+              >
+                {savingChanges ? (
+                  <>
+                    <Loader2Icon className="mr-2 h-5 w-5 animate-spin" />
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <SaveIcon className="mr-2 h-5 w-5" />
+                    Guardar cambios (Enter)
+                  </>
+                )}
+              </Button>
+            )}
             <div className="flex flex-wrap items-end gap-4">
               <div className="flex flex-col gap-2 min-w-[220px]">
                 <Label>Producto</Label>
@@ -760,14 +901,10 @@ export default function OrderDetailPage() {
                 className="mt-6"
                 onClick={handleAddItem}
                 disabled={
-                  savingItemsAdd ||
                   !isOrderOpen ||
                   selectedProductId === "none"
                 }
               >
-                {savingItemsAdd && (
-                  <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
-                )}
                 Agregar
               </Button>
             </div>
