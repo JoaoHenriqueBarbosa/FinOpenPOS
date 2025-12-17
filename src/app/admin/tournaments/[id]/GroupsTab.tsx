@@ -32,6 +32,7 @@ import type {
   GroupsApiResponse,
   TeamDTO,
 } from "@/models/dto/tournament";
+import { tournamentsService, tournamentMatchesService } from "@/services";
 
 // Using TournamentDetailDTO from models
 
@@ -69,15 +70,11 @@ function getGroupColor(groupIndex: number): { bg: string; text: string; border: 
 
 // Fetch functions para React Query
 async function fetchTournamentGroups(tournamentId: number): Promise<GroupsApiResponse> {
-  const res = await fetch(`/api/tournaments/${tournamentId}/groups`);
-  if (!res.ok) throw new Error("Failed to fetch groups");
-  return res.json();
+  return tournamentsService.getGroups(tournamentId);
 }
 
 async function fetchTournamentPlayoffs(tournamentId: number): Promise<any[]> {
-  const res = await fetch(`/api/tournaments/${tournamentId}/playoffs`);
-  if (!res.ok) throw new Error("Failed to fetch playoffs");
-  return res.json();
+  return tournamentsService.getPlayoffs(tournamentId);
 }
 
 export default function GroupsTab({ tournament }: { tournament: Pick<TournamentDTO, "id" | "has_super_tiebreak" | "match_duration"> }) {
@@ -190,26 +187,22 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
 
   const handleSaveSchedule = async (matchId: number) => {
     try {
-      const res = await fetch(`/api/tournament-matches/${matchId}/schedule`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          match_date: editDate || null,
-          start_time: editTime || null,
-        }),
-      });
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        alert(errorData.error || "Error al actualizar horario");
+      if (!editDate || !editTime) {
+        alert("Fecha y hora son requeridos");
         return;
       }
+      
+      await tournamentMatchesService.scheduleMatch(matchId, {
+        date: editDate,
+        start_time: editTime,
+      });
       setEditingMatchId(null);
       setEditDate("");
       setEditTime("");
       load();
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("Error al actualizar horario");
+      alert(err.message || "Error al actualizar horario");
     }
   };
 
@@ -244,19 +237,7 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
     try {
       setRegenerating(true);
       setShowRegenerateDialog(false);
-      const res = await fetch(
-        `/api/tournaments/${tournament.id}/regenerate-schedule`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(config),
-        }
-      );
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        alert(errorData.error || "Error al regenerar horarios");
-        return;
-      }
+      await tournamentsService.regenerateSchedule(tournament.id, config);
       load();
     } catch (err) {
       console.error(err);

@@ -23,6 +23,7 @@ import { Switch } from "@/components/ui/switch";
 import { Loader2Icon, PlusIcon } from "lucide-react";
 
 import type { TournamentListItem } from "@/models/dto/tournament";
+import { tournamentsService } from "@/services";
 
 export default function TournamentsPage() {
   const [tournaments, setTournaments] = useState<TournamentListItem[]>([]);
@@ -38,9 +39,7 @@ export default function TournamentsPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await fetch("/api/tournaments");
-        if (!res.ok) throw new Error("Failed to fetch tournaments");
-        const data = await res.json();
+        const data = await tournamentsService.getAll();
         setTournaments(data);
       } catch (err) {
         console.error(err);
@@ -55,21 +54,14 @@ export default function TournamentsPage() {
     if (!name.trim()) return;
     try {
       setCreating(true);
-      const res = await fetch("/api/tournaments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          name, 
-          category, 
-          has_super_tiebreak: hasSuperTiebreak,
-          match_duration: matchDuration
-        }),
+      const created = await tournamentsService.create({
+        name,
+        start_date: "",
+        end_date: "",
+        registration_deadline: "",
+        format: category || null,
+        description: null,
       });
-      if (!res.ok) {
-        console.error("Error creating tournament");
-        return;
-      }
-      const created = await res.json();
       setDialogOpen(false);
       setName("");
       setCategory("");

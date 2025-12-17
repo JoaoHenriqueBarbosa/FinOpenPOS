@@ -1,68 +1,52 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createRepositories } from "@/lib/repository-factory";
 
 export async function GET() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const repos = await createRepositories();
+    const suppliers = await repos.suppliers.findAll({ onlyActive: true });
+    return NextResponse.json(suppliers);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    console.error('GET /suppliers error:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { status: 500 }
+    );
   }
-
-  const { data, error } = await supabase
-    .from("suppliers")
-    .select("id, name, status")
-    .eq("user_uid", user.id)
-    .eq("status", "active")
-    .order("name", { ascending: true });
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json(data);
 }
 
 export async function POST(request: Request) {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  try {
+    const repos = await createRepositories();
+    const body = await request.json();
+    const name = (body.name ?? "").trim();
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+    if (!name) {
+      return NextResponse.json(
+        { error: "Supplier name is required" },
+        { status: 400 }
+      );
+    }
 
-  const body = await request.json();
-  const name = (body.name ?? "").trim();
-  const contact_email = body.contact_email ?? null;
-  const phone = body.phone ?? null;
-  const notes = body.notes ?? null;
+    const supplier = await repos.suppliers.create({
+      name,
+      contact_email: body.contact_email ?? null,
+      phone: body.phone ?? null,
+      notes: body.notes ?? null,
+    });
 
-  if (!name) {
+    return NextResponse.json(supplier);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    console.error('POST /suppliers error:', error);
     return NextResponse.json(
-      { error: "Supplier name is required" },
-      { status: 400 }
+      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { status: 500 }
     );
   }
-
-  const { data, error } = await supabase
-    .from("suppliers")
-    .insert({
-      name,
-      contact_email,
-      phone,
-      notes,
-      user_uid: user.id,
-    })
-    .select("id, name, status")
-    .single();
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json(data);
 }

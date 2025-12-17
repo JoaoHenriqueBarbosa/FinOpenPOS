@@ -22,4 +22,36 @@ export interface OrderItemDB {
   created_at: string;
 }
 
+// Input types for creating/updating entities
+export interface CreateOrderInput {
+  player_id: number;
+  total_amount?: number;
+  status?: OrderStatus;
+}
+
+// Alias for backward compatibility with existing code
+export type CreateOrderInputWithPlayerId = Omit<CreateOrderInput, "player_id"> & { playerId: number };
+
+export interface CreateOrderItemInput {
+  order_id: number;
+  product_id: number;
+  quantity: number;
+  unit_price: number;
+}
+
+export interface OrderWithPlayer extends OrderDB {
+  player?: {
+    first_name: string;
+    last_name: string;
+  };
+}
+
+export interface OrderItemWithProduct extends OrderItemDB {
+  product?: {
+    id: number;
+    name: string;
+    price: number;
+  };
+}
+
 

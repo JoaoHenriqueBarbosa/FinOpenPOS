@@ -43,23 +43,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { OrderDTO, OrderItemDTO, OrderStatus } from "@/models/dto/order";
 import type { ProductDTO } from "@/models/dto/product";
 import type { PaymentMethodDTO } from "@/models/dto/payment-method";
+import { ordersService, productsService, paymentMethodsService } from "@/services";
 
 async function fetchOrder(orderId: number): Promise<OrderDTO> {
-  const res = await fetch(`/api/orders/${orderId}`);
-  if (!res.ok) throw new Error("No se pudo cargar la cuenta");
-  return res.json();
+  return ordersService.getById(orderId);
 }
 
 async function fetchProducts(): Promise<ProductDTO[]> {
-  const res = await fetch("/api/products");
-  if (!res.ok) throw new Error("No se pudieron cargar los productos");
-  return res.json();
+  return productsService.getAll();
 }
 
 async function fetchPaymentMethods(): Promise<PaymentMethodDTO[]> {
-  const res = await fetch("/api/payment-methods?onlyActive=true&scope=BAR");
-  if (!res.ok) throw new Error("No se pudieron cargar los métodos de pago");
-  return res.json();
+  return paymentMethodsService.getAll(true, "BAR");
 }
 
 export default function OrderDetailPage() {
@@ -114,7 +109,7 @@ export default function OrderDetailPage() {
 
   // Determinar si la orden está abierta para habilitar queries condicionales
   // Usamos orderData directamente para evitar dependencias circulares
-  const isOrderOpenForQueries = (orderData?.status === "open") ?? false;
+  const isOrderOpenForQueries = orderData?.status === "open";
   const hasItemsForQueries = (orderData?.items?.length ?? 0) > 0;
 
   // Solo cargar products cuando la orden esté abierta (se necesitan para agregar items)
@@ -160,8 +155,8 @@ export default function OrderDetailPage() {
 
   const computedTotal = useMemo(() => {
     if (!displayOrder) return 0;
-    if (!displayOrder.items || displayOrder.items.length === 0) return 0;
-    return displayOrder.items.reduce(
+    if (!displayOrder.items || (displayOrder.items ?? []).length === 0) return 0;
+    return (displayOrder.items ?? []).reduce(
       (sum, item) => sum + item.unit_price * item.quantity,
       0
     );
@@ -188,10 +183,10 @@ export default function OrderDetailPage() {
     // No hacemos optimistic update aquí porque ya lo hacemos en handleAddItem
     onError: (err, params) => {
       // Si falla, remover el item temporal de la UI
-      if (order) {
+      if (order && order.items) {
         setOrder({
           ...order,
-          items: order.items.filter((i) => i.id !== params.tempId),
+          items: (order.items ?? []).filter((i) => i.id !== params.tempId),
         });
       }
       toast.error(
@@ -228,7 +223,7 @@ export default function OrderDetailPage() {
       // Actualizar UI inmediatamente
       setOrder({
         ...previousOrder,
-        items: previousOrder.items.map((i) =>
+        items: (previousOrder.items ?? []).map((i) =>
           i.id === item.id ? { ...i, quantity: newQty } : i
         ),
       });
@@ -263,13 +258,13 @@ export default function OrderDetailPage() {
     // antes de llamar a la mutation
     onError: (err, item) => {
       // Si falla, restaurar el item en la UI
-      if (order) {
+      if (order && order.items) {
         // Agregar el item de vuelta a la lista
-        const itemExists = order.items.some((i) => i.id === item.id);
+        const itemExists = (order.items ?? []).some((i) => i.id === item.id);
         if (!itemExists) {
           setOrder({
             ...order,
-            items: [...order.items, item].sort((a, b) => a.id - b.id),
+            items: [...(order.items ?? []), item].sort((a, b) => a.id - b.id),
           });
         }
       }
@@ -286,13 +281,7 @@ export default function OrderDetailPage() {
   // Cancelar cuenta
   const cancelOrderMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`/api/orders/${orderId}/cancel`, {
-        method: "POST",
-      });
-      if (!res.ok) {
-        throw new Error("Error al cancelar la cuenta");
-      }
-      return (await res.json()) as OrderDTO;
+      return await ordersService.cancel(orderId);
     },
     onMutate: () => {
       if (!order && !orderData) return { previousOrder: null };
@@ -322,18 +311,7 @@ export default function OrderDetailPage() {
   // Cobrar cuenta
   const payOrderMutation = useMutation({
     mutationFn: async (params: { paymentMethodId: number; amount: number }) => {
-      const res = await fetch(`/api/orders/${orderId}/pay`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          paymentMethodId: params.paymentMethodId,
-          amount: params.amount,
-        }),
-      });
-      if (!res.ok) {
-        throw new Error("Error al cobrar la cuenta");
-      }
-      return (await res.json()) as OrderDTO;
+      return await ordersService.pay(orderId, params.paymentMethodId);
     },
     onMutate: ({ amount }) => {
       if (!order && !orderData) return { previousOrder: null };
@@ -377,28 +355,17 @@ export default function OrderDetailPage() {
     const previousOrder = { ...order };
 
     try {
-      // Preparar items para enviar (solo los que tienen product_id válido)
-      const itemsToSend = order.items
-        .filter((item) => item.product_id && item.quantity > 0)
+      // Preparar items para enviar (solo los que tienen product válido)
+      const itemsToSend = (order.items ?? [])
+        .filter((item) => item.product?.id && item.quantity > 0)
         .map((item) => ({
           id: item.id > 0 ? item.id : undefined, // IDs temporales negativos se envían como undefined
-          product_id: item.product_id,
+          product_id: item.product?.id!,
           quantity: item.quantity,
           unit_price: item.unit_price,
         }));
 
-      const res = await fetch(`/api/orders/${orderId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: itemsToSend }),
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || "Error al guardar cambios");
-      }
-
-      const updatedOrder = (await res.json()) as OrderDTO;
+      const updatedOrder = await ordersService.update(orderId, { items: itemsToSend });
       setOrder(updatedOrder);
       pendingChangesRef.current = [];
       setHasPendingChanges(false);
@@ -465,7 +432,7 @@ export default function OrderDetailPage() {
       if (order) {
         setOrder({
           ...order,
-          items: order.items.map((i) =>
+          items: (order.items ?? []).map((i) =>
             i.id === item.id ? { ...i, quantity: newQty } : i
           ),
         });
@@ -512,8 +479,8 @@ export default function OrderDetailPage() {
     }
 
     // Buscar si ya existe un item con ese producto en la orden
-    const existingItem = order.items.find(
-      (i) => i.product_id === productIdNumber
+    const existingItem = (order.items ?? []).find(
+      (i) => i.product?.id === productIdNumber
     );
 
     if (existingItem) {
@@ -529,20 +496,21 @@ export default function OrderDetailPage() {
     // Si no existe, crear item optimista y agregar a la cola
     const tempId =
       -Math.floor(Math.random() * 1_000_000) -
-      (order.items.length ? order.items.length : 0);
+      ((order.items ?? []).length);
 
     const optimisticItem: OrderItemDTO = {
       id: tempId,
-      product_id: product.id,
       quantity: qty,
       unit_price: product.price,
-      product: { name: product.name },
+      total_price: product.price * qty,
+      created_at: new Date().toISOString(),
+      product: { id: product.id, name: product.name },
     };
 
     // Actualizar UI inmediatamente
     setOrder({
       ...order,
-      items: [...order.items, optimisticItem],
+      items: [...(order.items ?? []), optimisticItem],
     });
 
     // Limpiar UI inmediatamente
@@ -585,7 +553,7 @@ export default function OrderDetailPage() {
       if (order) {
         setOrder({
           ...order,
-          items: order.items.filter((i) => i.id !== item.id),
+          items: (order.items ?? []).filter((i) => i.id !== item.id),
         });
       }
 
@@ -618,7 +586,7 @@ export default function OrderDetailPage() {
       return;
     }
 
-    if (displayOrder.items.length === 0) {
+    if (!displayOrder.items || displayOrder.items.length === 0) {
       toast.error("No se puede cobrar una cuenta vacía.");
       return;
     }
@@ -764,14 +732,14 @@ export default function OrderDetailPage() {
                         </TableRow>
                       ))}
                     </>
-                  ) : displayOrder && displayOrder.items.length === 0 ? (
+                  ) : displayOrder && (!displayOrder.items || displayOrder.items.length === 0) ? (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center py-6">
                         No hay productos en la cuenta.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    displayOrder?.items.map((item) => (
+                    (displayOrder?.items ?? []).map((item) => (
                       <TableRow key={item.id}>
                         <TableCell>
                           {item.product?.name ?? "Producto"}
@@ -987,7 +955,7 @@ export default function OrderDetailPage() {
                 paying ||
                 !isOrderOpen ||
                 !displayOrder ||
-                displayOrder.items.length === 0 ||
+                !displayOrder.items || displayOrder.items.length === 0 ||
                 selectedPaymentMethodId === "none"
               }
               onClick={handlePay}

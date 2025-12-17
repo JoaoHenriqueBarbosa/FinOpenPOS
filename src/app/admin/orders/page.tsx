@@ -48,18 +48,15 @@ import { useRouter } from "next/navigation";
 import type { OrderDTO, OrderStatus } from "@/models/dto/order";
 import type { PlayerDTO } from "@/models/dto/player";
 import type { PlayerStatus } from "@/models/db/player";
+import { ordersService, playersService } from "@/services";
 
 // ---- fetchers ----
 async function fetchOrders(): Promise<OrderDTO[]> {
-  const res = await fetch("/api/orders");
-  if (!res.ok) throw new Error("Error al cargar las cuentas");
-  return res.json();
+  return ordersService.getAll();
 }
 
 async function fetchPlayers(): Promise<PlayerDTO[]> {
-  const res = await fetch("/api/players?onlyActive=true");
-  if (!res.ok) throw new Error("Error al cargar los clientes");
-  return res.json();
+  return playersService.getAll(true);
 }
 
 export default function OrdersPage() {
@@ -151,28 +148,17 @@ export default function OrdersPage() {
   // Crear cuenta con optimistic update completo
   const createOrderMutation = useMutation({
     mutationFn: async (payload: { playerId: number | null }) => {
-      const res = await fetch("/api/orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (res.status === 409) {
-        const body = await res.json();
-        const existingId = body?.orderId;
-        const err = new Error(
-          existingId
-            ? `El cliente ya tiene una cuenta abierta (#${existingId}).`
-            : "El cliente ya tiene una cuenta abierta."
-        );
-        (err as any).orderId = existingId;
-        throw err;
+      try {
+        return await ordersService.create({ player_id: payload.playerId! });
+      } catch (error: any) {
+        // Handle 409 conflict (player already has open order)
+        if (error.message?.includes("already has an open order") || error.status === 409) {
+          const err = new Error("El cliente ya tiene una cuenta abierta.");
+          (err as any).orderId = error.orderId;
+          throw err;
+        }
+        throw error;
       }
-
-      if (!res.ok) {
-        throw new Error("Error al crear la cuenta");
-      }
-      return (await res.json()) as OrderDTO;
     },
     onMutate: async (payload) => {
       // Cancelar queries en progreso para evitar conflictos
@@ -186,18 +172,16 @@ export default function OrdersPage() {
       const tempId = -Math.floor(Math.random() * 1_000_000);
       const optimisticOrder: OrderDTO = {
         id: tempId,
-        player_id: payload.playerId,
         status: "open",
         total_amount: 0,
         created_at: new Date().toISOString(),
+        closed_at: null,
         items: [],
         player: player
           ? {
               id: player.id,
               first_name: player.first_name,
               last_name: player.last_name,
-              phone: player.phone,
-              status: player.status,
             }
           : null,
       };
@@ -257,7 +241,7 @@ export default function OrdersPage() {
     }
 
     const alreadyOpen = orders.some(
-      (o) => o.player_id === selectedPlayerId && o.status === "open"
+      (o) => o.player?.id === selectedPlayerId && o.status === "open"
     );  
     if (alreadyOpen) {
       toast.error("Este cliente ya tiene una cuenta abierta. Cerrala antes de abrir otra.");
@@ -277,15 +261,7 @@ export default function OrdersPage() {
       phone: string;
       status: PlayerStatus;
     }) => {
-      const res = await fetch("/api/players", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        throw new Error("Error creando cliente");
-      }
-      return (await res.json()) as Player;
+      return await playersService.create(payload);
     },
     onMutate: async (payload) => {
       setCreatingPlayer(true);
@@ -296,11 +272,14 @@ export default function OrdersPage() {
 
       // Optimista: agregamos uno "fake" mientras tanto
       const tempId = -Math.floor(Math.random() * 1_000_000);
-      const optimisticPlayer: Player = {
+      const optimisticPlayer: PlayerDTO = {
         id: tempId,
         first_name: payload.first_name,
         last_name: payload.last_name,
         phone: payload.phone,
+        email: null,
+        birth_date: null,
+        notes: null,
         status: payload.status,
       };
 

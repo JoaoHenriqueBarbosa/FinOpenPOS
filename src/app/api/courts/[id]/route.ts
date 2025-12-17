@@ -1,99 +1,97 @@
 // app/api/courts/[id]/route.ts
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createRepositories } from '@/lib/repository-factory';
 
 type Params = { params: { id: string } };
 
 export async function GET(_request: Request, { params }: Params) {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  try {
+    const repos = await createRepositories();
+    const id = Number(params.id);
 
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+    if (Number.isNaN(id)) {
+      return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+    }
 
-  const id = Number(params.id);
+    const court = await repos.courts.findById(id);
+    if (!court) {
+      return NextResponse.json({ error: 'Court not found' }, { status: 404 });
+    }
 
-  const { data, error } = await supabase
-    .from('courts')
-    .select('id, name, is_active, created_at')
-    .eq('user_uid', user.id)
-    .eq('id', id)
-    .single();
-
-  if (error) {
+    return NextResponse.json(court);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     console.error('GET /courts/[id] error:', error);
-    return NextResponse.json({ error: error.message }, { status: 404 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json(data);
 }
 
 export async function PATCH(request: Request, { params }: Params) {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  try {
+    const repos = await createRepositories();
+    const id = Number(params.id);
+    const body = await request.json();
 
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const id = Number(params.id);
-  const body = await request.json();
-
-  const updateFields: Record<string, any> = {};
-
-  if (typeof body.name === 'string') {
-    const name = body.name.trim();
-    if (!name) {
-      return NextResponse.json({ error: 'Name cannot be empty' }, { status: 400 });
+    if (Number.isNaN(id)) {
+      return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
     }
-    updateFields.name = name;
-  }
 
-  if (typeof body.is_active === 'boolean') {
-    updateFields.is_active = body.is_active;
-  }
+    const updateFields: Record<string, any> = {};
 
-  if (Object.keys(updateFields).length === 0) {
-    return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
-  }
+    if (typeof body.name === 'string') {
+      const name = body.name.trim();
+      if (!name) {
+        return NextResponse.json({ error: 'Name cannot be empty' }, { status: 400 });
+      }
+      updateFields.name = name;
+    }
 
-  const { data, error } = await supabase
-    .from('courts')
-    .update(updateFields)
-    .eq('user_uid', user.id)
-    .eq('id', id)
-    .select('id, name, is_active, created_at')
-    .single();
+    if (typeof body.is_active === 'boolean') {
+      updateFields.is_active = body.is_active;
+    }
 
-  if (error) {
+    if (Object.keys(updateFields).length === 0) {
+      return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
+    }
+
+    const court = await repos.courts.update(id, updateFields);
+    return NextResponse.json(court);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     console.error('PATCH /courts/[id] error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json(data);
 }
 
 export async function DELETE(_request: Request, { params }: Params) {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  try {
+    const repos = await createRepositories();
+    const id = Number(params.id);
 
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+    if (Number.isNaN(id)) {
+      return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+    }
 
-  const id = Number(params.id);
-
-  const { error } = await supabase
-    .from('courts')
-    .update({ is_active: false })
-    .eq('user_uid', user.id)
-    .eq('id', id);
-
-  if (error) {
+    await repos.courts.update(id, { is_active: false });
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     console.error('DELETE /courts/[id] error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json({ success: true });
 }

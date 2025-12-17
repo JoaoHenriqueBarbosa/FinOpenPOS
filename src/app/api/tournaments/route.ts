@@ -1,54 +1,34 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createRepositories } from "@/lib/repository-factory";
 
 export async function GET() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { data, error } = await supabase
-    .from("tournaments")
-    .select("*")
-    .eq("user_uid", user.id)
-    .order("created_at", { ascending: false });
-
-  if (error) {
+  try {
+    const repos = await createRepositories();
+    const tournaments = await repos.tournaments.findAll();
+    return NextResponse.json(tournaments);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     console.error("GET /tournaments error:", error);
     return NextResponse.json(
-      { error: "Failed to fetch tournaments" },
+      { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }
     );
   }
-
-  return NextResponse.json(data ?? []);
 }
 
 export async function POST(request: Request) {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  try {
+    const repos = await createRepositories();
+    const body = await request.json();
+    const { name, description, category, start_date, end_date, has_super_tiebreak, match_duration } = body;
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+    if (!name || !name.trim()) {
+      return NextResponse.json({ error: "Name is required" }, { status: 400 });
+    }
 
-  const body = await request.json();
-  const { name, description, category, start_date, end_date, has_super_tiebreak, match_duration } = body;
-
-  if (!name || !name.trim()) {
-    return NextResponse.json({ error: "Name is required" }, { status: 400 });
-  }
-
-  const { data, error } = await supabase
-    .from("tournaments")
-    .insert({
-      user_uid: user.id,
+    const tournament = await repos.tournaments.create({
       name: name.trim(),
       description: description ?? null,
       category: category ?? null,
@@ -56,18 +36,17 @@ export async function POST(request: Request) {
       end_date: end_date ?? null,
       has_super_tiebreak: has_super_tiebreak ?? false,
       match_duration: match_duration ?? 60,
-      status: "draft",
-    })
-    .select("*")
-    .single();
+    });
 
-  if (error) {
+    return NextResponse.json(tournament);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     console.error("POST /tournaments error:", error);
     return NextResponse.json(
-      { error: "Failed to create tournament" },
+      { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }
     );
   }
-
-  return NextResponse.json(data);
 }

@@ -46,6 +46,7 @@ import {
 import type { PurchaseDTO, PurchaseStatus } from "@/models/dto/purchase";
 import type { SupplierNestedDTO } from "@/models/dto/supplier";
 import type { PaymentMethodNestedDTO } from "@/models/dto/payment-method";
+import { purchasesService, suppliersService, paymentMethodsService } from "@/services";
 
 export default function PurchasesHistoryPage() {
   const [purchases, setPurchases] = useState<PurchaseDTO[]>([]);
@@ -69,26 +70,15 @@ export default function PurchasesHistoryPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [pRes, sRes, pmRes] = await Promise.all([
-          fetch("/api/purchases"),
-          fetch("/api/suppliers"),
-          fetch("/api/payment-methods?onlyActive=true&scope=BAR"),
+        const [purchasesData, suppliersData, paymentMethodsData] = await Promise.all([
+          purchasesService.getAll(),
+          suppliersService.getAll(),
+          paymentMethodsService.getAll(true, "BAR"),
         ]);
 
-        if (pRes.ok) {
-          const pData = await pRes.json();
-          setPurchases(pData);
-        }
-
-        if (sRes.ok) {
-          const sData = await sRes.json();
-          setSuppliers(sData);
-        }
-
-        if (pmRes.ok) {
-          const pmData = await pmRes.json();
-          setPaymentMethods(pmData);
-        }
+        setPurchases(purchasesData);
+        setSuppliers(suppliersData);
+        setPaymentMethods(paymentMethodsData);
       } catch (err) {
         console.error("Error fetching purchases history:", err);
       } finally {

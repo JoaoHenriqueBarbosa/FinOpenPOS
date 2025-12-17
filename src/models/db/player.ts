@@ -15,3 +15,16 @@ export interface Player {
   created_at: string; // TIMESTAMP
 }
 
+// Input types for creating/updating entities
+export interface CreatePlayerInput {
+  first_name: string;
+  last_name: string;
+  phone: string | null;
+  status?: PlayerStatus;
+}
+
+export interface FindPlayersOptions {
+  onlyActive?: boolean;
+  search?: string;
+}
+

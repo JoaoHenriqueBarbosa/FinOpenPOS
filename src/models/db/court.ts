@@ -26,4 +26,50 @@ export interface CourtSlotDB {
   created_at: string;
 }
 
+// Input types for creating/updating entities
+export interface CreateCourtInput {
+  name: string;
+  is_active?: boolean;
+}
+
+export interface CreateCourtSlotInput {
+  court_id: number;
+  slot_date: string;
+  start_time: string;
+  end_time: string;
+  was_played?: boolean;
+  notes?: string | null;
+  player1_payment_method_id?: number | null;
+  player1_note?: string | null;
+  player2_payment_method_id?: number | null;
+  player2_note?: string | null;
+  player3_payment_method_id?: number | null;
+  player3_note?: string | null;
+  player4_payment_method_id?: number | null;
+  player4_note?: string | null;
+}
+
+export interface CourtSlotWithCourt extends CourtSlotDB {
+  court?: {
+    id: number;
+    name: string;
+  } | null;
+  player1_payment_method?: {
+    id: number;
+    name: string;
+  } | null;
+  player2_payment_method?: {
+    id: number;
+    name: string;
+  } | null;
+  player3_payment_method?: {
+    id: number;
+    name: string;
+  } | null;
+  player4_payment_method?: {
+    id: number;
+    name: string;
+  } | null;
+}
+
 

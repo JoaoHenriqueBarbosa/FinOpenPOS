@@ -168,25 +168,31 @@ export async function POST(req: Request, { params }: RouteParams) {
   // Mapear los payloads a los matches originales por tournament_group_id y match_order
   // Para partidos con equipos null, solo comparamos por tournament_group_id y match_order
   const updates = matches.map((match) => {
-    const payload = matchesPayload.find(
-      (p) =>
-        p.tournament_group_id === match.tournament_group_id &&
-        (p.match_order ?? null) === (match.match_order ?? null) &&
-        // Si el match original tiene equipos, comparar por equipos también
-        (match.team1_id === null || match.team2_id === null
-          ? true // Si el match original tiene equipos null, cualquier payload con mismo grupo y orden sirve
-          : p.team1_id === match.team1_id && p.team2_id === match.team2_id)
+    const payload = schedulerResult.assignments.find(
+      (a) => {
+        const p = matchesPayload[a.matchIdx];
+        return (
+          p.tournament_group_id === match.tournament_group_id &&
+          (p.match_order ?? null) === (match.match_order ?? null) &&
+          // Si el match original tiene equipos, comparar por equipos también
+          (match.team1_id === null || match.team2_id === null
+            ? true // Si el match original tiene equipos null, cualquier payload con mismo grupo y orden sirve
+            : p.team1_id === match.team1_id && p.team2_id === match.team2_id)
+        );
+      }
     );
 
     if (!payload) return null;
 
     return {
       id: match.id,
-      match_date: payload.match_date,
-      start_time: payload.start_time,
-      end_time: payload.end_time,
+      match_date: payload.date,
+      start_time: payload.startTime,
+      end_time: payload.endTime,
     };
-  }).filter((u): u is { id: number; match_date: string | null; start_time: string | null; end_time: string | null } => u !== null);
+  }).filter((u): u is { id: number; match_date: string; start_time: string; end_time: string } => 
+    u !== null && u.match_date !== null && u.start_time !== null && u.end_time !== null
+  );
 
   // Actualizar todos los partidos
   let updatedCount = 0;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   Card,
   CardHeader,
@@ -40,6 +40,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { jsPDF } from "jspdf";
 
 import type { CourtSlotDTO } from "@/models/dto/court";
+import type { CourtSlotDB } from "@/models/db/court";
 import type { PaymentMethodDTO } from "@/models/dto/payment-method";
 
 const courtPillClasses = (courtName?: string | null) => {
@@ -68,7 +69,7 @@ const PAYMENT_COLORS = [
 
 const paymentColorById = (
   id: number | null | undefined,
-  paymentMethods: PaymentMethod[]
+  paymentMethods: PaymentMethodDTO[]
 ) => {
   if (!id)
     return "border-red-400 bg-red-50 text-red-700 dark:bg-red-900/40 dark:border-red-700 dark:text-red-300";
@@ -92,17 +93,16 @@ const getPricePerPlayer = (courtName?: string | null) => {
   return 0;
 };
 
+import { paymentMethodsService, courtSlotsService } from "@/services";
+import type { UpdateCourtSlotInput } from "@/services/court-slots.service";
+
 // ---- helpers para fetch ----
-async function fetchPaymentMethods(): Promise<PaymentMethod[]> {
-  const res = await fetch("/api/payment-methods?onlyActive=true&scope=COURT");
-  if (!res.ok) throw new Error("Failed to fetch payment methods");
-  return res.json();
+async function fetchPaymentMethods(): Promise<PaymentMethodDTO[]> {
+  return paymentMethodsService.getAll(true, "COURT");
 }
 
 async function fetchCourtSlots(date: string): Promise<CourtSlotDTO[]> {
-  const res = await fetch(`/api/court-slots?date=${date}`);
-  if (!res.ok) throw new Error("Failed to fetch court slots");
-  return res.json();
+  return courtSlotsService.getByDate(date);
 }
 
 export default function CourtSlotsPage() {
@@ -118,6 +118,8 @@ export default function CourtSlotsPage() {
 
   // Estado local para UI instantánea
   const [localSlots, setLocalSlots] = useState<CourtSlotDTO[]>([]);
+  // Guardar estado anterior para revertir en caso de error
+  const previousSlotsRef = useRef<Map<number, CourtSlotDTO>>(new Map());
 
   // Métodos de pago
   const {
@@ -165,24 +167,7 @@ export default function CourtSlotsPage() {
   // Generar turnos del día
   const generateMutation = useMutation({
     mutationFn: async (date: string) => {
-      const res = await fetch("/api/court-slots/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date }),
-      });
-
-      if (!res.ok) {
-        let message = "Error generando turnos";
-        try {
-          const data = await res.json();
-          if (data?.message) message = data.message;
-        } catch {
-          // ignore
-        }
-        throw new Error(message);
-      }
-
-      return res.json();
+      return courtSlotsService.generate({ date });
     },
     onSuccess: () => {
       toast.success("Turnos generados correctamente.");
@@ -197,41 +182,34 @@ export default function CourtSlotsPage() {
     },
   });
 
-  // Actualizar un slot
+  // Actualizar un slot - actualización optimista
   const updateSlotMutation = useMutation({
-    mutationFn: async (params: { slotId: number; patch: Partial<CourtSlotDTO> }) => {
-      const res = await fetch(`/api/court-slots/${params.slotId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(params.patch),
-      });
-      if (!res.ok) throw new Error("Error updating court slot");
-      return (await res.json()) as CourtSlotDTO;
+    mutationFn: async (params: { slotId: number; patch: UpdateCourtSlotInput }) => {
+      return courtSlotsService.update(params.slotId, params.patch);
     },
-    onMutate: async ({ slotId, patch }) => {
-      await queryClient.cancelQueries({ queryKey: ["court-slots", selectedDate] });
-
-      const previous = queryClient.getQueryData<CourtSlotDTO[]>([
-        "court-slots",
-        selectedDate,
-      ]);
-
-      if (previous) {
-        queryClient.setQueryData<CourtSlotDTO[]>(
-          ["court-slots", selectedDate],
-          previous.map((s) => (s.id === slotId ? { ...s, ...patch } : s))
+    onError: (error, { slotId }) => {
+      // Revertir el cambio en localSlots usando el estado guardado
+      const previousSlot = previousSlotsRef.current.get(slotId);
+      if (previousSlot) {
+        setLocalSlots((prev) =>
+          prev.map((slot) => (slot.id === slotId ? previousSlot : slot))
         );
+        previousSlotsRef.current.delete(slotId);
+      } else {
+        // Si no tenemos el estado anterior, invalidar la query para refrescar
+        queryClient.invalidateQueries({ queryKey: ["court-slots", selectedDate] });
       }
-
-      return { previous };
+      toast.error("Error al actualizar el turno. Por favor, intenta nuevamente.");
     },
-    onError: (_err, _vars, ctx) => {
-      if (ctx?.previous) {
-        queryClient.setQueryData(["court-slots", selectedDate], ctx.previous);
-      }
-    },
-    onSuccess: (updated) => {
-      queryClient.setQueryData<CourtSlot[]>(
+    onSuccess: (updated, { slotId }) => {
+      // Limpiar el estado anterior guardado
+      previousSlotsRef.current.delete(slotId);
+      // Sincronizar con el servidor - actualizar localSlots con la respuesta del servidor
+      setLocalSlots((prev) =>
+        prev.map((s) => (s.id === updated.id ? updated : s))
+      );
+      // También actualizar el cache de React Query
+      queryClient.setQueryData<CourtSlotDTO[]>(
         ["court-slots", selectedDate],
         (old) => old?.map((s) => (s.id === updated.id ? updated : s)) ?? []
       );
@@ -247,11 +225,41 @@ export default function CourtSlotsPage() {
   };
 
   // UI instantánea + PATCH en paralelo
-  const updateSlotField = (slotId: number, patch: Partial<CourtSlotDTO>) => {
+  const updateSlotField = (slotId: number, patch: Partial<Pick<CourtSlotDB, "was_played" | "notes" | "player1_payment_method_id" | "player1_note" | "player2_payment_method_id" | "player2_note" | "player3_payment_method_id" | "player3_note" | "player4_payment_method_id" | "player4_note">>) => {
+    // Guardar el estado anterior antes de actualizar (para revertir en caso de error)
+    const currentSlot = localSlots.find((s) => s.id === slotId);
+    if (currentSlot && !previousSlotsRef.current.has(slotId)) {
+      previousSlotsRef.current.set(slotId, { ...currentSlot });
+    }
+
+    // Actualizar UI inmediatamente
     setLocalSlots((prev) =>
-      prev.map((slot) => (slot.id === slotId ? { ...slot, ...patch } : slot))
+      prev.map((slot) => {
+        if (slot.id !== slotId) return slot;
+        const updated: CourtSlotDTO = { ...slot };
+        if ('was_played' in patch && patch.was_played !== undefined) updated.was_played = patch.was_played;
+        if ('notes' in patch && patch.notes !== undefined) updated.notes = patch.notes;
+        if ('player1_note' in patch && patch.player1_note !== undefined) updated.player1_note = patch.player1_note;
+        if ('player2_note' in patch && patch.player2_note !== undefined) updated.player2_note = patch.player2_note;
+        if ('player3_note' in patch && patch.player3_note !== undefined) updated.player3_note = patch.player3_note;
+        if ('player4_note' in patch && patch.player4_note !== undefined) updated.player4_note = patch.player4_note;
+        if ('player1_payment_method_id' in patch && patch.player1_payment_method_id !== undefined) {
+          updated.player1_payment_method = patch.player1_payment_method_id ? (paymentMethods.find(pm => pm.id === patch.player1_payment_method_id) || null) : null;
+        }
+        if ('player2_payment_method_id' in patch && patch.player2_payment_method_id !== undefined) {
+          updated.player2_payment_method = patch.player2_payment_method_id ? (paymentMethods.find(pm => pm.id === patch.player2_payment_method_id) || null) : null;
+        }
+        if ('player3_payment_method_id' in patch && patch.player3_payment_method_id !== undefined) {
+          updated.player3_payment_method = patch.player3_payment_method_id ? (paymentMethods.find(pm => pm.id === patch.player3_payment_method_id) || null) : null;
+        }
+        if ('player4_payment_method_id' in patch && patch.player4_payment_method_id !== undefined) {
+          updated.player4_payment_method = patch.player4_payment_method_id ? (paymentMethods.find(pm => pm.id === patch.player4_payment_method_id) || null) : null;
+        }
+        return updated;
+      })
     );
 
+    // Enviar actualización al servidor de forma asíncrona
     updateSlotMutation.mutate({ slotId, patch });
   };
 
@@ -327,10 +335,10 @@ export default function CourtSlotsPage() {
 
       // --- resumen por método de pago ---
       const playersPaymentIds = [
-        slot.player1_payment_method_id,
-        slot.player2_payment_method_id,
-        slot.player3_payment_method_id,
-        slot.player4_payment_method_id,
+        slot.player1_payment_method?.id,
+        slot.player2_payment_method?.id,
+        slot.player3_payment_method?.id,
+        slot.player4_payment_method?.id,
       ];
 
       for (const pmId of playersPaymentIds) {
@@ -760,8 +768,8 @@ export default function CourtSlotsPage() {
                         <TableCell className="min-w-[160px]">
                           <Select
                             value={
-                              slot.player1_payment_method_id
-                                ? String(slot.player1_payment_method_id)
+                              slot.player1_payment_method?.id
+                                ? String(slot.player1_payment_method.id)
                                 : "none"
                             }
                             onValueChange={(value) =>
@@ -775,7 +783,7 @@ export default function CourtSlotsPage() {
                               className={`
                                 text-xs
                                 ${paymentColorById(
-                                  slot.player1_payment_method_id,
+                                  slot.player1_payment_method?.id,
                                   paymentMethods
                                 )}
                               `}
@@ -797,8 +805,8 @@ export default function CourtSlotsPage() {
                         <TableCell className="min-w-[160px]">
                           <Select
                             value={
-                              slot.player2_payment_method_id
-                                ? String(slot.player2_payment_method_id)
+                              slot.player2_payment_method?.id
+                                ? String(slot.player2_payment_method.id)
                                 : "none"
                             }
                             onValueChange={(value) =>
@@ -812,7 +820,7 @@ export default function CourtSlotsPage() {
                               className={`
                                 text-xs
                                 ${paymentColorById(
-                                  slot.player2_payment_method_id,
+                                  slot.player2_payment_method?.id,
                                   paymentMethods
                                 )}
                               `}
@@ -834,8 +842,8 @@ export default function CourtSlotsPage() {
                         <TableCell className="min-w-[160px]">
                           <Select
                             value={
-                              slot.player3_payment_method_id
-                                ? String(slot.player3_payment_method_id)
+                              slot.player3_payment_method?.id
+                                ? String(slot.player3_payment_method.id)
                                 : "none"
                             }
                             onValueChange={(value) =>
@@ -849,7 +857,7 @@ export default function CourtSlotsPage() {
                               className={`
                                 text-xs
                                 ${paymentColorById(
-                                  slot.player3_payment_method_id,
+                                  slot.player3_payment_method?.id,
                                   paymentMethods
                                 )}
                               `}
@@ -871,8 +879,8 @@ export default function CourtSlotsPage() {
                         <TableCell className="min-w-[160px]">
                           <Select
                             value={
-                              slot.player4_payment_method_id
-                                ? String(slot.player4_payment_method_id)
+                              slot.player4_payment_method?.id
+                                ? String(slot.player4_payment_method.id)
                                 : "none"
                             }
                             onValueChange={(value) =>
@@ -886,7 +894,7 @@ export default function CourtSlotsPage() {
                               className={`
                                 text-xs
                                 ${paymentColorById(
-                                  slot.player4_payment_method_id,
+                                  slot.player4_payment_method?.id,
                                   paymentMethods
                                 )}
                               `}

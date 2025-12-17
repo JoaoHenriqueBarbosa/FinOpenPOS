@@ -32,6 +32,7 @@ import { Loader2Icon, PlusIcon, TrashIcon } from "lucide-react";
 import type { ProductNestedDTO } from "@/models/dto/product";
 import type { SupplierNestedDTO } from "@/models/dto/supplier";
 import type { PaymentMethodNestedDTO } from "@/models/dto/payment-method";
+import { productsService, suppliersService, paymentMethodsService, purchasesService } from "@/services";
 
 type PurchaseLine = {
   id: number;
@@ -59,21 +60,15 @@ export default function PurchasesPage() {
 
   // Fetch functions para React Query
   async function fetchProducts(): Promise<ProductNestedDTO[]> {
-    const res = await fetch("/api/products");
-    if (!res.ok) throw new Error("Failed to fetch products");
-    return res.json();
+    return productsService.getAll();
   }
 
   async function fetchSuppliers(): Promise<SupplierNestedDTO[]> {
-    const res = await fetch("/api/suppliers");
-    if (!res.ok) throw new Error("Failed to fetch suppliers");
-    return res.json();
+    return suppliersService.getAll();
   }
 
   async function fetchPaymentMethods(): Promise<PaymentMethodNestedDTO[]> {
-    const res = await fetch("/api/payment-methods?onlyActive=true&scope=BAR");
-    if (!res.ok) throw new Error("Failed to fetch payment methods");
-    return res.json();
+    return paymentMethodsService.getAll(true, "BAR");
   }
 
   // React Query para compartir cache con otros componentes
@@ -168,27 +163,16 @@ export default function PurchasesPage() {
     try {
       setSaving(true);
 
-      const payload = {
-        supplierId: Number(selectedSupplierId),
-        paymentMethodId: Number(selectedPaymentMethodId),
-        notes,
+      await purchasesService.create({
+        supplier_id: Number(selectedSupplierId),
+        payment_method_id: Number(selectedPaymentMethodId),
+        notes: notes || null,
         items: validLines.map((l) => ({
           productId: Number(l.productId),
           quantity: Number(l.quantity),
           unitCost: Number(l.unitCost),
         })),
-      };
-
-      const res = await fetch("/api/purchases", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
       });
-
-      if (!res.ok) {
-        console.error("Error guardando la compra");
-        return;
-      }
 
       // Podrías usar un toast; por ahora reseteamos el formulario
       setSelectedSupplierId("none");

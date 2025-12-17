@@ -23,4 +23,33 @@ export interface ProductDB {
   updated_at: string;
 }
 
+// Input types for creating/updating entities
+export interface CreateProductInput {
+  name: string;
+  description?: string | null;
+  price: number;
+  uses_stock?: boolean;
+  min_stock?: number;
+  category_id?: number | null;
+  is_active?: boolean;
+}
+
+export interface CreateProductCategoryInput {
+  name: string;
+  description?: string | null;
+  color?: string | null;
+  is_active?: boolean;
+}
+
+export interface FindProductsOptions {
+  categoryId?: number;
+  search?: string;
+  onlyActive?: boolean;
+}
+
+export interface FindProductCategoriesOptions {
+  onlyActive?: boolean;
+  search?: string;
+}
+
 

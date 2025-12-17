@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { tournamentsService } from "@/services";
 import {
   Card,
   CardHeader,
@@ -29,9 +30,7 @@ function teamLabelBracket(team: TeamDTO | null) {
 
 // Fetch function para React Query
 async function fetchTournamentPlayoffs(tournamentId: number): Promise<PlayoffRow[]> {
-  const res = await fetch(`/api/tournaments/${tournamentId}/playoffs`);
-  if (!res.ok) throw new Error("Failed to fetch playoffs");
-  return res.json();
+  return tournamentsService.getPlayoffs(tournamentId);
 }
 
 export default function PlayoffsViewTab({ tournament }: { tournament: Pick<TournamentDTO, "id"> }) {

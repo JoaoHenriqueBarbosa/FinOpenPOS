@@ -1,8 +1,9 @@
 // src/models/dto/product.ts
-import { ProductDB, ProductCategoryDB } from "../db/product";
+import { ProductDB } from "../db/product";
+import type { ProductCategoryDTO } from "./product-category";
 
-// Product Category DTO
-export interface ProductCategoryDTO extends Omit<ProductCategoryDB, "user_uid"> {}
+// Re-export for backward compatibility
+export type { ProductCategoryDTO } from "./product-category";
 
 // Product DTO
 export interface ProductDTO extends Omit<ProductDB, "user_uid" | "category_id"> {
