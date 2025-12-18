@@ -1,66 +1,51 @@
 // app/api/courts/route.ts
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createRepositories } from '@/lib/repository-factory';
 
 export async function GET(request: Request) {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  try {
+    const repos = await createRepositories();
+    const url = new URL(request.url);
+    const onlyActive = url.searchParams.get('onlyActive') === 'true';
 
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const url = new URL(request.url);
-  const onlyActive = url.searchParams.get('onlyActive') === 'true';
-
-  let query = supabase
-    .from('courts')
-    .select('id, name, is_active')
-    .eq('user_uid', user.id);
-
-  if (onlyActive) {
-    query = query.eq('is_active', true);
-  }
-
-  const { data, error } = await query.order('id', { ascending: true });
-
-  if (error) {
+    const courts = await repos.courts.findAll(onlyActive);
+    return NextResponse.json(courts);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     console.error('GET /courts error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json(data ?? []);
 }
 
 export async function POST(request: Request) {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  try {
+    const repos = await createRepositories();
+    const body = await request.json();
+    const name = String(body.name ?? '').trim();
 
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+    if (!name) {
+      return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+    }
 
-  const body = await request.json();
-  const name = String(body.name ?? '').trim();
-
-  if (!name) {
-    return NextResponse.json({ error: 'Name is required' }, { status: 400 });
-  }
-
-  const { data, error } = await supabase
-    .from('courts')
-    .insert({
-      user_uid: user.id,
+    const court = await repos.courts.create({
       name,
       is_active: body.is_active ?? true,
-    })
-    .select('id, name, is_active')
-    .single();
+    });
 
-  if (error) {
+    return NextResponse.json(court, { status: 201 });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     console.error('POST /courts error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json(data, { status: 201 });
 }

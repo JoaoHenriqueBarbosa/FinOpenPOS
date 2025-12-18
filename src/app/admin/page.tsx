@@ -24,33 +24,19 @@ import {
   LayersIcon,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { ordersService, courtSlotsService, adminService } from "@/services";
 
 // Fetch functions
 async function fetchOpenOrdersCount(): Promise<number> {
-  const res = await fetch("/api/orders");
-  if (!res.ok) throw new Error("Failed to fetch orders");
-  const orders = await res.json();
-  return orders.filter((o: any) => o.status === "open").length;
+  return ordersService.getOpenOrdersCount();
 }
 
 async function fetchTodayCourtSlots(): Promise<number> {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, '0');
-  const day = String(today.getDate()).padStart(2, '0');
-  const dateStr = `${year}-${month}-${day}`;
-  
-  const res = await fetch(`/api/court-slots?date=${dateStr}`);
-  if (!res.ok) throw new Error("Failed to fetch court slots");
-  const slots = await res.json();
-  return slots.length;
+  return courtSlotsService.getTodaySlotsCount();
 }
 
 async function fetchTotalRevenue(): Promise<number> {
-  const res = await fetch("/api/admin/revenue/total");
-  if (!res.ok) throw new Error("Failed to fetch revenue");
-  const data = await res.json();
-  return data.totalRevenue || 0;
+  return adminService.getTotalRevenue();
 }
 
 export default function Page() {

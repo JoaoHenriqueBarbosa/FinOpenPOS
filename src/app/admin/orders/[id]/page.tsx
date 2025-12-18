@@ -37,34 +37,30 @@ import {
   TrashIcon,
   SaveIcon,
 } from "lucide-react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { OrderDTO, OrderItemDTO, OrderStatus } from "@/models/dto/order";
 import type { ProductDTO } from "@/models/dto/product";
 import type { PaymentMethodDTO } from "@/models/dto/payment-method";
+import { ordersService, productsService, paymentMethodsService } from "@/services";
 
 async function fetchOrder(orderId: number): Promise<OrderDTO> {
-  const res = await fetch(`/api/orders/${orderId}`);
-  if (!res.ok) throw new Error("No se pudo cargar la cuenta");
-  return res.json();
+  return ordersService.getById(orderId);
 }
 
 async function fetchProducts(): Promise<ProductDTO[]> {
-  const res = await fetch("/api/products");
-  if (!res.ok) throw new Error("No se pudieron cargar los productos");
-  return res.json();
+  return productsService.getAll();
 }
 
 async function fetchPaymentMethods(): Promise<PaymentMethodDTO[]> {
-  const res = await fetch("/api/payment-methods?onlyActive=true&scope=BAR");
-  if (!res.ok) throw new Error("No se pudieron cargar los métodos de pago");
-  return res.json();
+  return paymentMethodsService.getAll(true, "BAR");
 }
 
 export default function OrderDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const orderId = Number(params?.id);
 
   const [order, setOrder] = useState<OrderDTO | null>(null);
@@ -106,15 +102,12 @@ export default function OrderDetailPage() {
   });
 
   // sincronizar order local cuando llega de la API
-  useEffect(() => {
-    if (orderData) {
-      setOrder(orderData);
-    }
-  }, [orderData]);
+  // Solo actualizar si no hay cambios pendientes, no se está guardando, y el order local no está más actualizado
+  // NOTA: Este useEffect se mueve después de las declaraciones de paying y cancelling
 
   // Determinar si la orden está abierta para habilitar queries condicionales
   // Usamos orderData directamente para evitar dependencias circulares
-  const isOrderOpenForQueries = (orderData?.status === "open") ?? false;
+  const isOrderOpenForQueries = orderData?.status === "open";
   const hasItemsForQueries = (orderData?.items?.length ?? 0) > 0;
 
   // Solo cargar products cuando la orden esté abierta (se necesitan para agregar items)
@@ -160,8 +153,8 @@ export default function OrderDetailPage() {
 
   const computedTotal = useMemo(() => {
     if (!displayOrder) return 0;
-    if (!displayOrder.items || displayOrder.items.length === 0) return 0;
-    return displayOrder.items.reduce(
+    if (!displayOrder.items || (displayOrder.items ?? []).length === 0) return 0;
+    return (displayOrder.items ?? []).reduce(
       (sum, item) => sum + item.unit_price * item.quantity,
       0
     );
@@ -188,10 +181,10 @@ export default function OrderDetailPage() {
     // No hacemos optimistic update aquí porque ya lo hacemos en handleAddItem
     onError: (err, params) => {
       // Si falla, remover el item temporal de la UI
-      if (order) {
+      if (order && order.items) {
         setOrder({
           ...order,
-          items: order.items.filter((i) => i.id !== params.tempId),
+          items: (order.items ?? []).filter((i) => i.id !== params.tempId),
         });
       }
       toast.error(
@@ -228,7 +221,7 @@ export default function OrderDetailPage() {
       // Actualizar UI inmediatamente
       setOrder({
         ...previousOrder,
-        items: previousOrder.items.map((i) =>
+        items: (previousOrder.items ?? []).map((i) =>
           i.id === item.id ? { ...i, quantity: newQty } : i
         ),
       });
@@ -263,13 +256,13 @@ export default function OrderDetailPage() {
     // antes de llamar a la mutation
     onError: (err, item) => {
       // Si falla, restaurar el item en la UI
-      if (order) {
+      if (order && order.items) {
         // Agregar el item de vuelta a la lista
-        const itemExists = order.items.some((i) => i.id === item.id);
+        const itemExists = (order.items ?? []).some((i) => i.id === item.id);
         if (!itemExists) {
           setOrder({
             ...order,
-            items: [...order.items, item].sort((a, b) => a.id - b.id),
+            items: [...(order.items ?? []), item].sort((a, b) => a.id - b.id),
           });
         }
       }
@@ -286,13 +279,7 @@ export default function OrderDetailPage() {
   // Cancelar cuenta
   const cancelOrderMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`/api/orders/${orderId}/cancel`, {
-        method: "POST",
-      });
-      if (!res.ok) {
-        throw new Error("Error al cancelar la cuenta");
-      }
-      return (await res.json()) as OrderDTO;
+      return await ordersService.cancel(orderId);
     },
     onMutate: () => {
       if (!order && !orderData) return { previousOrder: null };
@@ -314,7 +301,11 @@ export default function OrderDetailPage() {
       );
     },
     onSuccess: (updatedOrder) => {
+      // Actualizar estado local inmediatamente
       setOrder(updatedOrder);
+      // Actualizar cache de React Query para que se refleje en toda la app
+      queryClient.setQueryData(["order", orderId], updatedOrder);
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
       toast.success("Cuenta cancelada.");
     },
   });
@@ -322,18 +313,7 @@ export default function OrderDetailPage() {
   // Cobrar cuenta
   const payOrderMutation = useMutation({
     mutationFn: async (params: { paymentMethodId: number; amount: number }) => {
-      const res = await fetch(`/api/orders/${orderId}/pay`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          paymentMethodId: params.paymentMethodId,
-          amount: params.amount,
-        }),
-      });
-      if (!res.ok) {
-        throw new Error("Error al cobrar la cuenta");
-      }
-      return (await res.json()) as OrderDTO;
+      return await ordersService.pay(orderId, params.paymentMethodId);
     },
     onMutate: ({ amount }) => {
       if (!order && !orderData) return { previousOrder: null };
@@ -356,7 +336,11 @@ export default function OrderDetailPage() {
       );
     },
     onSuccess: (updatedOrder) => {
+      // Actualizar estado local inmediatamente
       setOrder(updatedOrder);
+      // Actualizar cache de React Query para que se refleje en toda la app
+      queryClient.setQueryData(["order", orderId], updatedOrder);
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
       toast.success("Cuenta cobrada y cerrada.");
       // si querés redirigir:
       // router.push("/admin/orders");
@@ -367,56 +351,100 @@ export default function OrderDetailPage() {
   const paying = payOrderMutation.isPending;
   const cancelling = cancelOrderMutation.isPending;
 
+  // sincronizar order local cuando llega de la API (después de declarar paying y cancelling)
+  // Solo actualizar si no hay cambios pendientes, no se está guardando, y el order local no está más actualizado
+  useEffect(() => {
+    if (orderData && !hasPendingChanges && !savingChanges && !paying && !cancelling) {
+      // Solo actualizar si no tenemos order local o si el orderData es más reciente
+      // (comparar por id para evitar sobrescribir cambios locales)
+      // También verificar que no estamos en medio de una actualización optimista
+      if (!order || (orderData.id === order.id && orderData !== order)) {
+        // Solo actualizar si el orderData tiene items (para evitar sobrescribir con datos incompletos)
+        // Y si el status no cambió (para evitar sobrescribir cuando se cierra la cuenta)
+        if (orderData.items && orderData.items.length >= 0) {
+          // Si tenemos un order local y el status cambió, no sobrescribir (ya se actualizó optimísticamente)
+          if (!order || order.status === orderData.status) {
+            setOrder(orderData);
+          }
+        }
+      }
+    }
+  }, [orderData, hasPendingChanges, savingChanges, order, paying, cancelling]);
+
   // Función para guardar todos los cambios pendientes - envía toda la orden en una sola petición
+  // Actualización optimista: actualiza UI inmediatamente y envía PATCH async
   const handleSaveChanges = useCallback(async () => {
     if (!order || !orderId) {
       return;
     }
 
-    setSavingChanges(true);
+    // Guardar estado anterior para revertir en caso de error
     const previousOrder = { ...order };
+    const previousItems = [...(order.items ?? [])];
 
-    try {
-      // Preparar items para enviar (solo los que tienen product_id válido)
-      const itemsToSend = order.items
-        .filter((item) => item.product_id && item.quantity > 0)
-        .map((item) => ({
-          id: item.id > 0 ? item.id : undefined, // IDs temporales negativos se envían como undefined
-          product_id: item.product_id,
+    // Preparar items para enviar basándose en el estado actual de order.items
+    // Esto incluye TODOS los items que están en el estado local (incluyendo los que se agregaron optimísticamente)
+    // y excluye los que se eliminaron optimísticamente (ya no están en el array)
+    const itemsToSend = (order.items ?? [])
+      .filter((item) => {
+        // Solo incluir items que tienen un producto válido (puede venir como product.id o product_id) y cantidad > 0
+        const productId = item.product?.id || (item as any).product_id;
+        return productId && item.quantity > 0;
+      })
+      .map((item) => {
+        // Obtener product_id de item.product?.id o de item.product_id (por si acaso)
+        const productId = item.product?.id || (item as any).product_id;
+        if (!productId) {
+          console.error("Item sin product_id válido:", item);
+          throw new Error(`Item sin product_id válido`);
+        }
+        
+        return {
+          // IDs temporales negativos se envían como undefined para que se creen nuevos items
+          id: item.id > 0 ? item.id : undefined,
+          product_id: productId,
           quantity: item.quantity,
           unit_price: item.unit_price,
-        }));
-
-      const res = await fetch(`/api/orders/${orderId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: itemsToSend }),
+        };
       });
 
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || "Error al guardar cambios");
-      }
+    // Actualización optimista: limpiar cambios pendientes y actualizar UI inmediatamente
+    pendingChangesRef.current = [];
+    setHasPendingChanges(false);
+    setSavingChanges(true);
 
-      const updatedOrder = (await res.json()) as OrderDTO;
-      setOrder(updatedOrder);
-      pendingChangesRef.current = [];
-      setHasPendingChanges(false);
-      toast.success("Cambios guardados correctamente");
-    } catch (error) {
-      // En caso de error, restaurar orden anterior
-      setOrder(previousOrder);
-      setHasPendingChanges(true);
-      toast.error(
-        error instanceof Error ? error.message : "Error al guardar cambios. Intenta nuevamente."
-      );
-    } finally {
-      setSavingChanges(false);
-    }
-  }, [order, orderId]);
+    // Enviar actualización al servidor de forma asíncrona
+    ordersService.update(orderId, { items: itemsToSend })
+      .then((updatedOrder) => {
+        // Sincronizar con la respuesta del servidor
+        setOrder(updatedOrder);
+        
+        // Actualizar el cache directamente con la respuesta del servidor (sin invalidar para evitar refetch)
+        queryClient.setQueryData(["order", orderId], updatedOrder);
+        
+        // Invalidar solo la lista de orders (no la orden individual para evitar refetch que cause "va y viene")
+        queryClient.invalidateQueries({ queryKey: ["orders"] });
+        
+        toast.success("Cambios guardados correctamente");
+      })
+      .catch((error) => {
+        // En caso de error, restaurar orden anterior
+        setOrder(previousOrder);
+        pendingChangesRef.current = [];
+        setHasPendingChanges(true);
+        toast.error(
+          error instanceof Error ? error.message : "Error al guardar cambios. Intenta nuevamente."
+        );
+      })
+      .finally(() => {
+        setSavingChanges(false);
+      });
+  }, [order, orderId, queryClient]);
 
-  // Detectar Enter para guardar cambios
+  // Detectar Enter para guardar cambios (solo si la orden está abierta)
   useEffect(() => {
+    if (!isOrderOpen) return; // No escuchar Enter si la orden está cerrada
+    
     const handleKeyDown = (e: KeyboardEvent) => {
       // Enter para guardar (solo si no estamos en un input/textarea)
       if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
@@ -430,7 +458,7 @@ export default function OrderDetailPage() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [hasPendingChanges, handleSaveChanges]);
+  }, [hasPendingChanges, handleSaveChanges, isOrderOpen]);
 
   const getStatusBadge = (status: OrderStatus) => {
     switch (status) {
@@ -455,7 +483,7 @@ export default function OrderDetailPage() {
 
   const updateItemQuantity = useCallback(
     (item: OrderItemDTO, newQty: number) => {
-      if (!displayOrder || !orderId) return;
+      if (!displayOrder || !orderId || !isOrderOpen) return;
       if (newQty <= 0) {
         removeItem(item);
         return;
@@ -465,7 +493,7 @@ export default function OrderDetailPage() {
       if (order) {
         setOrder({
           ...order,
-          items: order.items.map((i) =>
+          items: (order.items ?? []).map((i) =>
             i.id === item.id ? { ...i, quantity: newQty } : i
           ),
         });
@@ -485,11 +513,11 @@ export default function OrderDetailPage() {
 
       setHasPendingChanges(true);
     },
-    [displayOrder, orderId, order]
+    [displayOrder, orderId, order, isOrderOpen]
   );
 
   const handleAddItem = useCallback(() => {
-    if (!displayOrder || !orderId || !order) return;
+    if (!displayOrder || !orderId || !order || !isOrderOpen) return;
 
     if (selectedProductId === "none") {
       toast.error("Elegí un producto.");
@@ -512,8 +540,8 @@ export default function OrderDetailPage() {
     }
 
     // Buscar si ya existe un item con ese producto en la orden
-    const existingItem = order.items.find(
-      (i) => i.product_id === productIdNumber
+    const existingItem = (order.items ?? []).find(
+      (i) => i.product?.id === productIdNumber
     );
 
     if (existingItem) {
@@ -529,20 +557,21 @@ export default function OrderDetailPage() {
     // Si no existe, crear item optimista y agregar a la cola
     const tempId =
       -Math.floor(Math.random() * 1_000_000) -
-      (order.items.length ? order.items.length : 0);
+      ((order.items ?? []).length);
 
     const optimisticItem: OrderItemDTO = {
       id: tempId,
-      product_id: product.id,
       quantity: qty,
       unit_price: product.price,
-      product: { name: product.name },
+      total_price: product.price * qty,
+      created_at: new Date().toISOString(),
+      product: { id: product.id, name: product.name },
     };
 
     // Actualizar UI inmediatamente
     setOrder({
       ...order,
-      items: [...order.items, optimisticItem],
+      items: [...(order.items ?? []), optimisticItem],
     });
 
     // Limpiar UI inmediatamente
@@ -566,6 +595,7 @@ export default function OrderDetailPage() {
     updateItemQuantity,
     order,
     products,
+    isOrderOpen,
   ]);
 
   // Limpiar cambios pendientes al desmontar (opcional: podrías guardar antes de desmontar)
@@ -579,13 +609,13 @@ export default function OrderDetailPage() {
 
   const removeItem = useCallback(
     (item: OrderItemDTO) => {
-      if (!displayOrder || !orderId) return;
+      if (!displayOrder || !orderId || !isOrderOpen) return;
 
       // Actualizar UI inmediatamente (optimistic update)
       if (order) {
         setOrder({
           ...order,
-          items: order.items.filter((i) => i.id !== item.id),
+          items: (order.items ?? []).filter((i) => i.id !== item.id),
         });
       }
 
@@ -598,7 +628,7 @@ export default function OrderDetailPage() {
       pendingChangesRef.current.push({ type: 'delete', itemId: item.id });
       setHasPendingChanges(true);
     },
-    [displayOrder, orderId, order]
+    [displayOrder, orderId, order, isOrderOpen]
   );
 
   const handleCancel = useCallback(() => {
@@ -618,7 +648,7 @@ export default function OrderDetailPage() {
       return;
     }
 
-    if (displayOrder.items.length === 0) {
+    if (!displayOrder.items || displayOrder.items.length === 0) {
       toast.error("No se puede cobrar una cuenta vacía.");
       return;
     }
@@ -708,18 +738,25 @@ export default function OrderDetailPage() {
 
       <div className="grid gap-4 md:grid-cols-[2fr_1fr] items-start">
         {/* Items de la cuenta */}
-        <Card>
+        <Card className={!isOrderOpen ? "opacity-75" : ""}>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Consumos</CardTitle>
                 <CardDescription>
-                  Agregá productos y ajustá cantidades de esta cuenta.
+                  {isOrderOpen 
+                    ? "Agregá productos y ajustá cantidades de esta cuenta."
+                    : "Esta cuenta está cerrada. No se pueden realizar modificaciones."}
                 </CardDescription>
               </div>
-              {hasPendingChanges && (
+              {hasPendingChanges && isOrderOpen && (
                 <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300">
                   Cambios pendientes
+                </Badge>
+              )}
+              {!isOrderOpen && (
+                <Badge variant="outline" className="bg-gray-100 text-gray-600 border-gray-300">
+                  {displayOrder?.status === "closed" ? "Pagada" : "Cancelada"}
                 </Badge>
               )}
             </div>
@@ -764,14 +801,14 @@ export default function OrderDetailPage() {
                         </TableRow>
                       ))}
                     </>
-                  ) : displayOrder && displayOrder.items.length === 0 ? (
+                  ) : displayOrder && (!displayOrder.items || displayOrder.items.length === 0) ? (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center py-6">
                         No hay productos en la cuenta.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    displayOrder?.items.map((item) => (
+                    (displayOrder?.items ?? []).map((item) => (
                       <TableRow key={item.id}>
                         <TableCell>
                           {item.product?.name ?? "Producto"}
@@ -912,11 +949,13 @@ export default function OrderDetailPage() {
         </Card>
 
         {/* Resumen y pago */}
-        <Card>
+        <Card className={!isOrderOpen ? "opacity-75" : ""}>
           <CardHeader>
             <CardTitle>Resumen</CardTitle>
             <CardDescription>
-              Revisá el total y registrá el pago para cerrar la cuenta.
+              {isOrderOpen 
+                ? "Revisá el total y registrá el pago para cerrar la cuenta."
+                : "Esta cuenta está cerrada. No se pueden realizar modificaciones."}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -987,7 +1026,7 @@ export default function OrderDetailPage() {
                 paying ||
                 !isOrderOpen ||
                 !displayOrder ||
-                displayOrder.items.length === 0 ||
+                !displayOrder.items || displayOrder.items.length === 0 ||
                 selectedPaymentMethodId === "none"
               }
               onClick={handlePay}

@@ -46,6 +46,7 @@ import {
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { SupplierDTO, SupplierStatus } from "@/models/dto/supplier";
+import { suppliersService } from "@/services";
 
 export default function SuppliersPage() {
   const [suppliers, setSuppliers] = useState<SupplierDTO[]>([]);
@@ -79,22 +80,7 @@ export default function SuppliersPage() {
     refetch: refetchSuppliers,
   } = useQuery({
     queryKey: ["suppliers"], // Mismo key que PurchasesPage y PurchasesHistoryPage
-    queryFn: async () => {
-      const res = await fetch("/api/suppliers");
-      if (!res.ok) {
-        throw new Error("Failed to fetch suppliers");
-      }
-      const data = await res.json();
-      // Aseguramos fields opcionales
-      return data.map((s: any) => ({
-        id: s.id,
-        name: s.name,
-        contact_email: s.contact_email ?? null,
-        phone: s.phone ?? null,
-        notes: s.notes ?? null,
-        status: (s.status ?? "active") as SupplierStatus,
-      }));
-    },
+    queryFn: () => suppliersService.getAll(),
     staleTime: 1000 * 60 * 5, // 5 minutos
   });
 
@@ -160,37 +146,13 @@ export default function SuppliersPage() {
 
       if (editingId === null) {
         // CREATE
-        const res = await fetch("/api/suppliers", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-
-        if (!res.ok) {
-          console.error("Error creating supplier");
-          return;
-        }
-
-        const created = await res.json();
-        // Invalidar cache para refrescar datos
-        queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+        await suppliersService.create(payload);
       } else {
         // UPDATE
-        const res = await fetch(`/api/suppliers/${editingId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-
-        if (!res.ok) {
-          console.error("Error updating supplier");
-          return;
-        }
-
-        const updated = await res.json();
-        // Invalidar cache para refrescar datos
-        queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+        await suppliersService.update(editingId, payload);
       }
+      // Invalidar cache para refrescar datos
+      queryClient.invalidateQueries({ queryKey: ["suppliers"] });
 
       setIsDialogOpen(false);
       resetForm();
@@ -203,14 +165,7 @@ export default function SuppliersPage() {
     if (!supplierToDelete) return;
 
     try {
-      const res = await fetch(`/api/suppliers/${supplierToDelete.id}`, {
-        method: "DELETE",
-      });
-
-      if (!res.ok) {
-        console.error("Error deleting supplier");
-        return;
-      }
+      await suppliersService.delete(supplierToDelete.id);
 
       // Invalidar cache para refrescar datos
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });

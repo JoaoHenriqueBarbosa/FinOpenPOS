@@ -95,3 +95,71 @@ export interface TournamentPlayoff {
   match_id: number | null;
 }
 
+// Input types for creating/updating entities
+export interface CreateTournamentInput {
+  name: string;
+  description?: string | null;
+  category?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  has_super_tiebreak?: boolean;
+  match_duration?: number;
+}
+
+export interface CreateTournamentTeamInput {
+  tournament_id: number;
+  player1_id: number;
+  player2_id: number;
+  display_name?: string | null;
+  seed_number?: number | null;
+  notes?: string | null;
+}
+
+export interface CreateTournamentGroupInput {
+  tournament_id: number;
+  name: string;
+  group_order: number;
+}
+
+export interface CreateTournamentMatchInput {
+  tournament_id: number;
+  phase: MatchPhase;
+  tournament_group_id?: number | null;
+  team1_id?: number | null;
+  team2_id?: number | null;
+  court_id?: number | null;
+  match_date?: string | null;
+  start_time?: string | null;
+  end_time?: string | null;
+  match_order?: number | null;
+  status?: MatchStatus;
+}
+
+export interface TournamentGroupsData {
+  groups: TournamentGroup[];
+  groupTeams: Array<TournamentGroupTeam & {
+    team?: {
+      id: number;
+      display_name: string | null;
+      seed_number: number | null;
+      player1?: { first_name: string; last_name: string };
+      player2?: { first_name: string; last_name: string };
+    };
+  }>;
+  matches: Array<TournamentMatch & {
+    team1?: {
+      id: number;
+      display_name: string | null;
+      player1?: { first_name: string; last_name: string };
+      player2?: { first_name: string; last_name: string };
+    };
+    team2?: {
+      id: number;
+      display_name: string | null;
+      player1?: { first_name: string; last_name: string };
+      player2?: { first_name: string; last_name: string };
+    };
+  }>;
+  standings: TournamentGroupStanding[];
+}
+

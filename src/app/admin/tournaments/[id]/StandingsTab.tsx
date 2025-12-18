@@ -29,6 +29,7 @@ import type {
   TournamentDTO,
   ApiResponseStandings,
 } from "@/models/dto/tournament";
+import { tournamentsService } from "@/services";
 
 function teamLabel(team: TeamDTO | null | undefined): string {
   if (!team) return "—";
@@ -68,9 +69,7 @@ function getGroupColor(groupIndex: number): { bg: string; text: string; border: 
 
 // Fetch function para React Query
 async function fetchTournamentStandings(tournamentId: number): Promise<ApiResponseStandings> {
-  const res = await fetch(`/api/tournaments/${tournamentId}/standings`);
-  if (!res.ok) throw new Error("Failed to fetch standings");
-  return res.json();
+  return tournamentsService.getStandings(tournamentId);
 }
 
 export default function StandingsTab({ tournament }: { tournament: Pick<TournamentDTO, "id"> }) {

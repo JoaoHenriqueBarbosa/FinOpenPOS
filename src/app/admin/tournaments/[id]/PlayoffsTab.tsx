@@ -26,6 +26,7 @@ import {
 
 import type { PlayoffRow, TournamentDTO } from "@/models/dto/tournament";
 import type { MatchStatus } from "@/models/db/tournament";
+import { tournamentsService, tournamentMatchesService } from "@/services";
 
 // Using Pick from TournamentDTO and MatchDTO
 type Match = NonNullable<PlayoffRow["match"]>;
@@ -53,9 +54,7 @@ function getRoundColor(round: string): { bg: string; text: string; border: strin
 
 // Fetch function para React Query
 async function fetchTournamentPlayoffs(tournamentId: number): Promise<PlayoffRow[]> {
-  const res = await fetch(`/api/tournaments/${tournamentId}/playoffs`);
-  if (!res.ok) throw new Error("Failed to fetch playoffs");
-  return res.json();
+  return tournamentsService.getPlayoffs(tournamentId);
 }
 
 export default function PlayoffsTab({ tournament }: { tournament: Pick<TournamentDTO, "id" | "has_super_tiebreak"> }) {
@@ -99,26 +98,22 @@ export default function PlayoffsTab({ tournament }: { tournament: Pick<Tournamen
 
   const handleSaveSchedule = async (matchId: number) => {
     try {
-      const res = await fetch(`/api/tournament-matches/${matchId}/schedule`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          match_date: editDate || null,
-          start_time: editTime || null,
-        }),
-      });
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        alert(errorData.error || "Error al actualizar horario");
+      if (!editDate || !editTime) {
+        alert("Fecha y hora son requeridos");
         return;
       }
+      
+      await tournamentMatchesService.scheduleMatch(matchId, {
+        date: editDate,
+        start_time: editTime,
+      });
       setEditingMatchId(null);
       setEditDate("");
       setEditTime("");
       load(); // load() ahora invalida cache
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("Error al actualizar horario");
+      alert(err.message || "Error al actualizar horario");
     }
   };
 

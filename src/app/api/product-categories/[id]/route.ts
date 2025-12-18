@@ -1,120 +1,111 @@
 // app/api/product-categories/[id]/route.ts
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createRepositories } from '@/lib/repository-factory';
 
 type Params = { params: { id: string } };
 
 export async function GET(_request: Request, { params }: Params) {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  try {
+    const repos = await createRepositories();
+    const id = Number(params.id);
 
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+    if (Number.isNaN(id)) {
+      return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+    }
 
-  const id = Number(params.id);
+    const category = await repos.productCategories.findById(id);
+    if (!category) {
+      return NextResponse.json({ error: 'Category not found' }, { status: 404 });
+    }
 
-  const { data, error } = await supabase
-    .from('product_categories')
-    .select('id, name, description, color, is_active, created_at')
-    .eq('user_uid', user.id)
-    .eq('id', id)
-    .single();
-
-  if (error) {
+    return NextResponse.json(category);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     console.error('GET /product-categories/[id] error:', error);
-    return NextResponse.json({ error: error.message }, { status: 404 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json(data);
 }
 
 export async function PATCH(request: Request, { params }: Params) {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  try {
+    const repos = await createRepositories();
+    const id = Number(params.id);
+    const body = await request.json();
 
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+    if (Number.isNaN(id)) {
+      return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+    }
 
-  const id = Number(params.id);
-  const body = await request.json();
+    const updateFields: Record<string, any> = {};
 
-  const updateFields: Record<string, any> = {};
+    if (typeof body.name === 'string') {
+      const name = body.name.trim();
+      if (!name) {
+        return NextResponse.json(
+          { error: 'Name cannot be empty' },
+          { status: 400 }
+        );
+      }
+      updateFields.name = name;
+    }
 
-  if (typeof body.name === 'string') {
-    const name = body.name.trim();
-    if (!name) {
+    if (body.description !== undefined) {
+      updateFields.description = body.description ?? null;
+    }
+
+    if (body.color !== undefined) {
+      updateFields.color = body.color ?? null;
+    }
+
+    if (typeof body.is_active === 'boolean') {
+      updateFields.is_active = body.is_active;
+    }
+
+    if (Object.keys(updateFields).length === 0) {
       return NextResponse.json(
-        { error: 'Name cannot be empty' },
+        { error: 'No fields to update' },
         { status: 400 }
       );
     }
-    updateFields.name = name;
-  }
 
-  if (body.description !== undefined) {
-    updateFields.description = body.description ?? null;
-  }
-
-  if (body.color !== undefined) {
-    updateFields.color = body.color ?? null;
-  }
-
-  if (typeof body.is_active === 'boolean') {
-    updateFields.is_active = body.is_active;
-  }
-
-  if (Object.keys(updateFields).length === 0) {
+    const category = await repos.productCategories.update(id, updateFields);
+    return NextResponse.json(category);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    console.error('PATCH /product-categories/[id] error:', error);
     return NextResponse.json(
-      { error: 'No fields to update' },
-      { status: 400 }
+      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { status: 500 }
     );
   }
-
-  const { data, error } = await supabase
-    .from('product_categories')
-    .update(updateFields)
-    .eq('user_uid', user.id)
-    .eq('id', id)
-    .select('id, name, description, color, is_active, created_at')
-    .single();
-
-  if (error) {
-    console.error('PATCH /product-categories/[id] error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json(data);
 }
 
 export async function DELETE(_request: Request, { params }: Params) {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  try {
+    const repos = await createRepositories();
+    const id = Number(params.id);
 
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+    if (Number.isNaN(id)) {
+      return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+    }
 
-  const id = Number(params.id);
-
-  // Soft delete: marcamos inactiva
-  const { error } = await supabase
-    .from('product_categories')
-    .update({ is_active: false })
-    .eq('user_uid', user.id)
-    .eq('id', id);
-
-  if (error) {
+    await repos.productCategories.delete(id);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     console.error('DELETE /product-categories/[id] error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json({ success: true });
 }

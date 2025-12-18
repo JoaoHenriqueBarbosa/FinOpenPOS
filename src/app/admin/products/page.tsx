@@ -54,6 +54,9 @@ import {
 
 import type { ProductDTO } from "@/models/dto/product";
 import type { ProductCategoryDTO } from "@/models/dto/product";
+import { productsService, productCategoriesService } from "@/services/products.service";
+
+type Product = ProductDTO;
 
 export default function Products() {
   const [products, setProducts] = useState<ProductDTO[]>([]);
@@ -94,15 +97,11 @@ export default function Products() {
 
   // Fetch functions para React Query
   async function fetchProducts(): Promise<ProductDTO[]> {
-    const res = await fetch("/api/products");
-    if (!res.ok) throw new Error("Failed to fetch products");
-    return res.json();
+    return productsService.getAll();
   }
 
   async function fetchCategories(): Promise<ProductCategoryDTO[]> {
-    const res = await fetch("/api/product-categories?onlyActive=true");
-    if (!res.ok) return [];
-    return res.json();
+    return productCategoriesService.getAll(true);
   }
 
   // React Query para compartir cache con otros componentes
@@ -139,7 +138,7 @@ export default function Products() {
     return products.filter((product) => {
       if (
         filters.categoryId !== "all" &&
-        product.category_id !== filters.categoryId
+        product.category?.id !== Number(filters.categoryId)
       ) {
         return false;
       }
@@ -206,20 +205,7 @@ export default function Products() {
         is_active: true,
       };
 
-      const response = await fetch("/api/products", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(newProductPayload),
-      });
-
-      if (!response.ok) {
-        console.error("Failed to add product");
-        return;
-      }
-
-      const addedProduct: Product = await response.json();
+      const addedProduct = await productsService.create(newProductPayload);
       // Invalidar cache para refrescar datos
       queryClient.invalidateQueries({ queryKey: ["products"] });
       setIsAddProductDialogOpen(false);
@@ -250,20 +236,7 @@ export default function Products() {
           productCategoryId === "none" ? null : Number(productCategoryId),
       };
 
-      const response = await fetch(`/api/products/${selectedProductId}`, {
-        method: "PATCH", // usamos PATCH, no PUT
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(updatedProductPayload),
-      });
-
-      if (!response.ok) {
-        console.error("Failed to update product");
-        return;
-      }
-
-      const updatedProductFromServer: Product = await response.json();
+      await productsService.update(selectedProductId, updatedProductPayload);
       // Invalidar cache para refrescar datos
       queryClient.invalidateQueries({ queryKey: ["products"] });
       setIsEditProductDialogOpen(false);
@@ -282,14 +255,7 @@ export default function Products() {
   const handleDeleteProduct = useCallback(async () => {
     if (!productToDelete) return;
     try {
-      const response = await fetch(`/api/products/${productToDelete.id}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        console.error("Failed to delete product");
-        return;
-      }
+      await productsService.delete(productToDelete.id);
 
       // Invalidar cache para refrescar datos
       queryClient.invalidateQueries({ queryKey: ["products"] });
@@ -388,7 +354,7 @@ export default function Products() {
                       {product.name}
                     </TableCell>
                     <TableCell>{product.description}</TableCell>
-                    <TableCell>{getCategoryName(product.category_id)}</TableCell>
+                    <TableCell>{getCategoryName(product.category?.id ?? null)}</TableCell>
                     <TableCell>${product.price.toFixed(2)}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -401,7 +367,7 @@ export default function Products() {
                             setProductDescription(product.description ?? "");
                             setProductPrice(product.price);
                             setProductCategoryId(
-                              product.category_id ?? "none"
+                              product.category?.id ?? "none"
                             );
                             setIsEditProductDialogOpen(true);
                           }}

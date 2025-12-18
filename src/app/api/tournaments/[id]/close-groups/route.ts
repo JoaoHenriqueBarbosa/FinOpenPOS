@@ -43,10 +43,10 @@ function generateTimeSlots(
   return slots;
 }
 
-import type { TournamentMatchDB } from "@/models/db/tournament";
+import type { TournamentMatch } from "@/models/db/tournament";
 
-// Using Pick from TournamentMatchDB for internal processing
-type MatchRow = Pick<TournamentMatchDB, "id" | "tournament_group_id" | "team1_id" | "team2_id" | "team1_sets" | "team2_sets" | "team1_games_total" | "team2_games_total" | "status">;
+// Using Pick from TournamentMatch for internal processing
+type MatchRow = Pick<TournamentMatch, "id" | "tournament_group_id" | "team1_id" | "team2_id" | "team1_sets" | "team2_sets" | "team1_games_total" | "team2_games_total" | "status">;
 
 export async function POST(req: Request, { params }: RouteParams) {
   const supabase = createClient();
@@ -202,10 +202,14 @@ export async function POST(req: Request, { params }: RouteParams) {
     if (!standingsMap.has(gid)) {
       standingsMap.set(gid, new Map());
     }
-    const map = standingsMap.get(gid)!;
+    const gidNum = gid ?? 0;
+    if (gidNum === 0) continue;
+    const map = standingsMap.get(gidNum)!;
 
-    if (!map.has(m.team1_id)) map.set(m.team1_id, initStand(m.team1_id));
-    if (!map.has(m.team2_id)) map.set(m.team2_id, initStand(m.team2_id));
+    if (m.team1_id && !map.has(m.team1_id)) map.set(m.team1_id, initStand(m.team1_id));
+    if (m.team2_id && !map.has(m.team2_id)) map.set(m.team2_id, initStand(m.team2_id));
+
+    if (!m.team1_id || !m.team2_id) continue;
 
     const s1 = map.get(m.team1_id)!;
     const s2 = map.get(m.team2_id)!;

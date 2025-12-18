@@ -103,7 +103,8 @@ export async function POST(request: Request, { params }: RouteParams) {
   }
 
   const body = await request.json();
-  const paymentMethodId = Number(body.paymentMethodId);
+  // Aceptar tanto paymentMethodId como payment_method_id para compatibilidad
+  const paymentMethodId = Number(body.paymentMethodId || body.payment_method_id);
   const amountInput =
     body.amount !== undefined && body.amount !== null
       ? Number(body.amount)

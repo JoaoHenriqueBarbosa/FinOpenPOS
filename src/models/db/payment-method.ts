@@ -10,4 +10,16 @@ export interface PaymentMethodDB {
   created_at: string;
 }
 
+// Input types for creating/updating entities
+export interface CreatePaymentMethodInput {
+  name: string;
+  scope: PaymentScope;
+  is_active?: boolean;
+}
+
+export interface FindPaymentMethodsOptions {
+  onlyActive?: boolean;
+  scope?: PaymentScope;
+}
+
 

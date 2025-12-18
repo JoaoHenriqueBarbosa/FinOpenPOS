@@ -38,24 +38,19 @@ import { TournamentScheduleDialog, ScheduleConfig } from "@/components/tournamen
 
 import type { PlayerDTO } from "@/models/dto/player";
 import type { TeamDTO, TournamentDTO, GroupsApiResponse } from "@/models/dto/tournament";
+import { tournamentsService, playersService } from "@/services";
 
 // Fetch functions para React Query
 async function fetchTournamentTeams(tournamentId: number): Promise<TeamDTO[]> {
-  const res = await fetch(`/api/tournaments/${tournamentId}/teams`);
-  if (!res.ok) throw new Error("Failed to fetch teams");
-  return res.json();
+  return tournamentsService.getTeams(tournamentId);
 }
 
 async function fetchPlayers(): Promise<PlayerDTO[]> {
-  const res = await fetch("/api/players");
-  if (!res.ok) throw new Error("Failed to fetch players");
-  return res.json();
+  return playersService.getAll();
 }
 
 async function fetchTournamentGroups(tournamentId: number): Promise<GroupsApiResponse> {
-  const res = await fetch(`/api/tournaments/${tournamentId}/groups`);
-  if (!res.ok) throw new Error("Failed to fetch groups");
-  return res.json();
+  return tournamentsService.getGroups(tournamentId);
 }
 
 export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDTO, "id" | "status" | "match_duration"> }) {
@@ -143,22 +138,15 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
     try {
       setCreating(true);
       setError(null);
-      const res = await fetch(`/api/tournaments/${tournament.id}/teams`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      try {
+        await tournamentsService.createTeam(tournament.id, {
           player1_id: Number(player1Id),
           player2_id: Number(player2Id),
-        }),
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        setError(errorData.error || "Error al crear el equipo");
-        return;
+        });
+      } catch (err: any) {
+        setError(err.message || "Error al crear el equipo");
+        throw err;
       }
-
-      await res.json();
       // Invalidar cache para refrescar teams
       queryClient.invalidateQueries({ queryKey: ["tournament-teams", tournament.id] });
       setDialogOpen(false);
@@ -175,16 +163,9 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
 
   const handleDelete = async (teamId: number) => {
     try {
-      const res = await fetch(
-        `/api/tournaments/${tournament.id}/teams?teamId=${teamId}`,
-        { method: "DELETE" }
-      );
-      if (!res.ok) {
-        console.error("Error deleting team");
-        return;
-      }
-        // Invalidar cache para refrescar teams
-        queryClient.invalidateQueries({ queryKey: ["tournament-teams", tournament.id] });
+      await tournamentsService.deleteTeam(tournament.id, teamId);
+      // Invalidar cache para refrescar teams
+      queryClient.invalidateQueries({ queryKey: ["tournament-teams", tournament.id] });
     } catch (err) {
       console.error(err);
     }
@@ -237,18 +218,7 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
   const handleCloseRegistration = async (scheduleConfig?: ScheduleConfig) => {
     try {
       setClosing(true);
-      const res = await fetch(
-        `/api/tournaments/${tournament.id}/close-registration`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(scheduleConfig || {}),
-        }
-      );
-      if (!res.ok) {
-        console.error("Error closing registration");
-        return;
-      }
+      await tournamentsService.closeRegistration(tournament.id);
       // podrías recargar torneo / página
       window.location.reload();
     } catch (err) {

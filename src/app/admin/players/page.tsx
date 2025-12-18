@@ -52,6 +52,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { PlayerDTO } from "@/models/dto/player";
 import type { PlayerStatus } from "@/models/db/player";
+import { playersService } from "@/services/players.service";
+
+type Player = PlayerDTO;
 
 export default function PlayersPage() {
   const [players, setPlayers] = useState<Player[]>([]);
@@ -86,13 +89,7 @@ export default function PlayersPage() {
     refetch: refetchPlayers,
   } = useQuery({
     queryKey: ["players"], // Mismo key que TeamsTab y OrdersPage
-    queryFn: async () => {
-      const response = await fetch("/api/players");
-      if (!response.ok) {
-        throw new Error("Failed to fetch players");
-      }
-      return response.json();
-    },
+    queryFn: () => playersService.getAll(),
     staleTime: 1000 * 60 * 5, // 5 minutos
   });
 
@@ -114,8 +111,8 @@ export default function PlayersPage() {
       const term = debouncedSearchTerm.toLowerCase();
       return (
         player.first_name.toLowerCase().includes(term) ||
-        (player.last_name).toLowerCase().includes(term) ||
-        (player.phone).includes(debouncedSearchTerm)
+        (player.last_name ?? "").toLowerCase().includes(term) ||
+        (player.phone ?? "").includes(debouncedSearchTerm)
       );
     });
   }, [players, filters.status, debouncedSearchTerm]);
@@ -130,25 +127,12 @@ export default function PlayersPage() {
 
   const handleAddPlayer = useCallback(async () => {
     try {
-      const newPlayer = {
+      const createdPlayer = await playersService.create({
         first_name: newPlayerFirstName,
         last_name: newPlayerLastName,
         phone: newPlayerPhone,
         status: newPlayerStatus,
-      };
-      const response = await fetch("/api/players", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(newPlayer),
       });
-
-      if (!response.ok) {
-        throw new Error("Error creating player");
-      }
-
-      const createdPlayer = await response.json();
       setPlayers((prev) => [...prev, createdPlayer]);
       setShowNewPlayerDialog(false);
       resetSelectedPlayer();
@@ -161,26 +145,12 @@ export default function PlayersPage() {
   const handleEditPlayer = useCallback(async () => {
     if (!selectedPlayerId) return;
     try {
-      const updatedPlayer = {
+      await playersService.update(selectedPlayerId, {
         first_name: newPlayerFirstName,
         last_name: newPlayerLastName,
         phone: newPlayerPhone,
         status: newPlayerStatus,
-      };
-
-      const response = await fetch(`/api/players/${selectedPlayerId}`, {
-        method: "PATCH", // 💡 usamos PATCH, no PUT
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(updatedPlayer),
       });
-
-      if (!response.ok) {
-        throw new Error("Error updating player");
-      }
-
-      await response.json();
       // Invalidar cache para refrescar players
       queryClient.invalidateQueries({ queryKey: ["players"] });
       setIsEditPlayerDialogOpen(false);
@@ -194,18 +164,13 @@ export default function PlayersPage() {
     newPlayerLastName,
     newPlayerPhone,
     newPlayerStatus,
+    queryClient,
   ]);
 
   const handleDeletePlayer = useCallback(async () => {
     if (!playerToDelete) return;
     try {
-      const response = await fetch(`/api/players/${playerToDelete.id}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        throw new Error("Error deleting player");
-      }
+      await playersService.delete(playerToDelete.id);
 
       // Nuestro backend hace soft-delete (status = 'inactive'),
       // así que reflejamos eso en el estado en vez de borrar el cliente.
@@ -335,8 +300,8 @@ export default function PlayersPage() {
                         onClick={() => {
                           setSelectedPlayerId(player.id);
                           setNewPlayerFirstName(player.first_name);
-                          setNewPlayerLastName(player.last_name);
-                          setNewPlayerPhone(player.phone);
+                          setNewPlayerLastName(player.last_name ?? "");
+                          setNewPlayerPhone(player.phone ?? "");
                           setNewPlayerStatus(player.status);
                           setIsEditPlayerDialogOpen(true);
                         }}

@@ -42,7 +42,7 @@ export function TournamentScheduleDialog({
     },
   ]);
   const [matchDuration, setMatchDuration] = useState<number>(tournamentMatchDuration);
-  const [courts, setCourts] = useState<Court[]>([]);
+  const [courts, setCourts] = useState<CourtDTO[]>([]);
   const [selectedCourtIds, setSelectedCourtIds] = useState<number[]>([]);
   const [loadingCourts, setLoadingCourts] = useState(false);
 

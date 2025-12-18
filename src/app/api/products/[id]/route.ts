@@ -1,102 +1,99 @@
 // app/api/products/[id]/route.ts
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createRepositories } from '@/lib/repository-factory';
 
 type Params = { params: { id: string } };
 
 export async function GET(_request: Request, { params }: Params) {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  try {
+    const repos = await createRepositories();
+    const id = Number(params.id);
 
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+    if (Number.isNaN(id)) {
+      return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+    }
 
-  const id = Number(params.id);
+    const product = await repos.products.findById(id);
+    if (!product) {
+      return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+    }
 
-  const { data, error } = await supabase
-    .from('products')
-    .select('*')
-    .eq('user_uid', user.id)
-    .eq('id', id)
-    .single();
-
-  if (error) {
+    return NextResponse.json(product);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     console.error('GET /products/[id] error:', error);
-    return NextResponse.json({ error: error.message }, { status: 404 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json(data);
 }
 
 export async function PATCH(request: Request, { params }: Params) {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  try {
+    const repos = await createRepositories();
+    const id = Number(params.id);
+    const body = await request.json();
 
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const id = Number(params.id);
-  const body = await request.json();
-
-  const updateFields: Record<string, any> = {};
-  const allowedFields = [
-    'name',
-    'description',
-    'price',
-    'uses_stock',
-    'min_stock',
-    'category_id',
-    'is_active',
-  ];
-
-  for (const key of allowedFields) {
-    if (key in body) {
-      updateFields[key] = body[key];
+    if (Number.isNaN(id)) {
+      return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
     }
-  }
 
-  // actualizamos updated_at
-  updateFields.updated_at = new Date().toISOString();
+    const updateFields: Record<string, any> = {};
+    const allowedFields = [
+      'name',
+      'description',
+      'price',
+      'uses_stock',
+      'min_stock',
+      'category_id',
+      'is_active',
+    ];
 
-  const { data, error } = await supabase
-    .from('products')
-    .update(updateFields)
-    .eq('user_uid', user.id)
-    .eq('id', id)
-    .select()
-    .single();
+    for (const key of allowedFields) {
+      if (key in body) {
+        updateFields[key] = body[key];
+      }
+    }
 
-  if (error) {
+    // actualizamos updated_at
+    updateFields.updated_at = new Date().toISOString();
+
+    const product = await repos.products.update(id, updateFields);
+    return NextResponse.json(product);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     console.error('PATCH /products/[id] error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json(data);
 }
 
 export async function DELETE(_request: Request, { params }: Params) {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  try {
+    const repos = await createRepositories();
+    const id = Number(params.id);
 
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+    if (Number.isNaN(id)) {
+      return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+    }
 
-  const id = Number(params.id);
-
-  // Podés hacer soft-delete (is_active = false) si preferís
-  const { error } = await supabase
-    .from('products')
-    .delete()
-    .eq('user_uid', user.id)
-    .eq('id', id);
-
-  if (error) {
+    await repos.products.delete(id);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     console.error('DELETE /products/[id] error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json({ success: true });
 }
