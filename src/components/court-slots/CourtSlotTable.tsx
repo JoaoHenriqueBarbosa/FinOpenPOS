@@ -33,6 +33,7 @@ interface CourtSlotTableProps {
   paymentMethods: PaymentMethodDTO[];
   onSlotUpdate: (slotId: number, patch: SlotChanges) => void;
   onSaveSlot: (slotId: number) => void;
+  onCancelSlot: (slotId: number) => void;
   pendingChanges: Map<number, SlotChanges>;
   isSaving: boolean;
   isLoading: boolean;
@@ -43,6 +44,7 @@ export function CourtSlotTable({
   paymentMethods,
   onSlotUpdate,
   onSaveSlot,
+  onCancelSlot,
   pendingChanges,
   isSaving,
   isLoading,
@@ -132,6 +134,7 @@ export function CourtSlotTable({
                 paymentMethods={paymentMethods}
                 onUpdate={onSlotUpdate}
                 onSave={() => onSaveSlot(slot.id)}
+                onCancel={() => onCancelSlot(slot.id)}
                 hasChanges={hasChanges}
                 isSaving={isSaving}
               />

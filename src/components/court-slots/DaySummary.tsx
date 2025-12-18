@@ -8,6 +8,14 @@ interface DaySummaryProps {
     totalSlots: number;
     playedSlots: number;
     notPlayedSlots: number;
+    slotsWithUnpaidPlayers: number;
+    totalUnpaidPlayers: number;
+    unpaidSlots: Array<{
+      id: number;
+      courtName: string;
+      timeRange: string;
+      unpaidCount: number;
+    }>;
     payments: Array<{
       paymentMethodId: number;
       paymentMethodName: string;
@@ -17,6 +25,7 @@ interface DaySummaryProps {
   };
   totalRevenue: number;
   notPlayedByCourtType: Record<string, string[]>;
+  unpaidByCourtType: Record<string, Array<{ courtName: string; timeRange: string; unpaidCount: number }>>;
   onDownloadPdf: () => void;
   hasSlots: boolean;
 }
@@ -26,6 +35,7 @@ export function DaySummary({
   dayReport,
   totalRevenue,
   notPlayedByCourtType,
+  unpaidByCourtType,
   onDownloadPdf,
   hasSlots,
 }: DaySummaryProps) {
@@ -84,6 +94,53 @@ export function DaySummary({
                     </span>
                   </div>
                 ))}
+            </div>
+          </div>
+        )}
+
+        {/* Faltan pagar */}
+        {dayReport.slotsWithUnpaidPlayers > 0 && (
+          <div className="mt-4 space-y-1">
+            <p className="text-[11px] uppercase text-muted-foreground">
+              Faltan pagar
+            </p>
+            <p className="text-xs mb-2">
+              {dayReport.slotsWithUnpaidPlayers} turno(s) con{" "}
+              {dayReport.totalUnpaidPlayers} jugador(es) sin método de pago
+            </p>
+            <div className="mt-1 space-y-2 text-[11px]">
+              {unpaidByCourtType.INDOOR.length > 0 && (
+                <div>
+                  <p className="font-semibold">INDOOR</p>
+                  {unpaidByCourtType.INDOOR.map((slot, idx) => (
+                    <p key={idx} className="text-muted-foreground text-[10px]">
+                      {slot.courtName} - {slot.timeRange} ({slot.unpaidCount} jug.)
+                    </p>
+                  ))}
+                </div>
+              )}
+
+              {unpaidByCourtType.OUTDOOR.length > 0 && (
+                <div>
+                  <p className="font-semibold mt-1">OUTDOOR</p>
+                  {unpaidByCourtType.OUTDOOR.map((slot, idx) => (
+                    <p key={idx} className="text-muted-foreground text-[10px]">
+                      {slot.courtName} - {slot.timeRange} ({slot.unpaidCount} jug.)
+                    </p>
+                  ))}
+                </div>
+              )}
+
+              {unpaidByCourtType.OTRAS.length > 0 && (
+                <div>
+                  <p className="font-semibold mt-1">OTRAS</p>
+                  {unpaidByCourtType.OTRAS.map((slot, idx) => (
+                    <p key={idx} className="text-muted-foreground text-[10px]">
+                      {slot.courtName} - {slot.timeRange} ({slot.unpaidCount} jug.)
+                    </p>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

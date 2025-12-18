@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { TableRow, TableCell } from "@/components/ui/table";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { SaveIcon, Loader2Icon } from "lucide-react";
+import { SaveIcon, Loader2Icon, XIcon } from "lucide-react";
 import { courtPillClasses, formatTime } from "@/lib/court-slots-utils";
 import { PlayerPaymentSelect } from "./PlayerPaymentSelect";
 import type { CourtSlotDTO } from "@/models/dto/court";
@@ -31,6 +31,7 @@ interface CourtSlotRowProps {
   paymentMethods: PaymentMethodDTO[];
   onUpdate: (slotId: number, patch: SlotChanges) => void;
   onSave: () => void;
+  onCancel: () => void;
   hasChanges: boolean;
   isSaving: boolean;
 }
@@ -40,6 +41,7 @@ export function CourtSlotRow({
   paymentMethods,
   onUpdate,
   onSave,
+  onCancel,
   hasChanges,
   isSaving,
 }: CourtSlotRowProps) {
@@ -78,70 +80,84 @@ export function CourtSlotRow({
 
       <TableCell className="min-w-[160px]">
         <PlayerPaymentSelect
-          value={slot.player1_payment_method?.id}
+          value={slot.was_played ? slot.player1_payment_method?.id : null}
           onChange={(value) =>
             onUpdate(slot.id, {
               player1_payment_method_id: value,
             })
           }
           paymentMethods={paymentMethods}
+          disabled={!slot.was_played}
         />
       </TableCell>
 
       <TableCell className="min-w-[160px]">
         <PlayerPaymentSelect
-          value={slot.player2_payment_method?.id}
+          value={slot.was_played ? slot.player2_payment_method?.id : null}
           onChange={(value) =>
             onUpdate(slot.id, {
               player2_payment_method_id: value,
             })
           }
           paymentMethods={paymentMethods}
+          disabled={!slot.was_played}
         />
       </TableCell>
 
       <TableCell className="min-w-[160px]">
         <PlayerPaymentSelect
-          value={slot.player3_payment_method?.id}
+          value={slot.was_played ? slot.player3_payment_method?.id : null}
           onChange={(value) =>
             onUpdate(slot.id, {
               player3_payment_method_id: value,
             })
           }
           paymentMethods={paymentMethods}
+          disabled={!slot.was_played}
         />
       </TableCell>
 
       <TableCell className="min-w-[160px]">
         <PlayerPaymentSelect
-          value={slot.player4_payment_method?.id}
+          value={slot.was_played ? slot.player4_payment_method?.id : null}
           onChange={(value) =>
             onUpdate(slot.id, {
               player4_payment_method_id: value,
             })
           }
           paymentMethods={paymentMethods}
+          disabled={!slot.was_played}
         />
       </TableCell>
 
       <TableCell>
         {hasChanges && (
-          <Button
-            size="sm"
-            variant="default"
-            onClick={onSave}
-            disabled={isSaving}
-            className="w-full"
-          >
-            {isSaving ? (
-              <Loader2Icon className="h-4 w-4 animate-spin" />
-            ) : (
-              <>
-                <SaveIcon className="h-4 w-4 mr-1" />
-                Guardar
-              </>
-            )}
-          </Button>
+          <div className="flex gap-1">
+            <Button
+              size="sm"
+              variant="default"
+              onClick={onSave}
+              disabled={isSaving}
+              className="flex-1"
+            >
+              {isSaving ? (
+                <Loader2Icon className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <SaveIcon className="h-4 w-4 mr-1" />
+                  Guardar
+                </>
+              )}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onCancel}
+              disabled={isSaving}
+            >
+              <XIcon className="h-4 w-4" />
+            </Button>
+          </div>
         )}
       </TableCell>
     </TableRow>

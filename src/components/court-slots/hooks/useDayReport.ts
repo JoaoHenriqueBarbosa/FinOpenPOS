@@ -13,6 +13,14 @@ export function useDayReport(
         totalSlots: 0,
         playedSlots: 0,
         notPlayedSlots: 0,
+        slotsWithUnpaidPlayers: 0,
+        totalUnpaidPlayers: 0,
+        unpaidSlots: [] as Array<{
+          id: number;
+          courtName: string;
+          timeRange: string;
+          unpaidCount: number;
+        }>,
         courts: [] as {
           courtName: string;
           totalSlots: number;
@@ -31,6 +39,8 @@ export function useDayReport(
     let totalSlots = 0;
     let playedSlots = 0;
     let notPlayedSlots = 0;
+    let slotsWithUnpaidPlayers = 0;
+    let totalUnpaidPlayers = 0;
 
     const courtsMap = new Map<
       string,
@@ -41,6 +51,13 @@ export function useDayReport(
       number,
       { name: string; uses: number; totalAmount: number }
     >();
+
+    const unpaidSlots: Array<{
+      id: number;
+      courtName: string;
+      timeRange: string;
+      unpaidCount: number;
+    }> = [];
 
     for (const slot of localSlots) {
       totalSlots += 1;
@@ -75,6 +92,21 @@ export function useDayReport(
         slot.player4_payment_method?.id,
       ];
 
+      // Contar jugadores sin método de pago asignado SOLO en turnos jugados
+      if (slot.was_played) {
+        const unpaidCount = playersPaymentIds.filter(id => !id).length;
+        if (unpaidCount > 0) {
+          slotsWithUnpaidPlayers += 1;
+          totalUnpaidPlayers += unpaidCount;
+          unpaidSlots.push({
+            id: slot.id,
+            courtName: slot.court?.name ?? "Sin cancha",
+            timeRange: `${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}`,
+            unpaidCount,
+          });
+        }
+      }
+
       for (const pmId of playersPaymentIds) {
         if (!pmId) continue;
 
@@ -105,6 +137,9 @@ export function useDayReport(
       totalSlots,
       playedSlots,
       notPlayedSlots,
+      slotsWithUnpaidPlayers,
+      totalUnpaidPlayers,
+      unpaidSlots,
       courts: Array.from(courtsMap.entries()).map(
         ([courtName, stats]) => ({
           courtName,
@@ -166,11 +201,31 @@ export function useDayReport(
     return groups;
   }, [localSlots]);
 
+  const unpaidByCourtType = useMemo(() => {
+    const groups: Record<string, Array<{ courtName: string; timeRange: string; unpaidCount: number }>> = {
+      INDOOR: [],
+      OUTDOOR: [],
+      OTRAS: [],
+    };
+
+    for (const slot of dayReport.unpaidSlots) {
+      const courtType = getCourtType(slot.courtName);
+      groups[courtType].push({
+        courtName: slot.courtName,
+        timeRange: slot.timeRange,
+        unpaidCount: slot.unpaidCount,
+      });
+    }
+
+    return groups;
+  }, [dayReport.unpaidSlots]);
+
   return {
     dayReport,
     totalRevenue,
     notPlayedSlots,
     notPlayedByCourtType,
+    unpaidByCourtType,
   };
 }
 

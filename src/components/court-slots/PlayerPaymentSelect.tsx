@@ -13,6 +13,7 @@ interface PlayerPaymentSelectProps {
   onChange: (value: number | null) => void;
   paymentMethods: PaymentMethodDTO[];
   placeholder?: string;
+  disabled?: boolean;
 }
 
 export function PlayerPaymentSelect({
@@ -20,11 +21,13 @@ export function PlayerPaymentSelect({
   onChange,
   paymentMethods,
   placeholder = "Método de pago",
+  disabled = false,
 }: PlayerPaymentSelectProps) {
   return (
     <Select
       value={value ? String(value) : "none"}
       onValueChange={(val) => onChange(val === "none" ? null : Number(val))}
+      disabled={disabled}
     >
       <SelectTrigger
         className={`text-xs ${paymentColorById(value, paymentMethods)}`}

@@ -9,6 +9,14 @@ type DayReport = {
   totalSlots: number;
   playedSlots: number;
   notPlayedSlots: number;
+  slotsWithUnpaidPlayers: number;
+  totalUnpaidPlayers: number;
+  unpaidSlots: Array<{
+    id: number;
+    courtName: string;
+    timeRange: string;
+    unpaidCount: number;
+  }>;
   payments: Array<{
     paymentMethodId: number;
     paymentMethodName: string;
@@ -18,6 +26,7 @@ type DayReport = {
 };
 
 type NotPlayedByCourtType = Record<string, string[]>;
+type UnpaidByCourtType = Record<string, Array<{ courtName: string; timeRange: string; unpaidCount: number }>>;
 
 export function usePdfGenerator() {
   const handleDownloadPdf = (
@@ -26,6 +35,7 @@ export function usePdfGenerator() {
     dayReport: DayReport,
     totalRevenue: number,
     notPlayedByCourtType: NotPlayedByCourtType,
+    unpaidByCourtType: UnpaidByCourtType,
     dayNoteData: CourtSlotDayNoteDTO | null,
     dayNotes: string
   ) => {
@@ -52,7 +62,16 @@ export function usePdfGenerator() {
     doc.text(`Turnos jugados: ${dayReport.playedSlots}`, 14, y);
     y += 6;
     doc.text(`Turnos no jugados: ${dayReport.notPlayedSlots}`, 14, y);
-    y += 8;
+    y += 6;
+    if (dayReport.slotsWithUnpaidPlayers > 0) {
+      doc.text(
+        `Faltan pagar: ${dayReport.slotsWithUnpaidPlayers} turno(s) con ${dayReport.totalUnpaidPlayers} jugador(es)`,
+        14,
+        y
+      );
+      y += 6;
+    }
+    y += 2;
 
     // Recaudación
     doc.setFontSize(12);
@@ -128,6 +147,56 @@ export function usePdfGenerator() {
       printGroup("INDOOR", notPlayedByCourtType.INDOOR);
       printGroup("OUTDOOR", notPlayedByCourtType.OUTDOOR);
       printGroup("OTRAS", notPlayedByCourtType.OTRAS);
+    }
+
+    // Faltan pagar
+    if (dayReport.slotsWithUnpaidPlayers > 0) {
+      if (y > 270) {
+        doc.addPage();
+        y = 15;
+      }
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text("Faltan pagar", 14, y);
+      y += 6;
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text(
+        `${dayReport.slotsWithUnpaidPlayers} turno(s) con ${dayReport.totalUnpaidPlayers} jugador(es) sin método de pago asignado`,
+        14,
+        y
+      );
+      y += 6;
+
+      const printUnpaidGroup = (label: string, items: Array<{ courtName: string; timeRange: string; unpaidCount: number }>) => {
+        if (!items.length) return;
+        if (y > 280) {
+          doc.addPage();
+          y = 15;
+        }
+        doc.setFont("helvetica", "bold");
+        doc.text(label, 14, y);
+        y += 5;
+        doc.setFont("helvetica", "normal");
+        items.forEach((slot) => {
+          if (y > 280) {
+            doc.addPage();
+            y = 15;
+          }
+          doc.text(
+            `${slot.courtName} - ${slot.timeRange} (${slot.unpaidCount} jug.)`,
+            16,
+            y,
+            { maxWidth: 180 }
+          );
+          y += 5;
+        });
+        y += 2;
+      };
+
+      printUnpaidGroup("INDOOR", unpaidByCourtType.INDOOR);
+      printUnpaidGroup("OUTDOOR", unpaidByCourtType.OUTDOOR);
+      printUnpaidGroup("OTRAS", unpaidByCourtType.OTRAS);
     }
 
     // Notas del día

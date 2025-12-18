@@ -103,32 +103,41 @@ export default function CourtSlotsPage() {
       if ('player4_note' in changes && changes.player4_note !== undefined) {
         updated.player4_note = changes.player4_note;
       }
-      if ('player1_payment_method_id' in changes && changes.player1_payment_method_id !== undefined) {
-        updated.player1_payment_method = changes.player1_payment_method_id
-          ? paymentMethods.find((pm) => pm.id === changes.player1_payment_method_id) || null
-          : null;
-      }
-      if ('player2_payment_method_id' in changes && changes.player2_payment_method_id !== undefined) {
-        updated.player2_payment_method = changes.player2_payment_method_id
-          ? paymentMethods.find((pm) => pm.id === changes.player2_payment_method_id) || null
-          : null;
-      }
-      if ('player3_payment_method_id' in changes && changes.player3_payment_method_id !== undefined) {
-        updated.player3_payment_method = changes.player3_payment_method_id
-          ? paymentMethods.find((pm) => pm.id === changes.player3_payment_method_id) || null
-          : null;
-      }
-      if ('player4_payment_method_id' in changes && changes.player4_payment_method_id !== undefined) {
-        updated.player4_payment_method = changes.player4_payment_method_id
-          ? paymentMethods.find((pm) => pm.id === changes.player4_payment_method_id) || null
-          : null;
+      // Si el turno no fue jugado, los métodos de pago deben ser null
+      if (!updated.was_played) {
+        updated.player1_payment_method = null;
+        updated.player2_payment_method = null;
+        updated.player3_payment_method = null;
+        updated.player4_payment_method = null;
+      } else {
+        // Solo aplicar cambios de métodos de pago si el turno fue jugado
+        if ('player1_payment_method_id' in changes && changes.player1_payment_method_id !== undefined) {
+          updated.player1_payment_method = changes.player1_payment_method_id
+            ? paymentMethods.find((pm) => pm.id === changes.player1_payment_method_id) || null
+            : null;
+        }
+        if ('player2_payment_method_id' in changes && changes.player2_payment_method_id !== undefined) {
+          updated.player2_payment_method = changes.player2_payment_method_id
+            ? paymentMethods.find((pm) => pm.id === changes.player2_payment_method_id) || null
+            : null;
+        }
+        if ('player3_payment_method_id' in changes && changes.player3_payment_method_id !== undefined) {
+          updated.player3_payment_method = changes.player3_payment_method_id
+            ? paymentMethods.find((pm) => pm.id === changes.player3_payment_method_id) || null
+            : null;
+        }
+        if ('player4_payment_method_id' in changes && changes.player4_payment_method_id !== undefined) {
+          updated.player4_payment_method = changes.player4_payment_method_id
+            ? paymentMethods.find((pm) => pm.id === changes.player4_payment_method_id) || null
+            : null;
+        }
       }
       return updated;
     });
   }, [slots, pendingChanges, paymentMethods]);
 
   // Hook de reporte
-  const { dayReport, totalRevenue, notPlayedByCourtType } = useDayReport(
+  const { dayReport, totalRevenue, notPlayedByCourtType, unpaidByCourtType } = useDayReport(
     localSlots,
     paymentMethods
   );
@@ -179,7 +188,21 @@ export default function CourtSlotsPage() {
     setPendingChanges((prev) => {
       const newMap = new Map(prev);
       const existing = newMap.get(slotId) || {};
-      newMap.set(slotId, { ...existing, ...patch });
+      
+      // Si se marca como no jugado, limpiar todos los métodos de pago
+      if ('was_played' in patch && patch.was_played === false) {
+        newMap.set(slotId, {
+          ...existing,
+          was_played: false,
+          player1_payment_method_id: null,
+          player2_payment_method_id: null,
+          player3_payment_method_id: null,
+          player4_payment_method_id: null,
+        });
+      } else {
+        newMap.set(slotId, { ...existing, ...patch });
+      }
+      
       return newMap;
     });
   };
@@ -214,6 +237,15 @@ export default function CourtSlotsPage() {
     );
   };
 
+  // Cancelar cambios de un slot específico
+  const handleCancelSlot = (slotId: number) => {
+    setPendingChanges((prev) => {
+      const newMap = new Map(prev);
+      newMap.delete(slotId);
+      return newMap;
+    });
+  };
+
   const handleSaveDayNotes = (notes: string | null) => {
     saveDayNotesMutation.mutate(notes);
   };
@@ -230,6 +262,7 @@ export default function CourtSlotsPage() {
       dayReport,
       totalRevenue,
       notPlayedByCourtType as Record<string, string[]>,
+      unpaidByCourtType as Record<string, Array<{ courtName: string; timeRange: string; unpaidCount: number }>>,
       dayNoteData || null,
       dayNotes
     );
@@ -281,6 +314,7 @@ export default function CourtSlotsPage() {
               paymentMethods={paymentMethods}
               onSlotUpdate={updateSlotField}
               onSaveSlot={handleSaveSlot}
+              onCancelSlot={handleCancelSlot}
               pendingChanges={pendingChanges}
               isSaving={updateSlotMutation.isPending}
               isLoading={loadingSlots && slots.length === 0}
@@ -292,6 +326,7 @@ export default function CourtSlotsPage() {
             dayReport={dayReport}
             totalRevenue={totalRevenue}
             notPlayedByCourtType={notPlayedByCourtType}
+            unpaidByCourtType={unpaidByCourtType}
             onDownloadPdf={handleDownloadPdfClick}
             hasSlots={localSlots.length > 0}
           />
