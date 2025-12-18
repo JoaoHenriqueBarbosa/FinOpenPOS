@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Card,
   CardHeader,
@@ -8,8 +8,8 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
-import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
+import { useErrorNotifications } from "@/hooks/useErrorNotifications";
 import { useCourtSlotsData } from "@/components/court-slots/hooks/useCourtSlotsData";
 import { useCourtSlotsMutations } from "@/components/court-slots/hooks/useCourtSlotsMutations";
 import { useDayReport } from "@/components/court-slots/hooks/useDayReport";
@@ -31,10 +31,29 @@ export default function CourtSlotsPage() {
     return `${year}-${month}-${day}`;
   });
 
-  const [localSlots, setLocalSlots] = useState<CourtSlotDTO[]>([]);
-  const previousSlotsRef = useRef<Map<number, CourtSlotDTO>>(new Map());
   const [dayNotes, setDayNotes] = useState<string>("");
   const [isEditingDayNotes, setIsEditingDayNotes] = useState(false);
+
+  // Estado local para cambios pendientes por slot
+  type SlotChanges = Partial<
+    Pick<
+      CourtSlotDB,
+      | "was_played"
+      | "notes"
+      | "player1_payment_method_id"
+      | "player1_note"
+      | "player2_payment_method_id"
+      | "player2_note"
+      | "player3_payment_method_id"
+      | "player3_note"
+      | "player4_payment_method_id"
+      | "player4_note"
+    >
+  >;
+
+  const [pendingChanges, setPendingChanges] = useState<
+    Map<number, SlotChanges>
+  >(new Map());
 
   // Hooks de datos
   const {
@@ -50,15 +69,63 @@ export default function CourtSlotsPage() {
     loadingDayNotes,
   } = useCourtSlotsData(selectedDate);
 
+  // Limpiar cambios pendientes cuando cambia la fecha
+  useEffect(() => {
+    setPendingChanges(new Map());
+  }, [selectedDate]);
+
   // Hooks de mutaciones
   const { generateMutation, updateSlotMutation, saveDayNotesMutation } =
-    useCourtSlotsMutations(
-      selectedDate,
-      localSlots,
-      setLocalSlots,
-      previousSlotsRef,
-      paymentMethods
-    );
+    useCourtSlotsMutations(selectedDate, slots, paymentMethods);
+
+  // Slots con cambios aplicados localmente para mostrar en la UI
+  const localSlots = useMemo(() => {
+    return slots.map((slot) => {
+      const changes = pendingChanges.get(slot.id);
+      if (!changes) return slot;
+
+      const updated: CourtSlotDTO = { ...slot };
+      if ('was_played' in changes && changes.was_played !== undefined) {
+        updated.was_played = changes.was_played;
+      }
+      if ('notes' in changes && changes.notes !== undefined) {
+        updated.notes = changes.notes;
+      }
+      if ('player1_note' in changes && changes.player1_note !== undefined) {
+        updated.player1_note = changes.player1_note;
+      }
+      if ('player2_note' in changes && changes.player2_note !== undefined) {
+        updated.player2_note = changes.player2_note;
+      }
+      if ('player3_note' in changes && changes.player3_note !== undefined) {
+        updated.player3_note = changes.player3_note;
+      }
+      if ('player4_note' in changes && changes.player4_note !== undefined) {
+        updated.player4_note = changes.player4_note;
+      }
+      if ('player1_payment_method_id' in changes && changes.player1_payment_method_id !== undefined) {
+        updated.player1_payment_method = changes.player1_payment_method_id
+          ? paymentMethods.find((pm) => pm.id === changes.player1_payment_method_id) || null
+          : null;
+      }
+      if ('player2_payment_method_id' in changes && changes.player2_payment_method_id !== undefined) {
+        updated.player2_payment_method = changes.player2_payment_method_id
+          ? paymentMethods.find((pm) => pm.id === changes.player2_payment_method_id) || null
+          : null;
+      }
+      if ('player3_payment_method_id' in changes && changes.player3_payment_method_id !== undefined) {
+        updated.player3_payment_method = changes.player3_payment_method_id
+          ? paymentMethods.find((pm) => pm.id === changes.player3_payment_method_id) || null
+          : null;
+      }
+      if ('player4_payment_method_id' in changes && changes.player4_payment_method_id !== undefined) {
+        updated.player4_payment_method = changes.player4_payment_method_id
+          ? paymentMethods.find((pm) => pm.id === changes.player4_payment_method_id) || null
+          : null;
+      }
+      return updated;
+    });
+  }, [slots, pendingChanges, paymentMethods]);
 
   // Hook de reporte
   const { dayReport, totalRevenue, notPlayedByCourtType } = useDayReport(
@@ -70,40 +137,16 @@ export default function CourtSlotsPage() {
   const { handleDownloadPdf } = usePdfGenerator();
 
   // Manejo de errores
-  useEffect(() => {
-    if (isPaymentMethodsError) {
-      toast.error("No se pudieron cargar los métodos de pago.");
-    }
-  }, [isPaymentMethodsError]);
-
-  useEffect(() => {
-    if (isCourtSlotsError) {
-      toast.error("No se pudieron cargar los turnos de canchas.");
-    }
-  }, [isCourtSlotsError]);
-
-  // Sync de slots de server -> local
-  useEffect(() => {
-    setLocalSlots([]);
-  }, [selectedDate]);
-
-  useEffect(() => {
-    if (!updateSlotMutation.isPending) {
-      setLocalSlots((prev) => {
-        if (slots.length === 0) {
-          return [];
-        }
-        if (prev.length !== slots.length) {
-          return slots;
-        }
-        const hasChanges = prev.some((p, idx) => {
-          const s = slots[idx];
-          return !s || p.id !== s.id;
-        });
-        return hasChanges ? slots : prev;
-      });
-    }
-  }, [slots, updateSlotMutation.isPending]);
+  useErrorNotifications([
+    {
+      error: isPaymentMethodsError,
+      message: "No se pudieron cargar los métodos de pago.",
+    },
+    {
+      error: isCourtSlotsError,
+      message: "No se pudieron cargar los turnos de canchas.",
+    },
+  ]);
 
   // Sync de notas del día
   useEffect(() => {
@@ -117,7 +160,7 @@ export default function CourtSlotsPage() {
 
   // Handlers
   const handleGenerateDay = () => {
-    if (localSlots.length > 0) {
+    if (slots.length > 0) {
       toast.info("Los turnos para este día ya fueron generados.");
       return;
     }
@@ -128,56 +171,47 @@ export default function CourtSlotsPage() {
     refetchSlots();
   };
 
+  // Actualizar cambios pendientes localmente (sin guardar)
   const updateSlotField = (
     slotId: number,
-    patch: Partial<
-      Pick<
-        CourtSlotDB,
-        | "was_played"
-        | "notes"
-        | "player1_payment_method_id"
-        | "player1_note"
-        | "player2_payment_method_id"
-        | "player2_note"
-        | "player3_payment_method_id"
-        | "player3_note"
-        | "player4_payment_method_id"
-        | "player4_note"
-      >
-    >
+    patch: SlotChanges
   ) => {
-    const currentSlot = localSlots.find((s) => s.id === slotId);
-    if (currentSlot && !previousSlotsRef.current.has(slotId)) {
-      previousSlotsRef.current.set(slotId, { ...currentSlot });
+    setPendingChanges((prev) => {
+      const newMap = new Map(prev);
+      const existing = newMap.get(slotId) || {};
+      newMap.set(slotId, { ...existing, ...patch });
+      return newMap;
+    });
+  };
+
+  // Guardar cambios de un slot específico
+  const handleSaveSlot = (slotId: number) => {
+    const changes = pendingChanges.get(slotId);
+    if (!changes || Object.keys(changes).length === 0) {
+      return;
     }
 
-    setLocalSlots((prev) =>
-      prev.map((slot) => {
-        if (slot.id !== slotId) return slot;
-        const updated: CourtSlotDTO = { ...slot };
-        if ('was_played' in patch && patch.was_played !== undefined) updated.was_played = patch.was_played;
-        if ('notes' in patch && patch.notes !== undefined) updated.notes = patch.notes;
-        if ('player1_note' in patch && patch.player1_note !== undefined) updated.player1_note = patch.player1_note;
-        if ('player2_note' in patch && patch.player2_note !== undefined) updated.player2_note = patch.player2_note;
-        if ('player3_note' in patch && patch.player3_note !== undefined) updated.player3_note = patch.player3_note;
-        if ('player4_note' in patch && patch.player4_note !== undefined) updated.player4_note = patch.player4_note;
-        if ('player1_payment_method_id' in patch && patch.player1_payment_method_id !== undefined) {
-          updated.player1_payment_method = patch.player1_payment_method_id ? (paymentMethods.find(pm => pm.id === patch.player1_payment_method_id) || null) : null;
-        }
-        if ('player2_payment_method_id' in patch && patch.player2_payment_method_id !== undefined) {
-          updated.player2_payment_method = patch.player2_payment_method_id ? (paymentMethods.find(pm => pm.id === patch.player2_payment_method_id) || null) : null;
-        }
-        if ('player3_payment_method_id' in patch && patch.player3_payment_method_id !== undefined) {
-          updated.player3_payment_method = patch.player3_payment_method_id ? (paymentMethods.find(pm => pm.id === patch.player3_payment_method_id) || null) : null;
-        }
-        if ('player4_payment_method_id' in patch && patch.player4_payment_method_id !== undefined) {
-          updated.player4_payment_method = patch.player4_payment_method_id ? (paymentMethods.find(pm => pm.id === patch.player4_payment_method_id) || null) : null;
-        }
-        return updated;
-      })
+    updateSlotMutation.mutate(
+      { slotId, patch: changes },
+      {
+        onSuccess: () => {
+          // Limpiar cambios pendientes de este slot
+          setPendingChanges((prev) => {
+            const newMap = new Map(prev);
+            newMap.delete(slotId);
+            return newMap;
+          });
+          toast.success("Cambios guardados correctamente.");
+        },
+        onError: (error) => {
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : "Error al guardar los cambios."
+          );
+        },
+      }
     );
-
-    updateSlotMutation.mutate({ slotId, patch });
   };
 
   const handleSaveDayNotes = (notes: string | null) => {
@@ -246,15 +280,11 @@ export default function CourtSlotsPage() {
               slots={localSlots}
               paymentMethods={paymentMethods}
               onSlotUpdate={updateSlotField}
-              isLoading={initialSlotsLoading}
+              onSaveSlot={handleSaveSlot}
+              pendingChanges={pendingChanges}
+              isSaving={updateSlotMutation.isPending}
+              isLoading={loadingSlots && slots.length === 0}
             />
-
-            {saving && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2">
-                <Loader2Icon className="h-3 w-3 animate-spin" />
-                Guardando cambios...
-              </div>
-            )}
           </div>
 
           <DaySummary

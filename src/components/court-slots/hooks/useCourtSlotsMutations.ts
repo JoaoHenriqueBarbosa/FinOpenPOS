@@ -2,13 +2,10 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { courtSlotsService, courtSlotDayNotesService } from "@/services";
 import type { UpdateCourtSlotInput } from "@/services/court-slots.service";
-import type { CourtSlotDTO } from "@/models/dto/court";
 
 export function useCourtSlotsMutations(
   selectedDate: string,
-  localSlots: CourtSlotDTO[],
-  setLocalSlots: React.Dispatch<React.SetStateAction<CourtSlotDTO[]>>,
-  previousSlotsRef: React.MutableRefObject<Map<number, CourtSlotDTO>>,
+  slots: any[],
   paymentMethods: any[]
 ) {
   const queryClient = useQueryClient();
@@ -18,15 +15,8 @@ export function useCourtSlotsMutations(
     mutationFn: async (date: string) => {
       return courtSlotsService.generate({ date });
     },
-    onSuccess: (data) => {
-      const existingSlots = localSlots.length;
-      const newSlots = data.length;
-      
-      if (existingSlots > 0 && newSlots === existingSlots) {
-        toast.info("Los turnos para este día ya fueron generados anteriormente.");
-      } else {
-        toast.success("Turnos generados correctamente.");
-      }
+    onSuccess: () => {
+      toast.success("Turnos generados correctamente.");
       queryClient.invalidateQueries({ queryKey: ["court-slots", selectedDate] });
     },
     onError: (error) => {
@@ -38,33 +28,14 @@ export function useCourtSlotsMutations(
     },
   });
 
-  // Actualizar un slot - actualización optimista
+  // Actualizar un slot
   const updateSlotMutation = useMutation({
     mutationFn: async (params: { slotId: number; patch: UpdateCourtSlotInput }) => {
       return courtSlotsService.update(params.slotId, params.patch);
     },
-    onError: (error, { slotId }) => {
-      const previousSlot = previousSlotsRef.current.get(slotId);
-      if (previousSlot) {
-        setLocalSlots((prev) =>
-          prev.map((slot) => (slot.id === slotId ? previousSlot : slot))
-        );
-        previousSlotsRef.current.delete(slotId);
-      } else {
-        queryClient.invalidateQueries({ queryKey: ["court-slots", selectedDate] });
-      }
-      toast.error("Error al actualizar el turno. Por favor, intenta nuevamente.");
-    },
-    onSuccess: (updated, { slotId }) => {
-      previousSlotsRef.current.delete(slotId);
-      setLocalSlots((prev) => {
-        const currentSlot = prev.find((s) => s.id === updated.id);
-        if (currentSlot && JSON.stringify(currentSlot) === JSON.stringify(updated)) {
-          return prev;
-        }
-        return prev.map((s) => (s.id === updated.id ? updated : s));
-      });
-      queryClient.setQueryData<CourtSlotDTO[]>(
+    onSuccess: (updated) => {
+      // Actualizar cache de React Query
+      queryClient.setQueryData<any[]>(
         ["court-slots", selectedDate],
         (old) => old?.map((s) => (s.id === updated.id ? updated : s)) ?? []
       );
@@ -95,4 +66,3 @@ export function useCourtSlotsMutations(
     saveDayNotesMutation,
   };
 }
-

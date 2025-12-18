@@ -12,27 +12,29 @@ import type { CourtSlotDTO } from "@/models/dto/court";
 import type { PaymentMethodDTO } from "@/models/dto/payment-method";
 import type { CourtSlotDB } from "@/models/db/court";
 
+type SlotChanges = Partial<
+  Pick<
+    CourtSlotDB,
+    | "was_played"
+    | "notes"
+    | "player1_payment_method_id"
+    | "player1_note"
+    | "player2_payment_method_id"
+    | "player2_note"
+    | "player3_payment_method_id"
+    | "player3_note"
+    | "player4_payment_method_id"
+    | "player4_note"
+  >
+>;
+
 interface CourtSlotTableProps {
   slots: CourtSlotDTO[];
   paymentMethods: PaymentMethodDTO[];
-  onSlotUpdate: (
-    slotId: number,
-    patch: Partial<
-      Pick<
-        CourtSlotDB,
-        | "was_played"
-        | "notes"
-        | "player1_payment_method_id"
-        | "player1_note"
-        | "player2_payment_method_id"
-        | "player2_note"
-        | "player3_payment_method_id"
-        | "player3_note"
-        | "player4_payment_method_id"
-        | "player4_note"
-      >
-    >
-  ) => void;
+  onSlotUpdate: (slotId: number, patch: SlotChanges) => void;
+  onSaveSlot: (slotId: number) => void;
+  pendingChanges: Map<number, SlotChanges>;
+  isSaving: boolean;
   isLoading: boolean;
 }
 
@@ -40,6 +42,9 @@ export function CourtSlotTable({
   slots,
   paymentMethods,
   onSlotUpdate,
+  onSaveSlot,
+  pendingChanges,
+  isSaving,
   isLoading,
 }: CourtSlotTableProps) {
   if (isLoading) {
@@ -56,6 +61,7 @@ export function CourtSlotTable({
               <TableHead>Jugador 2</TableHead>
               <TableHead>Jugador 3</TableHead>
               <TableHead>Jugador 4</TableHead>
+              <TableHead className="w-24">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -78,6 +84,9 @@ export function CourtSlotTable({
                     <Skeleton className="h-8 w-32 rounded-md" />
                   </TableCell>
                 ))}
+                <TableCell>
+                  <Skeleton className="h-8 w-16 rounded-md" />
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -109,17 +118,25 @@ export function CourtSlotTable({
             <TableHead>Jugador 2</TableHead>
             <TableHead>Jugador 3</TableHead>
             <TableHead>Jugador 4</TableHead>
+            <TableHead className="w-24">Acciones</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {slots.map((slot) => (
-            <CourtSlotRow
-              key={slot.id}
-              slot={slot}
-              paymentMethods={paymentMethods}
-              onUpdate={onSlotUpdate}
-            />
-          ))}
+          {slots.map((slot) => {
+            const hasChanges = pendingChanges.has(slot.id) && 
+              Object.keys(pendingChanges.get(slot.id) || {}).length > 0;
+            return (
+              <CourtSlotRow
+                key={slot.id}
+                slot={slot}
+                paymentMethods={paymentMethods}
+                onUpdate={onSlotUpdate}
+                onSave={() => onSaveSlot(slot.id)}
+                hasChanges={hasChanges}
+                isSaving={isSaving}
+              />
+            );
+          })}
         </TableBody>
       </Table>
     </div>
