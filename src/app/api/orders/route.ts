@@ -51,7 +51,7 @@ export async function POST(request: Request) {
 
     // ✅ Crear nueva orden
     const order = await repos.orders.create({
-      playerId,
+      playerId: Number(playerId),
       total_amount: 0,
       status: 'open',
     });

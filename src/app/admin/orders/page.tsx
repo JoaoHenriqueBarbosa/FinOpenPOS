@@ -149,7 +149,7 @@ export default function OrdersPage() {
   const createOrderMutation = useMutation({
     mutationFn: async (payload: { playerId: number | null }) => {
       try {
-        return await ordersService.create({ player_id: payload.playerId! });
+        return await ordersService.create({ playerId: payload.playerId! });
       } catch (error: any) {
         // Handle 409 conflict (player already has open order)
         if (error.message?.includes("already has an open order") || error.status === 409) {

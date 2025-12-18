@@ -2,7 +2,7 @@ import type { OrderDTO } from "@/models/dto/order";
 import type { OrderStatus } from "@/models/db/order";
 
 export interface CreateOrderInput {
-  player_id: number;
+  playerId: number;
 }
 
 export interface UpdateOrderInput {
@@ -126,10 +126,11 @@ class OrdersService {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ payment_method_id: paymentMethodId }),
+      body: JSON.stringify({ paymentMethodId: paymentMethodId }),
     });
     if (!response.ok) {
-      throw new Error("Error paying order");
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || "Error paying order");
     }
     return response.json();
   }
