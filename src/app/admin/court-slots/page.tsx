@@ -160,9 +160,7 @@ export default function CourtSlotsPage() {
   }, [isCourtSlotsError]);
 
   // Sync de slots de server -> local
-  useEffect(() => {
-    setLocalSlots(slots);
-  }, [slots]);
+  // NOTA: Este useEffect se mueve después de la declaración de updateSlotMutation
 
   // Generar turnos del día
   const generateMutation = useMutation({
@@ -205,16 +203,44 @@ export default function CourtSlotsPage() {
       // Limpiar el estado anterior guardado
       previousSlotsRef.current.delete(slotId);
       // Sincronizar con el servidor - actualizar localSlots con la respuesta del servidor
-      setLocalSlots((prev) =>
-        prev.map((s) => (s.id === updated.id ? updated : s))
-      );
-      // También actualizar el cache de React Query
+      // Solo actualizar si el slot realmente cambió para evitar re-renders innecesarios
+      setLocalSlots((prev) => {
+        const currentSlot = prev.find((s) => s.id === updated.id);
+        // Si el slot local ya tiene los mismos valores que el actualizado, no actualizar
+        if (currentSlot && JSON.stringify(currentSlot) === JSON.stringify(updated)) {
+          return prev;
+        }
+        return prev.map((s) => (s.id === updated.id ? updated : s));
+      });
+      // Actualizar el cache de React Query directamente (sin invalidar para evitar refetch)
       queryClient.setQueryData<CourtSlotDTO[]>(
         ["court-slots", selectedDate],
         (old) => old?.map((s) => (s.id === updated.id ? updated : s)) ?? []
       );
     },
   });
+
+  // Sync de slots de server -> local (después de declarar updateSlotMutation)
+  // Solo actualizar si no hay actualizaciones en progreso para evitar sobrescribir cambios optimistas
+  useEffect(() => {
+    if (!updateSlotMutation.isPending && slots.length > 0) {
+      // Solo actualizar si los slots realmente cambiaron y no estamos en medio de una actualización
+      setLocalSlots((prev) => {
+        // Comparar por longitud y IDs para evitar comparaciones innecesarias
+        if (prev.length !== slots.length) {
+          return slots;
+        }
+        // Verificar si algún slot cambió comparando IDs
+        // Si los arrays tienen los mismos IDs en el mismo orden, asumimos que no hay cambios
+        const hasChanges = prev.some((p, idx) => {
+          const s = slots[idx];
+          return !s || p.id !== s.id;
+        });
+        // Si hay cambios en IDs, actualizar. Si no, mantener el estado local (puede tener cambios optimistas)
+        return hasChanges ? slots : prev;
+      });
+    }
+  }, [slots, updateSlotMutation.isPending]);
 
   const handleGenerateDay = () => {
     generateMutation.mutate(selectedDate);
