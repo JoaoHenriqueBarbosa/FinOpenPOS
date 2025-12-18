@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Loader2Icon, CalendarIcon, RefreshCwIcon } from "lucide-react";
+import { Loader2Icon, CalendarIcon, RefreshCwIcon, FileTextIcon } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import {
@@ -93,8 +93,9 @@ const getPricePerPlayer = (courtName?: string | null) => {
   return 0;
 };
 
-import { paymentMethodsService, courtSlotsService } from "@/services";
+import { paymentMethodsService, courtSlotsService, courtSlotDayNotesService } from "@/services";
 import type { UpdateCourtSlotInput } from "@/services/court-slots.service";
+import type { CourtSlotDayNoteDTO } from "@/services/court-slot-day-notes.service";
 
 // ---- helpers para fetch ----
 async function fetchPaymentMethods(): Promise<PaymentMethodDTO[]> {
@@ -120,6 +121,10 @@ export default function CourtSlotsPage() {
   const [localSlots, setLocalSlots] = useState<CourtSlotDTO[]>([]);
   // Guardar estado anterior para revertir en caso de error
   const previousSlotsRef = useRef<Map<number, CourtSlotDTO>>(new Map());
+  
+  // Estado para notas globales del día
+  const [dayNotes, setDayNotes] = useState<string>("");
+  const [isEditingDayNotes, setIsEditingDayNotes] = useState(false);
 
   // Métodos de pago
   const {
@@ -147,6 +152,21 @@ export default function CourtSlotsPage() {
     gcTime: 1000 * 60 * 10, // 10 minutos en cache
   });
 
+  // Notas globales del día
+  const {
+    data: dayNoteData,
+    isLoading: loadingDayNotes,
+    refetch: refetchDayNotes,
+  } = useQuery({
+    queryKey: ["court-slot-day-notes", selectedDate],
+    queryFn: async () => {
+      const note = await courtSlotDayNotesService.getByDate(selectedDate);
+      return note;
+    },
+    enabled: !!selectedDate,
+    staleTime: 1000 * 60 * 5,
+  });
+
   useEffect(() => {
     if (isPaymentMethodsError) {
       toast.error("No se pudieron cargar los métodos de pago.");
@@ -167,8 +187,18 @@ export default function CourtSlotsPage() {
     mutationFn: async (date: string) => {
       return courtSlotsService.generate({ date });
     },
-    onSuccess: () => {
-      toast.success("Turnos generados correctamente.");
+    onSuccess: (data, variables) => {
+      // Verificar si se generaron nuevos slots o si ya existían
+      const existingSlots = localSlots.length;
+      const newSlots = data.length;
+      
+      if (existingSlots > 0 && newSlots === existingSlots) {
+        // Los slots ya existían
+        toast.info("Los turnos para este día ya fueron generados anteriormente.");
+      } else {
+        // Se generaron nuevos slots
+        toast.success("Turnos generados correctamente.");
+      }
       queryClient.invalidateQueries({ queryKey: ["court-slots", selectedDate] });
     },
     onError: (error) => {
@@ -223,9 +253,18 @@ export default function CourtSlotsPage() {
   // Sync de slots de server -> local (después de declarar updateSlotMutation)
   // Solo actualizar si no hay actualizaciones en progreso para evitar sobrescribir cambios optimistas
   useEffect(() => {
-    if (!updateSlotMutation.isPending && slots.length > 0) {
-      // Solo actualizar si los slots realmente cambiaron y no estamos en medio de una actualización
+    // Cuando cambia la fecha, limpiar los slots locales inmediatamente
+    setLocalSlots([]);
+  }, [selectedDate]);
+
+  useEffect(() => {
+    if (!updateSlotMutation.isPending) {
+      // Actualizar con los nuevos slots (pueden estar vacíos si no hay datos para ese día)
       setLocalSlots((prev) => {
+        // Si los slots están vacíos, actualizar directamente
+        if (slots.length === 0) {
+          return [];
+        }
         // Comparar por longitud y IDs para evitar comparaciones innecesarias
         if (prev.length !== slots.length) {
           return slots;
@@ -242,7 +281,41 @@ export default function CourtSlotsPage() {
     }
   }, [slots, updateSlotMutation.isPending]);
 
+  // Sync de notas del día
+  useEffect(() => {
+    if (dayNoteData) {
+      setDayNotes(dayNoteData.notes || "");
+    } else {
+      setDayNotes("");
+    }
+    setIsEditingDayNotes(false);
+  }, [dayNoteData]);
+
+  // Mutation para guardar notas del día
+  const saveDayNotesMutation = useMutation({
+    mutationFn: async (notes: string | null) => {
+      return courtSlotDayNotesService.upsert(selectedDate, notes);
+    },
+    onSuccess: () => {
+      toast.success("Notas del día guardadas correctamente.");
+      queryClient.invalidateQueries({ queryKey: ["court-slot-day-notes", selectedDate] });
+      setIsEditingDayNotes(false);
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "No se pudieron guardar las notas del día."
+      );
+    },
+  });
+
   const handleGenerateDay = () => {
+    // Verificar si ya hay slots para este día
+    if (localSlots.length > 0) {
+      toast.info("Los turnos para este día ya fueron generados.");
+      return;
+    }
     generateMutation.mutate(selectedDate);
   };
 
@@ -290,6 +363,12 @@ export default function CourtSlotsPage() {
   };
 
   const formatTime = (t: string) => t.slice(0, 5);
+
+  // Helper para parsear fecha YYYY-MM-DD en zona horaria local
+  const parseLocalDate = (dateStr: string): Date => {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
 
   const saving = updateSlotMutation.isPending;
 
@@ -485,7 +564,7 @@ export default function CourtSlotsPage() {
     const doc = new jsPDF();
     let y = 15;
 
-    const dateLabel = format(new Date(selectedDate), "dd/MM/yyyy");
+    const dateLabel = format(parseLocalDate(selectedDate), "dd/MM/yyyy");
 
     // Título
     doc.setFontSize(16);
@@ -578,6 +657,30 @@ export default function CourtSlotsPage() {
       printGroup("OTRAS", notPlayedByCourtType.OTRAS);
     }
 
+    // Notas del día
+    if (y > 270) {
+      doc.addPage();
+      y = 15;
+    }
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "bold");
+    doc.text("Notas del día", 14, y);
+    y += 6;
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    
+    const dayNotesText = dayNoteData?.notes || dayNotes || "";
+    if (dayNotesText) {
+      // Dividir el texto en líneas si es muy largo
+      const lines = doc.splitTextToSize(dayNotesText, 180);
+      doc.text(lines, 14, y);
+      y += lines.length * 5 + 5;
+    } else {
+      doc.text("No hay notas para este día.", 14, y);
+      y += 8;
+    }
+
     // Nota QR
     if (y > 270) {
       doc.addPage();
@@ -645,6 +748,79 @@ export default function CourtSlotsPage() {
                 )}
                 Generar turnos del día
               </Button>
+            </div>
+
+            {/* Notas globales del día */}
+            <div className="border rounded-lg p-4 bg-muted/30 space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-2 text-sm font-semibold">
+                  <FileTextIcon className="w-4 h-4" />
+                  Notas del día
+                </Label>
+                {!isEditingDayNotes && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsEditingDayNotes(true)}
+                    className="h-7 text-xs"
+                  >
+                    Editar
+                  </Button>
+                )}
+              </div>
+              {isEditingDayNotes ? (
+                <div className="space-y-2">
+                  <textarea
+                    value={dayNotes}
+                    onChange={(e) => setDayNotes(e.target.value)}
+                    placeholder="Agregá notas globales para este día..."
+                    className="w-full min-h-[80px] px-3 py-2 text-sm border rounded-md resize-y focus:outline-none focus:ring-2 focus:ring-ring"
+                    disabled={saveDayNotesMutation.isPending}
+                  />
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setIsEditingDayNotes(false);
+                        // Restaurar valor original
+                        setDayNotes(dayNoteData?.notes || "");
+                      }}
+                      disabled={saveDayNotesMutation.isPending}
+                      className="h-7 text-xs"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => saveDayNotesMutation.mutate(dayNotes || null)}
+                      disabled={saveDayNotesMutation.isPending}
+                      className="h-7 text-xs"
+                    >
+                      {saveDayNotesMutation.isPending ? (
+                        <>
+                          <Loader2Icon className="h-3 w-3 mr-1 animate-spin" />
+                          Guardando...
+                        </>
+                      ) : (
+                        "Guardar"
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground min-h-[40px]">
+                  {loadingDayNotes ? (
+                    <Skeleton className="h-10 w-full" />
+                  ) : dayNotes ? (
+                    <p className="whitespace-pre-wrap">{dayNotes}</p>
+                  ) : (
+                    <p className="text-muted-foreground/60 italic">
+                      No hay notas para este día. Hacé clic en &quot;Editar&quot; para agregar notas.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Leyenda de colores */}
@@ -966,7 +1142,7 @@ export default function CourtSlotsPage() {
               <div className="rounded-lg border bg-muted/40 px-4 py-3">
                 <p className="text-sm font-semibold">Resumen del día</p>
                 <p className="text-xs text-muted-foreground mb-2">
-                  {format(new Date(selectedDate), "dd/MM/yyyy")}
+                  {format(parseLocalDate(selectedDate), "dd/MM/yyyy")}
                 </p>
 
                 {/* Recaudación */}

@@ -12,6 +12,7 @@ DROP TABLE IF EXISTS tournaments;
 
 DROP TABLE IF EXISTS stock_movements;
 DROP TABLE IF EXISTS transactions;
+DROP TABLE IF EXISTS court_slot_day_notes;
 DROP TABLE IF EXISTS court_slots;
 DROP TABLE IF EXISTS courts;
 DROP TABLE IF EXISTS order_items;
@@ -180,6 +181,20 @@ CREATE TABLE court_slots (
     player4_note              TEXT,
 
     created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =========================================================
+-- COURT_SLOT_DAY_NOTES (notas globales por día)
+-- =========================================================
+
+CREATE TABLE court_slot_day_notes (
+    id          BIGSERIAL PRIMARY KEY,
+    user_uid    UUID NOT NULL,
+    slot_date   DATE NOT NULL,             -- día de las notas
+    notes       TEXT,                      -- notas globales del día
+    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (user_uid, slot_date)
 );
 
 -- =========================================================
