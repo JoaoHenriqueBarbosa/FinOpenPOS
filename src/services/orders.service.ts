@@ -53,7 +53,12 @@ class OrdersService {
       body: JSON.stringify(input),
     });
     if (!response.ok) {
-      throw new Error("Error creating order");
+      const errorData = await response.json().catch(() => ({}));
+      const errorMessage = errorData.error || errorData.message || "Error al crear la cuenta";
+      const error = new Error(errorMessage);
+      (error as any).status = response.status;
+      (error as any).orderId = errorData.orderId;
+      throw error;
     }
     return response.json();
   }

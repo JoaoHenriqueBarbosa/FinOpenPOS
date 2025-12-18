@@ -37,6 +37,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Loader2Icon, PlusIcon, SearchIcon, FilePenIcon } from "lucide-react";
 import { Label } from "@/components/ui/label";
+import { PlayerSearchSelect } from "@/components/player-search-select/PlayerSearchSelect";
 import Link from "next/link";
 import {
   useQuery,
@@ -68,6 +69,7 @@ export default function OrdersPage() {
 
   const [isNewOrderDialogOpen, setIsNewOrderDialogOpen] = useState(false);
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
+  const [orderError, setOrderError] = useState<string | null>(null);
 
   // Popup rápido para nuevo cliente
   const [isNewPlayerDialogOpen, setIsNewPlayerDialogOpen] = useState(false);
@@ -151,13 +153,23 @@ export default function OrdersPage() {
       try {
         return await ordersService.create({ playerId: payload.playerId! });
       } catch (error: any) {
-        // Handle 409 conflict (player already has open order)
-        if (error.message?.includes("already has an open order") || error.status === 409) {
-          const err = new Error("El cliente ya tiene una cuenta abierta.");
+        // Si hay un orderId o el mensaje indica cuenta abierta, usar mensaje específico
+        if (error.orderId || 
+            error.message?.includes("already has an open order") || 
+            error.message?.includes("ya tiene una cuenta abierta") ||
+            error.status === 409) {
+          const err = new Error("El cliente ya tiene una cuenta abierta. Cerrala antes de abrir otra.");
           (err as any).orderId = error.orderId;
           throw err;
         }
-        throw error;
+        // Si el error ya tiene un mensaje descriptivo en español, usarlo
+        if (error.message && 
+            !error.message.includes("Error creating") && 
+            !error.message.includes("Error al crear")) {
+          throw error;
+        }
+        // Mensaje genérico mejorado
+        throw new Error("No se pudo crear la cuenta. Verificá que el cliente esté seleccionado e intentá nuevamente.");
       }
     },
     onMutate: async (payload) => {
@@ -192,12 +204,10 @@ export default function OrdersPage() {
         ...(old ?? []),
       ]);
 
-      // Cerrar diálogo y limpiar inmediatamente
-      setIsNewOrderDialogOpen(false);
-      setSelectedPlayerId(null);
-
-      // Navegar a la nueva orden inmediatamente
-      router.push(`/admin/orders/${tempId}`);
+      // NO cerrar el dialog aquí - esperar a que la mutación termine exitosamente
+      // NO navegar aquí - esperar a que la mutación termine exitosamente
+      // Limpiar error previo
+      setOrderError(null);
 
       return { previousOrders, tempId, optimisticOrder };
     },
@@ -206,17 +216,23 @@ export default function OrdersPage() {
       if (ctx?.previousOrders) {
         queryClient.setQueryData(["orders"], ctx.previousOrders);
       }
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : "Error al crear la cuenta."
-      );
-      // Volver a la lista si estábamos en la orden temporal
-      if (ctx?.tempId) {
-        router.push("/admin/orders");
-      }
+      
+      // Mostrar error en el dialog (el dialog permanece abierto)
+      const errorMessage = err instanceof Error
+        ? err.message
+        : "Error al crear la cuenta.";
+      
+      setOrderError(errorMessage);
+      
+      // También mostrar toast para feedback inmediato
+      toast.error(errorMessage);
     },
     onSuccess: (newOrder, _vars, ctx) => {
+      // Limpiar error y cerrar dialog
+      setOrderError(null);
+      setIsNewOrderDialogOpen(false);
+      setSelectedPlayerId(null);
+      
       // Reemplazar orden optimista con la real
       queryClient.setQueryData<OrderDTO[]>(["orders"], (old) => {
         if (!old) return [newOrder];
@@ -225,10 +241,8 @@ export default function OrdersPage() {
         return [newOrder, ...filtered];
       });
 
-      // Navegar a la orden real si estábamos en la temporal
-      if (ctx?.tempId) {
-        router.replace(`/admin/orders/${newOrder.id}`);
-      }
+      // Navegar a la nueva orden
+      router.push(`/admin/orders/${newOrder.id}`);
 
       toast.success("Cuenta creada.");
     },
@@ -470,9 +484,10 @@ export default function OrdersPage() {
       <Dialog
         open={isNewOrderDialogOpen}
         onOpenChange={(open) => {
-          setIsNewPlayerDialogOpen(open);
+          setIsNewOrderDialogOpen(open);
           if (!open) {
             setSelectedPlayerId(null);
+            setOrderError(null);
           }
         }}
       >
@@ -487,23 +502,17 @@ export default function OrdersPage() {
             <div className="grid grid-cols-4 items-center gap-4">
               <span className="text-right text-sm font-medium">Cliente</span>
               <div className="col-span-3 flex items-center gap-2">
-                <Select
-                  value={selectedPlayerId ? String(selectedPlayerId) : ""}
-                  onValueChange={(value) => {
-                    setSelectedPlayerId(Number(value));
+                <PlayerSearchSelect
+                  players={players}
+                  value={selectedPlayerId}
+                  onValueChange={(playerId) => {
+                    setSelectedPlayerId(playerId);
+                    setOrderError(null); // Limpiar error al cambiar cliente
                   }}
-                >
-                  <SelectTrigger className="flex-1">
-                    <SelectValue placeholder="Seleccionar cliente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {players.map((p) => (
-                      <SelectItem key={p.id} value={String(p.id)}>
-                        {p.first_name} {p.last_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  placeholder="Seleccionar cliente"
+                  searchPlaceholder="Buscar por nombre o apellido..."
+                  disabled={loadingPlayers}
+                />
 
                 {/* Botón para crear cliente rápido */}
                 <Button
@@ -517,6 +526,15 @@ export default function OrdersPage() {
                 </Button>
               </div>
             </div>
+            
+            {/* Mostrar error dentro del dialog */}
+            {orderError && (
+              <div className="col-span-4 rounded-md bg-destructive/10 border border-destructive/20 p-3">
+                <p className="text-sm text-destructive font-medium">
+                  {orderError}
+                </p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button
@@ -542,9 +560,13 @@ export default function OrdersPage() {
       <Dialog
         open={isNewPlayerDialogOpen}
         onOpenChange={(open) => {
-          setIsNewOrderDialogOpen(open);
+          setIsNewPlayerDialogOpen(open);
           if (!open) {
-            setSelectedPlayerId(null); // obligado a elegir cliente
+            // Limpiar formulario al cerrar
+            setNewPlayerFirstName("");
+            setNewPlayerLastName("");
+            setNewPlayerPhone("");
+            setNewPlayerStatus("active");
           }
         }}
       >
