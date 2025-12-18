@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Card,
   CardHeader,
@@ -8,165 +8,68 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableHeader,
-  TableRow,
-  TableHead,
-  TableBody,
-  TableCell,
-} from "@/components/ui/table";
-import {
-  Select,
-  SelectTrigger,
-  SelectContent,
-  SelectValue,
-  SelectItem,
-} from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { Loader2Icon, CalendarIcon, RefreshCwIcon, FileTextIcon } from "lucide-react";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
-import {
-  useQuery,
-  useMutation,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
-import { Skeleton } from "@/components/ui/skeleton";
-import { jsPDF } from "jspdf";
-
+import { useCourtSlotsData } from "@/components/court-slots/hooks/useCourtSlotsData";
+import { useCourtSlotsMutations } from "@/components/court-slots/hooks/useCourtSlotsMutations";
+import { useDayReport } from "@/components/court-slots/hooks/useDayReport";
+import { usePdfGenerator } from "@/components/court-slots/hooks/usePdfGenerator";
+import { CourtSlotFilters } from "@/components/court-slots/CourtSlotFilters";
+import { DayNotesEditor } from "@/components/court-slots/DayNotesEditor";
+import { ColorLegend } from "@/components/court-slots/ColorLegend";
+import { CourtSlotTable } from "@/components/court-slots/CourtSlotTable";
+import { DaySummary } from "@/components/court-slots/DaySummary";
 import type { CourtSlotDTO } from "@/models/dto/court";
 import type { CourtSlotDB } from "@/models/db/court";
-import type { PaymentMethodDTO } from "@/models/dto/payment-method";
-
-const courtPillClasses = (courtName?: string | null) => {
-  if (!courtName) {
-    return "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200";
-  }
-
-  if (courtName.toUpperCase().includes("INDOOR")) {
-    return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-100";
-  }
-
-  if (courtName.toUpperCase().includes("OUTDOOR")) {
-    return "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-100";
-  }
-
-  // fallback genérico
-  return "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-100";
-};
-
-const PAYMENT_COLORS = [
-  "border-emerald-300 bg-emerald-50 dark:bg-emerald-900/30",
-  "border-sky-300 bg-sky-50 dark:bg-sky-900/30",
-  "border-amber-300 bg-amber-50 dark:bg-amber-900/30",
-  "border-violet-300 bg-violet-50 dark:bg-violet-900/30",
-];
-
-const paymentColorById = (
-  id: number | null | undefined,
-  paymentMethods: PaymentMethodDTO[]
-) => {
-  if (!id)
-    return "border-red-400 bg-red-50 text-red-700 dark:bg-red-900/40 dark:border-red-700 dark:text-red-300";
-
-  const idx = paymentMethods.findIndex((pm) => pm.id === id);
-  if (idx === -1) return "border-slate-200 bg-background";
-
-  return PAYMENT_COLORS[idx % PAYMENT_COLORS.length];
-};
-
-// Precio por jugador según tipo de cancha
-const getPricePerPlayer = (courtName?: string | null) => {
-  if (!courtName) return 0;
-
-  const upper = courtName.toUpperCase();
-
-  if (upper.includes("INDOOR")) return 7000;
-  if (upper.includes("OUTDOOR")) return 5000;
-
-  // fallback si el nombre no contiene ninguna de las palabras
-  return 0;
-};
-
-import { paymentMethodsService, courtSlotsService, courtSlotDayNotesService } from "@/services";
-import type { UpdateCourtSlotInput } from "@/services/court-slots.service";
-import type { CourtSlotDayNoteDTO } from "@/services/court-slot-day-notes.service";
-
-// ---- helpers para fetch ----
-async function fetchPaymentMethods(): Promise<PaymentMethodDTO[]> {
-  return paymentMethodsService.getAll(true, "COURT");
-}
-
-async function fetchCourtSlots(date: string): Promise<CourtSlotDTO[]> {
-  return courtSlotsService.getByDate(date);
-}
 
 export default function CourtSlotsPage() {
   const [selectedDate, setSelectedDate] = useState<string>(() => {
-    // Crear fecha en zona horaria local, no UTC
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const day = String(now.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   });
-  const queryClient = useQueryClient();
 
-  // Estado local para UI instantánea
   const [localSlots, setLocalSlots] = useState<CourtSlotDTO[]>([]);
-  // Guardar estado anterior para revertir en caso de error
   const previousSlotsRef = useRef<Map<number, CourtSlotDTO>>(new Map());
-  
-  // Estado para notas globales del día
   const [dayNotes, setDayNotes] = useState<string>("");
   const [isEditingDayNotes, setIsEditingDayNotes] = useState(false);
 
-  // Métodos de pago
+  // Hooks de datos
   const {
-    data: paymentMethods = [],
-    isLoading: loadingPayments,
-    isError: isPaymentMethodsError,
-  } = useQuery({
-    queryKey: ["payment-methods", "COURT"],
-    queryFn: fetchPaymentMethods,
-    staleTime: 1000 * 60 * 5,
-  });
+    paymentMethods,
+    loadingPayments,
+    isPaymentMethodsError,
+    slots,
+    loadingSlots,
+    fetchingSlots,
+    refetchSlots,
+    isCourtSlotsError,
+    dayNoteData,
+    loadingDayNotes,
+  } = useCourtSlotsData(selectedDate);
 
-  // Slots de canchas por día
-  const {
-    data: slots = [],
-    isLoading: loadingSlots,
-    isFetching: fetchingSlots,
-    refetch: refetchSlots,
-    isError: isCourtSlotsError,
-  } = useQuery({
-    queryKey: ["court-slots", selectedDate],
-    queryFn: () => fetchCourtSlots(selectedDate),
-    enabled: !!selectedDate,
-    staleTime: 1000 * 60 * 5, // 5 minutos - los slots no cambian frecuentemente
-    gcTime: 1000 * 60 * 10, // 10 minutos en cache
-  });
+  // Hooks de mutaciones
+  const { generateMutation, updateSlotMutation, saveDayNotesMutation } =
+    useCourtSlotsMutations(
+      selectedDate,
+      localSlots,
+      setLocalSlots,
+      previousSlotsRef,
+      paymentMethods
+    );
 
-  // Notas globales del día
-  const {
-    data: dayNoteData,
-    isLoading: loadingDayNotes,
-    refetch: refetchDayNotes,
-  } = useQuery({
-    queryKey: ["court-slot-day-notes", selectedDate],
-    queryFn: async () => {
-      const note = await courtSlotDayNotesService.getByDate(selectedDate);
-      return note;
-    },
-    enabled: !!selectedDate,
-    staleTime: 1000 * 60 * 5,
-  });
+  // Hook de reporte
+  const { dayReport, totalRevenue, notPlayedByCourtType } = useDayReport(
+    localSlots,
+    paymentMethods
+  );
 
+  // Hook de PDF
+  const { handleDownloadPdf } = usePdfGenerator();
+
+  // Manejo de errores
   useEffect(() => {
     if (isPaymentMethodsError) {
       toast.error("No se pudieron cargar los métodos de pago.");
@@ -180,102 +83,23 @@ export default function CourtSlotsPage() {
   }, [isCourtSlotsError]);
 
   // Sync de slots de server -> local
-  // NOTA: Este useEffect se mueve después de la declaración de updateSlotMutation
-
-  // Generar turnos del día
-  const generateMutation = useMutation({
-    mutationFn: async (date: string) => {
-      return courtSlotsService.generate({ date });
-    },
-    onSuccess: (data, variables) => {
-      // Verificar si se generaron nuevos slots o si ya existían
-      const existingSlots = localSlots.length;
-      const newSlots = data.length;
-      
-      if (existingSlots > 0 && newSlots === existingSlots) {
-        // Los slots ya existían
-        toast.info("Los turnos para este día ya fueron generados anteriormente.");
-      } else {
-        // Se generaron nuevos slots
-        toast.success("Turnos generados correctamente.");
-      }
-      queryClient.invalidateQueries({ queryKey: ["court-slots", selectedDate] });
-    },
-    onError: (error) => {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "No se pudieron generar los turnos del día."
-      );
-    },
-  });
-
-  // Actualizar un slot - actualización optimista
-  const updateSlotMutation = useMutation({
-    mutationFn: async (params: { slotId: number; patch: UpdateCourtSlotInput }) => {
-      return courtSlotsService.update(params.slotId, params.patch);
-    },
-    onError: (error, { slotId }) => {
-      // Revertir el cambio en localSlots usando el estado guardado
-      const previousSlot = previousSlotsRef.current.get(slotId);
-      if (previousSlot) {
-        setLocalSlots((prev) =>
-          prev.map((slot) => (slot.id === slotId ? previousSlot : slot))
-        );
-        previousSlotsRef.current.delete(slotId);
-      } else {
-        // Si no tenemos el estado anterior, invalidar la query para refrescar
-        queryClient.invalidateQueries({ queryKey: ["court-slots", selectedDate] });
-      }
-      toast.error("Error al actualizar el turno. Por favor, intenta nuevamente.");
-    },
-    onSuccess: (updated, { slotId }) => {
-      // Limpiar el estado anterior guardado
-      previousSlotsRef.current.delete(slotId);
-      // Sincronizar con el servidor - actualizar localSlots con la respuesta del servidor
-      // Solo actualizar si el slot realmente cambió para evitar re-renders innecesarios
-      setLocalSlots((prev) => {
-        const currentSlot = prev.find((s) => s.id === updated.id);
-        // Si el slot local ya tiene los mismos valores que el actualizado, no actualizar
-        if (currentSlot && JSON.stringify(currentSlot) === JSON.stringify(updated)) {
-          return prev;
-        }
-        return prev.map((s) => (s.id === updated.id ? updated : s));
-      });
-      // Actualizar el cache de React Query directamente (sin invalidar para evitar refetch)
-      queryClient.setQueryData<CourtSlotDTO[]>(
-        ["court-slots", selectedDate],
-        (old) => old?.map((s) => (s.id === updated.id ? updated : s)) ?? []
-      );
-    },
-  });
-
-  // Sync de slots de server -> local (después de declarar updateSlotMutation)
-  // Solo actualizar si no hay actualizaciones en progreso para evitar sobrescribir cambios optimistas
   useEffect(() => {
-    // Cuando cambia la fecha, limpiar los slots locales inmediatamente
     setLocalSlots([]);
   }, [selectedDate]);
 
   useEffect(() => {
     if (!updateSlotMutation.isPending) {
-      // Actualizar con los nuevos slots (pueden estar vacíos si no hay datos para ese día)
       setLocalSlots((prev) => {
-        // Si los slots están vacíos, actualizar directamente
         if (slots.length === 0) {
           return [];
         }
-        // Comparar por longitud y IDs para evitar comparaciones innecesarias
         if (prev.length !== slots.length) {
           return slots;
         }
-        // Verificar si algún slot cambió comparando IDs
-        // Si los arrays tienen los mismos IDs en el mismo orden, asumimos que no hay cambios
         const hasChanges = prev.some((p, idx) => {
           const s = slots[idx];
           return !s || p.id !== s.id;
         });
-        // Si hay cambios en IDs, actualizar. Si no, mantener el estado local (puede tener cambios optimistas)
         return hasChanges ? slots : prev;
       });
     }
@@ -291,27 +115,8 @@ export default function CourtSlotsPage() {
     setIsEditingDayNotes(false);
   }, [dayNoteData]);
 
-  // Mutation para guardar notas del día
-  const saveDayNotesMutation = useMutation({
-    mutationFn: async (notes: string | null) => {
-      return courtSlotDayNotesService.upsert(selectedDate, notes);
-    },
-    onSuccess: () => {
-      toast.success("Notas del día guardadas correctamente.");
-      queryClient.invalidateQueries({ queryKey: ["court-slot-day-notes", selectedDate] });
-      setIsEditingDayNotes(false);
-    },
-    onError: (error) => {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "No se pudieron guardar las notas del día."
-      );
-    },
-  });
-
+  // Handlers
   const handleGenerateDay = () => {
-    // Verificar si ya hay slots para este día
     if (localSlots.length > 0) {
       toast.info("Los turnos para este día ya fueron generados.");
       return;
@@ -323,15 +128,29 @@ export default function CourtSlotsPage() {
     refetchSlots();
   };
 
-  // UI instantánea + PATCH en paralelo
-  const updateSlotField = (slotId: number, patch: Partial<Pick<CourtSlotDB, "was_played" | "notes" | "player1_payment_method_id" | "player1_note" | "player2_payment_method_id" | "player2_note" | "player3_payment_method_id" | "player3_note" | "player4_payment_method_id" | "player4_note">>) => {
-    // Guardar el estado anterior antes de actualizar (para revertir en caso de error)
+  const updateSlotField = (
+    slotId: number,
+    patch: Partial<
+      Pick<
+        CourtSlotDB,
+        | "was_played"
+        | "notes"
+        | "player1_payment_method_id"
+        | "player1_note"
+        | "player2_payment_method_id"
+        | "player2_note"
+        | "player3_payment_method_id"
+        | "player3_note"
+        | "player4_payment_method_id"
+        | "player4_note"
+      >
+    >
+  ) => {
     const currentSlot = localSlots.find((s) => s.id === slotId);
     if (currentSlot && !previousSlotsRef.current.has(slotId)) {
       previousSlotsRef.current.set(slotId, { ...currentSlot });
     }
 
-    // Actualizar UI inmediatamente
     setLocalSlots((prev) =>
       prev.map((slot) => {
         if (slot.id !== slotId) return slot;
@@ -358,346 +177,32 @@ export default function CourtSlotsPage() {
       })
     );
 
-    // Enviar actualización al servidor de forma asíncrona
     updateSlotMutation.mutate({ slotId, patch });
   };
 
-  const formatTime = (t: string) => t.slice(0, 5);
-
-  // Helper para parsear fecha YYYY-MM-DD en zona horaria local
-  const parseLocalDate = (dateStr: string): Date => {
-    const [year, month, day] = dateStr.split('-').map(Number);
-    return new Date(year, month - 1, day);
+  const handleSaveDayNotes = (notes: string | null) => {
+    saveDayNotesMutation.mutate(notes);
   };
 
-  const saving = updateSlotMutation.isPending;
+  const handleCancelDayNotes = () => {
+    setIsEditingDayNotes(false);
+    setDayNotes(dayNoteData?.notes || "");
+  };
+
+  const handleDownloadPdfClick = () => {
+    handleDownloadPdf(
+      selectedDate,
+      localSlots,
+      dayReport,
+      totalRevenue,
+      notPlayedByCourtType as Record<string, string[]>,
+      dayNoteData || null,
+      dayNotes
+    );
+  };
 
   const initialSlotsLoading = loadingSlots && !localSlots.length;
-
-  // ---- Reporte del día ----
-  const dayReport = useMemo(() => {
-    if (!localSlots.length) {
-      return {
-        totalSlots: 0,
-        playedSlots: 0,
-        notPlayedSlots: 0,
-        courts: [] as {
-          courtName: string;
-          totalSlots: number;
-          playedSlots: number;
-          notPlayedSlots: number;
-        }[],
-        payments: [] as {
-          paymentMethodId: number;
-          paymentMethodName: string;
-          uses: number; // cuántos jugadores pagaron con este método
-          totalAmount: number; // cuánto se cobró con este método
-        }[],
-      };
-    }
-
-    let totalSlots = 0;
-    let playedSlots = 0;
-    let notPlayedSlots = 0;
-
-    const courtsMap = new Map<
-      string,
-      { totalSlots: number; playedSlots: number; notPlayedSlots: number }
-    >();
-
-    const paymentsMap = new Map<
-      number,
-      { name: string; uses: number; totalAmount: number }
-    >();
-
-    for (const slot of localSlots) {
-      totalSlots += 1;
-      if (slot.was_played) {
-        playedSlots += 1;
-      } else {
-        notPlayedSlots += 1;
-      }
-
-      // --- resumen por cancha ---
-      const courtName = slot.court?.name ?? "Sin cancha";
-      const existingCourt = courtsMap.get(courtName) ?? {
-        totalSlots: 0,
-        playedSlots: 0,
-        notPlayedSlots: 0,
-      };
-
-      existingCourt.totalSlots += 1;
-      if (slot.was_played) {
-        existingCourt.playedSlots += 1;
-      } else {
-        existingCourt.notPlayedSlots += 1;
-      }
-
-      courtsMap.set(courtName, existingCourt);
-
-      // precio por jugador según tipo de cancha
-      const pricePerPlayer = getPricePerPlayer(slot.court?.name);
-
-      // --- resumen por método de pago ---
-      const playersPaymentIds = [
-        slot.player1_payment_method?.id,
-        slot.player2_payment_method?.id,
-        slot.player3_payment_method?.id,
-        slot.player4_payment_method?.id,
-      ];
-
-      for (const pmId of playersPaymentIds) {
-        // Si el jugador no tiene método de pago asignado, lo ignoramos
-        if (!pmId) continue;
-
-        const pm = paymentMethods.find((p) => p.id === pmId);
-        const name = pm?.name ?? `Método #${pmId}`;
-
-        // Detectar si es un método QR (pre-pago)
-        const isPrepaidQR = pm?.name
-          ? pm.name.toUpperCase().includes("QR")
-          : false;
-
-        const existing = paymentsMap.get(pmId) ?? {
-          name,
-          uses: 0,
-          totalAmount: 0,
-        };
-
-        // Siempre contamos cuántas veces se usó el método
-        existing.uses += 1;
-
-        // Solo sumamos al total si:
-        // - el turno fue jugado
-        // - la cancha tiene precio (> 0)
-        // - el método NO es QR (porque ya estaba pago antes)
-        if (slot.was_played && pricePerPlayer > 0 && !isPrepaidQR) {
-          existing.totalAmount += pricePerPlayer;
-        }
-
-        paymentsMap.set(pmId, existing);
-      }
-    }
-
-    return {
-      totalSlots,
-      playedSlots,
-      notPlayedSlots,
-      courts: Array.from(courtsMap.entries()).map(
-        ([courtName, stats]) => ({
-          courtName,
-          ...stats,
-        })
-      ),
-      payments: Array.from(paymentsMap.entries()).map(
-        ([paymentMethodId, data]) => ({
-          paymentMethodId,
-          paymentMethodName: data.name,
-          uses: data.uses,
-          totalAmount: data.totalAmount,
-        })
-      ),
-    };
-  }, [localSlots, paymentMethods]);
-
-  const totalRevenue = useMemo(
-    () =>
-      dayReport.payments.reduce(
-        (sum, pm) => sum + pm.totalAmount,
-        0
-      ),
-    [dayReport.payments]
-  );
-
-  const notPlayedSlots = useMemo(
-    () =>
-      localSlots
-        .filter((slot) => !slot.was_played)
-        .map((slot) => ({
-          id: slot.id,
-          courtName: slot.court?.name ?? "Sin cancha",
-          timeRange: `${formatTime(slot.start_time)} - ${formatTime(
-            slot.end_time
-          )}`,
-        })),
-    [localSlots]
-  );
-
-  const getCourtType = (courtName?: string | null) => {
-    if (!courtName) return "OTRAS";
-
-    const upper = courtName.toUpperCase();
-
-    if (upper.includes("INDOOR")) return "INDOOR";
-    if (upper.includes("OUTDOOR")) return "OUTDOOR";
-
-    return "OTRAS";
-  };
-
-  const notPlayedByCourtType = useMemo(() => {
-    const groups: Record<string, string[]> = {
-      INDOOR: [],
-      OUTDOOR: [],
-      OTRAS: [],
-    };
-
-    for (const slot of localSlots) {
-      if (slot.was_played) continue;
-
-      const courtType = getCourtType(slot.court?.name);
-      const timeRange = `${formatTime(slot.start_time)} - ${formatTime(
-        slot.end_time
-      )}`;
-
-      groups[courtType].push(timeRange);
-    }
-
-    return groups;
-  }, [localSlots]);
-
-  const handleDownloadPdf = () => {
-    if (!localSlots.length) {
-      toast.error("No hay turnos para generar el reporte.");
-      return;
-    }
-
-    const doc = new jsPDF();
-    let y = 15;
-
-    const dateLabel = format(parseLocalDate(selectedDate), "dd/MM/yyyy");
-
-    // Título
-    doc.setFontSize(16);
-    doc.text(`Reporte de turnos - ${dateLabel}`, 105, y, { align: "center" });
-    y += 10;
-
-    doc.setFontSize(11);
-
-    // Resumen general
-    doc.text(`Total de turnos: ${dayReport.totalSlots}`, 14, y);
-    y += 6;
-    doc.text(`Turnos jugados: ${dayReport.playedSlots}`, 14, y);
-    y += 6;
-    doc.text(`Turnos no jugados: ${dayReport.notPlayedSlots}`, 14, y);
-    y += 8;
-
-    // Recaudación
-    doc.setFontSize(12);
-    doc.text("Recaudación (sin QR)", 14, y);
-    y += 6;
-    doc.setFontSize(11);
-    doc.text(
-      `$${totalRevenue.toLocaleString("es-AR")}`,
-      14,
-      y
-    );
-    y += 10;
-
-    // Detalle por medio de pago
-    doc.setFontSize(12);
-    doc.text("Detalle por medio de pago", 14, y);
-    y += 6;
-    doc.setFontSize(10);
-
-    if (!dayReport.payments.length) {
-      doc.text("No hay pagos registrados.", 14, y);
-      y += 8;
-    } else {
-      const orderedPayments = [...dayReport.payments].sort(
-        (a, b) => b.totalAmount - a.totalAmount
-      );
-
-      orderedPayments.forEach((pm) => {
-        const line = `${pm.paymentMethodName} - ${pm.uses} jug. - $${pm.totalAmount.toLocaleString(
-          "es-AR"
-        )}`;
-        doc.text(line, 14, y);
-        y += 5;
-        if (y > 280) {
-          doc.addPage();
-          y = 15;
-        }
-      });
-      y += 5;
-    }
-
-    // Turnos no jugados agrupados
-    doc.setFontSize(12);
-    doc.text("Turnos no jugados", 14, y);
-    y += 6;
-    doc.setFontSize(10);
-
-    if (dayReport.notPlayedSlots === 0) {
-      doc.text("Todos los turnos se jugaron.", 14, y);
-      y += 8;
-    } else {
-      doc.text(
-        `${dayReport.notPlayedSlots} turno(s) sin jugar`,
-        14,
-        y
-      );
-      y += 6;
-
-      const printGroup = (label: string, items: string[]) => {
-        if (!items.length) return;
-        if (y > 280) {
-          doc.addPage();
-          y = 15;
-        }
-        doc.setFont("helvetica", "bold");
-        doc.text(label, 14, y);
-        y += 5;
-        doc.setFont("helvetica", "normal");
-        doc.text(items.join(", "), 16, y, { maxWidth: 180 });
-        y += 7;
-      };
-
-      printGroup("INDOOR", notPlayedByCourtType.INDOOR);
-      printGroup("OUTDOOR", notPlayedByCourtType.OUTDOOR);
-      printGroup("OTRAS", notPlayedByCourtType.OTRAS);
-    }
-
-    // Notas del día
-    if (y > 270) {
-      doc.addPage();
-      y = 15;
-    }
-    doc.setFontSize(12);
-    doc.setTextColor(0, 0, 0);
-    doc.setFont("helvetica", "bold");
-    doc.text("Notas del día", 14, y);
-    y += 6;
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    
-    const dayNotesText = dayNoteData?.notes || dayNotes || "";
-    if (dayNotesText) {
-      // Dividir el texto en líneas si es muy largo
-      const lines = doc.splitTextToSize(dayNotesText, 180);
-      doc.text(lines, 14, y);
-      y += lines.length * 5 + 5;
-    } else {
-      doc.text("No hay notas para este día.", 14, y);
-      y += 8;
-    }
-
-    // Nota QR
-    if (y > 270) {
-      doc.addPage();
-      y = 15;
-    }
-    doc.setFontSize(9);
-    doc.setTextColor(120);
-    doc.text(
-      "Nota: Los pagos con QR se consideran prepagos y no se incluyen en la recaudación del día.",
-      14,
-      y,
-      { maxWidth: 180 }
-    );
-
-    // Descargar
-    doc.save(`reporte-turnos-${selectedDate}.pdf`);
-  };
+  const saving = updateSlotMutation.isPending;
 
   return (
     <Card className="flex flex-col gap-4 p-6">
@@ -710,415 +215,39 @@ export default function CourtSlotsPage() {
       </CardHeader>
 
       <CardContent className="space-y-4 p-0">
-        {/* Layout principal: resumen al costado en desktop */}
         <div className="flex flex-col md:flex-row gap-6">
-          {/* Columna izquierda: filtros, leyenda, tabla */}
           <div className="flex-1 space-y-4">
-            {/* Filtros / generación */}
-            <div className="flex flex-wrap gap-4 items-end justify-between">
-              <div className="flex flex-wrap gap-4 items-end">
-                <div className="space-y-1">
-                  <Label className="flex items-center gap-1 text-xs">
-                    <CalendarIcon className="w-3 h-3" />
-                    Fecha
-                  </Label>
-                  <Input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                  />
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleRefresh}
-                  disabled={fetchingSlots}
-                >
-                  <RefreshCwIcon className="w-4 h-4 mr-1" />
-                  {fetchingSlots ? "Actualizando..." : "Refrescar"}
-                </Button>
-              </div>
+            <CourtSlotFilters
+              selectedDate={selectedDate}
+              onDateChange={setSelectedDate}
+              onRefresh={handleRefresh}
+              onGenerate={handleGenerateDay}
+              isGenerating={generateMutation.isPending}
+              isRefreshing={fetchingSlots}
+            />
 
-              <Button
-                onClick={handleGenerateDay}
-                disabled={generateMutation.isPending}
-              >
-                {generateMutation.isPending && (
-                  <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                Generar turnos del día
-              </Button>
-            </div>
+            <DayNotesEditor
+              notes={dayNotes}
+              isEditing={isEditingDayNotes}
+              onEdit={() => setIsEditingDayNotes(true)}
+              onSave={handleSaveDayNotes}
+              onCancel={handleCancelDayNotes}
+              onNotesChange={setDayNotes}
+              isSaving={saveDayNotesMutation.isPending}
+              isLoading={loadingDayNotes}
+            />
 
-            {/* Notas globales del día */}
-            <div className="border rounded-lg p-4 bg-muted/30 space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="flex items-center gap-2 text-sm font-semibold">
-                  <FileTextIcon className="w-4 h-4" />
-                  Notas del día
-                </Label>
-                {!isEditingDayNotes && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setIsEditingDayNotes(true)}
-                    className="h-7 text-xs"
-                  >
-                    Editar
-                  </Button>
-                )}
-              </div>
-              {isEditingDayNotes ? (
-                <div className="space-y-2">
-                  <textarea
-                    value={dayNotes}
-                    onChange={(e) => setDayNotes(e.target.value)}
-                    placeholder="Agregá notas globales para este día..."
-                    className="w-full min-h-[80px] px-3 py-2 text-sm border rounded-md resize-y focus:outline-none focus:ring-2 focus:ring-ring"
-                    disabled={saveDayNotesMutation.isPending}
-                  />
-                  <div className="flex gap-2 justify-end">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setIsEditingDayNotes(false);
-                        // Restaurar valor original
-                        setDayNotes(dayNoteData?.notes || "");
-                      }}
-                      disabled={saveDayNotesMutation.isPending}
-                      className="h-7 text-xs"
-                    >
-                      Cancelar
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => saveDayNotesMutation.mutate(dayNotes || null)}
-                      disabled={saveDayNotesMutation.isPending}
-                      className="h-7 text-xs"
-                    >
-                      {saveDayNotesMutation.isPending ? (
-                        <>
-                          <Loader2Icon className="h-3 w-3 mr-1 animate-spin" />
-                          Guardando...
-                        </>
-                      ) : (
-                        "Guardar"
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-sm text-muted-foreground min-h-[40px]">
-                  {loadingDayNotes ? (
-                    <Skeleton className="h-10 w-full" />
-                  ) : dayNotes ? (
-                    <p className="whitespace-pre-wrap">{dayNotes}</p>
-                  ) : (
-                    <p className="text-muted-foreground/60 italic">
-                      No hay notas para este día. Hacé clic en &quot;Editar&quot; para agregar notas.
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
+            <ColorLegend
+              paymentMethods={paymentMethods}
+              isLoadingPayments={loadingPayments}
+            />
 
-            {/* Leyenda de colores */}
-            <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-foreground">Canchas:</span>
-                <span className="inline-flex items-center gap-1">
-                  <span className="h-3 w-3 rounded-full bg-emerald-500" />
-                  Cancha 1
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <span className="h-3 w-3 rounded-full bg-sky-500" />
-                  Cancha 2
-                </span>
-              </div>
-
-              {/* Métodos de pago o skeleton */}
-              {loadingPayments && !paymentMethods.length ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-semibold text-foreground">
-                    Métodos de pago:
-                  </span>
-                  <Skeleton className="h-3 w-24 rounded-full" />
-                  <Skeleton className="h-3 w-20 rounded-full" />
-                  <Skeleton className="h-3 w-16 rounded-full" />
-                </div>
-              ) : paymentMethods.length > 0 ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-semibold text-foreground">
-                    Métodos de pago:
-                  </span>
-                  {paymentMethods.map((pm, idx) => (
-                    <span key={pm.id} className="inline-flex items-center gap-1">
-                      <span
-                        className={`
-                          h-3 w-3 rounded-full border
-                          ${PAYMENT_COLORS[idx % PAYMENT_COLORS.length]}
-                        `}
-                      />
-                      {pm.name}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-
-            {/* Tabla de slots */}
-            <div className="overflow-x-auto">
-              {initialSlotsLoading ? (
-                // Skeleton de tabla de turnos
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Jugado</TableHead>
-                      <TableHead>Cancha</TableHead>
-                      <TableHead>Dia</TableHead>
-                      <TableHead>Horario</TableHead>
-                      <TableHead>Jugador 1</TableHead>
-                      <TableHead>Jugador 2</TableHead>
-                      <TableHead>Jugador 3</TableHead>
-                      <TableHead>Jugador 4</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {[1, 2, 3, 4].map((i) => (
-                      <TableRow key={i}>
-                        <TableCell className="text-center">
-                          <Skeleton className="h-4 w-4 rounded-sm mx-auto" />
-                        </TableCell>
-                        <TableCell>
-                          <Skeleton className="h-5 w-20 rounded-full" />
-                        </TableCell>
-                        <TableCell>
-                          <Skeleton className="h-4 w-32" />
-                        </TableCell>
-                        <TableCell>
-                          <Skeleton className="h-4 w-24" />
-                        </TableCell>
-                        {[1, 2, 3, 4].map((j) => (
-                          <TableCell key={j}>
-                            <Skeleton className="h-8 w-32 rounded-md" />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : localSlots.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4">
-                  No hay turnos generados para esta fecha.
-                </p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Jugado</TableHead>
-                      <TableHead>Cancha</TableHead>
-                      <TableHead>Dia</TableHead>
-                      <TableHead>Horario</TableHead>
-                      <TableHead>Jugador 1</TableHead>
-                      <TableHead>Jugador 2</TableHead>
-                      <TableHead>Jugador 3</TableHead>
-                      <TableHead>Jugador 4</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {localSlots.map((slot) => (
-                      <TableRow key={slot.id}>
-                        <TableCell className="text-center">
-                          <Checkbox
-                            checked={slot.was_played}
-                            onCheckedChange={(checked) =>
-                              updateSlotField(slot.id, {
-                                was_played: Boolean(checked),
-                              })
-                            }
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <span
-                            className={`
-                              inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium
-                              ${courtPillClasses(slot.court?.name)}
-                            `}
-                          >
-                            {slot.court?.name ?? "-"}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          {(() => {
-                            // Parsear fecha YYYY-MM-DD en zona horaria local
-                            const [year, month, day] = slot.slot_date.split('-').map(Number);
-                            const date = new Date(year, month - 1, day);
-                            return format(
-                              date,
-                              "EEEE dd/MM/yyyy",
-                              { locale: es }
-                            ).toUpperCase();
-                          })()}
-                        </TableCell>
-                        <TableCell>
-                          {formatTime(slot.start_time)} -{" "}
-                          {formatTime(slot.end_time)}
-                        </TableCell>
-
-                        {/* Jugador 1 */}
-                        <TableCell className="min-w-[160px]">
-                          <Select
-                            value={
-                              slot.player1_payment_method?.id
-                                ? String(slot.player1_payment_method.id)
-                                : "none"
-                            }
-                            onValueChange={(value) =>
-                              updateSlotField(slot.id, {
-                                player1_payment_method_id:
-                                  value === "none" ? null : Number(value),
-                              })
-                            }
-                          >
-                            <SelectTrigger
-                              className={`
-                                text-xs
-                                ${paymentColorById(
-                                  slot.player1_payment_method?.id,
-                                  paymentMethods
-                                )}
-                              `}
-                            >
-                              <SelectValue placeholder="Método de pago" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">SIN ASIGNAR</SelectItem>
-                              {paymentMethods.map((pm) => (
-                                <SelectItem key={pm.id} value={String(pm.id)}>
-                                  {pm.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-
-                        {/* Jugador 2 */}
-                        <TableCell className="min-w-[160px]">
-                          <Select
-                            value={
-                              slot.player2_payment_method?.id
-                                ? String(slot.player2_payment_method.id)
-                                : "none"
-                            }
-                            onValueChange={(value) =>
-                              updateSlotField(slot.id, {
-                                player2_payment_method_id:
-                                  value === "none" ? null : Number(value),
-                              })
-                            }
-                          >
-                            <SelectTrigger
-                              className={`
-                                text-xs
-                                ${paymentColorById(
-                                  slot.player2_payment_method?.id,
-                                  paymentMethods
-                                )}
-                              `}
-                            >
-                              <SelectValue placeholder="Método de pago" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">SIN ASIGNAR</SelectItem>
-                              {paymentMethods.map((pm) => (
-                                <SelectItem key={pm.id} value={String(pm.id)}>
-                                  {pm.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-
-                        {/* Jugador 3 */}
-                        <TableCell className="min-w-[160px]">
-                          <Select
-                            value={
-                              slot.player3_payment_method?.id
-                                ? String(slot.player3_payment_method.id)
-                                : "none"
-                            }
-                            onValueChange={(value) =>
-                              updateSlotField(slot.id, {
-                                player3_payment_method_id:
-                                  value === "none" ? null : Number(value),
-                              })
-                            }
-                          >
-                            <SelectTrigger
-                              className={`
-                                text-xs
-                                ${paymentColorById(
-                                  slot.player3_payment_method?.id,
-                                  paymentMethods
-                                )}
-                              `}
-                            >
-                              <SelectValue placeholder="Método de pago" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">SIN ASIGNAR</SelectItem>
-                              {paymentMethods.map((pm) => (
-                                <SelectItem key={pm.id} value={String(pm.id)}>
-                                  {pm.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-
-                        {/* Jugador 4 */}
-                        <TableCell className="min-w-[160px]">
-                          <Select
-                            value={
-                              slot.player4_payment_method?.id
-                                ? String(slot.player4_payment_method.id)
-                                : "none"
-                            }
-                            onValueChange={(value) =>
-                              updateSlotField(slot.id, {
-                                player4_payment_method_id:
-                                  value === "none" ? null : Number(value),
-                              })
-                            }
-                          >
-                            <SelectTrigger
-                              className={`
-                                text-xs
-                                ${paymentColorById(
-                                  slot.player4_payment_method?.id,
-                                  paymentMethods
-                                )}
-                              `}
-                            >
-                              <SelectValue placeholder="Método de pago" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">SIN ASIGNAR</SelectItem>
-                              {paymentMethods.map((pm) => (
-                                <SelectItem key={pm.id} value={String(pm.id)}>
-                                  {pm.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </div>
+            <CourtSlotTable
+              slots={localSlots}
+              paymentMethods={paymentMethods}
+              onSlotUpdate={updateSlotField}
+              isLoading={initialSlotsLoading}
+            />
 
             {saving && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2">
@@ -1128,122 +257,14 @@ export default function CourtSlotsPage() {
             )}
           </div>
 
-          {/* Columna derecha: resumen del día */}
-          {localSlots.length > 0 && (
-            <div className="w-full md:w-64 shrink-0 space-y-4">
-              <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleDownloadPdf}
-                  disabled={!localSlots.length}
-                >
-                  Generar Reporte Diario
-              </Button>
-              <div className="rounded-lg border bg-muted/40 px-4 py-3">
-                <p className="text-sm font-semibold">Resumen del día</p>
-                <p className="text-xs text-muted-foreground mb-2">
-                  {format(parseLocalDate(selectedDate), "dd/MM/yyyy")}
-                </p>
-
-                {/* Recaudación */}
-                <div className="space-y-1">
-                  <p className="text-[11px] uppercase text-muted-foreground">
-                    Recaudación (sin QR)
-                  </p>
-                  <p className="text-lg font-bold">
-                    ${totalRevenue.toLocaleString("es-AR")}
-                  </p>
-                </div>
-
-                {/* Detalle por método de pago */}
-                {dayReport.payments.length > 0 && (
-                  <div className="mt-4 space-y-1">
-                    <p className="text-[11px] uppercase text-muted-foreground">
-                      Por medio de pago
-                    </p>
-                    <div className="mt-1 space-y-1 max-h-40 overflow-y-auto pr-1">
-                      {dayReport.payments
-                        // opcional: ordenamos por monto descendente
-                        .slice()
-                        .sort((a, b) => b.totalAmount - a.totalAmount)
-                        .map((pm) => (
-                          <div
-                            key={pm.paymentMethodId}
-                            className="flex items-center justify-between text-[11px]"
-                          >
-                            <span className="truncate">
-                              {pm.paymentMethodName}
-                              <span className="text-[10px] text-muted-foreground">
-                                {" "}
-                                ({pm.uses} jug.)
-                              </span>
-                            </span>
-                            <span className="font-semibold">
-                              ${pm.totalAmount.toLocaleString("es-AR")}
-                            </span>
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Turnos no jugados */}
-                <div className="mt-4 space-y-1">
-                  <p className="text-[11px] uppercase text-muted-foreground">
-                    Turnos no jugados
-                  </p>
-
-                  {dayReport.notPlayedSlots === 0 ? (
-                    <p className="text-xs text-muted-foreground">
-                      Todos los turnos se jugaron.
-                    </p>
-                  ) : (
-                    <div className="mt-1 space-y-2 text-[11px]">
-                      <p className="text-[10px] text-muted-foreground">
-                        {dayReport.notPlayedSlots} turno(s) sin jugar
-                      </p>
-
-                      {/* INDOOR */}
-                      {notPlayedByCourtType.INDOOR.length > 0 && (
-                        <div>
-                          <p className="font-semibold">INDOOR</p>
-                          <p className="text-muted-foreground">
-                            {notPlayedByCourtType.INDOOR.join(", ")}
-                          </p>
-                        </div>
-                      )}
-
-                      {/* OUTDOOR */}
-                      {notPlayedByCourtType.OUTDOOR.length > 0 && (
-                        <div>
-                          <p className="font-semibold mt-1">OUTDOOR</p>
-                          <p className="text-muted-foreground">
-                            {notPlayedByCourtType.OUTDOOR.join(", ")}
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Otras canchas (sin tipo) */}
-                      {notPlayedByCourtType.OTRAS.length > 0 && (
-                        <div>
-                          <p className="font-semibold mt-1">OTRAS</p>
-                          <p className="text-muted-foreground">
-                            {notPlayedByCourtType.OTRAS.join(", ")}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Info QR */}
-                <p className="text-[10px] text-muted-foreground mt-4">
-                  Los pagos con QR se consideran prepagos y no se incluyen en la
-                  recaudación del día.
-                </p>
-              </div>
-            </div>
-          )}
+          <DaySummary
+            selectedDate={selectedDate}
+            dayReport={dayReport}
+            totalRevenue={totalRevenue}
+            notPlayedByCourtType={notPlayedByCourtType}
+            onDownloadPdf={handleDownloadPdfClick}
+            hasSlots={localSlots.length > 0}
+          />
         </div>
       </CardContent>
     </Card>
