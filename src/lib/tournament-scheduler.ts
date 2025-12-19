@@ -214,7 +214,8 @@ export function scheduleGroupMatches(
 
   // 6) Función interna para intentar asignar con un orden específico
   const tryAssignWithOrder = (
-    order: GroupMatchPayload[]
+    order: GroupMatchPayload[],
+    relaxOrderRestrictions: boolean = false
   ): { success: boolean; assignments: Map<number, Assignment>; totalScore: number } => {
     const testAssignments = new Map<number, Assignment>();
     const testUsedSlots = new Set<number>();
@@ -223,7 +224,7 @@ export function scheduleGroupMatches(
       Array<{ date: string; startTime: string }>
     >();
 
-    const minSlotsBetweenMatches = 1;
+    const minSlotsBetweenMatches = 1; // Siempre mantener descanso mínimo
     let totalScore = 0;
 
     for (const match of order) {
@@ -247,7 +248,7 @@ export function scheduleGroupMatches(
           (id): id is number => id !== null
         );
 
-        // Validaciones (mismo código que antes)
+        // Validaciones estrictas: no permitir partidos consecutivos del mismo equipo
         if (teamsInMatch.length > 0) {
           for (const teamId of teamsInMatch) {
             const assignedForTeam = testTeamAssignments.get(teamId) || [];
@@ -269,7 +270,9 @@ export function scheduleGroupMatches(
 
         if (!valid) continue;
 
-        // Validaciones especiales para grupos de 4 (mismo código que antes)
+        // Validaciones especiales para grupos de 4
+        // En modo relajado, permitimos flexibilidad en el orden deportivo pero con penalización
+        let orderPenalty = 0;
         if (match.match_order === 3) {
           const match2 = matchesPayload.find(
             (m) =>
@@ -286,7 +289,12 @@ export function scheduleGroupMatches(
               const minGapMinutes = matchDurationMinutes;
               const gapMinutes = slotStartMinutes - match2EndMinutes;
               if (gapMinutes < minGapMinutes) {
-                valid = false;
+                if (relaxOrderRestrictions) {
+                  // Permitir pero penalizar fuertemente
+                  orderPenalty += 10000 * (minGapMinutes - gapMinutes);
+                } else {
+                  valid = false;
+                }
               }
             }
           }
@@ -307,13 +315,28 @@ export function scheduleGroupMatches(
                 const match3EndMinutes = match3StartMinutes + matchDurationMinutes;
                 const slotStartMinutes = timeToMinutesOfDay(slot.startTime);
                 if (slotStartMinutes < match3EndMinutes) {
-                  valid = false;
+                  if (relaxOrderRestrictions) {
+                    // Permitir pero penalizar fuertemente
+                    orderPenalty += 15000;
+                  } else {
+                    valid = false;
+                  }
                 }
               } else if (slot.date < match3Assignment.date) {
-                valid = false;
+                if (relaxOrderRestrictions) {
+                  // Permitir pero penalizar fuertemente
+                  orderPenalty += 20000;
+                } else {
+                  valid = false;
+                }
               }
             } else {
-              valid = false;
+              // Si match3 no está asignado, solo rechazar si no estamos en modo relajado
+              if (!relaxOrderRestrictions) {
+                valid = false;
+              } else {
+                orderPenalty += 25000;
+              }
             }
           }
         }
@@ -322,6 +345,9 @@ export function scheduleGroupMatches(
 
         // Calcular score (mismo código que antes)
         let score = 0;
+
+        // Aplicar penalización por violaciones de orden deportivo (solo en modo relajado)
+        score -= orderPenalty;
 
         // Bonus por slots tempranos
         const slotIndex = i;
@@ -470,19 +496,44 @@ export function scheduleGroupMatches(
   };
 
   // 7) Probar todas las ordenaciones y elegir la mejor
+  // Primero intentar con restricciones estrictas
   let bestResult: { success: boolean; assignments: Map<number, Assignment>; totalScore: number } | null = null;
 
   for (const order of ordersToTry) {
-    const result = tryAssignWithOrder(order);
+    const result = tryAssignWithOrder(order, false);
     if (result.success && (!bestResult || result.totalScore > bestResult.totalScore)) {
       bestResult = result;
     }
   }
 
-  // Si ninguna ordenación funcionó, usar la primera que se pudo completar
-  if (!bestResult) {
-    const result = tryAssignWithOrder(baseOrder);
-    bestResult = result;
+  // Si no se encontró solución con restricciones estrictas, intentar con restricciones relajadas
+  // (solo para orden deportivo de grupos de 4, nunca para partidos consecutivos del mismo equipo)
+  if (!bestResult || !bestResult.success) {
+    console.log("No se encontró solución con restricciones estrictas, intentando con restricciones relajadas para orden deportivo...");
+    for (const order of ordersToTry) {
+      const result = tryAssignWithOrder(order, true);
+      if (result.success && (!bestResult || result.totalScore > bestResult.totalScore)) {
+        bestResult = result;
+      }
+    }
+  }
+
+  // Si aún no se encontró solución, generar más variaciones de orden
+  if (!bestResult || !bestResult.success) {
+    console.log("Generando más variaciones de orden...");
+    // Generar más variaciones aleatorias
+    const additionalOrders: GroupMatchPayload[][] = [];
+    for (let i = 0; i < 5; i++) {
+      const shuffled = [...baseOrder].sort(() => Math.random() - 0.5);
+      additionalOrders.push(shuffled);
+    }
+    
+    for (const order of additionalOrders) {
+      const result = tryAssignWithOrder(order, true);
+      if (result.success && (!bestResult || result.totalScore > bestResult.totalScore)) {
+        bestResult = result;
+      }
+    }
   }
 
   if (!bestResult || !bestResult.success) {
