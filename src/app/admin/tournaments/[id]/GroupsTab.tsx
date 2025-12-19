@@ -14,6 +14,7 @@ import { Loader2Icon, PencilIcon, CheckIcon, XIcon, TrashIcon } from "lucide-rea
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatDate, formatTime } from "@/lib/date-utils";
+import { parseLocalDate } from "@/lib/court-slots-utils";
 import { TournamentScheduleDialog, ScheduleConfig } from "@/components/tournament-schedule-dialog";
 import {
   Dialog,
@@ -489,14 +490,24 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
                             <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${groupColor.badgeBg} ${groupColor.badgeText}`}>
                               {groupName}
                             </span>
-                            {m.match_date && (
+                            {m.match_date && m.start_time && (
                               <span className="font-medium text-muted-foreground">
-                                📅 {formatDate(m.match_date)}
+                                {(() => {
+                                  const date = parseLocalDate(m.match_date);
+                                  const dayNames = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+                                  const dayName = dayNames[date.getDay()].toUpperCase();
+                                  return `${dayName} ${formatDate(m.match_date)} ${formatTime(m.start_time)}`;
+                                })()}
                               </span>
                             )}
-                            {m.start_time && (
-                              <span className="text-muted-foreground">
-                                🕐 {formatTime(m.start_time)}
+                            {m.match_date && !m.start_time && (
+                              <span className="font-medium text-muted-foreground">
+                                {(() => {
+                                  const date = parseLocalDate(m.match_date);
+                                  const dayNames = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+                                  const dayName = dayNames[date.getDay()].toUpperCase();
+                                  return `${dayName} ${formatDate(m.match_date)}`;
+                                })()}
                               </span>
                             )}
                             <Button
