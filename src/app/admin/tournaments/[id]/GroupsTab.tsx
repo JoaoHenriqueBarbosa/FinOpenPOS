@@ -10,12 +10,13 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { MatchResultForm } from "@/components/match-result-form";
-import { Loader2Icon, PencilIcon, CheckIcon, XIcon, TrashIcon } from "lucide-react";
+import { Loader2Icon, PencilIcon, CheckIcon, XIcon, TrashIcon, CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatDate, formatTime } from "@/lib/date-utils";
 import { parseLocalDate } from "@/lib/court-slots-utils";
 import { TournamentScheduleDialog, ScheduleConfig } from "@/components/tournament-schedule-dialog";
+import { GroupScheduleViewer } from "@/components/group-schedule-viewer";
 import {
   Dialog,
   DialogContent,
@@ -102,6 +103,7 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
   const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
   const [showRegenerateScheduleDialog, setShowRegenerateScheduleDialog] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [showScheduleViewer, setShowScheduleViewer] = useState(false);
 
   // React Query para compartir cache con TeamsTab
   const {
@@ -333,6 +335,15 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
           <Button
             variant="outline"
             size="sm"
+            onClick={() => setShowScheduleViewer(true)}
+            disabled={hasPlayoffs}
+          >
+            <CalendarIcon className="h-3 w-3 mr-1" />
+            Revisar horarios
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleRegenerateSchedule}
             disabled={regenerating || hasPlayoffs}
           >
@@ -358,6 +369,15 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
           </Button>
         </div>
       </CardHeader>
+
+      <GroupScheduleViewer
+        open={showScheduleViewer}
+        onOpenChange={setShowScheduleViewer}
+        matches={data?.matches || []}
+        groups={data?.groups || []}
+        tournamentId={tournament.id}
+        onScheduleUpdated={load}
+      />
 
       <TournamentScheduleDialog
         open={scheduleDialogOpen}

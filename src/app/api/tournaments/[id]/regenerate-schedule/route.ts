@@ -142,7 +142,48 @@ export async function POST(req: Request, { params }: RouteParams) {
     );
   }
 
-  // 5) Asignar horarios usando el scheduler
+  // 5) Obtener horarios disponibles del torneo
+  const { data: availableSchedules, error: schedulesError } = await supabase
+    .from("tournament_available_schedules")
+    .select("*")
+    .eq("tournament_id", tournamentId)
+    .eq("user_uid", user.id)
+    .order("day_of_week", { ascending: true })
+    .order("start_time", { ascending: true });
+
+  if (schedulesError) {
+    console.error("Error fetching available schedules:", schedulesError);
+    // Continuar sin horarios disponibles (comportamiento anterior)
+  }
+
+  // 6) Obtener restricciones horarias de los equipos (IDs de horarios que no pueden jugar)
+  const teamIds = new Set<number>();
+  matches.forEach((match) => {
+    if (match.team1_id) teamIds.add(match.team1_id);
+    if (match.team2_id) teamIds.add(match.team2_id);
+  });
+
+  const teamRestrictions = new Map<number, number[]>();
+  if (teamIds.size > 0) {
+    const { data: restrictions, error: restrictionsError } = await supabase
+      .from("tournament_team_schedule_restrictions")
+      .select("tournament_team_id, tournament_available_schedule_id")
+      .in("tournament_team_id", Array.from(teamIds))
+      .eq("user_uid", user.id);
+
+    if (!restrictionsError && restrictions) {
+      restrictions.forEach((r: any) => {
+        const teamId = r.tournament_team_id;
+        const scheduleId = r.tournament_available_schedule_id;
+        if (!teamRestrictions.has(teamId)) {
+          teamRestrictions.set(teamId, []);
+        }
+        teamRestrictions.get(teamId)!.push(scheduleId);
+      });
+    }
+  }
+
+  // 7) Asignar horarios usando el scheduler
   const matchDurationMinutes = t.match_duration ?? 60;
 
   console.log(`Regenerating schedule for ${matchesPayload.length} matches with ${scheduleConfig.days.length} days and ${scheduleConfig.courtIds.length} courts`);
@@ -151,7 +192,9 @@ export async function POST(req: Request, { params }: RouteParams) {
     matchesPayload,
     scheduleConfig.days,
     matchDurationMinutes,
-    scheduleConfig.courtIds
+    scheduleConfig.courtIds,
+    availableSchedules || undefined,
+    teamRestrictions
   );
 
   if (!schedulerResult.success) {

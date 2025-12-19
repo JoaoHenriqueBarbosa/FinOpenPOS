@@ -1,5 +1,5 @@
 import { TournamentPlayoff, TournamentTeam } from "@/models/db";
-import type { ApiResponseStandings, GroupsApiResponse, PlayoffRow, TeamDTO, TournamentDTO } from "@/models/dto/tournament";
+import type { ApiResponseStandings, GroupsApiResponse, PlayoffRow, TeamDTO, TournamentDTO, AvailableSchedule } from "@/models/dto/tournament";
 
 export interface CreateTournamentInput {
   name: string;
@@ -101,6 +101,54 @@ class TournamentsService {
     });
     if (!response.ok) {
       throw new Error("Error deleting tournament team");
+    }
+  }
+
+  async getAvailableSchedules(tournamentId: number, grouped: boolean = false): Promise<AvailableSchedule[]> {
+    const url = grouped 
+      ? `${this.baseUrl}/${tournamentId}/available-schedules?grouped=true`
+      : `${this.baseUrl}/${tournamentId}/available-schedules`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error("Failed to fetch available schedules");
+    }
+    return response.json();
+  }
+
+  async updateAvailableSchedules(
+    tournamentId: number,
+    schedules: Omit<AvailableSchedule, "id" | "tournament_id">[]
+  ): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/${tournamentId}/available-schedules`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ schedules }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const errorMessage = errorData.error || "Error al actualizar horarios disponibles";
+      throw new Error(errorMessage);
+    }
+  }
+
+  async updateTeamRestrictions(
+    tournamentId: number,
+    teamId: number,
+    restrictedScheduleIds: number[]
+  ): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/${tournamentId}/teams/${teamId}/restrictions`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ restricted_schedule_ids: restrictedScheduleIds }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const errorMessage = errorData.error || "Error al actualizar restricciones horarias";
+      throw new Error(errorMessage);
     }
   }
 

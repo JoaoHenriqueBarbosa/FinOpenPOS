@@ -23,9 +23,40 @@ type TournamentScheduleDialogProps = {
   onConfirm: (config: ScheduleConfig) => void;
   matchCount: number; // cantidad de partidos a programar
   tournamentMatchDuration?: number; // duración del partido del torneo (en minutos)
+  availableSchedules?: Array<{ day_of_week: number; start_time: string; end_time: string }>; // Horarios disponibles del torneo para pre-llenar
 };
 
 import type { CourtDTO } from "@/models/dto/court";
+
+// Función para obtener la próxima fecha de un día de la semana
+function getNextDateForDayOfWeek(dayOfWeek: number): string {
+  const today = new Date();
+  const currentDay = today.getDay();
+  let daysUntilTarget = (dayOfWeek - currentDay + 7) % 7;
+  if (daysUntilTarget === 0) daysUntilTarget = 7; // Si es hoy, usar la próxima semana
+  const targetDate = new Date(today);
+  targetDate.setDate(today.getDate() + daysUntilTarget);
+  return targetDate.toISOString().split("T")[0];
+}
+
+// Inicializar días desde horarios disponibles si existen
+function getInitialDays(availableSchedules: Array<{ day_of_week: number; start_time: string; end_time: string }>): ScheduleDay[] {
+  if (availableSchedules.length > 0) {
+    return availableSchedules.map((schedule) => ({
+      date: getNextDateForDayOfWeek(schedule.day_of_week),
+      startTime: schedule.start_time,
+      endTime: schedule.end_time,
+    }));
+  }
+  // Si no hay horarios disponibles, usar valores por defecto
+  return [
+    {
+      date: "",
+      startTime: "18:00",
+      endTime: "22:00",
+    },
+  ];
+}
 
 export function TournamentScheduleDialog({
   open,
@@ -35,25 +66,22 @@ export function TournamentScheduleDialog({
   tournamentMatchDuration = 60,
   error = null,
   isLoading = false,
+  availableSchedules = [],
 }: TournamentScheduleDialogProps) {
-  const [days, setDays] = useState<ScheduleDay[]>([
-    {
-      date: "",
-      startTime: "18:00",
-      endTime: "22:00",
-    },
-  ]);
+  const [days, setDays] = useState<ScheduleDay[]>(() => getInitialDays(availableSchedules));
   const [matchDuration, setMatchDuration] = useState<number>(tournamentMatchDuration);
   const [courts, setCourts] = useState<CourtDTO[]>([]);
   const [selectedCourtIds, setSelectedCourtIds] = useState<number[]>([]);
   const [loadingCourts, setLoadingCourts] = useState(false);
 
-  // Resetear matchDuration cuando cambia el valor del torneo o se abre el diálogo
+  // Resetear matchDuration y días cuando cambia el valor del torneo o se abre el diálogo
   useEffect(() => {
     if (open) {
       setMatchDuration(tournamentMatchDuration);
+      // Si hay horarios disponibles, pre-llenar los días
+      setDays(getInitialDays(availableSchedules));
     }
-  }, [open, tournamentMatchDuration]);
+  }, [open, tournamentMatchDuration, availableSchedules]);
 
   // Cargar canchas al abrir el diálogo
   useEffect(() => {

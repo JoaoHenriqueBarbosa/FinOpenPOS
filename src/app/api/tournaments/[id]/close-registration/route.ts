@@ -85,10 +85,10 @@ export async function POST(req: Request, { params }: RouteParams) {
     );
   }
 
-  // 2) traer equipos
+  // 2) traer equipos con sus restricciones horarias
   const { data: teams, error: teamsError } = await supabase
     .from("tournament_teams")
-    .select("id")
+    .select("id, schedule_restrictions")
     .eq("tournament_id", tournamentId)
     .eq("user_uid", user.id)
     .order("id", { ascending: true });
@@ -316,11 +316,50 @@ export async function POST(req: Request, { params }: RouteParams) {
     // Duración del partido del torneo (setting del torneo)
     const matchDurationMinutes = t.match_duration ?? 60;
 
+    // Obtener horarios disponibles del torneo
+    const { data: availableSchedules, error: schedulesError } = await supabase
+      .from("tournament_available_schedules")
+      .select("*")
+      .eq("tournament_id", tournamentId)
+      .eq("user_uid", user.id)
+      .order("day_of_week", { ascending: true })
+      .order("start_time", { ascending: true });
+
+    if (schedulesError) {
+      console.error("Error fetching available schedules:", schedulesError);
+      // Continuar sin horarios disponibles (comportamiento anterior)
+    }
+
+    // Obtener restricciones de equipos (IDs de horarios que no pueden jugar)
+    const teamIds = teams.map((t: any) => t.id);
+    const teamRestrictions = new Map<number, number[]>();
+    
+    if (teamIds.length > 0) {
+      const { data: restrictions, error: restrictionsError } = await supabase
+        .from("tournament_team_schedule_restrictions")
+        .select("tournament_team_id, tournament_available_schedule_id")
+        .in("tournament_team_id", teamIds)
+        .eq("user_uid", user.id);
+
+      if (!restrictionsError && restrictions) {
+        restrictions.forEach((r: any) => {
+          const teamId = r.tournament_team_id;
+          const scheduleId = r.tournament_available_schedule_id;
+          if (!teamRestrictions.has(teamId)) {
+            teamRestrictions.set(teamId, []);
+          }
+          teamRestrictions.get(teamId)!.push(scheduleId);
+        });
+      }
+    }
+
     const schedulerResult = scheduleGroupMatches(
       matchesPayload,
       scheduleConfig.days,
       matchDurationMinutes,
-      scheduleConfig.courtIds
+      scheduleConfig.courtIds,
+      availableSchedules || undefined,
+      teamRestrictions
     );
 
     // Si no se pudieron asignar horarios, continuar igual pero sin horarios

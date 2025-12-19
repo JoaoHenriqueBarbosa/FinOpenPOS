@@ -36,12 +36,22 @@ export type PlayerNestedDTO = {
 // Team DTOs
 export interface TeamPlayer extends PlayerNestedDTO {}
 
+export interface AvailableSchedule {
+  id: number;
+  tournament_id: number;
+  day_of_week: number; // 0=domingo, 1=lunes, ..., 6=sábado
+  start_time: string; // HH:MM
+  end_time: string; // HH:MM
+  display_name: string | null;
+}
+
 export interface TeamDTO {
   id: number;
   display_name: string | null;
   seed_number: number | null;
   player1: TeamPlayer;
   player2: TeamPlayer;
+  restricted_schedule_ids?: number[]; // IDs de horarios disponibles que el equipo NO puede jugar
 }
 
 // Group DTOs
