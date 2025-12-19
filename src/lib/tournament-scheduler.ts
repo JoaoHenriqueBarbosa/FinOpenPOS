@@ -4,7 +4,7 @@
 // - Descanso mínimo por equipo (no dos turnos seguidos el mismo día)
 // - Partidos de un mismo equipo en un día lo más compactos posible
 
-import type { ScheduleDay, ScheduleConfig } from "@/models/dto/tournament";
+import type { ScheduleDay, ScheduleConfig, AvailableSchedule } from "@/models/dto/tournament";
 
 export type GroupMatchPayload = {
   tournament_id: number;
@@ -25,11 +25,39 @@ export type TimeSlot = {
   endTime: string;
 };
 
+// Obtener el día de la semana de una fecha (0=domingo, 6=sábado)
+function getDayOfWeek(date: string): number {
+  const d = new Date(date + "T00:00:00");
+  return d.getDay();
+}
+
+// Verificar si un slot coincide con un horario disponible
+function slotMatchesAvailableSchedule(
+  slot: TimeSlot,
+  availableSchedule: AvailableSchedule
+): boolean {
+  const slotDayOfWeek = getDayOfWeek(slot.date);
+  if (slotDayOfWeek !== availableSchedule.day_of_week) return false;
+
+  const slotStartMinutes = timeToMinutesOfDay(slot.startTime);
+  const slotEndMinutes = timeToMinutesOfDay(slot.endTime);
+  const scheduleStartMinutes = timeToMinutesOfDay(availableSchedule.start_time);
+  const scheduleEndMinutes = timeToMinutesOfDay(availableSchedule.end_time);
+
+  // El slot debe estar completamente dentro del rango del horario disponible
+  return (
+    slotStartMinutes >= scheduleStartMinutes &&
+    slotEndMinutes <= scheduleEndMinutes
+  );
+}
+
 // Generar slots de tiempo a partir de días, duración y cantidad de canchas
+// Filtra slots según horarios disponibles del torneo
 export function generateTimeSlots(
   days: ScheduleDay[],
   matchDuration: number,
-  numCourts: number
+  numCourts: number,
+  availableSchedules?: AvailableSchedule[]
 ): TimeSlot[] {
   const slots: TimeSlot[] = [];
 
@@ -47,17 +75,30 @@ export function generateTimeSlots(
       const slotEndH = Math.floor(slotEndMinutes / 60);
       const slotEndM = slotEndMinutes % 60;
 
+      const slot: TimeSlot = {
+        date: day.date,
+        startTime: `${String(slotStartH).padStart(2, "0")}:${String(
+          slotStartM
+        ).padStart(2, "0")}`,
+        endTime: `${String(slotEndH).padStart(2, "0")}:${String(
+          slotEndM
+        ).padStart(2, "0")}`,
+      };
+
+      // Si hay horarios disponibles configurados, filtrar slots que no coincidan
+      if (availableSchedules && availableSchedules.length > 0) {
+        const matchesSchedule = availableSchedules.some((schedule) =>
+          slotMatchesAvailableSchedule(slot, schedule)
+        );
+        if (!matchesSchedule) {
+          currentMinutes += matchDuration;
+          continue;
+        }
+      }
+
       // Un slot por cada cancha disponible
       for (let i = 0; i < numCourts; i++) {
-        slots.push({
-          date: day.date,
-          startTime: `${String(slotStartH).padStart(2, "0")}:${String(
-            slotStartM
-          ).padStart(2, "0")}`,
-          endTime: `${String(slotEndH).padStart(2, "0")}:${String(
-            slotEndM
-          ).padStart(2, "0")}`,
-        });
+        slots.push(slot);
       }
 
       currentMinutes += matchDuration;
@@ -93,12 +134,35 @@ type SchedulerResult =
   | { success: true; assignments: Assignment[] }
   | { success: false; error: string };
 
+// Verificar si un slot viola alguna restricción de un equipo
+// Verificar si un slot viola las restricciones de un equipo
+// restrictions es un array de IDs de horarios disponibles que el equipo NO puede jugar
+function slotViolatesRestriction(
+  slot: TimeSlot,
+  restrictedScheduleIds: number[] | undefined,
+  availableSchedules: AvailableSchedule[]
+): boolean {
+  if (!restrictedScheduleIds || restrictedScheduleIds.length === 0) return false;
+
+  // Encontrar qué horario disponible coincide con este slot
+  const matchingSchedule = availableSchedules.find((schedule) =>
+    slotMatchesAvailableSchedule(slot, schedule)
+  );
+
+  if (!matchingSchedule) return false;
+
+  // Si el ID del horario está en las restricciones, el slot está prohibido
+  return restrictedScheduleIds.includes(matchingSchedule.id);
+}
+
 // Asigna horarios directamente sobre el arreglo de matches (modificándolo)
 export function scheduleGroupMatches(
   matchesPayload: GroupMatchPayload[],
   days: ScheduleDay[],
   matchDurationMinutes: number,
-  courtIds: number[]
+  courtIds: number[],
+  availableSchedules?: AvailableSchedule[],
+  teamRestrictions?: Map<number, number[]> // teamId -> restrictedScheduleIds[]
 ): SchedulerResult {
   if (!days.length || !courtIds.length) {
     return {
@@ -107,7 +171,7 @@ export function scheduleGroupMatches(
     };
   }
 
-  const timeSlots = generateTimeSlots(days, matchDurationMinutes, courtIds.length);
+  const timeSlots = generateTimeSlots(days, matchDurationMinutes, courtIds.length, availableSchedules);
 
   if (timeSlots.length < matchesPayload.length) {
     return {
@@ -247,6 +311,19 @@ export function scheduleGroupMatches(
         const teamsInMatch = [match.team1_id, match.team2_id].filter(
           (id): id is number => id !== null
         );
+
+        // Validar restricciones horarias de los equipos
+        if (teamRestrictions && availableSchedules && teamsInMatch.length > 0) {
+          for (const teamId of teamsInMatch) {
+            const restrictedScheduleIds = teamRestrictions.get(teamId);
+            if (slotViolatesRestriction(slot, restrictedScheduleIds, availableSchedules)) {
+              valid = false;
+              break;
+            }
+          }
+        }
+
+        if (!valid) continue;
 
         // Validaciones estrictas: no permitir partidos consecutivos del mismo equipo
         if (teamsInMatch.length > 0) {

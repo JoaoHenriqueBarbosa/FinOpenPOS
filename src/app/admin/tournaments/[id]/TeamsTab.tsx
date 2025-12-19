@@ -19,7 +19,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Loader2Icon, PlusIcon, TrashIcon, LockIcon, ChevronsUpDown, CheckIcon } from "lucide-react";
+import { Loader2Icon, PlusIcon, TrashIcon, LockIcon, ChevronsUpDown, CheckIcon, CalendarIcon } from "lucide-react";
 import {
   Command,
   CommandEmpty,
@@ -35,9 +35,11 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { TournamentScheduleDialog, ScheduleConfig } from "@/components/tournament-schedule-dialog";
+import { TeamScheduleRestrictionsDialog } from "@/components/team-schedule-restrictions-dialog";
+import { TournamentAvailableSchedulesDialog } from "@/components/tournament-available-schedules-dialog";
 
 import type { PlayerDTO } from "@/models/dto/player";
-import type { TeamDTO, TournamentDTO, GroupsApiResponse } from "@/models/dto/tournament";
+import type { TeamDTO, TournamentDTO, GroupsApiResponse, AvailableSchedule } from "@/models/dto/tournament";
 import { tournamentsService, playersService } from "@/services";
 
 // Fetch functions para React Query
@@ -51,6 +53,16 @@ async function fetchPlayers(): Promise<PlayerDTO[]> {
 
 async function fetchTournamentGroups(tournamentId: number): Promise<GroupsApiResponse> {
   return tournamentsService.getGroups(tournamentId);
+}
+
+// Para restricciones: slots individuales (sin agrupar)
+async function fetchAvailableSchedules(tournamentId: number): Promise<AvailableSchedule[]> {
+  return tournamentsService.getAvailableSchedules(tournamentId, false);
+}
+
+// Para configuración de horarios: rangos agrupados
+async function fetchAvailableSchedulesGrouped(tournamentId: number): Promise<AvailableSchedule[]> {
+  return tournamentsService.getAvailableSchedules(tournamentId, true);
 }
 
 export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDTO, "id" | "status" | "match_duration"> }) {
@@ -69,6 +81,9 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
   const [player2PopoverWidth, setPlayer2PopoverWidth] = useState(0);
   const [player1Search, setPlayer1Search] = useState("");
   const [player2Search, setPlayer2Search] = useState("");
+  const [restrictionsDialogOpen, setRestrictionsDialogOpen] = useState(false);
+  const [selectedTeamForRestrictions, setSelectedTeamForRestrictions] = useState<TeamDTO | null>(null);
+  const [schedulesDialogOpen, setSchedulesDialogOpen] = useState(false);
   
   // Debounce search terms para evitar filtros costosos en cada keystroke
   const debouncedPlayer1Search = useDebounce(player1Search, 300);
@@ -102,8 +117,28 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
     staleTime: 1000 * 30, // 30 segundos
   });
 
+  // Horarios individuales para restricciones de equipos
+  const {
+    data: availableSchedules = [],
+    isLoading: loadingSchedules,
+  } = useQuery({
+    queryKey: ["tournament-available-schedules", tournament.id],
+    queryFn: () => fetchAvailableSchedules(tournament.id),
+    staleTime: 1000 * 30,
+  });
+
+  // Horarios agrupados para el diálogo de configuración
+  const {
+    data: availableSchedulesGrouped = [],
+    isLoading: loadingSchedulesGrouped,
+  } = useQuery({
+    queryKey: ["tournament-available-schedules-grouped", tournament.id],
+    queryFn: () => fetchAvailableSchedulesGrouped(tournament.id),
+    staleTime: 1000 * 30,
+  });
+
   const hasGroups = groupsData?.groups && groupsData.groups.length > 0;
-  const loading = loadingTeams || loadingPlayers || loadingGroups;
+  const loading = loadingTeams || loadingPlayers || loadingGroups || loadingSchedules;
 
   const fullName = (p: PlayerDTO) => `${p.first_name} ${p.last_name}`;
 
@@ -164,6 +199,36 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
       queryClient.invalidateQueries({ queryKey: ["tournament-teams", tournament.id] });
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleSaveRestrictions = async (restrictedScheduleIds: number[]) => {
+    if (!selectedTeamForRestrictions) return;
+    
+    try {
+      await tournamentsService.updateTeamRestrictions(
+        tournament.id,
+        selectedTeamForRestrictions.id,
+        restrictedScheduleIds
+      );
+      // Invalidar cache para refrescar teams
+      queryClient.invalidateQueries({ queryKey: ["tournament-teams", tournament.id] });
+      setSelectedTeamForRestrictions(null);
+    } catch (err: any) {
+      console.error(err);
+      throw err;
+    }
+  };
+
+  const handleSaveSchedules = async (schedules: Omit<AvailableSchedule, "id" | "tournament_id">[]) => {
+    try {
+      await tournamentsService.updateAvailableSchedules(tournament.id, schedules);
+      // Invalidar cache para refrescar horarios (tanto individuales como agrupados)
+      queryClient.invalidateQueries({ queryKey: ["tournament-available-schedules", tournament.id] });
+      queryClient.invalidateQueries({ queryKey: ["tournament-available-schedules-grouped", tournament.id] });
+    } catch (err: any) {
+      console.error(err);
+      throw err;
     }
   };
 
@@ -265,6 +330,16 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
             <PlusIcon className="w-4 h-4 mr-1" />
             Agregar equipo
           </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setSchedulesDialogOpen(true)}
+            disabled={tournament.status !== "draft" || hasGroups}
+            title={hasGroups ? "No se pueden editar horarios después de generar grupos" : "Configurar horarios disponibles del torneo"}
+          >
+            <CalendarIcon className="w-4 h-4 mr-1" />
+            Horarios disponibles
+          </Button>
         </div>
       </CardHeader>
       <CardContent className="px-0">
@@ -289,13 +364,37 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
                     {team.player2.first_name} {team.player2.last_name}
                   </span>
                 </div>
-                {tournament.status === "draft" && (
+                {tournament.status === "draft" && !hasGroups && (
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setSelectedTeamForRestrictions(team);
+                        setRestrictionsDialogOpen(true);
+                      }}
+                      title="Editar restricciones horarias"
+                    >
+                      <CalendarIcon className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDelete(team.id)}
+                    >
+                      <TrashIcon className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
+                {tournament.status === "draft" && hasGroups && (
                   <Button
                     variant="ghost"
                     size="icon"
                     onClick={() => handleDelete(team.id)}
+                    disabled
+                    title="No se pueden editar equipos después de generar grupos"
                   >
-                    <TrashIcon className="w-4 h-4" />
+                    <LockIcon className="w-4 h-4" />
                   </Button>
                 )}
               </div>
@@ -485,6 +584,28 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
         onConfirm={handleCloseRegistration}
         matchCount={matchCount}
         tournamentMatchDuration={tournament.match_duration}
+        availableSchedules={availableSchedules}
+      />
+
+      <TournamentAvailableSchedulesDialog
+        open={schedulesDialogOpen}
+        onOpenChange={setSchedulesDialogOpen}
+        tournamentId={tournament.id}
+        schedules={availableSchedulesGrouped}
+        onSave={handleSaveSchedules}
+      />
+
+      <TeamScheduleRestrictionsDialog
+        open={restrictionsDialogOpen}
+        onOpenChange={(open) => {
+          setRestrictionsDialogOpen(open);
+          if (!open) {
+            setSelectedTeamForRestrictions(null);
+          }
+        }}
+        team={selectedTeamForRestrictions}
+        availableSchedules={availableSchedules}
+        onSave={handleSaveRestrictions}
       />
     </Card>
   );
