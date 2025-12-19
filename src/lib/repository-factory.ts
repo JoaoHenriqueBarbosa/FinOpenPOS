@@ -27,11 +27,46 @@ import {
  */
 export async function createRepositories() {
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  
+  // Intentar obtener el usuario con retry en caso de timeout
+  let user;
+  let retries = 2;
+  let lastError: Error | null = null;
+  
+  while (retries >= 0) {
+    try {
+      const { data, error } = await supabase.auth.getUser();
+      if (error) throw error;
+      user = data.user;
+      break;
+    } catch (err: any) {
+      lastError = err;
+      // Si es un error de timeout o conexión, reintentar
+      if (
+        (err.message?.includes('timeout') || 
+         err.message?.includes('fetch failed') ||
+         err.cause?.code === 'UND_ERR_CONNECT_TIMEOUT') &&
+        retries > 0
+      ) {
+        retries--;
+        // Esperar un poco antes de reintentar
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        continue;
+      }
+      // Si no es un error de timeout o se acabaron los reintentos, lanzar el error
+      throw err;
+    }
+  }
 
   if (!user) {
+    // Si después de los reintentos no hay usuario, verificar si fue un error de conexión
+    if (lastError && (
+      lastError.message?.includes('timeout') || 
+      lastError.message?.includes('fetch failed') ||
+      (lastError as any).cause?.code === 'UND_ERR_CONNECT_TIMEOUT'
+    )) {
+      throw new Error("Error de conexión con el servidor. Por favor, intentá nuevamente.");
+    }
     throw new Error("Unauthorized");
   }
 

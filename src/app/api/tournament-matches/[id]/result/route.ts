@@ -74,7 +74,7 @@ export async function POST(req: Request, { params }: RouteParams) {
   // Obtener el match completo con información del torneo y fase
   const { data: match, error: matchError } = await supabase
     .from("tournament_matches")
-    .select("id, user_uid, tournament_id, phase, team1_id, team2_id, tournament_group_id")
+    .select("id, user_uid, tournament_id, phase, team1_id, team2_id, tournament_group_id, status, set1_team1_games, set1_team2_games")
     .eq("id", matchId)
     .single();
 
@@ -82,71 +82,108 @@ export async function POST(req: Request, { params }: RouteParams) {
     return NextResponse.json({ error: "Match not found" }, { status: 404 });
   }
 
-  // Validar: si es un match de zona (group) y ya hay playoffs generados, no permitir modificar
-  if (match.phase === "group") {
-    const { data: existingPlayoffs, error: playoffsCheckError } = await supabase
-      .from("tournament_playoffs")
-      .select("id")
-      .eq("tournament_id", match.tournament_id)
+  const isModification = match && (
+    match.status === "finished" || 
+    match.set1_team1_games !== null || 
+    match.set1_team2_games !== null
+  );
+
+  // Obtener torneo y verificar playoffs en paralelo
+  const [tournamentResult, playoffsCheckResult] = await Promise.all([
+    supabase
+      .from("tournaments")
+      .select("has_super_tiebreak")
+      .eq("id", match.tournament_id)
       .eq("user_uid", user.id)
-      .limit(1);
+      .single(),
+    match.phase === "group" 
+      ? supabase
+          .from("tournament_playoffs")
+          .select("id")
+          .eq("tournament_id", match.tournament_id)
+          .eq("user_uid", user.id)
+          .limit(1)
+      : Promise.resolve({ data: null, error: null })
+  ]);
 
-    if (!playoffsCheckError && existingPlayoffs && existingPlayoffs.length > 0) {
-      return NextResponse.json(
-        { error: "No se pueden modificar los resultados de zona una vez generados los playoffs" },
-        { status: 403 }
-      );
-    }
-  }
-
-  // Obtener el setting del torneo para has_super_tiebreak
-  const { data: tournament, error: tournamentError } = await supabase
-    .from("tournaments")
-    .select("has_super_tiebreak")
-    .eq("id", match.tournament_id)
-    .eq("user_uid", user.id)
-    .single();
+  const { data: tournament, error: tournamentError } = tournamentResult;
+  const { data: existingPlayoffs, error: playoffsCheckError } = playoffsCheckResult;
 
   if (tournamentError || !tournament) {
     return NextResponse.json({ error: "Tournament not found" }, { status: 404 });
+  }
+
+  // Validar: si es un match de zona (group) y ya hay playoffs generados, no permitir modificar
+  if (match.phase === "group" && !playoffsCheckError && existingPlayoffs && existingPlayoffs.length > 0) {
+    return NextResponse.json(
+      { error: "No se pueden modificar los resultados de zona una vez generados los playoffs" },
+      { status: 403 }
+    );
   }
 
   // Determinar si este match debe usar super tiebreak
   // Si es fase de grupos: usar el valor del torneo
   // Si es playoffs: usar el valor del torneo EXCEPTO para cuartos, semifinal y final (siempre false)
   let hasSuperTiebreak = tournament.has_super_tiebreak;
+  let playoffInfo: { round: string; bracket_pos: number } | null = null;
   
   if (match.phase === "playoff") {
     // Obtener la ronda del match
-    const { data: playoffInfo, error: playoffInfoError } = await supabase
+    const { data: playoffData, error: playoffInfoError } = await supabase
       .from("tournament_playoffs")
-      .select("round")
+      .select("round, bracket_pos")
       .eq("match_id", matchId)
       .eq("user_uid", user.id)
       .single();
 
-    if (playoffInfoError || !playoffInfo) {
+    if (playoffInfoError || !playoffData) {
       return NextResponse.json(
         { error: "Playoff information not found" },
         { status: 404 }
       );
     }
 
+    playoffInfo = playoffData;
     const currentRound = playoffInfo.round;
 
-    // Validación 1: No se pueden cargar resultados de una ronda hasta que todas las rondas anteriores estén completas
+    // Validaciones de playoffs - hacer consultas en paralelo cuando sea posible
     const previousRounds = getPreviousRounds(currentRound);
+    const nextRounds = getNextRounds(currentRound);
+    
+    // Preparar consultas para validaciones
+    const validationQueries: Promise<any>[] = [];
+    
+    // Validación 1: Verificar rondas anteriores (solo si hay rondas anteriores)
     if (previousRounds.length > 0) {
-      // Obtener todos los matches de las rondas anteriores
-      const { data: previousRoundMatches, error: prevRoundsError } = await supabase
-        .from("tournament_playoffs")
-        .select("match_id, round")
-        .eq("tournament_id", match.tournament_id)
-        .eq("user_uid", user.id)
-        .in("round", previousRounds);
+      validationQueries.push(
+        supabase
+          .from("tournament_playoffs")
+          .select("match_id, round")
+          .eq("tournament_id", match.tournament_id)
+          .eq("user_uid", user.id)
+          .in("round", previousRounds)
+      );
+    }
 
+    // Validación 2: Verificar rondas posteriores (solo si es modificación y hay rondas posteriores)
+    if (isModification && nextRounds.length > 0) {
+      validationQueries.push(
+        supabase
+          .from("tournament_playoffs")
+          .select("match_id, round")
+          .eq("tournament_id", match.tournament_id)
+          .eq("user_uid", user.id)
+          .in("round", nextRounds)
+      );
+    }
+
+    // Ejecutar validaciones en paralelo
+    const validationResults = await Promise.all(validationQueries);
+
+    // Procesar validación 1: rondas anteriores
+    if (previousRounds.length > 0 && validationResults[0]) {
+      const { data: previousRoundMatches, error: prevRoundsError } = validationResults[0];
       if (!prevRoundsError && previousRoundMatches && previousRoundMatches.length > 0) {
-        // Obtener los matches para verificar si están completos
         const previousMatchIds = previousRoundMatches.map(p => p.match_id);
         const { data: previousMatches, error: prevMatchesError } = await supabase
           .from("tournament_matches")
@@ -155,7 +192,6 @@ export async function POST(req: Request, { params }: RouteParams) {
           .eq("user_uid", user.id);
 
         if (!prevMatchesError && previousMatches) {
-          // Verificar que todos los matches anteriores estén completos
           const incompleteMatches = previousMatches.filter(m => m.status !== "finished");
           if (incompleteMatches.length > 0) {
             const incompleteRounds = new Set(
@@ -177,61 +213,37 @@ export async function POST(req: Request, { params }: RouteParams) {
       }
     }
 
-    // Validación 2: No se puede modificar un resultado de una ronda anterior si ya hay resultados en rondas posteriores
-    // Primero verificar si este match ya tiene un resultado (es una modificación)
-    const { data: existingMatch } = await supabase
-      .from("tournament_matches")
-      .select("status, set1_team1_games, set1_team2_games")
-      .eq("id", matchId)
-      .eq("user_uid", user.id)
-      .single();
+    // Procesar validación 2: rondas posteriores (solo si es modificación)
+    if (isModification && nextRounds.length > 0) {
+      const resultIndex = previousRounds.length > 0 ? 1 : 0;
+      const { data: nextRoundPlayoffs, error: nextRoundsError } = validationResults[resultIndex] || { data: null, error: null };
+      
+      if (!nextRoundsError && nextRoundPlayoffs && nextRoundPlayoffs.length > 0) {
+        const nextMatchIds = nextRoundPlayoffs.map(p => p.match_id);
+        const { data: nextMatches, error: nextMatchesError } = await supabase
+          .from("tournament_matches")
+          .select("id, status")
+          .in("id", nextMatchIds)
+          .eq("user_uid", user.id);
 
-    const isModification = existingMatch && (
-      existingMatch.status === "finished" || 
-      existingMatch.set1_team1_games !== null || 
-      existingMatch.set1_team2_games !== null
-    );
-
-    if (isModification) {
-      const nextRounds = getNextRounds(currentRound);
-      if (nextRounds.length > 0) {
-        // Verificar si hay algún resultado en rondas posteriores
-        const { data: nextRoundPlayoffs, error: nextRoundsError } = await supabase
-          .from("tournament_playoffs")
-          .select("match_id, round")
-          .eq("tournament_id", match.tournament_id)
-          .eq("user_uid", user.id)
-          .in("round", nextRounds);
-
-        if (!nextRoundsError && nextRoundPlayoffs && nextRoundPlayoffs.length > 0) {
-          const nextMatchIds = nextRoundPlayoffs.map(p => p.match_id);
-          const { data: nextMatches, error: nextMatchesError } = await supabase
-            .from("tournament_matches")
-            .select("id, status")
-            .in("id", nextMatchIds)
-            .eq("user_uid", user.id);
-
-          if (!nextMatchesError && nextMatches) {
-            // Verificar si hay algún match completado en rondas posteriores
-            const completedNextMatches = nextMatches.filter(m => m.status === "finished");
-            if (completedNextMatches.length > 0) {
-              // Obtener las rondas de los matches completados usando el mapa de playoffs
-              const completedRounds = new Set<string>();
-              completedNextMatches.forEach(m => {
-                const playoff = nextRoundPlayoffs.find(p => p.match_id === m.id);
-                if (playoff?.round) {
-                  completedRounds.add(playoff.round);
-                }
-              });
-              
-              if (completedRounds.size > 0) {
-                return NextResponse.json(
-                  { 
-                    error: `No se puede modificar un resultado de ${currentRound} porque ya hay resultados cargados en rondas posteriores: ${Array.from(completedRounds).join(", ")}` 
-                  },
-                  { status: 403 }
-                );
+        if (!nextMatchesError && nextMatches) {
+          const completedNextMatches = nextMatches.filter(m => m.status === "finished");
+          if (completedNextMatches.length > 0) {
+            const completedRounds = new Set<string>();
+            completedNextMatches.forEach(m => {
+              const playoff = nextRoundPlayoffs.find(p => p.match_id === m.id);
+              if (playoff?.round) {
+                completedRounds.add(playoff.round);
               }
+            });
+            
+            if (completedRounds.size > 0) {
+              return NextResponse.json(
+                { 
+                  error: `No se puede modificar un resultado de ${currentRound} porque ya hay resultados cargados en rondas posteriores: ${Array.from(completedRounds).join(", ")}` 
+                },
+                { status: 403 }
+              );
             }
           }
         }
@@ -534,101 +546,88 @@ export async function POST(req: Request, { params }: RouteParams) {
   }
 
   // Si es un match de playoffs, avanzar el ganador a la siguiente ronda
-  if (match.phase === "playoff" && winnerTeamId) {
-    // Obtener información del bracket (round y bracket_pos)
-    const { data: playoffInfo, error: playoffError } = await supabase
-      .from("tournament_playoffs")
-      .select("round, bracket_pos")
-      .eq("match_id", matchId)
-      .eq("user_uid", user.id)
-      .single();
+  // Usar playoffInfo que ya se obtuvo en las validaciones anteriores
+  if (match.phase === "playoff" && winnerTeamId && playoffInfo) {
+    const currentRound = playoffInfo.round;
+    const currentBracketPos = playoffInfo.bracket_pos;
 
-    if (!playoffError && playoffInfo) {
-      const currentRound = playoffInfo.round;
-      const currentBracketPos = playoffInfo.bracket_pos;
-
-      // Determinar la siguiente ronda
-      const getNextRound = (round: string): string | null => {
-        const roundOrder: Record<string, string> = {
-          "16avos": "octavos",
-          "octavos": "cuartos",
-          "cuartos": "semifinal",
-          "semifinal": "final",
-        };
-        return roundOrder[round] || null;
+    // Determinar la siguiente ronda
+    const getNextRound = (round: string): string | null => {
+      const roundOrder: Record<string, string> = {
+        "16avos": "octavos",
+        "octavos": "cuartos",
+        "cuartos": "semifinal",
+        "semifinal": "final",
       };
+      return roundOrder[round] || null;
+    };
 
-      const nextRound = getNextRound(currentRound);
+    const nextRound = getNextRound(currentRound);
 
-      if (nextRound) {
-        // Buscar el match de la siguiente ronda que tiene referencia a este match
-        // Usamos source_team1 o source_team2 que contienen "Ganador [Round][bracket_pos]"
-        const currentRoundLabel = currentRound.charAt(0).toUpperCase() + currentRound.slice(1);
-        const sourcePattern = `Ganador ${currentRoundLabel}${currentBracketPos}`;
-        
-        // Buscar todos los matches de la siguiente ronda
-        const { data: nextRoundPlayoffs, error: nextRoundError } = await supabase
-          .from("tournament_playoffs")
-          .select("match_id, bracket_pos, source_team1, source_team2")
-          .eq("tournament_id", match.tournament_id)
-          .eq("round", nextRound)
-          .eq("user_uid", user.id);
+    if (nextRound) {
+      // Buscar el match de la siguiente ronda que tiene referencia a este match
+      const currentRoundLabel = currentRound.charAt(0).toUpperCase() + currentRound.slice(1);
+      const sourcePattern = `Ganador ${currentRoundLabel}${currentBracketPos}`;
+      
+      // Buscar el match de la siguiente ronda con filtro optimizado (usar .or() para filtrar en la DB)
+      const { data: nextRoundPlayoffs, error: nextRoundError } = await supabase
+        .from("tournament_playoffs")
+        .select("match_id, bracket_pos, source_team1, source_team2")
+        .eq("tournament_id", match.tournament_id)
+        .eq("round", nextRound)
+        .eq("user_uid", user.id)
+        .or(`source_team1.eq.${sourcePattern},source_team2.eq.${sourcePattern}`)
+        .limit(1)
+        .maybeSingle();
 
-        // Filtrar para encontrar el match que tiene la referencia a este match
-        const nextRoundPlayoff = nextRoundPlayoffs?.find(
-          (p) => p.source_team1 === sourcePattern || p.source_team2 === sourcePattern
-        );
+      if (!nextRoundError && nextRoundPlayoffs) {
+        // Obtener el match siguiente
+        const { data: nextMatch, error: nextMatchError } = await supabase
+          .from("tournament_matches")
+          .select("team1_id, team2_id, status")
+          .eq("id", nextRoundPlayoffs.match_id)
+          .eq("user_uid", user.id)
+          .single();
 
-        if (!nextRoundError && nextRoundPlayoff) {
-          
-          // Obtener el match siguiente
-          const { data: nextMatch, error: nextMatchError } = await supabase
-            .from("tournament_matches")
-            .select("team1_id, team2_id, status")
-            .eq("id", nextRoundPlayoff.match_id)
-            .eq("user_uid", user.id)
-            .single();
-
-          if (!nextMatchError && nextMatch) {
-            // Determinar qué campo actualizar basado en source_team1 o source_team2
-            let updateField: string;
-            if (nextRoundPlayoff.source_team1 === sourcePattern) {
+        if (!nextMatchError && nextMatch) {
+          // Determinar qué campo actualizar basado en source_team1 o source_team2
+          let updateField: string;
+          if (nextRoundPlayoffs.source_team1 === sourcePattern) {
+            updateField = "team1_id";
+          } else if (nextRoundPlayoffs.source_team2 === sourcePattern) {
+            updateField = "team2_id";
+          } else {
+            // Fallback: usar el campo vacío
+            if (!nextMatch.team1_id) {
               updateField = "team1_id";
-            } else if (nextRoundPlayoff.source_team2 === sourcePattern) {
+            } else if (!nextMatch.team2_id) {
               updateField = "team2_id";
             } else {
-              // Fallback: usar el campo vacío
-              if (!nextMatch.team1_id) {
-                updateField = "team1_id";
-              } else if (!nextMatch.team2_id) {
-                updateField = "team2_id";
-              } else {
-                // Ambos llenos, no debería pasar pero usamos team2 como fallback
-                updateField = "team2_id";
-              }
+              // Ambos llenos, no debería pasar pero usamos team2 como fallback
+              updateField = "team2_id";
             }
+          }
 
-            const updateData: Record<string, any> = { [updateField]: winnerTeamId };
+          const updateData: Record<string, any> = { [updateField]: winnerTeamId };
 
-            // Si ahora tiene ambos equipos, actualizar el status a "scheduled"
-            const willHaveBothTeams =
-              (updateField === "team1_id" && nextMatch.team2_id) ||
-              (updateField === "team2_id" && nextMatch.team1_id);
-            
-            if (willHaveBothTeams && nextMatch.status !== "scheduled") {
-              updateData.status = "scheduled";
-            }
+          // Si ahora tiene ambos equipos, actualizar el status a "scheduled"
+          const willHaveBothTeams =
+            (updateField === "team1_id" && nextMatch.team2_id) ||
+            (updateField === "team2_id" && nextMatch.team1_id);
+          
+          if (willHaveBothTeams && nextMatch.status !== "scheduled") {
+            updateData.status = "scheduled";
+          }
 
-            const { error: advanceError } = await supabase
-              .from("tournament_matches")
-              .update(updateData)
-              .eq("id", nextRoundPlayoff.match_id)
-              .eq("user_uid", user.id);
+          const { error: advanceError } = await supabase
+            .from("tournament_matches")
+            .update(updateData)
+            .eq("id", nextRoundPlayoffs.match_id)
+            .eq("user_uid", user.id);
 
-            if (advanceError) {
-              console.error("Error advancing winner to next round:", advanceError);
-              // No fallamos el request completo, solo logueamos el error
-            }
+          if (advanceError) {
+            console.error("Error advancing winner to next round:", advanceError);
+            // No fallamos el request completo, solo logueamos el error
           }
         }
       }
@@ -650,10 +649,10 @@ export async function DELETE(req: Request, { params }: RouteParams) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
 
-  // Obtener el match completo con información del torneo y fase
+  // Obtener el match completo con toda la información necesaria en una sola consulta
   const { data: match, error: matchError } = await supabase
     .from("tournament_matches")
-    .select("id, user_uid, tournament_id, phase, team1_id, team2_id, tournament_group_id")
+    .select("id, user_uid, tournament_id, phase, team1_id, team2_id, tournament_group_id, team1_sets, team2_sets")
     .eq("id", matchId)
     .single();
 
@@ -661,15 +660,40 @@ export async function DELETE(req: Request, { params }: RouteParams) {
     return NextResponse.json({ error: "Match not found" }, { status: 404 });
   }
 
-  // Validar: si es un match de zona (group) y ya hay playoffs generados, no permitir limpiar
+  // Preparar consultas en paralelo según el tipo de match
+  const parallelQueries: Promise<any>[] = [];
+  
+  // Si es grupo, verificar playoffs
   if (match.phase === "group") {
-    const { data: existingPlayoffs, error: playoffsCheckError } = await supabase
-      .from("tournament_playoffs")
-      .select("id")
-      .eq("tournament_id", match.tournament_id)
-      .eq("user_uid", user.id)
-      .limit(1);
+    parallelQueries.push(
+      supabase
+        .from("tournament_playoffs")
+        .select("id")
+        .eq("tournament_id", match.tournament_id)
+        .eq("user_uid", user.id)
+        .limit(1)
+    );
+  }
 
+  // Si es playoff, obtener info de playoff y validar rondas posteriores
+  let playoffInfo: { round: string; bracket_pos: number } | null = null;
+  if (match.phase === "playoff") {
+    parallelQueries.push(
+      supabase
+        .from("tournament_playoffs")
+        .select("round, bracket_pos")
+        .eq("match_id", matchId)
+        .eq("user_uid", user.id)
+        .single()
+    );
+  }
+
+  // Ejecutar consultas en paralelo
+  const results = await Promise.all(parallelQueries);
+
+  // Procesar resultados
+  if (match.phase === "group") {
+    const { data: existingPlayoffs, error: playoffsCheckError } = results[0];
     if (!playoffsCheckError && existingPlayoffs && existingPlayoffs.length > 0) {
       return NextResponse.json(
         { error: "No se pueden limpiar los resultados de zona una vez generados los playoffs" },
@@ -678,55 +702,53 @@ export async function DELETE(req: Request, { params }: RouteParams) {
     }
   }
 
-  // Si es un match de playoffs, aplicar las mismas validaciones que al modificar
   if (match.phase === "playoff") {
-    const { data: playoffInfo, error: playoffInfoError } = await supabase
-      .from("tournament_playoffs")
-      .select("round")
-      .eq("match_id", matchId)
-      .eq("user_uid", user.id)
-      .single();
+    const resultIndex = match.phase === "group" ? 1 : 0;
+    const { data: playoffData, error: playoffInfoError } = results[resultIndex];
+    
+    if (playoffInfoError || !playoffData) {
+      return NextResponse.json({ error: "Playoff information not found" }, { status: 404 });
+    }
 
-    if (!playoffInfoError && playoffInfo) {
-      const currentRound = playoffInfo.round;
-      const nextRounds = getNextRounds(currentRound);
-      
-      if (nextRounds.length > 0) {
-        // Verificar si hay algún resultado en rondas posteriores
-        const { data: nextRoundPlayoffs, error: nextRoundsError } = await supabase
-          .from("tournament_playoffs")
-          .select("match_id, round")
-          .eq("tournament_id", match.tournament_id)
-          .eq("user_uid", user.id)
-          .in("round", nextRounds);
+    playoffInfo = playoffData;
+    const currentRound = playoffInfo.round;
+    const nextRounds = getNextRounds(currentRound);
+    
+    if (nextRounds.length > 0) {
+      // Verificar si hay algún resultado en rondas posteriores
+      const { data: nextRoundPlayoffs, error: nextRoundsError } = await supabase
+        .from("tournament_playoffs")
+        .select("match_id, round")
+        .eq("tournament_id", match.tournament_id)
+        .eq("user_uid", user.id)
+        .in("round", nextRounds);
 
-        if (!nextRoundsError && nextRoundPlayoffs && nextRoundPlayoffs.length > 0) {
-          const nextMatchIds = nextRoundPlayoffs.map(p => p.match_id);
-          const { data: nextMatches, error: nextMatchesError } = await supabase
-            .from("tournament_matches")
-            .select("id, status")
-            .in("id", nextMatchIds)
-            .eq("user_uid", user.id);
+      if (!nextRoundsError && nextRoundPlayoffs && nextRoundPlayoffs.length > 0) {
+        const nextMatchIds = nextRoundPlayoffs.map(p => p.match_id);
+        const { data: nextMatches, error: nextMatchesError } = await supabase
+          .from("tournament_matches")
+          .select("id, status")
+          .in("id", nextMatchIds)
+          .eq("user_uid", user.id);
 
-          if (!nextMatchesError && nextMatches) {
-            const completedNextMatches = nextMatches.filter(m => m.status === "finished");
-            if (completedNextMatches.length > 0) {
-              const completedRounds = new Set<string>();
-              completedNextMatches.forEach(m => {
-                const playoff = nextRoundPlayoffs.find(p => p.match_id === m.id);
-                if (playoff?.round) {
-                  completedRounds.add(playoff.round);
-                }
-              });
-              
-              if (completedRounds.size > 0) {
-                return NextResponse.json(
-                  { 
-                    error: `No se puede limpiar un resultado de ${currentRound} porque ya hay resultados cargados en rondas posteriores: ${Array.from(completedRounds).join(", ")}` 
-                  },
-                  { status: 403 }
-                );
+        if (!nextMatchesError && nextMatches) {
+          const completedNextMatches = nextMatches.filter(m => m.status === "finished");
+          if (completedNextMatches.length > 0) {
+            const completedRounds = new Set<string>();
+            completedNextMatches.forEach(m => {
+              const playoff = nextRoundPlayoffs.find(p => p.match_id === m.id);
+              if (playoff?.round) {
+                completedRounds.add(playoff.round);
               }
+            });
+            
+            if (completedRounds.size > 0) {
+              return NextResponse.json(
+                { 
+                  error: `No se puede limpiar un resultado de ${currentRound} porque ya hay resultados cargados en rondas posteriores: ${Array.from(completedRounds).join(", ")}` 
+                },
+                { status: 403 }
+              );
             }
           }
         }
@@ -736,113 +758,92 @@ export async function DELETE(req: Request, { params }: RouteParams) {
 
   // Si es un match de playoffs, necesitamos revertir el avance del ganador a la siguiente ronda
   let winnerTeamIdToRemove: number | null = null;
-  if (match.phase === "playoff") {
-    // Obtener el ganador actual antes de limpiar
-    const { data: currentMatch, error: currentMatchError } = await supabase
-      .from("tournament_matches")
-      .select("team1_id, team2_id, team1_sets, team2_sets")
-      .eq("id", matchId)
-      .eq("user_uid", user.id)
-      .single();
+  if (match.phase === "playoff" && playoffInfo) {
+    // Calcular ganador usando los datos que ya tenemos del match
+    const t1sets = match.team1_sets ?? 0;
+    const t2sets = match.team2_sets ?? 0;
+    if (t1sets > t2sets) {
+      winnerTeamIdToRemove = match.team1_id;
+    } else if (t2sets > t1sets) {
+      winnerTeamIdToRemove = match.team2_id;
+    }
 
-    if (!currentMatchError && currentMatch) {
-      const t1sets = currentMatch.team1_sets ?? 0;
-      const t2sets = currentMatch.team2_sets ?? 0;
-      if (t1sets > t2sets) {
-        winnerTeamIdToRemove = currentMatch.team1_id;
-      } else if (t2sets > t1sets) {
-        winnerTeamIdToRemove = currentMatch.team2_id;
-      }
+    // Si hay un ganador, buscar y limpiar en la siguiente ronda
+    if (winnerTeamIdToRemove) {
+      const currentRound = playoffInfo.round;
+      const currentBracketPos = playoffInfo.bracket_pos;
 
-      // Si hay un ganador, buscar y limpiar en la siguiente ronda
-      if (winnerTeamIdToRemove) {
-        const { data: playoffInfo, error: playoffInfoError } = await supabase
+      // Determinar la siguiente ronda
+      const getNextRound = (round: string): string | null => {
+        const roundOrder: Record<string, string> = {
+          "16avos": "octavos",
+          "octavos": "cuartos",
+          "cuartos": "semifinal",
+          "semifinal": "final",
+        };
+        return roundOrder[round] || null;
+      };
+
+      const nextRound = getNextRound(currentRound);
+
+      if (nextRound) {
+        // Buscar el match de la siguiente ronda con filtro optimizado en la DB
+        const currentRoundLabel = currentRound.charAt(0).toUpperCase() + currentRound.slice(1);
+        const sourcePattern = `Ganador ${currentRoundLabel}${currentBracketPos}`;
+        
+        const { data: nextRoundPlayoff, error: nextRoundError } = await supabase
           .from("tournament_playoffs")
-          .select("round, bracket_pos")
-          .eq("match_id", matchId)
+          .select("match_id, bracket_pos, source_team1, source_team2")
+          .eq("tournament_id", match.tournament_id)
+          .eq("round", nextRound)
           .eq("user_uid", user.id)
-          .single();
+          .or(`source_team1.eq.${sourcePattern},source_team2.eq.${sourcePattern}`)
+          .limit(1)
+          .maybeSingle();
 
-        if (!playoffInfoError && playoffInfo) {
-          const currentRound = playoffInfo.round;
-          const currentBracketPos = playoffInfo.bracket_pos;
+        if (!nextRoundError && nextRoundPlayoff) {
+          // Obtener el match siguiente
+          const { data: nextMatch, error: nextMatchError } = await supabase
+            .from("tournament_matches")
+            .select("team1_id, team2_id, status")
+            .eq("id", nextRoundPlayoff.match_id)
+            .eq("user_uid", user.id)
+            .single();
 
-          // Determinar la siguiente ronda
-          const getNextRound = (round: string): string | null => {
-            const roundOrder: Record<string, string> = {
-              "16avos": "octavos",
-              "octavos": "cuartos",
-              "cuartos": "semifinal",
-              "semifinal": "final",
-            };
-            return roundOrder[round] || null;
-          };
+          if (!nextMatchError && nextMatch) {
+            // Determinar qué campo limpiar basado en source_team1 o source_team2
+            let updateField: string | null = null;
+            if (nextRoundPlayoff.source_team1 === sourcePattern) {
+              updateField = "team1_id";
+            } else if (nextRoundPlayoff.source_team2 === sourcePattern) {
+              updateField = "team2_id";
+            }
 
-          const nextRound = getNextRound(currentRound);
+            if (updateField) {
+              // Verificar que el team_id en ese campo sea el ganador que estamos removiendo
+              const currentTeamId = updateField === "team1_id" ? nextMatch.team1_id : nextMatch.team2_id;
+              
+              if (currentTeamId === winnerTeamIdToRemove) {
+                const updateData: Record<string, any> = { [updateField]: null };
 
-          if (nextRound) {
-            // Buscar el match de la siguiente ronda que tiene referencia a este match
-            const currentRoundLabel = currentRound.charAt(0).toUpperCase() + currentRound.slice(1);
-            const sourcePattern = `Ganador ${currentRoundLabel}${currentBracketPos}`;
-            
-            // Buscar todos los matches de la siguiente ronda
-            const { data: nextRoundPlayoffs, error: nextRoundError } = await supabase
-              .from("tournament_playoffs")
-              .select("match_id, bracket_pos, source_team1, source_team2")
-              .eq("tournament_id", match.tournament_id)
-              .eq("round", nextRound)
-              .eq("user_uid", user.id);
-
-            // Filtrar para encontrar el match que tiene la referencia a este match
-            const nextRoundPlayoff = nextRoundPlayoffs?.find(
-              (p) => p.source_team1 === sourcePattern || p.source_team2 === sourcePattern
-            );
-
-            if (nextRoundPlayoff) {
-              // Obtener el match siguiente
-              const { data: nextMatch, error: nextMatchError } = await supabase
-                .from("tournament_matches")
-                .select("team1_id, team2_id, status")
-                .eq("id", nextRoundPlayoff.match_id)
-                .eq("user_uid", user.id)
-                .single();
-
-              if (!nextMatchError && nextMatch) {
-                // Determinar qué campo limpiar basado en source_team1 o source_team2
-                let updateField: string | null = null;
-                if (nextRoundPlayoff.source_team1 === sourcePattern) {
-                  updateField = "team1_id";
-                } else if (nextRoundPlayoff.source_team2 === sourcePattern) {
-                  updateField = "team2_id";
+                // Si ahora no tiene ambos equipos, cambiar el status a "scheduled"
+                const willHaveBothTeams = 
+                  (updateField === "team1_id" && nextMatch.team2_id) ||
+                  (updateField === "team2_id" && nextMatch.team1_id);
+                
+                if (!willHaveBothTeams && nextMatch.status !== "scheduled") {
+                  updateData.status = "scheduled";
                 }
 
-                if (updateField) {
-                  // Verificar que el team_id en ese campo sea el ganador que estamos removiendo
-                  const currentTeamId = updateField === "team1_id" ? nextMatch.team1_id : nextMatch.team2_id;
-                  
-                  if (currentTeamId === winnerTeamIdToRemove) {
-                    const updateData: Record<string, any> = { [updateField]: null };
+                const { error: revertError } = await supabase
+                  .from("tournament_matches")
+                  .update(updateData)
+                  .eq("id", nextRoundPlayoff.match_id)
+                  .eq("user_uid", user.id);
 
-                    // Si ahora no tiene ambos equipos, cambiar el status a "scheduled"
-                    const willHaveBothTeams = 
-                      (updateField === "team1_id" && nextMatch.team2_id) ||
-                      (updateField === "team2_id" && nextMatch.team1_id);
-                    
-                    if (!willHaveBothTeams && nextMatch.status !== "scheduled") {
-                      updateData.status = "scheduled";
-                    }
-
-                    const { error: revertError } = await supabase
-                      .from("tournament_matches")
-                      .update(updateData)
-                      .eq("id", nextRoundPlayoff.match_id)
-                      .eq("user_uid", user.id);
-
-                    if (revertError) {
-                      console.error("Error reverting winner advance:", revertError);
-                      // No fallamos el request completo, solo logueamos el error
-                    }
-                  }
+                if (revertError) {
+                  console.error("Error reverting winner advance:", revertError);
+                  // No fallamos el request completo, solo logueamos el error
                 }
               }
             }

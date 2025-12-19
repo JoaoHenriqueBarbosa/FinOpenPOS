@@ -138,28 +138,24 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
     try {
       setCreating(true);
       setError(null);
-      try {
-        await tournamentsService.createTeam(tournament.id, {
-          player1_id: Number(player1Id),
-          player2_id: Number(player2Id),
-        });
-      } catch (err: any) {
-        setError(err.message || "Error al crear el equipo");
-        throw err;
-      }
+      await tournamentsService.createTeam(tournament.id, {
+        player1_id: Number(player1Id),
+        player2_id: Number(player2Id),
+      });
       // Invalidar cache para refrescar teams
       queryClient.invalidateQueries({ queryKey: ["tournament-teams", tournament.id] });
       setDialogOpen(false);
       setPlayer1Id("none");
       setPlayer2Id("none");
       setError(null);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setError("Error de conexión");
+      // El service ya extrae el mensaje de error de la API
+      setError(err.message || "Error al crear el equipo");
     } finally {
       setCreating(false);
     }
-  }, [player1Id, player2Id, tournament.id]);
+  }, [player1Id, player2Id, tournament.id, queryClient]);
 
   const handleDelete = async (teamId: number) => {
     try {

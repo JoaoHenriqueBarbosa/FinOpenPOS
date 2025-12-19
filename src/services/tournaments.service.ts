@@ -84,7 +84,9 @@ class TournamentsService {
       body: JSON.stringify(input),
     });
     if (!response.ok) {
-      throw new Error("Error creating tournament team");
+      const errorData = await response.json().catch(() => ({}));
+      const errorMessage = errorData.error || "Error al crear el equipo";
+      throw new Error(errorMessage);
     }
     return response.json();
   }
@@ -134,8 +136,10 @@ class TournamentsService {
     });
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || "Error regenerating schedule");
+      const errorMessage = errorData.error || "Error al regenerar horarios";
+      throw new Error(errorMessage);
     }
+    return response.json();
   }
 
   async closeRegistration(tournamentId: number): Promise<void> {

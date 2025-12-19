@@ -1,7 +1,8 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Card,
   CardHeader,
@@ -21,39 +22,44 @@ import StandingsTab from "./StandingsTab";
 import PlayoffsTab from "./PlayoffsTab";
 import PlayoffsViewTab from "./PlayoffsViewTab";
 import type { TournamentDTO } from "@/models/dto/tournament";
+import { tournamentsService } from "@/services";
+
+async function fetchTournament(id: number): Promise<TournamentDTO> {
+  return tournamentsService.getById(id);
+}
 
 export default function TournamentDetailPage() {
   const params = useParams();
   const id = Number(params?.id);
-  const [tournament, setTournament] = useState<TournamentDTO | null>(null);
-  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<string>("teams");
 
-  useEffect(() => {
-    if (!id || Number.isNaN(id)) return;
-    const fetchData = async () => {
-      try {
-        const res = await fetch(`/api/tournaments/${id}`);
-        if (!res.ok) throw new Error("Failed to fetch tournament");
-        const data = await res.json();
-        setTournament(data);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [id]);
+  const {
+    data: tournament,
+    isLoading: loading,
+    isError,
+  } = useQuery({
+    queryKey: ["tournament", id],
+    queryFn: () => fetchTournament(id),
+    enabled: !!id && !Number.isNaN(id),
+    staleTime: 1000 * 60 * 5, // 5 minutos
+  });
 
   if (!id || Number.isNaN(id)) {
     return <div>Invalid tournament id</div>;
   }
 
-  if (loading || !tournament) {
+  if (loading) {
     return (
       <div className="h-[80vh] flex items-center justify-center">
         <Loader2Icon className="h-10 w-10 animate-spin" />
+      </div>
+    );
+  }
+
+  if (isError || !tournament) {
+    return (
+      <div className="h-[80vh] flex items-center justify-center">
+        <div>Error al cargar el torneo</div>
       </div>
     );
   }

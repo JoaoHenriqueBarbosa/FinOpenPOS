@@ -14,6 +14,7 @@ import { Loader2Icon, PencilIcon, CheckIcon, XIcon, TrashIcon } from "lucide-rea
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatDate, formatTime } from "@/lib/date-utils";
+import { parseLocalDate } from "@/lib/court-slots-utils";
 import { TournamentScheduleDialog, ScheduleConfig } from "@/components/tournament-schedule-dialog";
 import {
   Dialog,
@@ -36,8 +37,19 @@ import { tournamentsService, tournamentMatchesService } from "@/services";
 
 // Using TournamentDetailDTO from models
 
-function teamLabel(team: TeamDTO | null) {
-  if (!team) return "Equipo";
+function teamLabel(team: TeamDTO | null, matchOrder?: number | null, isTeam1?: boolean) {
+  if (!team) {
+    // Para grupos de 4, mostrar labels descriptivos según el match_order
+    // Verificar que matchOrder sea exactamente 3 o 4 (no undefined ni null)
+    if (matchOrder === 3) {
+      // Partido 3: GANADOR partido 1 vs GANADOR partido 2
+      return isTeam1 ? "GANADOR 1" : "GANADOR 2";
+    } else if (matchOrder === 4) {
+      // Partido 4: PERDEDOR partido 1 vs PERDEDOR partido 2
+      return isTeam1 ? "PERDEDOR 1" : "PERDEDOR 2";
+    }
+    return "Equipo";
+  }
   if (team.display_name) return team.display_name;
   return `${team.player1?.first_name ?? ""} ${team.player1?.last_name ?? ""} / ${
     team.player2?.first_name ?? ""
@@ -84,6 +96,7 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
   const [editDate, setEditDate] = useState<string>("");
   const [editTime, setEditTime] = useState<string>("");
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const [playoffsError, setPlayoffsError] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
@@ -148,7 +161,8 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
   const handleConfirmSchedule = async (config: ScheduleConfig) => {
     try {
       setClosingGroups(true);
-      setScheduleDialogOpen(false);
+      setPlayoffsError(null);
+      // NO cerrar el dialog aquí - esperar a que termine exitosamente
       const res = await fetch(
         `/api/tournaments/${tournament.id}/close-groups`,
         {
@@ -159,14 +173,18 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
       );
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        alert(errorData.error || "Error al generar playoffs");
+        const errorMessage = errorData.error || "Error al generar playoffs";
+        setPlayoffsError(errorMessage);
+        // Mantener el dialog abierto para mostrar el error
         return;
       }
+      // Solo cerrar el dialog si fue exitoso
+      setScheduleDialogOpen(false);
       // recargar todo para ver playoffs
       window.location.reload();
     } catch (err) {
       console.error(err);
-      alert("Error al generar playoffs");
+      setPlayoffsError("Error al generar playoffs. Por favor, intentá nuevamente.");
     } finally {
       setClosingGroups(false);
     }
@@ -236,12 +254,19 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
   const handleConfirmRegenerateSchedule = async (config: ScheduleConfig) => {
     try {
       setRegenerating(true);
-      setShowRegenerateDialog(false);
+      setPlayoffsError(null);
+      // NO cerrar el dialog aquí - esperar a que termine exitosamente
       await tournamentsService.regenerateSchedule(tournament.id, config);
+      // Solo cerrar el dialog si fue exitoso
+      setShowRegenerateScheduleDialog(false);
+      setShowRegenerateDialog(false);
       load();
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("Error al regenerar horarios");
+      const errorMessage = err instanceof Error 
+        ? err.message 
+        : "Error al regenerar horarios. Por favor, intentá nuevamente.";
+      setPlayoffsError(errorMessage);
     } finally {
       setRegenerating(false);
     }
@@ -336,15 +361,29 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
 
       <TournamentScheduleDialog
         open={scheduleDialogOpen}
-        onOpenChange={setScheduleDialogOpen}
+        onOpenChange={(open) => {
+          setScheduleDialogOpen(open);
+          if (!open) {
+            setPlayoffsError(null);
+          }
+        }}
         onConfirm={handleConfirmSchedule}
         matchCount={calculatePlayoffMatchCount()}
         tournamentMatchDuration={tournament.match_duration}
+        error={playoffsError}
+        isLoading={closingGroups}
       />
 
       <TournamentScheduleDialog
         open={showRegenerateScheduleDialog}
-        onOpenChange={setShowRegenerateScheduleDialog}
+        onOpenChange={(open) => {
+          setShowRegenerateScheduleDialog(open);
+          if (!open) {
+            setPlayoffsError(null);
+          }
+        }}
+        error={playoffsError}
+        isLoading={regenerating}
         onConfirm={handleConfirmRegenerateSchedule}
         matchCount={data?.matches.length || 0}
         tournamentMatchDuration={tournament.match_duration}
@@ -407,8 +446,8 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
               <div key={group.id} className="space-y-3">
                 {/* Partidos del grupo */}
                 {sortedMatches.map((m) => {
-                  const team1Name = teamLabel(m.team1);
-                  const team2Name = teamLabel(m.team2);
+                  const team1Name = teamLabel(m.team1, m.match_order, true);
+                  const team2Name = teamLabel(m.team2, m.match_order, false);
                   const groupInfo = m.tournament_group_id
                     ? groupMap.get(m.tournament_group_id)
                     : null;
@@ -462,14 +501,24 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
                             <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${groupColor.badgeBg} ${groupColor.badgeText}`}>
                               {groupName}
                             </span>
-                            {m.match_date && (
+                            {m.match_date && m.start_time && (
                               <span className="font-medium text-muted-foreground">
-                                📅 {formatDate(m.match_date)}
+                                {(() => {
+                                  const date = parseLocalDate(m.match_date);
+                                  const dayNames = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+                                  const dayName = dayNames[date.getDay()].toUpperCase();
+                                  return `${dayName} ${formatDate(m.match_date)} ${formatTime(m.start_time)}`;
+                                })()}
                               </span>
                             )}
-                            {m.start_time && (
-                              <span className="text-muted-foreground">
-                                🕐 {formatTime(m.start_time)}
+                            {m.match_date && !m.start_time && (
+                              <span className="font-medium text-muted-foreground">
+                                {(() => {
+                                  const date = parseLocalDate(m.match_date);
+                                  const dayNames = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+                                  const dayName = dayNames[date.getDay()].toUpperCase();
+                                  return `${dayName} ${formatDate(m.match_date)}`;
+                                })()}
                               </span>
                             )}
                             <Button
