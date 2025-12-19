@@ -9,13 +9,25 @@ import type { ScheduleConfig } from "@/models/dto/tournament";
 type RouteParams = { params: { id: string } };
 
 export async function POST(req: Request, { params }: RouteParams) {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  try {
+    const supabase = createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      // Si es un error de timeout o conexión, retornar un mensaje más claro
+      if (authError?.message?.includes('timeout') || 
+          authError?.message?.includes('fetch failed') ||
+          (authError as any)?.cause?.code === 'UND_ERR_CONNECT_TIMEOUT') {
+        return NextResponse.json(
+          { error: "Error de conexión con el servidor. Por favor, intentá nuevamente." },
+          { status: 503 }
+        );
+      }
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
   const tournamentId = Number(params.id);
   if (Number.isNaN(tournamentId)) {
@@ -352,4 +364,25 @@ export async function POST(req: Request, { params }: RouteParams) {
   }
 
   return NextResponse.json({ ok: true });
+  } catch (error: any) {
+    console.error("Error in close-registration:", error);
+    
+    // Si es un error de timeout o conexión, retornar un mensaje más claro
+    if (
+      error?.message?.includes('timeout') || 
+      error?.message?.includes('fetch failed') ||
+      error?.cause?.code === 'UND_ERR_CONNECT_TIMEOUT' ||
+      error?.message === 'Unauthorized'
+    ) {
+      return NextResponse.json(
+        { error: "Error de conexión con el servidor. Por favor, intentá nuevamente." },
+        { status: 503 }
+      );
+    }
+    
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Internal server error" },
+      { status: 500 }
+    );
+  }
 }
