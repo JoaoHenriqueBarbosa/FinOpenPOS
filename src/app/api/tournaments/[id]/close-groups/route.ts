@@ -164,7 +164,7 @@ export async function POST(req: Request, { params }: RouteParams) {
   );
   if (unplayed.length > 0) {
     return NextResponse.json(
-      { error: "There are group matches not finished yet" },
+      { error: "Hay partidos de zona que aún no están finalizados. Completá todos los resultados antes de generar los playoffs." },
       { status: 400 }
     );
   }

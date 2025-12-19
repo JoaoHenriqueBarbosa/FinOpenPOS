@@ -84,6 +84,7 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
   const [editDate, setEditDate] = useState<string>("");
   const [editTime, setEditTime] = useState<string>("");
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const [playoffsError, setPlayoffsError] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
@@ -148,7 +149,8 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
   const handleConfirmSchedule = async (config: ScheduleConfig) => {
     try {
       setClosingGroups(true);
-      setScheduleDialogOpen(false);
+      setPlayoffsError(null);
+      // NO cerrar el dialog aquí - esperar a que termine exitosamente
       const res = await fetch(
         `/api/tournaments/${tournament.id}/close-groups`,
         {
@@ -159,14 +161,18 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
       );
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        alert(errorData.error || "Error al generar playoffs");
+        const errorMessage = errorData.error || "Error al generar playoffs";
+        setPlayoffsError(errorMessage);
+        // Mantener el dialog abierto para mostrar el error
         return;
       }
+      // Solo cerrar el dialog si fue exitoso
+      setScheduleDialogOpen(false);
       // recargar todo para ver playoffs
       window.location.reload();
     } catch (err) {
       console.error(err);
-      alert("Error al generar playoffs");
+      setPlayoffsError("Error al generar playoffs. Por favor, intentá nuevamente.");
     } finally {
       setClosingGroups(false);
     }
@@ -236,12 +242,19 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
   const handleConfirmRegenerateSchedule = async (config: ScheduleConfig) => {
     try {
       setRegenerating(true);
-      setShowRegenerateDialog(false);
+      setPlayoffsError(null);
+      // NO cerrar el dialog aquí - esperar a que termine exitosamente
       await tournamentsService.regenerateSchedule(tournament.id, config);
+      // Solo cerrar el dialog si fue exitoso
+      setShowRegenerateScheduleDialog(false);
+      setShowRegenerateDialog(false);
       load();
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("Error al regenerar horarios");
+      const errorMessage = err instanceof Error 
+        ? err.message 
+        : "Error al regenerar horarios. Por favor, intentá nuevamente.";
+      setPlayoffsError(errorMessage);
     } finally {
       setRegenerating(false);
     }
@@ -336,15 +349,29 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
 
       <TournamentScheduleDialog
         open={scheduleDialogOpen}
-        onOpenChange={setScheduleDialogOpen}
+        onOpenChange={(open) => {
+          setScheduleDialogOpen(open);
+          if (!open) {
+            setPlayoffsError(null);
+          }
+        }}
         onConfirm={handleConfirmSchedule}
         matchCount={calculatePlayoffMatchCount()}
         tournamentMatchDuration={tournament.match_duration}
+        error={playoffsError}
+        isLoading={closingGroups}
       />
 
       <TournamentScheduleDialog
         open={showRegenerateScheduleDialog}
-        onOpenChange={setShowRegenerateScheduleDialog}
+        onOpenChange={(open) => {
+          setShowRegenerateScheduleDialog(open);
+          if (!open) {
+            setPlayoffsError(null);
+          }
+        }}
+        error={playoffsError}
+        isLoading={regenerating}
         onConfirm={handleConfirmRegenerateSchedule}
         matchCount={data?.matches.length || 0}
         tournamentMatchDuration={tournament.match_duration}

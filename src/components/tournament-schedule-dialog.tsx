@@ -33,6 +33,8 @@ export function TournamentScheduleDialog({
   onConfirm,
   matchCount,
   tournamentMatchDuration = 60,
+  error = null,
+  isLoading = false,
 }: TournamentScheduleDialogProps) {
   const [days, setDays] = useState<ScheduleDay[]>([
     {
@@ -123,7 +125,7 @@ export function TournamentScheduleDialog({
     }
 
     onConfirm({ days, matchDuration, courtIds: selectedCourtIds });
-    onOpenChange(false);
+    // NO cerrar el dialog aquí - el componente padre lo cerrará cuando termine exitosamente
   };
 
   const toggleCourt = (courtId: number) => {
@@ -357,10 +359,23 @@ export function TournamentScheduleDialog({
               </div>
             )}
           </div>
+          
+          {/* Mostrar error dentro del dialog */}
+          {error && (
+            <div className="rounded-md bg-destructive/10 border border-destructive/20 p-3">
+              <p className="text-sm text-destructive font-medium">
+                {error}
+              </p>
+            </div>
+          )}
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button 
+            variant="outline" 
+            onClick={() => onOpenChange(false)}
+            disabled={isLoading}
+          >
             Cancelar
           </Button>
           <Button
@@ -369,10 +384,11 @@ export function TournamentScheduleDialog({
               availableSlots < matchCount ||
               days.length === 0 ||
               selectedCourtIds.length === 0 ||
-              loadingCourts
+              loadingCourts ||
+              isLoading
             }
           >
-            Confirmar
+            {isLoading ? "Generando playoffs..." : "Confirmar"}
           </Button>
         </DialogFooter>
       </DialogContent>
