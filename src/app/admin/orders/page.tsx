@@ -88,6 +88,7 @@ export default function OrdersPage() {
   } = useQuery({
     queryKey: ["orders"],
     queryFn: fetchOrders,
+    staleTime: 1000 * 60 * 5, // 5 minutos
   });
 
   const {
@@ -97,6 +98,7 @@ export default function OrdersPage() {
   } = useQuery({
     queryKey: ["players", "onlyActive"],
     queryFn: fetchPlayers,
+    staleTime: 1000 * 60 * 10, // 10 minutos - los players cambian menos frecuentemente
   });
 
   // toasts de error de carga
