@@ -271,6 +271,7 @@ export class TournamentGroupsRepository extends BaseRepository {
           match_date,
           start_time,
           end_time,
+          match_order,
           set1_team1_games,
           set1_team2_games,
           set2_team1_games,

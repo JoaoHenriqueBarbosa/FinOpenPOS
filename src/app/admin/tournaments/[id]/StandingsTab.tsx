@@ -32,16 +32,25 @@ import type {
 } from "@/models/dto/tournament";
 import { tournamentsService } from "@/services";
 
-function teamLabel(team: TeamDTO | null | undefined): string {
-  if (!team) return "—";
+function teamLabel(team: TeamDTO | null | undefined, matchOrder?: number | null, isTeam1?: boolean): string {
+  if (!team) {
+    // Para grupos de 4, mostrar labels descriptivos según el match_order
+    // Verificar que matchOrder sea exactamente 3 o 4 (no undefined ni null)
+    if (matchOrder === 3) {
+      // Partido 3: GANADOR partido 1 vs GANADOR partido 2
+      return isTeam1 ? "GANADOR 1" : "GANADOR 2";
+    } else if (matchOrder === 4) {
+      // Partido 4: PERDEDOR partido 1 vs PERDEDOR partido 2
+      return isTeam1 ? "PERDEDOR 1" : "PERDEDOR 2";
+    }
+    return "—";
+  }
+  // Si el equipo existe, usar teamLabelShort para mostrar solo apellidos
   if (team.display_name) return team.display_name;
-  const p1 = team.player1
-    ? `${team.player1.first_name} ${team.player1.last_name}`
-    : "";
-  const p2 = team.player2
-    ? `${team.player2.first_name} ${team.player2.last_name}`
-    : "";
-  return [p1, p2].filter(Boolean).join(" / ");
+  const lastName1 = team.player1?.last_name ?? "";
+  const lastName2 = team.player2?.last_name ?? "";
+  if (!lastName1 && !lastName2) return "—";
+  return [lastName1, lastName2].filter(Boolean).join(" / ");
 }
 
 function teamLabelShort(team: TeamDTO | null | undefined): string {
@@ -326,7 +335,7 @@ export default function StandingsTab({ tournament }: { tournament: Pick<Tourname
                             </div>
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex-1 text-sm">
-                                {teamLabelShort(match.team1)}
+                                {teamLabel(match.team1, match.match_order, true)}
                               </div>
                               {hasResult ? (
                                 <div className="flex items-center gap-1 text-xs font-semibold">
@@ -352,7 +361,7 @@ export default function StandingsTab({ tournament }: { tournament: Pick<Tourname
                                 <span className="text-muted-foreground text-xs">vs</span>
                               )}
                               <div className="flex-1 text-sm text-right">
-                                {teamLabelShort(match.team2)}
+                                {teamLabel(match.team2, match.match_order, false)}
                               </div>
                             </div>
                           </div>

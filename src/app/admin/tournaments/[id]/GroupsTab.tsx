@@ -37,8 +37,19 @@ import { tournamentsService, tournamentMatchesService } from "@/services";
 
 // Using TournamentDetailDTO from models
 
-function teamLabel(team: TeamDTO | null) {
-  if (!team) return "Equipo";
+function teamLabel(team: TeamDTO | null, matchOrder?: number | null, isTeam1?: boolean) {
+  if (!team) {
+    // Para grupos de 4, mostrar labels descriptivos según el match_order
+    // Verificar que matchOrder sea exactamente 3 o 4 (no undefined ni null)
+    if (matchOrder === 3) {
+      // Partido 3: GANADOR partido 1 vs GANADOR partido 2
+      return isTeam1 ? "GANADOR 1" : "GANADOR 2";
+    } else if (matchOrder === 4) {
+      // Partido 4: PERDEDOR partido 1 vs PERDEDOR partido 2
+      return isTeam1 ? "PERDEDOR 1" : "PERDEDOR 2";
+    }
+    return "Equipo";
+  }
   if (team.display_name) return team.display_name;
   return `${team.player1?.first_name ?? ""} ${team.player1?.last_name ?? ""} / ${
     team.player2?.first_name ?? ""
@@ -435,8 +446,8 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
               <div key={group.id} className="space-y-3">
                 {/* Partidos del grupo */}
                 {sortedMatches.map((m) => {
-                  const team1Name = teamLabel(m.team1);
-                  const team2Name = teamLabel(m.team2);
+                  const team1Name = teamLabel(m.team1, m.match_order, true);
+                  const team2Name = teamLabel(m.team2, m.match_order, false);
                   const groupInfo = m.tournament_group_id
                     ? groupMap.get(m.tournament_group_id)
                     : null;
