@@ -322,7 +322,7 @@ export async function POST(req: Request, { params }: RouteParams) {
       .select("*")
       .eq("tournament_id", tournamentId)
       .eq("user_uid", user.id)
-      .order("day_of_week", { ascending: true })
+      .order("date", { ascending: true })
       .order("start_time", { ascending: true });
 
     if (schedulesError) {

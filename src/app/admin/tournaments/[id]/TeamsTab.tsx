@@ -584,7 +584,7 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
         onConfirm={handleCloseRegistration}
         matchCount={matchCount}
         tournamentMatchDuration={tournament.match_duration}
-        availableSchedules={availableSchedules}
+        availableSchedules={availableSchedulesGrouped}
       />
 
       <TournamentAvailableSchedulesDialog

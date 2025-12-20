@@ -47,13 +47,16 @@ export function TournamentAvailableSchedulesDialog({
   }, [open, schedules]);
 
   const handleAddSchedule = () => {
+    // Fecha por defecto: hoy
+    const today = new Date();
+    const defaultDate = today.toISOString().split("T")[0];
+    
     setLocalSchedules([
       ...localSchedules,
       {
-        day_of_week: 5, // Viernes por defecto
+        date: defaultDate,
         start_time: "13:00",
         end_time: "23:00",
-        display_name: null,
       },
     ]);
   };
@@ -69,23 +72,16 @@ export function TournamentAvailableSchedulesDialog({
   ) => {
     const updated = [...localSchedules];
     updated[index] = { ...updated[index], [field]: value };
-    
-    // Auto-generar display_name si está vacío
-    if (field !== "display_name" && (!updated[index].display_name || updated[index].display_name.trim() === "")) {
-      const dayName = dayNames[updated[index].day_of_week];
-      updated[index].display_name = `${dayName} ${updated[index].start_time} - ${updated[index].end_time}`;
-    }
-    
     setLocalSchedules(updated);
   };
 
   const handleSave = async () => {
-    // Validar que todos los horarios tengan día, hora inicio y hora fin
+    // Validar que todos los horarios tengan fecha, hora inicio y hora fin
     const invalid = localSchedules.some(
-      (s) => s.start_time === "" || s.end_time === "" || s.start_time >= s.end_time
+      (s) => !s.date || s.start_time === "" || s.end_time === "" || s.start_time >= s.end_time
     );
     if (invalid) {
-      alert("Por favor completá todos los campos y asegurate de que la hora de inicio sea menor que la hora de fin");
+      alert("Por favor completá todos los campos (fecha, hora inicio y hora fin) y asegurate de que la hora de inicio sea menor que la hora de fin");
       return;
     }
 
@@ -126,26 +122,26 @@ export function TournamentAvailableSchedulesDialog({
                 >
                   <div className="flex-1 space-y-2">
                     <div>
-                      <Label htmlFor={`day-${index}`}>Día de la semana</Label>
-                      <Select
-                        value={String(schedule.day_of_week)}
-                        onValueChange={(value) =>
-                          handleUpdateSchedule(index, "day_of_week", Number(value))
+                      <Label htmlFor={`date-${index}`}>Fecha</Label>
+                      <Input
+                        id={`date-${index}`}
+                        type="date"
+                        value={schedule.date || ""}
+                        onChange={(e) =>
+                          handleUpdateSchedule(index, "date", e.target.value)
                         }
-                      >
-                        <SelectTrigger id={`day-${index}`}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {dayNames.map((day, dayIndex) => (
-                            <SelectItem key={dayIndex} value={String(dayIndex)}>
-                              {day}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      />
+                      {schedule.date && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {new Date(schedule.date + "T00:00:00").toLocaleDateString("es-AR", {
+                            weekday: "long",
+                            day: "numeric",
+                            month: "long",
+                          })}
+                        </p>
+                      )}
                     </div>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 gap-2">
                       <div>
                         <Label htmlFor={`start-${index}`}>Hora inicio</Label>
                         <Input
@@ -165,18 +161,6 @@ export function TournamentAvailableSchedulesDialog({
                           value={schedule.end_time}
                           onChange={(e) =>
                             handleUpdateSchedule(index, "end_time", e.target.value)
-                          }
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor={`display-${index}`}>Nombre (opcional)</Label>
-                        <Input
-                          id={`display-${index}`}
-                          type="text"
-                          placeholder="Auto-generado"
-                          value={schedule.display_name || ""}
-                          onChange={(e) =>
-                            handleUpdateSchedule(index, "display_name", e.target.value || null)
                           }
                         />
                       </div>

@@ -25,19 +25,13 @@ export type TimeSlot = {
   endTime: string;
 };
 
-// Obtener el día de la semana de una fecha (0=domingo, 6=sábado)
-function getDayOfWeek(date: string): number {
-  const d = new Date(date + "T00:00:00");
-  return d.getDay();
-}
-
 // Verificar si un slot coincide con un horario disponible
 function slotMatchesAvailableSchedule(
   slot: TimeSlot,
   availableSchedule: AvailableSchedule
 ): boolean {
-  const slotDayOfWeek = getDayOfWeek(slot.date);
-  if (slotDayOfWeek !== availableSchedule.day_of_week) return false;
+  // Comparar fechas directamente (formato YYYY-MM-DD)
+  if (slot.date !== availableSchedule.date) return false;
 
   const slotStartMinutes = timeToMinutesOfDay(slot.startTime);
   const slotEndMinutes = timeToMinutesOfDay(slot.endTime);
