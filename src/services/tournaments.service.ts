@@ -190,13 +190,18 @@ class TournamentsService {
     return response.json();
   }
 
-  async closeRegistration(tournamentId: number): Promise<void> {
+  async closeRegistration(tournamentId: number, scheduleConfig?: ScheduleConfig): Promise<void> {
     const response = await fetch(`${this.baseUrl}/${tournamentId}/close-registration`, {
       method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(scheduleConfig || {}),
     });
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || "Error closing registration");
+      const errorMessage = errorData.error || errorData.message || "Error closing registration";
+      throw new Error(errorMessage);
     }
   }
 }

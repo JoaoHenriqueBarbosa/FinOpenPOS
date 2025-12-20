@@ -76,6 +76,7 @@ export interface MatchDTO {
   start_time: string | null;
   end_time: string | null;
   match_order?: number | null;
+  court_id: number | null;
   set1_team1_games: number | null;
   set1_team2_games: number | null;
   set2_team1_games: number | null;
@@ -118,6 +119,7 @@ export interface PlayoffRow {
     match_date: string | null;
     start_time: string | null;
     end_time: string | null;
+    court_id: number | null;
     set1_team1_games: number | null;
     set1_team2_games: number | null;
     set2_team1_games: number | null;

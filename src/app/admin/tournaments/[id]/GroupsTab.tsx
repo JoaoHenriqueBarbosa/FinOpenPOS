@@ -35,6 +35,7 @@ import type {
   TeamDTO,
   AvailableSchedule,
 } from "@/models/dto/tournament";
+import type { CourtDTO } from "@/models/dto/court";
 import { tournamentsService, tournamentMatchesService } from "@/services";
 
 // Using TournamentDetailDTO from models
@@ -132,6 +133,23 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
     queryKey: ["tournament-available-schedules-grouped", tournament.id],
     queryFn: () => tournamentsService.getAvailableSchedules(tournament.id, true),
     staleTime: 1000 * 30,
+  });
+
+  // Obtener canchas para mostrar nombres
+  const { data: courts = [] } = useQuery<CourtDTO[]>({
+    queryKey: ["courts"],
+    queryFn: async () => {
+      const response = await fetch("/api/courts?onlyActive=true");
+      if (!response.ok) return [];
+      return response.json();
+    },
+    staleTime: 1000 * 60 * 5, // 5 minutos
+  });
+
+  // Crear mapa de ID a nombre de cancha
+  const courtMap = new Map<number, string>();
+  courts.forEach((court) => {
+    courtMap.set(court.id, court.name);
   });
 
   const hasPlayoffs = playoffsData && playoffsData.length > 0;
@@ -538,7 +556,9 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
                                   const date = parseLocalDate(m.match_date);
                                   const dayNames = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
                                   const dayName = dayNames[date.getDay()].toUpperCase();
-                                  return `${dayName} ${formatDate(m.match_date)} ${formatTime(m.start_time)}`;
+                                  const courtName = m.court_id ? courtMap.get(m.court_id) : null;
+                                  const courtText = courtName ? ` - ${courtName}` : "";
+                                  return `${dayName} ${formatDate(m.match_date)} ${formatTime(m.start_time)}${courtText}`;
                                 })()}
                               </span>
                             )}

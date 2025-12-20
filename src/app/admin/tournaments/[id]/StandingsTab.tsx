@@ -30,6 +30,7 @@ import type {
   TournamentDTO,
   ApiResponseStandings,
 } from "@/models/dto/tournament";
+import type { CourtDTO } from "@/models/dto/court";
 import { tournamentsService } from "@/services";
 
 function teamLabel(team: TeamDTO | null | undefined, matchOrder?: number | null, isTeam1?: boolean): string {
@@ -91,6 +92,23 @@ export default function StandingsTab({ tournament }: { tournament: Pick<Tourname
     queryKey: ["tournament-standings", tournament.id],
     queryFn: () => fetchTournamentStandings(tournament.id),
     staleTime: 1000 * 30, // 30 segundos
+  });
+
+  // Obtener canchas para mostrar nombres
+  const { data: courts = [] } = useQuery<CourtDTO[]>({
+    queryKey: ["courts"],
+    queryFn: async () => {
+      const response = await fetch("/api/courts?onlyActive=true");
+      if (!response.ok) return [];
+      return response.json();
+    },
+    staleTime: 1000 * 60 * 5, // 5 minutos
+  });
+
+  // Crear mapa de ID a nombre de cancha
+  const courtMap = new Map<number, string>();
+  courts.forEach((court) => {
+    courtMap.set(court.id, court.name);
   });
 
   if (loading) {
@@ -303,7 +321,9 @@ export default function StandingsTab({ tournament }: { tournament: Pick<Tourname
                                     const date = parseLocalDate(match.match_date);
                                     const dayNames = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
                                     const dayName = dayNames[date.getDay()].toUpperCase();
-                                    return `${dayName} ${formatDate(match.match_date)} ${formatTime(match.start_time)}`;
+                                    const courtName = match.court_id ? courtMap.get(match.court_id) : null;
+                                    const courtText = courtName ? ` - ${courtName}` : "";
+                                    return `${dayName} ${formatDate(match.match_date)} ${formatTime(match.start_time)}${courtText}`;
                                   })()}
                                 </span>
                               )}

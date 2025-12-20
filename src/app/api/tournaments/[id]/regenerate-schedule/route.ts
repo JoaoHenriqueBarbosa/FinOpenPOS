@@ -51,7 +51,7 @@ export async function POST(req: Request, { params }: RouteParams) {
   // Un partido sin resultados es aquel donde set1_team1_games es null
   const { data: matches, error: matchesError } = await supabase
     .from("tournament_matches")
-    .select("id, tournament_group_id, team1_id, team2_id, match_order, status, set1_team1_games")
+    .select("id, tournament_group_id, team1_id, team2_id, match_order, status, set1_team1_games, court_id")
     .eq("tournament_id", tournamentId)
     .eq("phase", "group")
     .eq("user_uid", user.id)
@@ -232,9 +232,10 @@ export async function POST(req: Request, { params }: RouteParams) {
       match_date: payload.date,
       start_time: payload.startTime,
       end_time: payload.endTime,
+      court_id: payload.courtId,
     };
-  }).filter((u): u is { id: number; match_date: string; start_time: string; end_time: string } => 
-    u !== null && u.match_date !== null && u.start_time !== null && u.end_time !== null
+  }).filter((u): u is { id: number; match_date: string; start_time: string; end_time: string; court_id: number } => 
+    u !== null && u.match_date !== null && u.start_time !== null && u.end_time !== null && u.court_id !== undefined
   );
 
   // Actualizar todos los partidos
@@ -246,6 +247,7 @@ export async function POST(req: Request, { params }: RouteParams) {
         match_date: update.match_date,
         start_time: update.start_time,
         end_time: update.end_time,
+        court_id: update.court_id,
       })
       .eq("id", update.id)
       .eq("user_uid", user.id);

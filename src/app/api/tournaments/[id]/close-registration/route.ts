@@ -36,13 +36,69 @@ export async function POST(req: Request, { params }: RouteParams) {
 
   // Obtener configuración de horarios del body
   const body = await req.json().catch(() => ({}));
-  const scheduleConfig: ScheduleConfig | undefined = body.days
+  let scheduleConfig: ScheduleConfig | undefined = body.days
     ? {
         days: body.days,
         matchDuration: body.matchDuration || 60,
         courtIds: body.courtIds || [],
       }
     : undefined;
+  
+  // Si no hay scheduleConfig pero hay horarios disponibles del torneo, usarlos automáticamente
+  if (!scheduleConfig) {
+    const { data: availableSchedules, error: schedulesError } = await supabase
+      .from("tournament_available_schedules")
+      .select("*")
+      .eq("tournament_id", tournamentId)
+      .eq("user_uid", user.id)
+      .order("date", { ascending: true })
+      .order("start_time", { ascending: true });
+
+    if (!schedulesError && availableSchedules && availableSchedules.length > 0) {
+      // Agrupar slots consecutivos de la misma fecha en rangos
+      const groupedSchedules = new Map<string, { date: string; start_time: string; end_time: string }>();
+      
+      availableSchedules.forEach((schedule: any) => {
+        const dateKey = schedule.date;
+        if (!groupedSchedules.has(dateKey)) {
+          groupedSchedules.set(dateKey, {
+            date: schedule.date,
+            start_time: schedule.start_time,
+            end_time: schedule.end_time,
+          });
+        } else {
+          const existing = groupedSchedules.get(dateKey)!;
+          // Extender el rango si el slot es consecutivo
+          if (schedule.end_time > existing.end_time) {
+            existing.end_time = schedule.end_time;
+          }
+        }
+      });
+
+      const days = Array.from(groupedSchedules.values());
+      
+      if (days.length > 0) {
+        // Obtener canchas activas
+        const { data: courts, error: courtsError } = await supabase
+          .from("courts")
+          .select("id")
+          .eq("user_uid", user.id)
+          .eq("is_active", true);
+
+        if (!courtsError && courts && courts.length > 0) {
+          scheduleConfig = {
+            days: days.map(s => ({
+              date: s.date,
+              startTime: s.start_time,
+              endTime: s.end_time,
+            })),
+            matchDuration: t.match_duration ?? 60,
+            courtIds: courts.map((c: any) => c.id),
+          };
+        }
+      }
+    }
+  }
 
   // 1) traer torneo
   const { data: t, error: terr } = await supabase
@@ -194,6 +250,7 @@ export async function POST(req: Request, { params }: RouteParams) {
             match_date: null,
             start_time: null,
             end_time: null,
+            court_id: null,
           });
         }
       }
@@ -213,6 +270,7 @@ export async function POST(req: Request, { params }: RouteParams) {
         start_time: null,
         end_time: null,
         match_order: 1,
+        court_id: null,
       });
       matchesPayload.push({
         tournament_id: tournamentId,
@@ -225,6 +283,7 @@ export async function POST(req: Request, { params }: RouteParams) {
         start_time: null,
         end_time: null,
         match_order: 2,
+        court_id: null,
       });
       
       // Segunda ronda (match_order 3-4):
@@ -242,6 +301,7 @@ export async function POST(req: Request, { params }: RouteParams) {
         start_time: null,
         end_time: null,
         match_order: 3,
+        court_id: null,
       });
       matchesPayload.push({
         tournament_id: tournamentId,
@@ -254,6 +314,7 @@ export async function POST(req: Request, { params }: RouteParams) {
         start_time: null,
         end_time: null,
         match_order: 4,
+        court_id: null,
       });
     }
   });

@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { PlusIcon, TrashIcon } from "lucide-react";
+import { ScheduleDaysEditor, type ScheduleDay as ScheduleDayEditor } from "@/components/schedule-days-editor";
 import type { ScheduleDay, ScheduleConfig } from "@/models/dto/tournament";
 
 export type { ScheduleDay, ScheduleConfig };
@@ -29,7 +29,7 @@ type TournamentScheduleDialogProps = {
 import type { CourtDTO } from "@/models/dto/court";
 
 // Inicializar días desde horarios disponibles si existen
-function getInitialDays(availableSchedules: Array<{ date: string; start_time: string; end_time: string }>): ScheduleDay[] {
+function getInitialDays(availableSchedules: Array<{ date: string; start_time: string; end_time: string }>): ScheduleDayEditor[] {
   if (availableSchedules.length > 0) {
     return availableSchedules.map((schedule) => ({
       date: schedule.date,
@@ -57,7 +57,7 @@ export function TournamentScheduleDialog({
   isLoading = false,
   availableSchedules = [],
 }: TournamentScheduleDialogProps) {
-  const [days, setDays] = useState<ScheduleDay[]>(() => getInitialDays(availableSchedules));
+  const [days, setDays] = useState<ScheduleDayEditor[]>(() => getInitialDays(availableSchedules));
   const [matchDuration, setMatchDuration] = useState<number>(tournamentMatchDuration);
   const [courts, setCourts] = useState<CourtDTO[]>([]);
   const [selectedCourtIds, setSelectedCourtIds] = useState<number[]>([]);
@@ -107,24 +107,7 @@ export function TournamentScheduleDialog({
     }
   }, [open]);
 
-  const addDay = () => {
-    setDays([
-      ...days,
-      {
-        date: "",
-        startTime: "12:00",
-        endTime: "22:00",
-      },
-    ]);
-  };
-
-  const removeDay = (index: number) => {
-    setDays(days.filter((_, i) => i !== index));
-  };
-
-  const updateDay = (index: number, field: keyof ScheduleDay, value: string) => {
-    const newDays = [...days];
-    newDays[index] = { ...newDays[index], [field]: value };
+  const handleDaysChange = (newDays: ScheduleDayEditor[]) => {
     setDays(newDays);
   };
 
@@ -135,8 +118,22 @@ export function TournamentScheduleDialog({
       return;
     }
 
+    // Validar que todos los días tengan fecha
+    if (days.some((d) => !d.date)) {
+      alert("Todos los días deben tener una fecha");
+      return;
+    }
+
     // Validar que startTime < endTime para cada día
-    if (days.some((d) => d.startTime >= d.endTime)) {
+    // Si endTime es 00:00, interpretarlo como 24:00 (fin del día)
+    if (days.some((d) => {
+      const [startH, startM] = d.startTime.split(":").map(Number);
+      const [endH, endM] = d.endTime.split(":").map(Number);
+      const startMinutes = startH * 60 + startM;
+      // Si la hora de fin es 00:00, interpretarla como 24:00 (fin del día)
+      const endMinutes = (endH === 0 && endM === 0) ? 24 * 60 : endH * 60 + endM;
+      return startMinutes >= endMinutes;
+    })) {
       alert("La hora de inicio debe ser anterior a la hora de fin");
       return;
     }
@@ -147,7 +144,13 @@ export function TournamentScheduleDialog({
       return;
     }
 
-    onConfirm({ days, matchDuration, courtIds: selectedCourtIds });
+    // Convertir ScheduleDayEditor[] a ScheduleDay[] para el callback
+    const scheduleDays: ScheduleDay[] = days.map((d) => ({
+      date: d.date,
+      startTime: d.startTime,
+      endTime: d.endTime,
+    }));
+    onConfirm({ days: scheduleDays, matchDuration, courtIds: selectedCourtIds });
     // NO cerrar el dialog aquí - el componente padre lo cerrará cuando termine exitosamente
   };
 
@@ -169,7 +172,8 @@ export function TournamentScheduleDialog({
       const [startH, startM] = day.startTime.split(":").map(Number);
       const [endH, endM] = day.endTime.split(":").map(Number);
       const startMinutes = startH * 60 + startM;
-      const endMinutes = endH * 60 + endM;
+      // Si la hora de fin es 00:00, interpretarla como 24:00 (fin del día)
+      const endMinutes = (endH === 0 && endM === 0) ? 24 * 60 : endH * 60 + endM;
       const durationMinutes = endMinutes - startMinutes;
       const slotsPerDay = Math.floor(durationMinutes / matchDuration);
       totalSlots += slotsPerDay * numCourts;
@@ -231,72 +235,12 @@ export function TournamentScheduleDialog({
 
           {/* Días */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label>Días disponibles</Label>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addDay}
-              >
-                <PlusIcon className="w-4 h-4 mr-1" />
-                Agregar día
-              </Button>
-            </div>
-
-            {days.map((day, index) => (
-              <div
-                key={index}
-                className="flex gap-2 items-end p-3 border rounded-lg"
-              >
-                <div className="flex-1 space-y-2">
-                  <div>
-                    <Label className="text-xs">Fecha</Label>
-                    <Input
-                      type="date"
-                      value={day.date}
-                      onChange={(e) =>
-                        updateDay(index, "date", e.target.value)
-                      }
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <Label className="text-xs">Hora inicio</Label>
-                      <Input
-                        type="time"
-                        step="60"
-                        value={day.startTime}
-                        onChange={(e) =>
-                          updateDay(index, "startTime", e.target.value)
-                        }
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Hora fin</Label>
-                      <Input
-                        type="time"
-                        step="60"
-                        value={day.endTime}
-                        onChange={(e) =>
-                          updateDay(index, "endTime", e.target.value)
-                        }
-                      />
-                    </div>
-                  </div>
-                </div>
-                {days.length > 1 && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeDay(index)}
-                  >
-                    <TrashIcon className="w-4 h-4" />
-                  </Button>
-                )}
-              </div>
-            ))}
+            <Label>Días disponibles</Label>
+            <ScheduleDaysEditor
+              days={days}
+              onChange={handleDaysChange}
+              showDayOfWeek={false}
+            />
           </div>
 
           {/* Resumen y vista previa de slots */}
@@ -326,35 +270,53 @@ export function TournamentScheduleDialog({
                       const [startH, startM] = day.startTime.split(":").map(Number);
                       const [endH, endM] = day.endTime.split(":").map(Number);
                       const startMinutes = startH * 60 + startM;
-                      const endMinutes = endH * 60 + endM;
+                      // Si la hora de fin es 00:00, interpretarla como 24:00 (fin del día)
+                      const endMinutes = (endH === 0 && endM === 0) ? 24 * 60 : endH * 60 + endM;
 
                       // Generar slots para este día
-                      const slotsForDay: Array<{ time: string; courtName: string }> = [];
+                      const slotsForDay: Array<{ time: string; courtName: string; endTime: string }> = [];
                       let currentMinutes = startMinutes;
-                      let slotIndex = 0;
 
                       while (currentMinutes + matchDuration <= endMinutes) {
                         const slotStartH = Math.floor(currentMinutes / 60);
                         const slotStartM = currentMinutes % 60;
-                        const slotTime = `${String(slotStartH).padStart(2, "0")}:${String(slotStartM).padStart(2, "0")}`;
+                        const slotEndMinutes = currentMinutes + matchDuration;
+                        
+                        // Calcular hora de fin del slot
+                        let slotEndH: number;
+                        let slotEndM: number;
+                        if (slotEndMinutes >= 24 * 60) {
+                          slotEndH = 0;
+                          slotEndM = 0;
+                        } else {
+                          slotEndH = Math.floor(slotEndMinutes / 60);
+                          slotEndM = slotEndMinutes % 60;
+                        }
+                        
+                        const slotStartTime = `${String(slotStartH).padStart(2, "0")}:${String(slotStartM).padStart(2, "0")}`;
+                        const slotEndTime = `${String(slotEndH).padStart(2, "0")}:${String(slotEndM).padStart(2, "0")}`;
 
                         // Un slot por cada cancha seleccionada
                         selectedCourtIds.forEach((courtId) => {
                           const court = courts.find((c) => c.id === courtId);
                           slotsForDay.push({
-                            time: slotTime,
+                            time: slotStartTime,
+                            endTime: slotEndTime,
                             courtName: court?.name || `Cancha ${courtId}`,
                           });
                         });
 
                         currentMinutes += matchDuration;
-                        slotIndex++;
                       }
+
+                      // Crear fecha en zona horaria local para evitar problemas de UTC
+                      const [year, month, dayOfMonth] = day.date.split("-").map(Number);
+                      const localDate = new Date(year, month - 1, dayOfMonth);
 
                       return (
                         <div key={dayIndex} className="space-y-1">
                           <div className="text-xs font-semibold">
-                            {new Date(day.date).toLocaleDateString("es-AR", {
+                            {localDate.toLocaleDateString("es-AR", {
                               weekday: "long",
                               day: "numeric",
                               month: "long",
@@ -366,7 +328,7 @@ export function TournamentScheduleDialog({
                                 key={idx}
                                 className="bg-background px-2 py-1 rounded border text-muted-foreground"
                               >
-                                {slot.time} - {slot.courtName}
+                                {slot.time} - {slot.endTime} - {slot.courtName}
                               </div>
                             ))}
                           </div>
