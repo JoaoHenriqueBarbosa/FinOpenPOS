@@ -36,15 +36,19 @@ export function TeamScheduleRestrictionsDialog({
   const [saving, setSaving] = useState(false);
 
   // Inicializar restricciones cuando se abre el diálogo o cambia el equipo
+  // Usar useMemo para estabilizar la referencia del team y evitar loops infinitos
+  const teamId = team?.id;
+  const teamRestrictedIds = team?.restricted_schedule_ids;
+  
   useEffect(() => {
-    if (open && team) {
+    if (open && team && teamRestrictedIds) {
       // Cargar restricciones del equipo (IDs de horarios que NO puede jugar)
-      const restricted = team.restricted_schedule_ids || [];
-      setRestrictedIds(new Set(restricted));
+      setRestrictedIds(new Set(teamRestrictedIds));
     } else if (!open) {
       setRestrictedIds(new Set());
     }
-  }, [open, team]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, teamId, teamRestrictedIds?.join(',')]);
 
   const handleToggleRestriction = (scheduleId: number) => {
     const newRestricted = new Set(restrictedIds);

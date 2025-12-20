@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -63,6 +63,11 @@ export function TournamentScheduleDialog({
   const [selectedCourtIds, setSelectedCourtIds] = useState<number[]>([]);
   const [loadingCourts, setLoadingCourts] = useState(false);
 
+  // Estabilizar availableSchedules para evitar loops infinitos
+  const availableSchedulesKey = useMemo(() => {
+    return availableSchedules.map(s => `${s.date}-${s.start_time}-${s.end_time}`).join('|');
+  }, [availableSchedules]);
+
   // Resetear matchDuration y días cuando cambia el valor del torneo o se abre el diálogo
   useEffect(() => {
     if (open) {
@@ -70,7 +75,8 @@ export function TournamentScheduleDialog({
       // Si hay horarios disponibles, pre-llenar los días
       setDays(getInitialDays(availableSchedules));
     }
-  }, [open, tournamentMatchDuration, availableSchedules]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, tournamentMatchDuration, availableSchedulesKey]);
 
   // Cargar canchas al abrir el diálogo
   useEffect(() => {

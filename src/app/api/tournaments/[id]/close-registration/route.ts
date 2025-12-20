@@ -85,10 +85,10 @@ export async function POST(req: Request, { params }: RouteParams) {
     );
   }
 
-  // 2) traer equipos con sus restricciones horarias
+  // 2) traer equipos (las restricciones horarias se obtienen después desde tournament_team_schedule_restrictions)
   const { data: teams, error: teamsError } = await supabase
     .from("tournament_teams")
-    .select("id, schedule_restrictions")
+    .select("id")
     .eq("tournament_id", tournamentId)
     .eq("user_uid", user.id)
     .order("id", { ascending: true });

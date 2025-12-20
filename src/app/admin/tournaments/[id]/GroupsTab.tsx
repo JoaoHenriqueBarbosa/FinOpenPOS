@@ -33,6 +33,7 @@ import type {
   StandingDTO,
   GroupsApiResponse,
   TeamDTO,
+  AvailableSchedule,
 } from "@/models/dto/tournament";
 import { tournamentsService, tournamentMatchesService } from "@/services";
 
@@ -121,6 +122,15 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
   } = useQuery({
     queryKey: ["tournament-playoffs", tournament.id],
     queryFn: () => fetchTournamentPlayoffs(tournament.id),
+    staleTime: 1000 * 30,
+  });
+
+  // Cargar horarios disponibles del torneo (agrupados) para pre-llenar el diálogo de regenerar horarios
+  const {
+    data: availableSchedulesGrouped = [],
+  } = useQuery({
+    queryKey: ["tournament-available-schedules-grouped", tournament.id],
+    queryFn: () => tournamentsService.getAvailableSchedules(tournament.id, true),
     staleTime: 1000 * 30,
   });
 
@@ -407,6 +417,7 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
         onConfirm={handleConfirmRegenerateSchedule}
         matchCount={data?.matches.length || 0}
         tournamentMatchDuration={tournament.match_duration}
+        availableSchedules={availableSchedulesGrouped}
       />
 
       <CardContent className="px-0 space-y-3">

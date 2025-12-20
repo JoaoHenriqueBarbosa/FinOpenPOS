@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -37,14 +37,23 @@ export function TournamentAvailableSchedulesDialog({
   const [saving, setSaving] = useState(false);
 
   // Inicializar con los horarios existentes
+  // Usar useMemo para estabilizar la referencia y evitar loops infinitos
+  const schedulesKey = useMemo(() => {
+    return schedules.map(s => `${s.date}-${s.start_time}-${s.end_time}`).join('|');
+  }, [schedules]);
+
+  const schedulesStable = useMemo(() => {
+    return schedules.map(({ id, tournament_id, ...rest }) => rest);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schedulesKey]);
+
   useEffect(() => {
     if (open) {
-      const schedulesWithoutIds = schedules.map(({ id, tournament_id, ...rest }) => rest);
-      setLocalSchedules(schedulesWithoutIds);
+      setLocalSchedules(schedulesStable);
     } else {
       setLocalSchedules([]);
     }
-  }, [open, schedules]);
+  }, [open, schedulesStable]);
 
   const handleAddSchedule = () => {
     // Fecha por defecto: hoy

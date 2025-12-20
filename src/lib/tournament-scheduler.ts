@@ -137,16 +137,19 @@ function slotViolatesRestriction(
   availableSchedules: AvailableSchedule[]
 ): boolean {
   if (!restrictedScheduleIds || restrictedScheduleIds.length === 0) return false;
+  if (!availableSchedules || availableSchedules.length === 0) return false;
 
-  // Encontrar qué horario disponible coincide con este slot
-  const matchingSchedule = availableSchedules.find((schedule) =>
+  // Encontrar TODOS los horarios disponibles que coinciden con este slot
+  // Un slot puede coincidir con múltiples horarios disponibles (por ejemplo, si hay slots de 1 hora que se agrupan)
+  const matchingSchedules = availableSchedules.filter((schedule) =>
     slotMatchesAvailableSchedule(slot, schedule)
   );
 
-  if (!matchingSchedule) return false;
+  if (matchingSchedules.length === 0) return false;
 
-  // Si el ID del horario está en las restricciones, el slot está prohibido
-  return restrictedScheduleIds.includes(matchingSchedule.id);
+  // Si CUALQUIERA de los horarios que coinciden está en las restricciones, el slot está prohibido
+  // Esto es importante porque un slot puede estar dentro de múltiples horarios disponibles
+  return matchingSchedules.some((schedule) => restrictedScheduleIds.includes(schedule.id));
 }
 
 // Asigna horarios directamente sobre el arreglo de matches (modificándolo)
@@ -270,6 +273,9 @@ export function scheduleGroupMatches(
     }
   }
 
+  // Constante para descanso mínimo
+  const minSlotsBetweenMatches = 1; // Siempre mantener descanso mínimo
+
   // 6) Función interna para intentar asignar con un orden específico
   const tryAssignWithOrder = (
     order: GroupMatchPayload[],
@@ -282,7 +288,6 @@ export function scheduleGroupMatches(
       Array<{ date: string; startTime: string }>
     >();
 
-    const minSlotsBetweenMatches = 1; // Siempre mantener descanso mínimo
     let totalScore = 0;
 
     for (const match of order) {
@@ -307,7 +312,9 @@ export function scheduleGroupMatches(
         );
 
         // Validar restricciones horarias de los equipos
-        if (teamRestrictions && availableSchedules && teamsInMatch.length > 0) {
+        // IMPORTANTE: Las restricciones solo se pueden validar si hay horarios disponibles definidos
+        // porque las restricciones se basan en los IDs de los horarios disponibles
+        if (teamRestrictions && availableSchedules && availableSchedules.length > 0 && teamsInMatch.length > 0) {
           for (const teamId of teamsInMatch) {
             const restrictedScheduleIds = teamRestrictions.get(teamId);
             if (slotViolatesRestriction(slot, restrictedScheduleIds, availableSchedules)) {
@@ -566,10 +573,352 @@ export function scheduleGroupMatches(
     return { success: true, assignments: testAssignments, totalScore };
   };
 
-  // 7) Probar todas las ordenaciones y elegir la mejor
-  // Primero intentar con restricciones estrictas
+  // 7) Función de backtracking más inteligente que prueba múltiples candidatos
+  const tryAssignWithBacktracking = (
+    order: GroupMatchPayload[],
+    relaxOrderRestrictions: boolean = false,
+    maxDepth: number = 3, // Profundidad máxima de backtracking
+    beamWidth: number = 5 // Número de candidatos a explorar en cada nivel
+  ): { success: boolean; assignments: Map<number, Assignment>; totalScore: number } => {
+    type State = {
+      assignments: Map<number, Assignment>;
+      usedSlots: Set<number>;
+      teamAssignments: Map<number, Array<{ date: string; startTime: string }>>;
+      matchIndex: number;
+      score: number;
+    };
+
+    const backtrack = (state: State, depth: number): State | null => {
+      if (state.matchIndex >= order.length) {
+        return state; // Solución encontrada
+      }
+
+      if (depth > maxDepth) {
+        return null; // Profundidad máxima alcanzada
+      }
+
+      const match = order[state.matchIndex];
+      const matchIdx = matchesPayload.indexOf(match);
+      if (matchIdx === -1) {
+        return backtrack({ ...state, matchIndex: state.matchIndex + 1 }, depth);
+      }
+
+      const teamsInMatch = [match.team1_id, match.team2_id].filter(
+        (id): id is number => id !== null
+      );
+
+      // Encontrar todos los candidatos válidos
+      const validCandidates: Array<{
+        slotIndex: number;
+        score: number;
+        slot: TimeSlot;
+      }> = [];
+
+      for (let i = 0; i < timeSlots.length; i++) {
+        if (state.usedSlots.has(i)) continue;
+
+        const slot = timeSlots[i];
+        let valid = true;
+
+        // Validar restricciones horarias de los equipos
+        if (teamRestrictions && availableSchedules && availableSchedules.length > 0 && teamsInMatch.length > 0) {
+          for (const teamId of teamsInMatch) {
+            const restrictedScheduleIds = teamRestrictions.get(teamId);
+            if (slotViolatesRestriction(slot, restrictedScheduleIds, availableSchedules)) {
+              valid = false;
+              break;
+            }
+          }
+        }
+
+        if (!valid) continue;
+
+        // Validaciones estrictas: no permitir partidos consecutivos del mismo equipo
+        if (teamsInMatch.length > 0) {
+          for (const teamId of teamsInMatch) {
+            const assignedForTeam = state.teamAssignments.get(teamId) || [];
+            for (const prev of assignedForTeam) {
+              if (prev.date !== slot.date) continue;
+              const prevIndex = timeSlots.findIndex(
+                (s) => s.date === prev.date && s.startTime === prev.startTime
+              );
+              if (prevIndex === -1) continue;
+              const distance = Math.abs(i - prevIndex);
+              if (distance <= minSlotsBetweenMatches) {
+                valid = false;
+                break;
+              }
+            }
+            if (!valid) break;
+          }
+        }
+
+        if (!valid) continue;
+
+        // Validaciones especiales para grupos de 4
+        let orderPenalty = 0;
+        if (match.match_order === 3) {
+          const match2 = matchesPayload.find(
+            (m) =>
+              m.tournament_group_id === match.tournament_group_id &&
+              m.match_order === 2
+          );
+          if (match2) {
+            const match2Idx = matchesPayload.indexOf(match2);
+            const match2Assignment = state.assignments.get(match2Idx);
+            if (match2Assignment && slot.date === match2Assignment.date) {
+              const match2StartMinutes = timeToMinutesOfDay(match2Assignment.startTime);
+              const match2EndMinutes = match2StartMinutes + matchDurationMinutes;
+              const slotStartMinutes = timeToMinutesOfDay(slot.startTime);
+              const minGapMinutes = matchDurationMinutes;
+              const gapMinutes = slotStartMinutes - match2EndMinutes;
+              if (gapMinutes < minGapMinutes) {
+                if (relaxOrderRestrictions) {
+                  orderPenalty += 10000 * (minGapMinutes - gapMinutes);
+                } else {
+                  valid = false;
+                }
+              }
+            }
+          }
+        }
+
+        if (match.match_order === 4) {
+          const match3 = matchesPayload.find(
+            (m) =>
+              m.tournament_group_id === match.tournament_group_id &&
+              m.match_order === 3
+          );
+          if (match3) {
+            const match3Idx = matchesPayload.indexOf(match3);
+            const match3Assignment = state.assignments.get(match3Idx);
+            if (match3Assignment) {
+              if (slot.date === match3Assignment.date) {
+                const match3StartMinutes = timeToMinutesOfDay(match3Assignment.startTime);
+                const match3EndMinutes = match3StartMinutes + matchDurationMinutes;
+                const slotStartMinutes = timeToMinutesOfDay(slot.startTime);
+                if (slotStartMinutes < match3EndMinutes) {
+                  if (relaxOrderRestrictions) {
+                    orderPenalty += 15000;
+                  } else {
+                    valid = false;
+                  }
+                }
+              } else if (slot.date < match3Assignment.date) {
+                if (relaxOrderRestrictions) {
+                  orderPenalty += 20000;
+                } else {
+                  valid = false;
+                }
+              }
+            } else {
+              if (!relaxOrderRestrictions) {
+                valid = false;
+              } else {
+                orderPenalty += 25000;
+              }
+            }
+          }
+        }
+
+        if (!valid) continue;
+
+        // Calcular score
+        let score = 0;
+        score -= orderPenalty;
+
+        const slotIndex = i;
+        const totalSlots = timeSlots.length;
+        if (slotIndex < totalSlots / 2) {
+          score += 100;
+        }
+
+        // Bonus para match_order 2
+        if (match.match_order === 2) {
+          const match3 = matchesPayload.find(
+            (m) =>
+              m.tournament_group_id === match.tournament_group_id &&
+              m.match_order === 3
+          );
+          if (match3) {
+            const matchEndMinutes = timeToMinutesOfDay(slot.startTime) + matchDurationMinutes;
+            const nextSlotStartMinutes = matchEndMinutes + matchDurationMinutes;
+            const availableSlotsAfter = timeSlots.filter(
+              (s, idx) =>
+                !state.usedSlots.has(idx) &&
+                s.date === slot.date &&
+                timeToMinutesOfDay(s.startTime) >= nextSlotStartMinutes
+            );
+            if (availableSlotsAfter.length > 0) {
+              score += 10000;
+            }
+          }
+        }
+
+        // Bonus para match_order 3
+        if (match.match_order === 3) {
+          const match2 = matchesPayload.find(
+            (m) =>
+              m.tournament_group_id === match.tournament_group_id &&
+              m.match_order === 2
+          );
+          if (match2) {
+            const match2Idx = matchesPayload.indexOf(match2);
+            const match2Assignment = state.assignments.get(match2Idx);
+            if (match2Assignment && slot.date === match2Assignment.date) {
+              const match2StartMinutes = timeToMinutesOfDay(match2Assignment.startTime);
+              const match2EndMinutes = match2StartMinutes + matchDurationMinutes;
+              const slotStartMinutes = timeToMinutesOfDay(slot.startTime);
+              const gapMinutes = slotStartMinutes - match2EndMinutes;
+              const idealGap = matchDurationMinutes;
+              if (gapMinutes === idealGap) {
+                score += 5000;
+              } else if (gapMinutes > idealGap && gapMinutes < idealGap * 3) {
+                score += 2000;
+              }
+            }
+          }
+        }
+
+        // Bonus para match_order 4
+        if (match.match_order === 4) {
+          const match3 = matchesPayload.find(
+            (m) =>
+              m.tournament_group_id === match.tournament_group_id &&
+              m.match_order === 3
+          );
+          if (match3) {
+            const match3Idx = matchesPayload.indexOf(match3);
+            const match3Assignment = state.assignments.get(match3Idx);
+            if (match3Assignment && slot.date === match3Assignment.date) {
+              const match3StartMinutes = timeToMinutesOfDay(match3Assignment.startTime);
+              const match3EndMinutes = match3StartMinutes + matchDurationMinutes;
+              const slotStartMinutes = timeToMinutesOfDay(slot.startTime);
+              const gapMinutes = slotStartMinutes - match3EndMinutes;
+              if (gapMinutes >= 0 && gapMinutes < matchDurationMinutes * 2) {
+                score += 3000;
+              }
+            }
+          }
+        }
+
+        // Score de compactación
+        if (teamsInMatch.length > 0) {
+          for (const teamId of teamsInMatch) {
+            const assignedForTeam = state.teamAssignments.get(teamId) || [];
+            const sameDayAssignments = assignedForTeam.filter(
+              (a) => a.date === slot.date
+            );
+            if (sameDayAssignments.length > 0) {
+              let bestDistanceMinutes = Infinity;
+              for (const a of sameDayAssignments) {
+                const refMinutes = timeToMinutesOfDay(a.startTime);
+                const currentMinutes = timeToMinutesOfDay(slot.startTime);
+                const diff = Math.abs(currentMinutes - refMinutes);
+                if (diff < bestDistanceMinutes) {
+                  bestDistanceMinutes = diff;
+                }
+              }
+              const reasonableGap = 3 * 60;
+              if (bestDistanceMinutes <= reasonableGap) {
+                const normalized = reasonableGap - bestDistanceMinutes;
+                score += normalized * 0.5;
+              }
+            }
+          }
+        }
+
+        validCandidates.push({ slotIndex: i, score, slot });
+      }
+
+      if (validCandidates.length === 0) {
+        return null; // No hay candidatos válidos
+      }
+
+      // Ordenar candidatos por score
+      validCandidates.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return a.slotIndex - b.slotIndex;
+      });
+
+      // Probar los mejores candidatos (beam search)
+      const candidatesToTry = validCandidates.slice(0, beamWidth);
+      const results: State[] = [];
+
+      for (const candidate of candidatesToTry) {
+        const newAssignments = new Map(state.assignments);
+        const newUsedSlots = new Set(state.usedSlots);
+        const newTeamAssignments = new Map(state.teamAssignments);
+
+        newUsedSlots.add(candidate.slotIndex);
+
+        const endTime = calculateEndTime(
+          candidate.slot.startTime,
+          matchDurationMinutes
+        );
+
+        newAssignments.set(matchIdx, {
+          matchIdx,
+          date: candidate.slot.date,
+          startTime: candidate.slot.startTime,
+          endTime,
+          slotIndex: candidate.slotIndex,
+        });
+
+        for (const teamId of [match.team1_id, match.team2_id]) {
+          if (teamId === null) continue;
+          if (!newTeamAssignments.has(teamId)) {
+            newTeamAssignments.set(teamId, []);
+          }
+          newTeamAssignments.get(teamId)!.push({
+            date: candidate.slot.date,
+            startTime: candidate.slot.startTime,
+          });
+        }
+
+        const newState: State = {
+          assignments: newAssignments,
+          usedSlots: newUsedSlots,
+          teamAssignments: newTeamAssignments,
+          matchIndex: state.matchIndex + 1,
+          score: state.score + candidate.score,
+        };
+
+        const result = backtrack(newState, depth + 1);
+        if (result) {
+          results.push(result);
+        }
+      }
+
+      if (results.length === 0) {
+        return null;
+      }
+
+      // Retornar el mejor resultado
+      results.sort((a, b) => b.score - a.score);
+      return results[0];
+    };
+
+    const initialState: State = {
+      assignments: new Map(),
+      usedSlots: new Set(),
+      teamAssignments: new Map(),
+      matchIndex: 0,
+      score: 0,
+    };
+
+    const result = backtrack(initialState, 0);
+    if (result) {
+      return { success: true, assignments: result.assignments, totalScore: result.score };
+    }
+    return { success: false, assignments: new Map(), totalScore: -Infinity };
+  };
+
+  // 8) Probar todas las ordenaciones con algoritmo mejorado
+  // Primero intentar con restricciones estrictas usando el algoritmo greedy original (más rápido)
   let bestResult: { success: boolean; assignments: Map<number, Assignment>; totalScore: number } | null = null;
 
+  console.log("Intentando asignación con algoritmo greedy...");
   for (const order of ordersToTry) {
     const result = tryAssignWithOrder(order, false);
     if (result.success && (!bestResult || result.totalScore > bestResult.totalScore)) {
@@ -577,32 +926,71 @@ export function scheduleGroupMatches(
     }
   }
 
-  // Si no se encontró solución con restricciones estrictas, intentar con restricciones relajadas
-  // (solo para orden deportivo de grupos de 4, nunca para partidos consecutivos del mismo equipo)
+  // Si no se encontró solución, usar backtracking con restricciones estrictas
   if (!bestResult || !bestResult.success) {
-    console.log("No se encontró solución con restricciones estrictas, intentando con restricciones relajadas para orden deportivo...");
+    console.log("No se encontró solución con algoritmo greedy, intentando con backtracking (restricciones estrictas)...");
     for (const order of ordersToTry) {
-      const result = tryAssignWithOrder(order, true);
+      const result = tryAssignWithBacktracking(order, false, 5, 10);
       if (result.success && (!bestResult || result.totalScore > bestResult.totalScore)) {
         bestResult = result;
       }
     }
   }
 
-  // Si aún no se encontró solución, generar más variaciones de orden
+  // Si aún no se encontró, intentar con restricciones relajadas usando backtracking
   if (!bestResult || !bestResult.success) {
-    console.log("Generando más variaciones de orden...");
-    // Generar más variaciones aleatorias
-    const additionalOrders: GroupMatchPayload[][] = [];
-    for (let i = 0; i < 5; i++) {
-      const shuffled = [...baseOrder].sort(() => Math.random() - 0.5);
-      additionalOrders.push(shuffled);
-    }
-    
-    for (const order of additionalOrders) {
-      const result = tryAssignWithOrder(order, true);
+    console.log("Intentando con restricciones relajadas y backtracking más profundo...");
+    for (const order of ordersToTry) {
+      const result = tryAssignWithBacktracking(order, true, 10, 15);
       if (result.success && (!bestResult || result.totalScore > bestResult.totalScore)) {
         bestResult = result;
+      }
+    }
+  }
+
+  // Si aún no se encontró, generar muchas más variaciones de orden y probar con backtracking
+  if (!bestResult || !bestResult.success) {
+    console.log("Generando variaciones adicionales y probando con backtracking exhaustivo...");
+    const additionalOrders: GroupMatchPayload[][] = [];
+    
+    // Generar variaciones más inteligentes
+    for (let i = 0; i < 20; i++) {
+      // Mezclar solo los grupos de 3, manteniendo orden de grupos de 4
+      const shuffledWithoutOrder = [...orderedMatchesWithoutOrder].sort(() => Math.random() - 0.5);
+      additionalOrders.push([
+        ...orderedMatches1_2,
+        ...orderedMatches3_4,
+        ...shuffledWithoutOrder,
+      ]);
+    }
+
+    // También probar variaciones completas
+    for (let i = 0; i < 10; i++) {
+      const fullyShuffled = [...baseOrder].sort(() => Math.random() - 0.5);
+      additionalOrders.push(fullyShuffled);
+    }
+
+    // Ordenar por dificultad (equipos con más restricciones primero)
+    const orderByDifficulty = [...baseOrder].sort((a, b) => {
+      const aTeams = [a.team1_id, a.team2_id].filter((id): id is number => id !== null);
+      const bTeams = [b.team1_id, b.team2_id].filter((id): id is number => id !== null);
+      
+      const aRestrictions = aTeams.reduce((sum, tid) => {
+        return sum + (teamRestrictions?.get(tid)?.length || 0);
+      }, 0);
+      const bRestrictions = bTeams.reduce((sum, tid) => {
+        return sum + (teamRestrictions?.get(tid)?.length || 0);
+      }, 0);
+      
+      return bRestrictions - aRestrictions;
+    });
+    additionalOrders.push(orderByDifficulty);
+
+    for (const order of additionalOrders) {
+      const result = tryAssignWithBacktracking(order, true, 15, 20);
+      if (result.success && (!bestResult || result.totalScore > bestResult.totalScore)) {
+        bestResult = result;
+        console.log(`Solución encontrada con score: ${result.totalScore}`);
       }
     }
   }
