@@ -321,12 +321,11 @@ CREATE TABLE tournament_available_schedules (
     id                  BIGSERIAL PRIMARY KEY,
     tournament_id       BIGINT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
     user_uid            UUID NOT NULL,
-    day_of_week         INTEGER NOT NULL,  -- 0=domingo, 1=lunes, ..., 6=sábado
+    date                DATE NOT NULL,     -- Fecha específica (ej: 2025-12-26)
     start_time          TIME NOT NULL,     -- Hora de inicio (ej: 13:00)
     end_time            TIME NOT NULL,      -- Hora de fin (ej: 23:00)
-    display_name        VARCHAR(100),      -- Nombre descriptivo (ej: "Viernes 13:00-23:00")
     created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(tournament_id, day_of_week, start_time, end_time)
+    UNIQUE(tournament_id, date, start_time, end_time)
 );
 
 -- =========================================================

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { PlusIcon, TrashIcon } from "lucide-react";
+import { ScheduleDaysEditor, type ScheduleDay as ScheduleDayEditor } from "@/components/schedule-days-editor";
 import type { ScheduleDay, ScheduleConfig } from "@/models/dto/tournament";
 
 export type { ScheduleDay, ScheduleConfig };
@@ -23,27 +23,19 @@ type TournamentScheduleDialogProps = {
   onConfirm: (config: ScheduleConfig) => void;
   matchCount: number; // cantidad de partidos a programar
   tournamentMatchDuration?: number; // duración del partido del torneo (en minutos)
-  availableSchedules?: Array<{ day_of_week: number; start_time: string; end_time: string }>; // Horarios disponibles del torneo para pre-llenar
+  availableSchedules?: Array<{ date: string; start_time: string; end_time: string }>; // Horarios disponibles del torneo para pre-llenar
+  tournamentId?: number; // ID del torneo para usar con SSE
+  showLogs?: boolean; // Si mostrar la bitácora de logs
+  streamEndpoint?: string; // Endpoint para el stream (por defecto: close-registration-stream)
 };
 
 import type { CourtDTO } from "@/models/dto/court";
 
-// Función para obtener la próxima fecha de un día de la semana
-function getNextDateForDayOfWeek(dayOfWeek: number): string {
-  const today = new Date();
-  const currentDay = today.getDay();
-  let daysUntilTarget = (dayOfWeek - currentDay + 7) % 7;
-  if (daysUntilTarget === 0) daysUntilTarget = 7; // Si es hoy, usar la próxima semana
-  const targetDate = new Date(today);
-  targetDate.setDate(today.getDate() + daysUntilTarget);
-  return targetDate.toISOString().split("T")[0];
-}
-
 // Inicializar días desde horarios disponibles si existen
-function getInitialDays(availableSchedules: Array<{ day_of_week: number; start_time: string; end_time: string }>): ScheduleDay[] {
+function getInitialDays(availableSchedules: Array<{ date: string; start_time: string; end_time: string }>): ScheduleDayEditor[] {
   if (availableSchedules.length > 0) {
     return availableSchedules.map((schedule) => ({
-      date: getNextDateForDayOfWeek(schedule.day_of_week),
+      date: schedule.date,
       startTime: schedule.start_time,
       endTime: schedule.end_time,
     }));
@@ -67,12 +59,27 @@ export function TournamentScheduleDialog({
   error = null,
   isLoading = false,
   availableSchedules = [],
+  tournamentId,
+  showLogs = false,
+  streamEndpoint = "close-registration-stream",
 }: TournamentScheduleDialogProps) {
-  const [days, setDays] = useState<ScheduleDay[]>(() => getInitialDays(availableSchedules));
+  const [days, setDays] = useState<ScheduleDayEditor[]>(() => getInitialDays(availableSchedules));
   const [matchDuration, setMatchDuration] = useState<number>(tournamentMatchDuration);
   const [courts, setCourts] = useState<CourtDTO[]>([]);
   const [selectedCourtIds, setSelectedCourtIds] = useState<number[]>([]);
   const [loadingCourts, setLoadingCourts] = useState(false);
+  const [logs, setLogs] = useState<Array<{ message: string; timestamp: Date }>>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [status, setStatus] = useState<string>("");
+  const [isLogsExpanded, setIsLogsExpanded] = useState(false);
+  const logsEndRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Estabilizar availableSchedules para evitar loops infinitos
+  const availableSchedulesKey = useMemo(() => {
+    return availableSchedules.map(s => `${s.date}-${s.start_time}-${s.end_time}`).join('|');
+  }, [availableSchedules]);
 
   // Resetear matchDuration y días cuando cambia el valor del torneo o se abre el diálogo
   useEffect(() => {
@@ -80,8 +87,18 @@ export function TournamentScheduleDialog({
       setMatchDuration(tournamentMatchDuration);
       // Si hay horarios disponibles, pre-llenar los días
       setDays(getInitialDays(availableSchedules));
+      setLogs([]);
+      setProgress(0);
+      setStatus("");
+      setIsProcessing(false);
+      // Cancelar cualquier proceso en curso
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
     }
-  }, [open, tournamentMatchDuration, availableSchedules]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, tournamentMatchDuration, availableSchedulesKey]);
 
   // Cargar canchas al abrir el diálogo
   useEffect(() => {
@@ -112,28 +129,21 @@ export function TournamentScheduleDialog({
     }
   }, [open]);
 
-  const addDay = () => {
-    setDays([
-      ...days,
-      {
-        date: "",
-        startTime: "12:00",
-        endTime: "22:00",
-      },
-    ]);
-  };
-
-  const removeDay = (index: number) => {
-    setDays(days.filter((_, i) => i !== index));
-  };
-
-  const updateDay = (index: number, field: keyof ScheduleDay, value: string) => {
-    const newDays = [...days];
-    newDays[index] = { ...newDays[index], [field]: value };
+  const handleDaysChange = (newDays: ScheduleDayEditor[]) => {
     setDays(newDays);
   };
 
-  const handleConfirm = () => {
+  // Función para cancelar el proceso
+  const handleCancel = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setLogs((prev) => [...prev, { message: "⚠️ Cancelando proceso...", timestamp: new Date() }]);
+      setIsProcessing(false);
+    }
+  };
+
+  const handleConfirm = async () => {
     // Validar que todos los días tengan fecha
     if (days.some((d) => !d.date)) {
       alert("Todos los días deben tener una fecha");
@@ -141,7 +151,15 @@ export function TournamentScheduleDialog({
     }
 
     // Validar que startTime < endTime para cada día
-    if (days.some((d) => d.startTime >= d.endTime)) {
+    // Si endTime es 00:00, interpretarlo como 24:00 (fin del día)
+    if (days.some((d) => {
+      const [startH, startM] = d.startTime.split(":").map(Number);
+      const [endH, endM] = d.endTime.split(":").map(Number);
+      const startMinutes = startH * 60 + startM;
+      // Si la hora de fin es 00:00, interpretarla como 24:00 (fin del día)
+      const endMinutes = (endH === 0 && endM === 0) ? 24 * 60 : endH * 60 + endM;
+      return startMinutes >= endMinutes;
+    })) {
       alert("La hora de inicio debe ser anterior a la hora de fin");
       return;
     }
@@ -152,8 +170,133 @@ export function TournamentScheduleDialog({
       return;
     }
 
-    onConfirm({ days, matchDuration, courtIds: selectedCourtIds });
-    // NO cerrar el dialog aquí - el componente padre lo cerrará cuando termine exitosamente
+    // Convertir ScheduleDayEditor[] a ScheduleDay[] para el callback
+    const scheduleDays: ScheduleDay[] = days.map((d) => ({
+      date: d.date,
+      startTime: d.startTime,
+      endTime: d.endTime,
+    }));
+    
+    const scheduleConfig = { days: scheduleDays, matchDuration, courtIds: selectedCourtIds };
+    
+    // Si showLogs y tournamentId están disponibles, usar SSE
+    if (showLogs && tournamentId) {
+      setIsProcessing(true);
+      setLogs([]);
+      setProgress(0);
+      setStatus("Iniciando...");
+      
+      // Crear AbortController para poder cancelar
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
+      
+      // Enviar la configuración usando fetch POST con stream
+      fetch(`/api/tournaments/${tournamentId}/${streamEndpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          days: scheduleDays,
+          matchDuration,
+          courtIds: selectedCourtIds,
+        }),
+        signal: abortController.signal,
+      })
+        .then(async (response) => {
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || "Error al iniciar el proceso");
+          }
+          
+          // Leer el stream
+          const reader = response.body?.getReader();
+          const decoder = new TextDecoder();
+          
+          if (!reader) {
+            throw new Error("No se pudo leer el stream");
+          }
+          
+          let buffer = "";
+          
+          const readStream = async () => {
+            try {
+              while (true) {
+                const { done, value } = await reader.read();
+                
+                if (done) {
+                  setIsProcessing(false);
+                  abortControllerRef.current = null;
+                  break;
+                }
+                
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split("\n");
+                
+                // Mantener la última línea incompleta en el buffer
+                buffer = lines.pop() || "";
+                
+                for (const line of lines) {
+                  if (line.trim() && line.startsWith("data: ")) {
+                    try {
+                      const data = JSON.parse(line.slice(6));
+                      
+                      if (data.type === "log") {
+                        setLogs((prev) => [...prev, { message: data.message, timestamp: new Date() }]);
+                      } else if (data.type === "progress") {
+                        setProgress(data.progress);
+                        setStatus(data.status);
+                      } else if (data.type === "error") {
+                        setLogs((prev) => [...prev, { message: `❌ Error: ${data.error}`, timestamp: new Date() }]);
+                        setIsProcessing(false);
+                        alert(data.error);
+                        return;
+                      } else if (data.type === "success") {
+                        setLogs((prev) => [...prev, { message: "✅ Proceso completado exitosamente", timestamp: new Date() }]);
+                        setIsProcessing(false);
+                        abortControllerRef.current = null;
+                        setTimeout(() => {
+                          onConfirm(scheduleConfig);
+                          window.location.reload();
+                        }, 1000);
+                        return;
+                      }
+                    } catch (e) {
+                      console.error("Error parsing SSE data:", e, line);
+                    }
+                  }
+                }
+              }
+            } catch (error: any) {
+              // Si es un error de abort, no mostrar alerta
+              if (error.name === 'AbortError') {
+                setLogs((prev) => [...prev, { message: "⚠️ Proceso cancelado por el usuario", timestamp: new Date() }]);
+                setIsProcessing(false);
+                return;
+              }
+              console.error("Error reading stream:", error);
+              setLogs((prev) => [...prev, { message: `❌ Error: ${error.message}`, timestamp: new Date() }]);
+              setIsProcessing(false);
+              alert(error.message || "Error al procesar");
+            }
+          };
+          
+          readStream();
+        })
+        .catch((error) => {
+          // Si es un error de abort, no mostrar alerta
+          if (error.name === 'AbortError') {
+            setLogs((prev) => [...prev, { message: "⚠️ Proceso cancelado por el usuario", timestamp: new Date() }]);
+            setIsProcessing(false);
+            return;
+          }
+          console.error("Error:", error);
+          setLogs((prev) => [...prev, { message: `❌ Error: ${error.message}`, timestamp: new Date() }]);
+          setIsProcessing(false);
+          alert(error.message || "Error al procesar");
+        });
+    } else {
+      // Comportamiento original sin logs
+      onConfirm(scheduleConfig);
+    }
   };
 
   const toggleCourt = (courtId: number) => {
@@ -174,7 +317,8 @@ export function TournamentScheduleDialog({
       const [startH, startM] = day.startTime.split(":").map(Number);
       const [endH, endM] = day.endTime.split(":").map(Number);
       const startMinutes = startH * 60 + startM;
-      const endMinutes = endH * 60 + endM;
+      // Si la hora de fin es 00:00, interpretarla como 24:00 (fin del día)
+      const endMinutes = (endH === 0 && endM === 0) ? 24 * 60 : endH * 60 + endM;
       const durationMinutes = endMinutes - startMinutes;
       const slotsPerDay = Math.floor(durationMinutes / matchDuration);
       totalSlots += slotsPerDay * numCourts;
@@ -236,72 +380,12 @@ export function TournamentScheduleDialog({
 
           {/* Días */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label>Días disponibles</Label>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addDay}
-              >
-                <PlusIcon className="w-4 h-4 mr-1" />
-                Agregar día
-              </Button>
-            </div>
-
-            {days.map((day, index) => (
-              <div
-                key={index}
-                className="flex gap-2 items-end p-3 border rounded-lg"
-              >
-                <div className="flex-1 space-y-2">
-                  <div>
-                    <Label className="text-xs">Fecha</Label>
-                    <Input
-                      type="date"
-                      value={day.date}
-                      onChange={(e) =>
-                        updateDay(index, "date", e.target.value)
-                      }
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <Label className="text-xs">Hora inicio</Label>
-                      <Input
-                        type="time"
-                        step="60"
-                        value={day.startTime}
-                        onChange={(e) =>
-                          updateDay(index, "startTime", e.target.value)
-                        }
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Hora fin</Label>
-                      <Input
-                        type="time"
-                        step="60"
-                        value={day.endTime}
-                        onChange={(e) =>
-                          updateDay(index, "endTime", e.target.value)
-                        }
-                      />
-                    </div>
-                  </div>
-                </div>
-                {days.length > 1 && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeDay(index)}
-                  >
-                    <TrashIcon className="w-4 h-4" />
-                  </Button>
-                )}
-              </div>
-            ))}
+            <Label>Días disponibles</Label>
+            <ScheduleDaysEditor
+              days={days}
+              onChange={handleDaysChange}
+              showDayOfWeek={false}
+            />
           </div>
 
           {/* Resumen y vista previa de slots */}
@@ -331,54 +415,67 @@ export function TournamentScheduleDialog({
                       const [startH, startM] = day.startTime.split(":").map(Number);
                       const [endH, endM] = day.endTime.split(":").map(Number);
                       const startMinutes = startH * 60 + startM;
-                      const endMinutes = endH * 60 + endM;
+                      // Si la hora de fin es 00:00, interpretarla como 24:00 (fin del día)
+                      const endMinutes = (endH === 0 && endM === 0) ? 24 * 60 : endH * 60 + endM;
 
                       // Generar slots para este día
-                      const slotsForDay: Array<{ time: string; courtName: string }> = [];
+                      const slotsForDay: Array<{ time: string; courtName: string; endTime: string }> = [];
                       let currentMinutes = startMinutes;
-                      let slotIndex = 0;
 
                       while (currentMinutes + matchDuration <= endMinutes) {
                         const slotStartH = Math.floor(currentMinutes / 60);
                         const slotStartM = currentMinutes % 60;
-                        const slotTime = `${String(slotStartH).padStart(2, "0")}:${String(slotStartM).padStart(2, "0")}`;
+                        const slotEndMinutes = currentMinutes + matchDuration;
+                        
+                        // Calcular hora de fin del slot
+                        let slotEndH: number;
+                        let slotEndM: number;
+                        if (slotEndMinutes >= 24 * 60) {
+                          slotEndH = 0;
+                          slotEndM = 0;
+                        } else {
+                          slotEndH = Math.floor(slotEndMinutes / 60);
+                          slotEndM = slotEndMinutes % 60;
+                        }
+                        
+                        const slotStartTime = `${String(slotStartH).padStart(2, "0")}:${String(slotStartM).padStart(2, "0")}`;
+                        const slotEndTime = `${String(slotEndH).padStart(2, "0")}:${String(slotEndM).padStart(2, "0")}`;
 
                         // Un slot por cada cancha seleccionada
                         selectedCourtIds.forEach((courtId) => {
                           const court = courts.find((c) => c.id === courtId);
                           slotsForDay.push({
-                            time: slotTime,
+                            time: slotStartTime,
+                            endTime: slotEndTime,
                             courtName: court?.name || `Cancha ${courtId}`,
                           });
                         });
 
                         currentMinutes += matchDuration;
-                        slotIndex++;
                       }
+
+                      // Crear fecha en zona horaria local para evitar problemas de UTC
+                      const [year, month, dayOfMonth] = day.date.split("-").map(Number);
+                      const localDate = new Date(year, month - 1, dayOfMonth);
 
                       return (
                         <div key={dayIndex} className="space-y-1">
                           <div className="text-xs font-semibold">
-                            {new Date(day.date).toLocaleDateString("es-AR", {
+                            {localDate.toLocaleDateString("es-AR", {
                               weekday: "long",
                               day: "numeric",
                               month: "long",
                             })}
                           </div>
                           <div className="grid grid-cols-2 gap-1 text-xs">
-                            {slotsForDay.slice(0, 10).map((slot, idx) => (
+                            {slotsForDay.map((slot, idx) => (
                               <div
                                 key={idx}
                                 className="bg-background px-2 py-1 rounded border text-muted-foreground"
                               >
-                                {slot.time} - {slot.courtName}
+                                {slot.time} - {slot.endTime} - {slot.courtName}
                               </div>
                             ))}
-                            {slotsForDay.length > 10 && (
-                              <div className="col-span-2 text-xs text-muted-foreground italic">
-                                ... y {slotsForDay.length - 10} slots más
-                              </div>
-                            )}
                           </div>
                         </div>
                       );
@@ -396,28 +493,94 @@ export function TournamentScheduleDialog({
               </p>
             </div>
           )}
+
+          {/* Bitácora de logs (solo si showLogs es true) */}
+          {showLogs && (isProcessing || logs.length > 0) && (
+            <div className="mt-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Bitácora del proceso</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsLogsExpanded(!isLogsExpanded)}
+                  className="h-6 px-2 text-xs"
+                >
+                  {isLogsExpanded ? "Ocultar" : "Mostrar"}
+                </Button>
+              </div>
+              {status && (
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary transition-all duration-300"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                  <span className="text-xs text-muted-foreground min-w-[120px]">{status}</span>
+                </div>
+              )}
+              {isLogsExpanded && (
+                <div className="bg-muted rounded-lg p-3 max-h-64 overflow-y-auto font-mono text-xs space-y-1">
+                  {logs.length === 0 && isProcessing && (
+                    <div className="text-muted-foreground">Esperando logs...</div>
+                  )}
+                  {logs.map((log, idx) => (
+                    <div key={idx} className="text-foreground flex items-start gap-2">
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        {log.timestamp.toLocaleTimeString("es-AR", { 
+                          hour: "2-digit", 
+                          minute: "2-digit", 
+                          second: "2-digit",
+                          fractionalSecondDigits: 3
+                        })}
+                      </span>
+                      <span>{log.message}</span>
+                    </div>
+                  ))}
+                  <div ref={logsEndRef} />
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <DialogFooter>
-          <Button 
-            variant="outline" 
-            onClick={() => onOpenChange(false)}
-            disabled={isLoading}
-          >
-            Cancelar
-          </Button>
-          <Button
-            onClick={handleConfirm}
-            disabled={
-              availableSlots < matchCount ||
-              days.length === 0 ||
-              selectedCourtIds.length === 0 ||
-              loadingCourts ||
-              isLoading
-            }
-          >
-            {isLoading ? "Generando playoffs..." : "Confirmar"}
-          </Button>
+          {isProcessing ? (
+            <Button 
+              variant="destructive" 
+              onClick={handleCancel}
+            >
+              Cancelar proceso
+            </Button>
+          ) : (
+            <>
+              <Button 
+                variant="outline" 
+                onClick={() => onOpenChange(false)}
+                disabled={isLoading}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleConfirm}
+                disabled={
+                  availableSlots < matchCount ||
+                  days.length === 0 ||
+                  selectedCourtIds.length === 0 ||
+                  loadingCourts ||
+                  isProcessing ||
+                  isLoading
+                }
+              >
+                {isLoading || isProcessing 
+                  ? (streamEndpoint === "regenerate-schedule-stream" 
+                      ? "Regenerando horarios de zona..." 
+                      : "Generando playoffs...")
+                  : "Confirmar"}
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

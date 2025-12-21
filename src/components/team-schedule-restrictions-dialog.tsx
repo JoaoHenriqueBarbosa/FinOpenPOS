@@ -36,15 +36,19 @@ export function TeamScheduleRestrictionsDialog({
   const [saving, setSaving] = useState(false);
 
   // Inicializar restricciones cuando se abre el diálogo o cambia el equipo
+  // Usar useMemo para estabilizar la referencia del team y evitar loops infinitos
+  const teamId = team?.id;
+  const teamRestrictedIds = team?.restricted_schedule_ids;
+  
   useEffect(() => {
-    if (open && team) {
+    if (open && team && teamRestrictedIds) {
       // Cargar restricciones del equipo (IDs de horarios que NO puede jugar)
-      const restricted = team.restricted_schedule_ids || [];
-      setRestrictedIds(new Set(restricted));
+      setRestrictedIds(new Set(teamRestrictedIds));
     } else if (!open) {
       setRestrictedIds(new Set());
     }
-  }, [open, team]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, teamId, teamRestrictedIds?.join(',')]);
 
   const handleToggleRestriction = (scheduleId: number) => {
     const newRestricted = new Set(restrictedIds);
@@ -54,6 +58,26 @@ export function TeamScheduleRestrictionsDialog({
       newRestricted.add(scheduleId);
     }
     setRestrictedIds(newRestricted);
+  };
+
+  const handleToggleDay = (date: string, daySchedules: typeof sortedSchedules) => {
+    const newRestricted = new Set(restrictedIds);
+    const dayScheduleIds = daySchedules.map(s => s.id);
+    const allDayRestricted = dayScheduleIds.every(id => restrictedIds.has(id));
+
+    if (allDayRestricted) {
+      // Desmarcar todo el día
+      dayScheduleIds.forEach(id => newRestricted.delete(id));
+    } else {
+      // Marcar todo el día
+      dayScheduleIds.forEach(id => newRestricted.add(id));
+    }
+    setRestrictedIds(newRestricted);
+  };
+
+  const isDayFullyRestricted = (daySchedules: typeof sortedSchedules): boolean => {
+    if (daySchedules.length === 0) return false;
+    return daySchedules.every(schedule => restrictedIds.has(schedule.id));
   };
 
   const handleSave = async () => {
@@ -74,23 +98,23 @@ export function TeamScheduleRestrictionsDialog({
       `${team.player1.first_name} ${team.player1.last_name} / ${team.player2.first_name} ${team.player2.last_name}`
     : "";
 
-  // Ordenar horarios por día de la semana y hora
+  // Ordenar horarios por fecha y hora
   const sortedSchedules = [...availableSchedules].sort((a, b) => {
-    if (a.day_of_week !== b.day_of_week) {
-      return a.day_of_week - b.day_of_week;
+    if (a.date !== b.date) {
+      return a.date.localeCompare(b.date);
     }
     return a.start_time.localeCompare(b.start_time);
   });
 
-  // Agrupar por día de la semana
-  const schedulesByDay = sortedSchedules.reduce((acc, schedule) => {
-    const day = schedule.day_of_week;
-    if (!acc[day]) {
-      acc[day] = [];
+  // Agrupar por fecha
+  const schedulesByDate = sortedSchedules.reduce((acc, schedule) => {
+    const date = schedule.date;
+    if (!acc[date]) {
+      acc[date] = [];
     }
-    acc[day].push(schedule);
+    acc[date].push(schedule);
     return acc;
-  }, {} as Record<number, typeof sortedSchedules>);
+  }, {} as Record<string, typeof sortedSchedules>);
 
   // Formatear hora para mostrar (ej: "13:00" en vez de "13:00:00")
   const formatTime = (time: string): string => {
@@ -99,7 +123,7 @@ export function TeamScheduleRestrictionsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Restricciones horarias</DialogTitle>
           <DialogDescription>
@@ -108,7 +132,7 @@ export function TeamScheduleRestrictionsDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-4 overflow-y-auto flex-1 min-h-0">
           {availableSchedules.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <p className="mb-2">No hay horarios disponibles configurados para este torneo.</p>
@@ -116,18 +140,35 @@ export function TeamScheduleRestrictionsDialog({
             </div>
           ) : (
             <div className="space-y-4">
-              {Object.keys(schedulesByDay)
-                .map(Number)
-                .sort((a, b) => a - b)
-                .map((dayOfWeek) => {
-                  const daySchedules = schedulesByDay[dayOfWeek];
-                  const dayName = dayNames[dayOfWeek];
+              {Object.keys(schedulesByDate)
+                .sort()
+                .map((date) => {
+                  const daySchedules = schedulesByDate[date];
+                  const dateObj = new Date(date + "T00:00:00");
+                  const dayName = dayNames[dateObj.getDay()];
+                  const formattedDate = dateObj.toLocaleDateString("es-AR", {
+                    weekday: "long",
+                    day: "numeric",
+                    month: "long",
+                  });
+
+                  const isDayRestricted = isDayFullyRestricted(daySchedules);
 
                   return (
-                    <div key={dayOfWeek} className="space-y-2">
-                      <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
-                        {dayName}
-                      </h3>
+                    <div key={date} className="space-y-2">
+                      <div className="flex items-center space-x-2 pb-1">
+                        <Checkbox
+                          id={`day-${date}`}
+                          checked={isDayRestricted}
+                          onCheckedChange={() => handleToggleDay(date, daySchedules)}
+                        />
+                        <Label
+                          htmlFor={`day-${date}`}
+                          className="font-semibold text-sm text-muted-foreground uppercase tracking-wide cursor-pointer"
+                        >
+                          {formattedDate}
+                        </Label>
+                      </div>
                       <div className="grid grid-cols-2 gap-2">
                         {daySchedules.map((schedule) => {
                           const isRestricted = restrictedIds.has(schedule.id);

@@ -83,6 +83,7 @@ export async function GET(_req: Request, { params }: RouteParams) {
       match_date,
       start_time,
       match_order,
+      court_id,
       set1_team1_games,
       set1_team2_games,
       set2_team1_games,

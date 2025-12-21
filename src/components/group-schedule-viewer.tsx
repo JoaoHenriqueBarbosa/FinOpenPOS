@@ -23,6 +23,8 @@ import { Loader2Icon, ArrowLeftRightIcon, CheckIcon, XIcon, UndoIcon } from "luc
 import { formatDate, formatTime } from "@/lib/date-utils";
 import { parseLocalDate } from "@/lib/court-slots-utils";
 import type { MatchDTO, TeamDTO, GroupDTO } from "@/models/dto/tournament";
+import type { CourtDTO } from "@/models/dto/court";
+import { useQuery } from "@tanstack/react-query";
 import { tournamentMatchesService } from "@/services";
 
 interface GroupScheduleViewerProps {
@@ -120,6 +122,23 @@ export function GroupScheduleViewer({
     match1Original: { date: string; start_time: string; end_time: string | null };
     match2Original: { date: string; start_time: string; end_time: string | null };
   } | null>(null);
+
+  // Obtener canchas para mostrar nombres
+  const { data: courts = [] } = useQuery<CourtDTO[]>({
+    queryKey: ["courts"],
+    queryFn: async () => {
+      const response = await fetch("/api/courts?onlyActive=true");
+      if (!response.ok) return [];
+      return response.json();
+    },
+    staleTime: 1000 * 60 * 5, // 5 minutos
+  });
+
+  // Crear mapa de ID a nombre de cancha
+  const courtMap = new Map<number, string>();
+  courts.forEach((court) => {
+    courtMap.set(court.id, court.name);
+  });
 
   // Crear mapa de grupo id -> nombre e índice
   const groupMap = new Map<number, { name: string; index: number }>();
@@ -581,7 +600,14 @@ export function GroupScheduleViewer({
                           )}
                         </TableCell>
                         <TableCell>
-                          {match.start_time ? formatTime(match.start_time) : "-"}
+                          {match.start_time ? (
+                            <>
+                              {formatTime(match.start_time)}
+                              {match.court_id && courtMap.get(match.court_id) && (
+                                <span className="text-muted-foreground ml-1">- {courtMap.get(match.court_id)}</span>
+                              )}
+                            </>
+                          ) : "-"}
                         </TableCell>
                         <TableCell className="text-right">
                           {minDiff !== null ? (

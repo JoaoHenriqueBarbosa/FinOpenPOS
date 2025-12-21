@@ -144,7 +144,7 @@ export async function POST(req: Request, { params }: RouteParams) {
   const { data: matches, error: mError } = await supabase
     .from("tournament_matches")
     .select(
-      "id, tournament_group_id, team1_id, team2_id, team1_sets, team2_sets, team1_games_total, team2_games_total, status"
+      "id, tournament_group_id, team1_id, team2_id, team1_sets, team2_sets, team1_games_total, team2_games_total, status, court_id"
     )
     .eq("tournament_id", tournamentId)
     .eq("phase", "group")

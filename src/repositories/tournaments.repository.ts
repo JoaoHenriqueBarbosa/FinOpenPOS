@@ -298,6 +298,7 @@ export class TournamentGroupsRepository extends BaseRepository {
           start_time,
           end_time,
           match_order,
+          court_id,
           set1_team1_games,
           set1_team2_games,
           set2_team1_games,
@@ -537,7 +538,7 @@ export class TournamentMatchesRepository extends BaseRepository {
   async findWithoutResults(tournamentId: number, phase: MatchPhase): Promise<TournamentMatch[]> {
     const { data, error } = await this.supabase
       .from("tournament_matches")
-      .select("id, tournament_group_id, team1_id, team2_id, match_order, status, set1_team1_games")
+      .select("id, tournament_group_id, team1_id, team2_id, match_order, status, set1_team1_games, court_id")
       .eq("tournament_id", tournamentId)
       .eq("phase", phase)
       .eq("user_uid", this.userId)
@@ -718,6 +719,7 @@ export class TournamentPlayoffsRepository extends BaseRepository {
           status,
           match_date,
           start_time,
+          court_id,
           set1_team1_games,
           set1_team2_games,
           set2_team1_games,

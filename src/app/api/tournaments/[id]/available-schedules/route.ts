@@ -44,7 +44,7 @@ export async function GET(req: Request, { params }: RouteParams) {
       .select("*")
       .eq("tournament_id", tournamentId)
       .eq("user_uid", user.id)
-      .order("day_of_week", { ascending: true })
+      .order("date", { ascending: true })
       .order("start_time", { ascending: true });
 
     if (schedulesError) {
@@ -60,21 +60,22 @@ export async function GET(req: Request, { params }: RouteParams) {
       return NextResponse.json(schedules || []);
     }
 
-    // Agrupar slots consecutivos del mismo día en rangos para la UI
+    // Agrupar slots consecutivos de la misma fecha en rangos para la UI
     const groupedSchedules: any[] = [];
     if (schedules && schedules.length > 0) {
-      // Agrupar por día de la semana
-      const byDay = new Map<number, any[]>();
+      // Agrupar por fecha
+      const byDate = new Map<string, any[]>();
       schedules.forEach((s: any) => {
-        if (!byDay.has(s.day_of_week)) {
-          byDay.set(s.day_of_week, []);
+        const dateKey = s.date;
+        if (!byDate.has(dateKey)) {
+          byDate.set(dateKey, []);
         }
-        byDay.get(s.day_of_week)!.push(s);
+        byDate.get(dateKey)!.push(s);
       });
 
-      // Para cada día, agrupar slots consecutivos
-      byDay.forEach((daySchedules, dayOfWeek) => {
-        daySchedules.sort((a: any, b: any) => {
+      // Para cada fecha, agrupar slots consecutivos
+      byDate.forEach((dateSchedules, date) => {
+        dateSchedules.sort((a: any, b: any) => {
           const aMinutes = timeToMinutes(a.start_time);
           const bMinutes = timeToMinutes(b.start_time);
           return aMinutes - bMinutes;
@@ -83,11 +84,10 @@ export async function GET(req: Request, { params }: RouteParams) {
         interface RangeType {
           start_time: string;
           end_time: string;
-          display_name: string | null;
         }
         let currentRange: RangeType | null = null;
 
-        daySchedules.forEach((slot: any) => {
+        dateSchedules.forEach((slot: any) => {
           const slotStartMinutes = timeToMinutes(slot.start_time);
           const slotEndMinutes = timeToMinutes(slot.end_time);
 
@@ -96,7 +96,6 @@ export async function GET(req: Request, { params }: RouteParams) {
             currentRange = {
               start_time: slot.start_time,
               end_time: slot.end_time,
-              display_name: slot.display_name,
             };
           } else {
             const rangeEndMinutes = timeToMinutes(currentRange.end_time);
@@ -109,15 +108,13 @@ export async function GET(req: Request, { params }: RouteParams) {
               groupedSchedules.push({
                 id: null, // No hay ID único para rangos agrupados
                 tournament_id: tournamentId,
-                day_of_week: dayOfWeek,
+                date: date,
                 start_time: currentRange.start_time,
                 end_time: currentRange.end_time,
-                display_name: currentRange.display_name,
               });
               currentRange = {
                 start_time: slot.start_time,
                 end_time: slot.end_time,
-                display_name: slot.display_name,
               };
             }
           }
@@ -129,10 +126,9 @@ export async function GET(req: Request, { params }: RouteParams) {
           groupedSchedules.push({
             id: null,
             tournament_id: tournamentId,
-            day_of_week: dayOfWeek,
+            date: date,
             start_time: range.start_time,
             end_time: range.end_time,
-            display_name: range.display_name,
           });
         }
       });
@@ -210,15 +206,35 @@ export async function PUT(req: Request, { params }: RouteParams) {
     // Validar cada schedule
     for (const schedule of schedules) {
       if (
-        typeof schedule.day_of_week !== "number" ||
-        schedule.day_of_week < 0 ||
-        schedule.day_of_week > 6 ||
+        !schedule.date ||
         !schedule.start_time ||
-        !schedule.end_time ||
-        schedule.start_time >= schedule.end_time
+        !schedule.end_time
       ) {
         return NextResponse.json(
-          { error: "Cada schedule debe tener day_of_week (0-6), start_time y end_time válidos" },
+          { error: "Cada schedule debe tener date (YYYY-MM-DD), start_time y end_time válidos" },
+          { status: 400 }
+        );
+      }
+      
+      // Validar formato de fecha
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(schedule.date)) {
+        return NextResponse.json(
+          { error: "El formato de fecha debe ser YYYY-MM-DD" },
+          { status: 400 }
+        );
+      }
+      
+      // Validar que start_time < end_time considerando 00:00 como fin del día
+      const [startH, startM] = schedule.start_time.split(":").map(Number);
+      const [endH, endM] = schedule.end_time.split(":").map(Number);
+      const startMinutes = startH * 60 + startM;
+      // Si la hora de fin es 00:00, interpretarla como 24:00 (fin del día)
+      const endMinutes = (endH === 0 && endM === 0) ? 24 * 60 : endH * 60 + endM;
+      
+      if (startMinutes >= endMinutes) {
+        return NextResponse.json(
+          { error: "La hora de inicio debe ser anterior a la hora de fin" },
           { status: 400 }
         );
       }
@@ -248,7 +264,8 @@ export async function PUT(req: Request, { params }: RouteParams) {
         const [endH, endM] = schedule.end_time.split(":").map(Number);
         
         const startMinutes = startH * 60 + startM;
-        const endMinutes = endH * 60 + endM;
+        // Si la hora de fin es 00:00, interpretarla como 24:00 (fin del día)
+        const endMinutes = (endH === 0 && endM === 0) ? 24 * 60 : endH * 60 + endM;
 
         // Generar slots de 1 hora dentro del rango
         let currentMinutes = startMinutes;
@@ -256,21 +273,36 @@ export async function PUT(req: Request, { params }: RouteParams) {
           const slotStartH = Math.floor(currentMinutes / 60);
           const slotStartM = currentMinutes % 60;
           const slotEndMinutes = currentMinutes + 60; // 1 hora = 60 minutos
-          const slotEndH = Math.floor(slotEndMinutes / 60);
-          const slotEndM = slotEndMinutes % 60;
+          
+          // Si el slot termina después de medianoche, ajustar a 00:00
+          let slotEndH: number;
+          let slotEndM: number;
+          if (slotEndMinutes >= 24 * 60) {
+            slotEndH = 0;
+            slotEndM = 0;
+          } else {
+            slotEndH = Math.floor(slotEndMinutes / 60);
+            slotEndM = slotEndMinutes % 60;
+          }
 
           // Si el slot excede el rango, ajustarlo
           const actualEndMinutes = Math.min(slotEndMinutes, endMinutes);
-          const actualEndH = Math.floor(actualEndMinutes / 60);
-          const actualEndM = actualEndMinutes % 60;
+          let actualEndH: number;
+          let actualEndM: number;
+          if (actualEndMinutes >= 24 * 60) {
+            actualEndH = 0;
+            actualEndM = 0;
+          } else {
+            actualEndH = Math.floor(actualEndMinutes / 60);
+            actualEndM = actualEndMinutes % 60;
+          }
 
           schedulesToInsert.push({
             tournament_id: tournamentId,
             user_uid: user.id,
-            day_of_week: schedule.day_of_week,
+            date: schedule.date,
             start_time: `${String(slotStartH).padStart(2, "0")}:${String(slotStartM).padStart(2, "0")}`,
             end_time: `${String(actualEndH).padStart(2, "0")}:${String(actualEndM).padStart(2, "0")}`,
-            display_name: schedule.display_name || null,
           });
 
           currentMinutes += 60;

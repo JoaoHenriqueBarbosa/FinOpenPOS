@@ -39,10 +39,9 @@ export interface TeamPlayer extends PlayerNestedDTO {}
 export interface AvailableSchedule {
   id: number;
   tournament_id: number;
-  day_of_week: number; // 0=domingo, 1=lunes, ..., 6=sábado
+  date: string; // YYYY-MM-DD - Fecha específica
   start_time: string; // HH:MM
   end_time: string; // HH:MM
-  display_name: string | null;
 }
 
 export interface TeamDTO {
@@ -77,6 +76,7 @@ export interface MatchDTO {
   start_time: string | null;
   end_time: string | null;
   match_order?: number | null;
+  court_id: number | null;
   set1_team1_games: number | null;
   set1_team2_games: number | null;
   set2_team1_games: number | null;
@@ -119,6 +119,7 @@ export interface PlayoffRow {
     match_date: string | null;
     start_time: string | null;
     end_time: string | null;
+    court_id: number | null;
     set1_team1_games: number | null;
     set1_team2_games: number | null;
     set2_team1_games: number | null;

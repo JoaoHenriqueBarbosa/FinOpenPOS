@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -10,10 +10,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2Icon, PlusIcon, TrashIcon } from "lucide-react";
+import { Loader2Icon } from "lucide-react";
+import { ScheduleDaysEditor, type ScheduleDay } from "@/components/schedule-days-editor";
 import type { AvailableSchedule } from "@/models/dto/tournament";
 
 interface TournamentAvailableSchedulesDialogProps {
@@ -33,65 +31,68 @@ export function TournamentAvailableSchedulesDialog({
   schedules,
   onSave,
 }: TournamentAvailableSchedulesDialogProps) {
-  const [localSchedules, setLocalSchedules] = useState<Omit<AvailableSchedule, "id" | "tournament_id">[]>([]);
+  const [localSchedules, setLocalSchedules] = useState<ScheduleDay[]>([]);
   const [saving, setSaving] = useState(false);
 
   // Inicializar con los horarios existentes
+  // Usar useMemo para estabilizar la referencia y evitar loops infinitos
+  const schedulesKey = useMemo(() => {
+    return schedules.map(s => `${s.date}-${s.start_time}-${s.end_time}`).join('|');
+  }, [schedules]);
+
+  const schedulesStable = useMemo(() => {
+    return schedules.map(({ id, tournament_id, date, start_time, end_time }) => ({
+      date,
+      startTime: start_time,
+      endTime: end_time,
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schedulesKey]);
+
   useEffect(() => {
     if (open) {
-      const schedulesWithoutIds = schedules.map(({ id, tournament_id, ...rest }) => rest);
-      setLocalSchedules(schedulesWithoutIds);
+      setLocalSchedules(schedulesStable);
     } else {
       setLocalSchedules([]);
     }
-  }, [open, schedules]);
+  }, [open, schedulesStable]);
 
-  const handleAddSchedule = () => {
-    setLocalSchedules([
-      ...localSchedules,
-      {
-        day_of_week: 5, // Viernes por defecto
-        start_time: "13:00",
-        end_time: "23:00",
-        display_name: null,
-      },
-    ]);
-  };
-
-  const handleRemoveSchedule = (index: number) => {
-    setLocalSchedules(localSchedules.filter((_, i) => i !== index));
-  };
-
-  const handleUpdateSchedule = (
-    index: number,
-    field: keyof Omit<AvailableSchedule, "id" | "tournament_id">,
-    value: string | number | null
-  ) => {
-    const updated = [...localSchedules];
-    updated[index] = { ...updated[index], [field]: value };
-    
-    // Auto-generar display_name si está vacío
-    if (field !== "display_name" && (!updated[index].display_name || updated[index].display_name.trim() === "")) {
-      const dayName = dayNames[updated[index].day_of_week];
-      updated[index].display_name = `${dayName} ${updated[index].start_time} - ${updated[index].end_time}`;
-    }
-    
-    setLocalSchedules(updated);
+  const handleDaysChange = (days: ScheduleDay[]) => {
+    setLocalSchedules(days);
   };
 
   const handleSave = async () => {
-    // Validar que todos los horarios tengan día, hora inicio y hora fin
+    // Validar que todos los horarios tengan fecha, hora inicio y hora fin
     const invalid = localSchedules.some(
-      (s) => s.start_time === "" || s.end_time === "" || s.start_time >= s.end_time
+      (s) => !s.date || s.startTime === "" || s.endTime === ""
     );
     if (invalid) {
-      alert("Por favor completá todos los campos y asegurate de que la hora de inicio sea menor que la hora de fin");
+      alert("Por favor completá todos los campos (fecha, hora inicio y hora fin)");
+      return;
+    }
+
+    // Validar que startTime < endTime considerando 00:00 como fin del día
+    const invalidTimeRange = localSchedules.some((s) => {
+      const [startH, startM] = s.startTime.split(":").map(Number);
+      const [endH, endM] = s.endTime.split(":").map(Number);
+      const startMinutes = startH * 60 + startM;
+      const endMinutes = (endH === 0 && endM === 0) ? 24 * 60 : endH * 60 + endM;
+      return startMinutes >= endMinutes;
+    });
+    if (invalidTimeRange) {
+      alert("La hora de inicio debe ser anterior a la hora de fin");
       return;
     }
 
     try {
       setSaving(true);
-      await onSave(localSchedules);
+      // Convertir ScheduleDay[] a AvailableSchedule[]
+      const schedulesToSave: Omit<AvailableSchedule, "id" | "tournament_id">[] = localSchedules.map((day) => ({
+        date: day.date,
+        start_time: day.startTime,
+        end_time: day.endTime,
+      }));
+      await onSave(schedulesToSave);
       onOpenChange(false);
     } catch (err: any) {
       console.error(err);
@@ -118,90 +119,30 @@ export function TournamentAvailableSchedulesDialog({
               No hay horarios configurados. Agregá al menos uno para poder generar los partidos.
             </p>
           ) : (
-            <div className="space-y-3">
-              {localSchedules.map((schedule, index) => (
-                <div
-                  key={index}
-                  className="flex items-end gap-2 p-3 border rounded-lg"
-                >
-                  <div className="flex-1 space-y-2">
-                    <div>
-                      <Label htmlFor={`day-${index}`}>Día de la semana</Label>
-                      <Select
-                        value={String(schedule.day_of_week)}
-                        onValueChange={(value) =>
-                          handleUpdateSchedule(index, "day_of_week", Number(value))
-                        }
-                      >
-                        <SelectTrigger id={`day-${index}`}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {dayNames.map((day, dayIndex) => (
-                            <SelectItem key={dayIndex} value={String(dayIndex)}>
-                              {day}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      <div>
-                        <Label htmlFor={`start-${index}`}>Hora inicio</Label>
-                        <Input
-                          id={`start-${index}`}
-                          type="time"
-                          value={schedule.start_time}
-                          onChange={(e) =>
-                            handleUpdateSchedule(index, "start_time", e.target.value)
-                          }
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor={`end-${index}`}>Hora fin</Label>
-                        <Input
-                          id={`end-${index}`}
-                          type="time"
-                          value={schedule.end_time}
-                          onChange={(e) =>
-                            handleUpdateSchedule(index, "end_time", e.target.value)
-                          }
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor={`display-${index}`}>Nombre (opcional)</Label>
-                        <Input
-                          id={`display-${index}`}
-                          type="text"
-                          placeholder="Auto-generado"
-                          value={schedule.display_name || ""}
-                          onChange={(e) =>
-                            handleUpdateSchedule(index, "display_name", e.target.value || null)
-                          }
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleRemoveSchedule(index)}
-                  >
-                    <TrashIcon className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
+            <ScheduleDaysEditor
+              days={localSchedules}
+              onChange={handleDaysChange}
+              showDayOfWeek={true}
+            />
           )}
-
-          <Button
-            variant="outline"
-            onClick={handleAddSchedule}
-            className="w-full"
-          >
-            <PlusIcon className="h-4 w-4 mr-2" />
-            Agregar horario
-          </Button>
+          
+          {localSchedules.length === 0 && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                const today = new Date();
+                const defaultDate = today.toISOString().split("T")[0];
+                setLocalSchedules([{
+                  date: defaultDate,
+                  startTime: "13:00",
+                  endTime: "23:00",
+                }]);
+              }}
+              className="w-full"
+            >
+              Agregar primer horario
+            </Button>
+          )}
         </div>
 
         <DialogFooter>

@@ -26,6 +26,7 @@ import {
 
 import type { PlayoffRow, TournamentDTO } from "@/models/dto/tournament";
 import type { MatchStatus } from "@/models/db/tournament";
+import type { CourtDTO } from "@/models/dto/court";
 import { tournamentsService, tournamentMatchesService } from "@/services";
 
 // Using Pick from TournamentDTO and MatchDTO
@@ -74,6 +75,23 @@ export default function PlayoffsTab({ tournament }: { tournament: Pick<Tournamen
     queryKey: ["tournament-playoffs", tournament.id], // Mismo key que GroupsTab y PlayoffsViewTab
     queryFn: () => fetchTournamentPlayoffs(tournament.id),
     staleTime: 1000 * 30, // 30 segundos
+  });
+
+  // Obtener canchas para mostrar nombres
+  const { data: courts = [] } = useQuery<CourtDTO[]>({
+    queryKey: ["courts"],
+    queryFn: async () => {
+      const response = await fetch("/api/courts?onlyActive=true");
+      if (!response.ok) return [];
+      return response.json();
+    },
+    staleTime: 1000 * 60 * 5, // 5 minutos
+  });
+
+  // Crear mapa de ID a nombre de cancha
+  const courtMap = new Map<number, string>();
+  courts.forEach((court) => {
+    courtMap.set(court.id, court.name);
   });
 
   // Función load ahora solo invalida cache
@@ -310,6 +328,9 @@ export default function PlayoffsTab({ tournament }: { tournament: Pick<Tournamen
                     {match.start_time && (
                       <span className="text-muted-foreground">
                         🕐 {formatTime(match.start_time)}
+                        {match.court_id && courtMap.get(match.court_id) && (
+                          <span className="ml-1">- {courtMap.get(match.court_id)}</span>
+                        )}
                       </span>
                     )}
                     <Button
