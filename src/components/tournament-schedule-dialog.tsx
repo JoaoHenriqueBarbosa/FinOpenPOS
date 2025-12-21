@@ -72,6 +72,7 @@ export function TournamentScheduleDialog({
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState<string>("");
+  const [isLogsExpanded, setIsLogsExpanded] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -496,7 +497,18 @@ export function TournamentScheduleDialog({
           {/* Bitácora de logs (solo si showLogs es true) */}
           {showLogs && (isProcessing || logs.length > 0) && (
             <div className="mt-4 space-y-2">
-              <Label>Bitácora del proceso</Label>
+              <div className="flex items-center justify-between">
+                <Label>Bitácora del proceso</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsLogsExpanded(!isLogsExpanded)}
+                  className="h-6 px-2 text-xs"
+                >
+                  {isLogsExpanded ? "Ocultar" : "Mostrar"}
+                </Button>
+              </div>
               {status && (
                 <div className="flex items-center gap-2">
                   <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
@@ -508,25 +520,27 @@ export function TournamentScheduleDialog({
                   <span className="text-xs text-muted-foreground min-w-[120px]">{status}</span>
                 </div>
               )}
-              <div className="bg-muted rounded-lg p-3 max-h-64 overflow-y-auto font-mono text-xs space-y-1">
-                {logs.length === 0 && isProcessing && (
-                  <div className="text-muted-foreground">Esperando logs...</div>
-                )}
-                {logs.map((log, idx) => (
-                  <div key={idx} className="text-foreground flex items-start gap-2">
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">
-                      {log.timestamp.toLocaleTimeString("es-AR", { 
-                        hour: "2-digit", 
-                        minute: "2-digit", 
-                        second: "2-digit",
-                        fractionalSecondDigits: 3
-                      })}
-                    </span>
-                    <span>{log.message}</span>
-                  </div>
-                ))}
-                <div ref={logsEndRef} />
-              </div>
+              {isLogsExpanded && (
+                <div className="bg-muted rounded-lg p-3 max-h-64 overflow-y-auto font-mono text-xs space-y-1">
+                  {logs.length === 0 && isProcessing && (
+                    <div className="text-muted-foreground">Esperando logs...</div>
+                  )}
+                  {logs.map((log, idx) => (
+                    <div key={idx} className="text-foreground flex items-start gap-2">
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        {log.timestamp.toLocaleTimeString("es-AR", { 
+                          hour: "2-digit", 
+                          minute: "2-digit", 
+                          second: "2-digit",
+                          fractionalSecondDigits: 3
+                        })}
+                      </span>
+                      <span>{log.message}</span>
+                    </div>
+                  ))}
+                  <div ref={logsEndRef} />
+                </div>
+              )}
             </div>
           )}
         </div>
