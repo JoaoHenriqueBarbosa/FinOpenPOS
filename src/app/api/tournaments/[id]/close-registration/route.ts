@@ -414,7 +414,7 @@ export async function POST(req: Request, { params }: RouteParams) {
       }
     }
 
-    const schedulerResult = scheduleGroupMatches(
+    const schedulerResult = await scheduleGroupMatches(
       matchesPayload,
       scheduleConfig.days,
       matchDurationMinutes,

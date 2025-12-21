@@ -622,6 +622,8 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
         availableSchedules={availableSchedulesGrouped}
         error={closingStatus && closingStatus.includes("Error") ? closingStatus : null}
         isLoading={closing}
+        tournamentId={tournament.id}
+        showLogs={true}
       />
 
       <TournamentAvailableSchedulesDialog

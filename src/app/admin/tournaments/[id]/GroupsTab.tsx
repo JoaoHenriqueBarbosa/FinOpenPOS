@@ -282,12 +282,12 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
   };
 
   const handleConfirmRegenerateSchedule = async (config: ScheduleConfig) => {
+    // Este handler ahora se maneja directamente en TournamentScheduleDialog cuando showLogs es true
+    // Solo se usa para el caso sin logs
     try {
       setRegenerating(true);
       setPlayoffsError(null);
-      // NO cerrar el dialog aquí - esperar a que termine exitosamente
       await tournamentsService.regenerateSchedule(tournament.id, config);
-      // Solo cerrar el dialog si fue exitoso
       setShowRegenerateScheduleDialog(false);
       setShowRegenerateDialog(false);
       load();
@@ -433,9 +433,12 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
         error={playoffsError}
         isLoading={regenerating}
         onConfirm={handleConfirmRegenerateSchedule}
-        matchCount={data?.matches.length || 0}
+        matchCount={matchesWithSchedule}
         tournamentMatchDuration={tournament.match_duration}
         availableSchedules={availableSchedulesGrouped}
+        tournamentId={tournament.id}
+        showLogs={true}
+        streamEndpoint="regenerate-schedule-stream"
       />
 
       <CardContent className="px-0 space-y-3">
@@ -632,17 +635,19 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
           <DialogHeader>
             <DialogTitle>Confirmar eliminación de fase de grupos</DialogTitle>
             <DialogDescription>
-              ¿Estás seguro de que deseas eliminar toda la fase de grupos? Esta acción eliminará:
-              <ul className="list-disc list-inside mt-2 space-y-1">
-                <li>Todos los grupos</li>
-                <li>Todos los partidos de grupos</li>
-                <li>Todos los resultados cargados</li>
-                <li>Todas las tablas de posiciones</li>
-                <li>Todas las asignaciones de equipos a grupos</li>
-              </ul>
-              <p className="mt-2 font-semibold text-amber-600">
-                Esta acción no se puede deshacer. Podrás volver a generar los grupos desde la fase de inscripción.
-              </p>
+              <div>
+                ¿Estás seguro de que deseas eliminar toda la fase de grupos? Esta acción eliminará:
+                <ul className="list-disc list-inside mt-2 space-y-1">
+                  <li>Todos los grupos</li>
+                  <li>Todos los partidos de grupos</li>
+                  <li>Todos los resultados cargados</li>
+                  <li>Todas las tablas de posiciones</li>
+                  <li>Todas las asignaciones de equipos a grupos</li>
+                </ul>
+                <div className="mt-2 font-semibold text-amber-600">
+                  Esta acción no se puede deshacer. Podrás volver a generar los grupos desde la fase de inscripción.
+                </div>
+              </div>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -673,23 +678,25 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
           <DialogHeader>
             <DialogTitle>Regenerar horarios de partidos</DialogTitle>
             <DialogDescription>
-              {matchesWithSchedule > 0 ? (
-                <>
-                  <p className="font-semibold text-amber-600 mb-2">
-                    ⚠️ Advertencia: {matchesWithSchedule} partido{matchesWithSchedule !== 1 ? "s" : ""} ya {matchesWithSchedule !== 1 ? "tienen" : "tiene"} horarios asignados.
-                  </p>
-                  <p className="mb-2">
-                    Al regenerar los horarios, se sobreescribirán los horarios existentes de todos los partidos de fase de grupos que aún no tengan resultados cargados.
-                  </p>
-                </>
-              ) : (
-                <p>
-                  Se asignarán horarios a todos los partidos de fase de grupos que aún no tengan resultados cargados.
-                </p>
-              )}
-              <p className="mt-2 text-sm text-muted-foreground">
-                Los partidos que ya tienen resultados no se modificarán.
-              </p>
+              <div>
+                {matchesWithSchedule > 0 ? (
+                  <>
+                    <div className="font-semibold text-amber-600 mb-2">
+                      ⚠️ Advertencia: {matchesWithSchedule} partido{matchesWithSchedule !== 1 ? "s" : ""} ya {matchesWithSchedule !== 1 ? "tienen" : "tiene"} horarios asignados.
+                    </div>
+                    <div className="mb-2">
+                      Al regenerar los horarios, se sobreescribirán los horarios existentes de todos los partidos de fase de grupos que aún no tengan resultados cargados.
+                    </div>
+                  </>
+                ) : (
+                  <div>
+                    Se asignarán horarios a todos los partidos de fase de grupos que aún no tengan resultados cargados.
+                  </div>
+                )}
+                <div className="mt-2 text-sm text-muted-foreground">
+                  Los partidos que ya tienen resultados no se modificarán.
+                </div>
+              </div>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

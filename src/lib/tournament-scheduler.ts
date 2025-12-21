@@ -252,14 +252,19 @@ function slotViolatesRestriction(
 }
 
 // Asigna horarios directamente sobre el arreglo de matches (modificándolo)
-export function scheduleGroupMatches(
+export async function scheduleGroupMatches(
   matchesPayload: GroupMatchPayload[],
   days: ScheduleDay[],
   matchDurationMinutes: number,
   courtIds: number[],
   availableSchedules?: AvailableSchedule[],
-  teamRestrictions?: Map<number, number[]> // teamId -> restrictedScheduleIds[]
-): SchedulerResult {
+  teamRestrictions?: Map<number, number[]>, // teamId -> restrictedScheduleIds[]
+  onLog?: (message: string) => void // Callback para logs en tiempo real
+): Promise<SchedulerResult> {
+  // Debug: verificar que el callback esté disponible
+  if (onLog) {
+    onLog("🔍 Scheduler: callback de logging recibido correctamente");
+  }
   if (!days.length || !courtIds.length) {
     return {
       success: false,
@@ -360,11 +365,68 @@ export function scheduleGroupMatches(
   });
 
   // 5) Generar diferentes ordenaciones para probar
-  // Orden base: primero los de primera ronda (1-2), luego segunda ronda (3-4), luego grupos de 3
+  // MEJORA: Ordenar por "restricción" (MRV - Minimum Remaining Values)
+  // Partidos con más restricciones (menos opciones) primero
+  const calculateMatchFlexibility = (match: GroupMatchPayload): number => {
+    const teams = [match.team1_id, match.team2_id].filter((id): id is number => id !== null);
+    if (teams.length === 0) return timeSlots.length; // Sin equipos = más flexible
+    
+    let validSlots = 0;
+    for (let i = 0; i < timeSlots.length; i++) {
+      const slot = timeSlots[i];
+      
+      // Verificar restricciones básicas
+      let valid = true;
+      if (teamRestrictions && availableSchedules && availableSchedules.length > 0) {
+        for (const teamId of teams) {
+          const restrictedScheduleIds = teamRestrictions.get(teamId);
+          if (slotViolatesRestriction(slot, restrictedScheduleIds, availableSchedules)) {
+            valid = false;
+            break;
+          }
+        }
+      }
+      if (valid) validSlots++;
+    }
+    
+    return validSlots;
+  };
+  
+  // Ordenar por flexibilidad (menos flexible = más restricciones = primero)
+  // Pero mantener el orden deportivo para grupos de 4
+  const sortedMatches1_2 = [...orderedMatches1_2].sort((a, b) => {
+    const flexA = calculateMatchFlexibility(a);
+    const flexB = calculateMatchFlexibility(b);
+    if (Math.abs(flexA - flexB) > 5) {
+      return flexA - flexB; // Si hay diferencia significativa, ordenar por flexibilidad
+    }
+    // Si son similares, mantener orden original (grupo, luego match_order)
+    if (a.tournament_group_id !== b.tournament_group_id) {
+      return a.tournament_group_id - b.tournament_group_id;
+    }
+    return (a.match_order ?? 0) - (b.match_order ?? 0);
+  });
+  
+  const sortedMatches3_4 = [...orderedMatches3_4].sort((a, b) => {
+    const flexA = calculateMatchFlexibility(a);
+    const flexB = calculateMatchFlexibility(b);
+    if (Math.abs(flexA - flexB) > 5) {
+      return flexA - flexB;
+    }
+    if (a.tournament_group_id !== b.tournament_group_id) {
+      return a.tournament_group_id - b.tournament_group_id;
+    }
+    return (a.match_order ?? 0) - (b.match_order ?? 0);
+  });
+  
+  const sortedMatchesWithoutOrder = [...orderedMatchesWithoutOrder].sort((a, b) => {
+    return calculateMatchFlexibility(a) - calculateMatchFlexibility(b);
+  });
+  
   const baseOrder: GroupMatchPayload[] = [
-    ...orderedMatches1_2,  // Primero todos los partidos 1 y 2
-    ...orderedMatches3_4,  // Luego todos los partidos 3 y 4 (pero se asignarán respetando el slot libre)
-    ...orderedMatchesWithoutOrder,  // Finalmente grupos de 3
+    ...sortedMatches1_2,  // Primero todos los partidos 1 y 2 (ordenados por restricciones)
+    ...sortedMatches3_4,  // Luego todos los partidos 3 y 4 (ordenados por restricciones)
+    ...sortedMatchesWithoutOrder,  // Finalmente grupos de 3 (ordenados por restricciones)
   ];
 
   // Generar variaciones de orden para grupos de 3 (los de match_order deben mantener su orden)
@@ -410,13 +472,35 @@ export function scheduleGroupMatches(
   let backtrackIterations = 0;
   const MAX_BACKTRACK_ITERATIONS = 200000; // Aumentar límite de iteraciones
   
-  const tryAssignWithBacktracking = (
+  const tryAssignWithBacktracking = async (
     order: GroupMatchPayload[],
     relaxOrderRestrictions: boolean = false,
     maxDepth: number = 5, // Aumentar profundidad máxima de backtracking
-    beamWidth: number = 10 // Aumentar número de candidatos a explorar en cada nivel
-  ): { success: boolean; assignments: Map<number, Assignment>; totalScore: number } => {
+    beamWidth: number = 10, // Aumentar número de candidatos a explorar en cada nivel
+    logCallback?: (message: string) => void // Callback para logs
+  ): Promise<{ success: boolean; assignments: Map<number, Assignment>; totalScore: number }> => {
     backtrackIterations = 0; // Resetear contador para cada intento
+    // Usar el callback de log si está disponible, sino usar console.log
+    // Hacer que cada log ceda el control al event loop para que los mensajes se envíen en tiempo real
+    const log = logCallback ? async (msg: string) => {
+      try {
+        logCallback(msg);
+        // Ceder control después de cada log para que el stream pueda procesar
+        await new Promise(resolve => setImmediate(resolve));
+      } catch (error) {
+        console.error("Error in log callback:", error);
+        console.log(msg);
+      }
+    } : (onLog ? async (msg: string) => {
+      try {
+        onLog(msg);
+        // Ceder control después de cada log para que el stream pueda procesar
+        await new Promise(resolve => setImmediate(resolve));
+      } catch (error) {
+        console.error("Error in log callback:", error);
+        console.log(msg);
+      }
+    } : console.log);
     type State = {
       assignments: Map<number, Assignment>;
       usedSlots: Set<number>;
@@ -426,10 +510,22 @@ export function scheduleGroupMatches(
       score: number;
     };
 
-    const backtrack = (state: State, depth: number): State | null => {
+    const backtrack = async (state: State, depth: number): Promise<State | null> => {
       backtrackIterations++;
       if (backtrackIterations > MAX_BACKTRACK_ITERATIONS) {
+        if (backtrackIterations === MAX_BACKTRACK_ITERATIONS + 1) {
+          log(`⚠️ Límite de iteraciones alcanzado (${MAX_BACKTRACK_ITERATIONS})`);
+        }
         return null; // Límite de iteraciones alcanzado
+      }
+      
+      // Log periódico del progreso y ceder control al event loop
+      // Aumentar el intervalo para reducir la cantidad de logs
+      if (backtrackIterations % 10000 === 0) {
+        log(`🔄 Procesando... ${backtrackIterations} iteraciones, ${state.matchIndex}/${order.length} partidos asignados`);
+        // Ceder control al event loop para que el stream pueda procesar mensajes
+        // Usar un pequeño delay para asegurar que el stream procese los mensajes
+        await new Promise(resolve => setImmediate(resolve));
       }
       
       if (state.matchIndex >= order.length) {
@@ -442,7 +538,7 @@ export function scheduleGroupMatches(
       const match = order[state.matchIndex];
       const matchIdx = matchesPayload.indexOf(match);
       if (matchIdx === -1) {
-        return backtrack({ ...state, matchIndex: state.matchIndex + 1 }, depth);
+        return await backtrack({ ...state, matchIndex: state.matchIndex + 1 }, depth);
       }
 
       const teamsInMatch = [match.team1_id, match.team2_id].filter(
@@ -590,9 +686,105 @@ export function scheduleGroupMatches(
 
         if (!valid) continue;
 
-        // Calcular score
+        // Calcular score con heurísticas más inteligentes
         let score = 0;
         score -= orderPenalty;
+
+        // HEURÍSTICA 1: Forward Checking optimizado - Calcular cuántas opciones quedan para otros partidos
+        // después de asignar este slot (Least Constraining Value)
+        // OPTIMIZACIÓN: Solo verificar los próximos 5 partidos para no hacer el cálculo muy costoso
+        let remainingOptionsForOthers = 0;
+        const remainingMatches = order.slice(state.matchIndex + 1, state.matchIndex + 6); // Solo próximos 5
+        
+        // Pre-calcular qué slots físicos se usarían
+        const testUsedPhysicalSlots = new Set(state.usedPhysicalSlots);
+        if (slot.physicalSlotId) {
+          const courtIndex = i % courtIds.length;
+          const physicalSlotKey = `${slot.physicalSlotId}-court${courtIndex}`;
+          testUsedPhysicalSlots.add(physicalSlotKey);
+        }
+        
+        // Pre-calcular asignaciones de equipos simuladas
+        const testTeamAssignments = new Map(state.teamAssignments);
+        for (const teamId of teamsInMatch) {
+          if (teamId === null) continue;
+          if (!testTeamAssignments.has(teamId)) {
+            testTeamAssignments.set(teamId, []);
+          }
+          testTeamAssignments.get(teamId)!.push({
+            date: slot.date,
+            startTime: slot.startTime,
+          });
+        }
+        
+        for (const futureMatch of remainingMatches) {
+          const futureMatchIdx = matchesPayload.indexOf(futureMatch);
+          if (futureMatchIdx === -1) continue;
+          
+          const futureTeams = [futureMatch.team1_id, futureMatch.team2_id].filter(
+            (id): id is number => id !== null
+          );
+          
+          // Contar slots válidos para futureMatch después de esta asignación
+          let validSlotsForFuture = 0;
+          for (let j = 0; j < timeSlots.length; j++) {
+            if (state.usedSlots.has(j) || j === i) continue; // Ya usado o es el slot actual
+            
+            const futureSlot = timeSlots[j];
+            
+            // Verificar slot físico
+            if (futureSlot.physicalSlotId) {
+              const courtIndex = j % courtIds.length;
+              const physicalSlotKey = `${futureSlot.physicalSlotId}-court${courtIndex}`;
+              if (testUsedPhysicalSlots.has(physicalSlotKey)) continue;
+            }
+            
+            // Verificar restricciones
+            let futureValid = true;
+            if (teamRestrictions && availableSchedules && availableSchedules.length > 0 && futureTeams.length > 0) {
+              for (const teamId of futureTeams) {
+                const restrictedScheduleIds = teamRestrictions.get(teamId);
+                if (slotViolatesRestriction(futureSlot, restrictedScheduleIds, availableSchedules)) {
+                  futureValid = false;
+                  break;
+                }
+              }
+            }
+            if (!futureValid) continue;
+            
+            // Verificar consecutivos
+            if (futureTeams.length > 0) {
+              for (const teamId of futureTeams) {
+                const assignedForTeam = testTeamAssignments.get(teamId) || [];
+                for (const prev of assignedForTeam) {
+                  if (prev.date !== futureSlot.date) continue;
+                  const prevStartMinutes = timeToMinutesOfDay(prev.startTime);
+                  const currentStartMinutes = timeToMinutesOfDay(futureSlot.startTime);
+                  const timeDiffMinutes = Math.abs(currentStartMinutes - prevStartMinutes);
+                  const minGapMinutes = minSlotsBetweenMatches * matchDurationMinutes;
+                  if (timeDiffMinutes <= minGapMinutes) {
+                    futureValid = false;
+                    break;
+                  }
+                }
+                if (!futureValid) break;
+              }
+            }
+            
+            if (futureValid) validSlotsForFuture++;
+          }
+          
+          // Bonus mayor si el partido futuro tiene pocas opciones (priorizar slots que no eliminen opciones críticas)
+          const baseOptions = calculateMatchFlexibility(futureMatch);
+          if (baseOptions < 10 && validSlotsForFuture > 0) {
+            remainingOptionsForOthers += validSlotsForFuture * 20; // Bonus extra para partidos restrictivos
+          } else {
+            remainingOptionsForOthers += validSlotsForFuture;
+          }
+        }
+        
+        // Bonus por dejar más opciones para otros partidos (Least Constraining Value)
+        score += remainingOptionsForOthers * 15;
 
         const slotIndex = i;
         const totalSlots = timeSlots.length;
@@ -701,15 +893,15 @@ export function scheduleGroupMatches(
       if (validCandidates.length === 0) {
         // Debug: mostrar por qué no hay candidatos válidos (solo para los primeros partidos)
         if (state.matchIndex < 3) {
-          console.log(`[DEBUG] No hay candidatos válidos para partido ${state.matchIndex + 1}/${order.length}`);
-          console.log(`  Equipos: ${teamsInMatch.join(', ')}`);
-          console.log(`  Slots usados: ${state.usedSlots.size}/${timeSlots.length}`);
-          console.log(`  Slots físicos usados: ${state.usedPhysicalSlots.size}`);
+          log(`[DEBUG] No hay candidatos válidos para partido ${state.matchIndex + 1}/${order.length}`);
+          log(`  Equipos: ${teamsInMatch.join(', ')}`);
+          log(`  Slots usados: ${state.usedSlots.size}/${timeSlots.length}`);
+          log(`  Slots físicos usados: ${state.usedPhysicalSlots.size}`);
           if (teamRestrictions && teamsInMatch.length > 0) {
             teamsInMatch.forEach(teamId => {
               const restrictions = teamRestrictions.get(teamId);
               if (restrictions && restrictions.length > 0) {
-                console.log(`  Equipo ${teamId} tiene ${restrictions.length} restricciones`);
+                log(`  Equipo ${teamId} tiene ${restrictions.length} restricciones`);
               }
             });
           }
@@ -769,7 +961,7 @@ export function scheduleGroupMatches(
               }
             }
           }
-          console.log(`  Rechazados: ${rejectedByUsed} usados, ${rejectedByPhysical} físicos, ${rejectedByRestrictions} restricciones, ${rejectedByConsecutive} consecutivos`);
+          log(`  Rechazados: ${rejectedByUsed} usados, ${rejectedByPhysical} físicos, ${rejectedByRestrictions} restricciones, ${rejectedByConsecutive} consecutivos`);
         }
         return null; // No hay candidatos válidos
       }
@@ -781,9 +973,12 @@ export function scheduleGroupMatches(
       });
 
       // Probar los mejores candidatos (beam search)
+      // MEJORA: Usar heurística adaptativa - si hay pocos candidatos, probar todos
       // Si estamos cerca del final, probar más candidatos para asegurar encontrar solución
       const effectiveBeamWidth = state.matchIndex >= order.length - 3 
         ? Math.max(beamWidth * 2, validCandidates.length) 
+        : validCandidates.length <= beamWidth * 2
+        ? validCandidates.length // Si hay pocos candidatos, probar todos
         : beamWidth;
       const candidatesToTry = validCandidates.slice(0, effectiveBeamWidth);
       const results: State[] = [];
@@ -841,7 +1036,7 @@ export function scheduleGroupMatches(
           score: state.score + candidate.score,
         };
 
-        const result = backtrack(newState, depth + 1);
+        const result = await backtrack(newState, depth + 1);
         if (result) {
           results.push(result);
         }
@@ -852,7 +1047,16 @@ export function scheduleGroupMatches(
       }
 
       // Retornar el mejor resultado
-      results.sort((a, b) => b.score - a.score);
+      // MEJORA: Considerar no solo el score, sino también cuántos partidos quedan sin asignar
+      // Priorizar soluciones que están más cerca de completarse
+      results.sort((a, b) => {
+        // Primero por score
+        if (Math.abs(b.score - a.score) > 1000) {
+          return b.score - a.score;
+        }
+        // Si los scores son similares, priorizar el que tiene más partidos asignados
+        return b.assignments.size - a.assignments.size;
+      });
       return results[0];
     };
 
@@ -865,7 +1069,7 @@ export function scheduleGroupMatches(
       score: 0,
     };
 
-    const result = backtrack(initialState, 0);
+    const result = await backtrack(initialState, 0);
     if (result) {
       return { success: true, assignments: result.assignments, totalScore: result.score };
     }
@@ -876,37 +1080,70 @@ export function scheduleGroupMatches(
   // Ir directo con backtracking que es más inteligente y encuentra mejores soluciones
   let bestResult: { success: boolean; assignments: Map<number, Assignment>; totalScore: number } | null = null;
 
-  console.log("Intentando asignación con backtracking (restricciones estrictas)...");
-  // Probar con todas las variaciones usando backtracking con restricciones estrictas
-  for (const order of ordersToTry) {
-    const result = tryAssignWithBacktracking(order, false, 5, 10);
-    if (result.success && (!bestResult || result.totalScore > bestResult.totalScore)) {
-      bestResult = result;
-      console.log(`Solución encontrada con score: ${result.totalScore}`);
-      break; // Salir temprano si encuentra solución
+  // Asegurarse de que el callback se use correctamente
+  const log = onLog ? (msg: string) => {
+    try {
+      onLog(msg);
+    } catch (error) {
+      console.error("Error in log callback:", error);
+      console.log(msg);
+    }
+  } : console.log;
+  
+  log("Intentando asignación con backtracking inteligente (restricciones estrictas)...");
+  log(`Total de partidos: ${matchesPayload.length}, Total de slots: ${timeSlots.length}`);
+  log(`Equipos con restricciones: ${teamRestrictions ? Array.from(teamRestrictions.keys()).length : 0}`);
+  
+  // MEJORA: Probar primero con el orden más inteligente (por restricciones - MRV)
+  // Si falla, probar otras variaciones
+  const smartOrder = baseOrder; // Ya está ordenado por flexibilidad (MRV)
+  
+  log(`Probando orden inteligente (MRV - partidos más restrictivos primero)...`);
+  let result = await tryAssignWithBacktracking(smartOrder, false, 5, 20, onLog); // Aumentar beam width para orden inteligente
+  if (result.success && (!bestResult || result.totalScore > bestResult.totalScore)) {
+    bestResult = result;
+    log(`✅ Solución encontrada con orden inteligente, score: ${result.totalScore}, iteraciones: ${backtrackIterations}`);
+  } else if (!result.success) {
+    log(`⚠️ Orden inteligente falló después de ${backtrackIterations} iteraciones, probando otras variaciones...`);
+    
+    // Probar con otras variaciones
+    for (let orderIdx = 0; orderIdx < ordersToTry.length; orderIdx++) {
+      const order = ordersToTry[orderIdx];
+      // Saltar el orden inteligente si ya está en ordersToTry
+      if (JSON.stringify(order) === JSON.stringify(smartOrder)) continue;
+      
+      log(`Probando orden ${orderIdx + 1}/${ordersToTry.length}...`);
+      result = await tryAssignWithBacktracking(order, false, 5, 15, onLog);
+      if (result.success && (!bestResult || result.totalScore > bestResult.totalScore)) {
+        bestResult = result;
+        log(`✅ Solución encontrada con score: ${result.totalScore}, iteraciones: ${backtrackIterations}`);
+        break; // Salir temprano si encuentra solución
+      } else if (!result.success) {
+        log(`❌ Orden ${orderIdx + 1} falló después de ${backtrackIterations} iteraciones`);
+      }
     }
   }
 
   // Si no se encontró solución, intentar con restricciones relajadas
   if (!bestResult || !bestResult.success) {
-    console.log("Intentando con restricciones relajadas y backtracking más profundo...");
+    log("Intentando con restricciones relajadas y backtracking más profundo...");
     for (let orderIdx = 0; orderIdx < ordersToTry.length; orderIdx++) {
       const order = ordersToTry[orderIdx];
-      console.log(`Probando orden ${orderIdx + 1}/${ordersToTry.length} con restricciones relajadas...`);
-      const result = tryAssignWithBacktracking(order, true, 8, 15);
+      log(`Probando orden ${orderIdx + 1}/${ordersToTry.length} con restricciones relajadas...`);
+      const result = await tryAssignWithBacktracking(order, true, 8, 15, onLog);
       if (result.success && (!bestResult || result.totalScore > bestResult.totalScore)) {
         bestResult = result;
-        console.log(`Solución encontrada con score: ${result.totalScore}`);
+        log(`Solución encontrada con score: ${result.totalScore}`);
         break; // Salir temprano si encuentra solución
       } else if (!result.success) {
-        console.log(`Orden ${orderIdx + 1} falló con restricciones relajadas, iteraciones: ${backtrackIterations}`);
+        log(`Orden ${orderIdx + 1} falló con restricciones relajadas, iteraciones: ${backtrackIterations}`);
       }
     }
   }
 
   // Si aún no se encontró, generar más variaciones adicionales
   if (!bestResult || !bestResult.success) {
-    console.log("Generando variaciones adicionales y probando con backtracking...");
+    log("Generando variaciones adicionales y probando con backtracking...");
     const additionalOrders: GroupMatchPayload[][] = [];
     
     // Generar más variaciones
@@ -936,11 +1173,13 @@ export function scheduleGroupMatches(
     });
     additionalOrders.push(orderByDifficulty);
 
-    for (const order of additionalOrders) {
-      const result = tryAssignWithBacktracking(order, true, 10, 20);
+    for (let i = 0; i < additionalOrders.length; i++) {
+      const order = additionalOrders[i];
+      log(`Probando variación adicional ${i + 1}/${additionalOrders.length}...`);
+      const result = await tryAssignWithBacktracking(order, true, 10, 20, onLog);
       if (result.success && (!bestResult || result.totalScore > bestResult.totalScore)) {
         bestResult = result;
-        console.log(`Solución encontrada con score: ${result.totalScore}`);
+        log(`Solución encontrada con variación ${i + 1}, score: ${result.totalScore}`);
         break; // Salir temprano si encuentra solución
       }
     }

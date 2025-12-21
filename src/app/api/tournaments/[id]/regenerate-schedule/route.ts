@@ -188,7 +188,7 @@ export async function POST(req: Request, { params }: RouteParams) {
 
   console.log(`Regenerating schedule for ${matchesPayload.length} matches with ${scheduleConfig.days.length} days and ${scheduleConfig.courtIds.length} courts`);
 
-  const schedulerResult = scheduleGroupMatches(
+  const schedulerResult = await scheduleGroupMatches(
     matchesPayload,
     scheduleConfig.days,
     matchDurationMinutes,

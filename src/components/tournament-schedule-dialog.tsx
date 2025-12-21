@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -24,6 +24,9 @@ type TournamentScheduleDialogProps = {
   matchCount: number; // cantidad de partidos a programar
   tournamentMatchDuration?: number; // duración del partido del torneo (en minutos)
   availableSchedules?: Array<{ date: string; start_time: string; end_time: string }>; // Horarios disponibles del torneo para pre-llenar
+  tournamentId?: number; // ID del torneo para usar con SSE
+  showLogs?: boolean; // Si mostrar la bitácora de logs
+  streamEndpoint?: string; // Endpoint para el stream (por defecto: close-registration-stream)
 };
 
 import type { CourtDTO } from "@/models/dto/court";
@@ -56,12 +59,21 @@ export function TournamentScheduleDialog({
   error = null,
   isLoading = false,
   availableSchedules = [],
+  tournamentId,
+  showLogs = false,
+  streamEndpoint = "close-registration-stream",
 }: TournamentScheduleDialogProps) {
   const [days, setDays] = useState<ScheduleDayEditor[]>(() => getInitialDays(availableSchedules));
   const [matchDuration, setMatchDuration] = useState<number>(tournamentMatchDuration);
   const [courts, setCourts] = useState<CourtDTO[]>([]);
   const [selectedCourtIds, setSelectedCourtIds] = useState<number[]>([]);
   const [loadingCourts, setLoadingCourts] = useState(false);
+  const [logs, setLogs] = useState<Array<{ message: string; timestamp: Date }>>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [status, setStatus] = useState<string>("");
+  const logsEndRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Estabilizar availableSchedules para evitar loops infinitos
   const availableSchedulesKey = useMemo(() => {
@@ -74,6 +86,15 @@ export function TournamentScheduleDialog({
       setMatchDuration(tournamentMatchDuration);
       // Si hay horarios disponibles, pre-llenar los días
       setDays(getInitialDays(availableSchedules));
+      setLogs([]);
+      setProgress(0);
+      setStatus("");
+      setIsProcessing(false);
+      // Cancelar cualquier proceso en curso
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, tournamentMatchDuration, availableSchedulesKey]);
@@ -111,13 +132,17 @@ export function TournamentScheduleDialog({
     setDays(newDays);
   };
 
-  const handleConfirm = () => {
-    // Validar que todos los días tengan fecha
-    if (days.some((d) => !d.date)) {
-      alert("Todos los días deben tener una fecha");
-      return;
+  // Función para cancelar el proceso
+  const handleCancel = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setLogs((prev) => [...prev, { message: "⚠️ Cancelando proceso...", timestamp: new Date() }]);
+      setIsProcessing(false);
     }
+  };
 
+  const handleConfirm = async () => {
     // Validar que todos los días tengan fecha
     if (days.some((d) => !d.date)) {
       alert("Todos los días deben tener una fecha");
@@ -150,8 +175,127 @@ export function TournamentScheduleDialog({
       startTime: d.startTime,
       endTime: d.endTime,
     }));
-    onConfirm({ days: scheduleDays, matchDuration, courtIds: selectedCourtIds });
-    // NO cerrar el dialog aquí - el componente padre lo cerrará cuando termine exitosamente
+    
+    const scheduleConfig = { days: scheduleDays, matchDuration, courtIds: selectedCourtIds };
+    
+    // Si showLogs y tournamentId están disponibles, usar SSE
+    if (showLogs && tournamentId) {
+      setIsProcessing(true);
+      setLogs([]);
+      setProgress(0);
+      setStatus("Iniciando...");
+      
+      // Crear AbortController para poder cancelar
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
+      
+      // Enviar la configuración usando fetch POST con stream
+      fetch(`/api/tournaments/${tournamentId}/${streamEndpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          days: scheduleDays,
+          matchDuration,
+          courtIds: selectedCourtIds,
+        }),
+        signal: abortController.signal,
+      })
+        .then(async (response) => {
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || "Error al iniciar el proceso");
+          }
+          
+          // Leer el stream
+          const reader = response.body?.getReader();
+          const decoder = new TextDecoder();
+          
+          if (!reader) {
+            throw new Error("No se pudo leer el stream");
+          }
+          
+          let buffer = "";
+          
+          const readStream = async () => {
+            try {
+              while (true) {
+                const { done, value } = await reader.read();
+                
+                if (done) {
+                  setIsProcessing(false);
+                  abortControllerRef.current = null;
+                  break;
+                }
+                
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split("\n");
+                
+                // Mantener la última línea incompleta en el buffer
+                buffer = lines.pop() || "";
+                
+                for (const line of lines) {
+                  if (line.trim() && line.startsWith("data: ")) {
+                    try {
+                      const data = JSON.parse(line.slice(6));
+                      
+                      if (data.type === "log") {
+                        setLogs((prev) => [...prev, { message: data.message, timestamp: new Date() }]);
+                      } else if (data.type === "progress") {
+                        setProgress(data.progress);
+                        setStatus(data.status);
+                      } else if (data.type === "error") {
+                        setLogs((prev) => [...prev, { message: `❌ Error: ${data.error}`, timestamp: new Date() }]);
+                        setIsProcessing(false);
+                        alert(data.error);
+                        return;
+                      } else if (data.type === "success") {
+                        setLogs((prev) => [...prev, { message: "✅ Proceso completado exitosamente", timestamp: new Date() }]);
+                        setIsProcessing(false);
+                        abortControllerRef.current = null;
+                        setTimeout(() => {
+                          onConfirm(scheduleConfig);
+                          window.location.reload();
+                        }, 1000);
+                        return;
+                      }
+                    } catch (e) {
+                      console.error("Error parsing SSE data:", e, line);
+                    }
+                  }
+                }
+              }
+            } catch (error: any) {
+              // Si es un error de abort, no mostrar alerta
+              if (error.name === 'AbortError') {
+                setLogs((prev) => [...prev, { message: "⚠️ Proceso cancelado por el usuario", timestamp: new Date() }]);
+                setIsProcessing(false);
+                return;
+              }
+              console.error("Error reading stream:", error);
+              setLogs((prev) => [...prev, { message: `❌ Error: ${error.message}`, timestamp: new Date() }]);
+              setIsProcessing(false);
+              alert(error.message || "Error al procesar");
+            }
+          };
+          
+          readStream();
+        })
+        .catch((error) => {
+          // Si es un error de abort, no mostrar alerta
+          if (error.name === 'AbortError') {
+            setLogs((prev) => [...prev, { message: "⚠️ Proceso cancelado por el usuario", timestamp: new Date() }]);
+            setIsProcessing(false);
+            return;
+          }
+          console.error("Error:", error);
+          setLogs((prev) => [...prev, { message: `❌ Error: ${error.message}`, timestamp: new Date() }]);
+          setIsProcessing(false);
+          alert(error.message || "Error al procesar");
+        });
+    } else {
+      // Comportamiento original sin logs
+      onConfirm(scheduleConfig);
+    }
   };
 
   const toggleCourt = (courtId: number) => {
@@ -348,28 +492,81 @@ export function TournamentScheduleDialog({
               </p>
             </div>
           )}
+
+          {/* Bitácora de logs (solo si showLogs es true) */}
+          {showLogs && (isProcessing || logs.length > 0) && (
+            <div className="mt-4 space-y-2">
+              <Label>Bitácora del proceso</Label>
+              {status && (
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary transition-all duration-300"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                  <span className="text-xs text-muted-foreground min-w-[120px]">{status}</span>
+                </div>
+              )}
+              <div className="bg-muted rounded-lg p-3 max-h-64 overflow-y-auto font-mono text-xs space-y-1">
+                {logs.length === 0 && isProcessing && (
+                  <div className="text-muted-foreground">Esperando logs...</div>
+                )}
+                {logs.map((log, idx) => (
+                  <div key={idx} className="text-foreground flex items-start gap-2">
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                      {log.timestamp.toLocaleTimeString("es-AR", { 
+                        hour: "2-digit", 
+                        minute: "2-digit", 
+                        second: "2-digit",
+                        fractionalSecondDigits: 3
+                      })}
+                    </span>
+                    <span>{log.message}</span>
+                  </div>
+                ))}
+                <div ref={logsEndRef} />
+              </div>
+            </div>
+          )}
         </div>
 
         <DialogFooter>
-          <Button 
-            variant="outline" 
-            onClick={() => onOpenChange(false)}
-            disabled={isLoading}
-          >
-            Cancelar
-          </Button>
-          <Button
-            onClick={handleConfirm}
-            disabled={
-              availableSlots < matchCount ||
-              days.length === 0 ||
-              selectedCourtIds.length === 0 ||
-              loadingCourts ||
-              isLoading
-            }
-          >
-            {isLoading ? "Generando playoffs..." : "Confirmar"}
-          </Button>
+          {isProcessing ? (
+            <Button 
+              variant="destructive" 
+              onClick={handleCancel}
+            >
+              Cancelar proceso
+            </Button>
+          ) : (
+            <>
+              <Button 
+                variant="outline" 
+                onClick={() => onOpenChange(false)}
+                disabled={isLoading}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleConfirm}
+                disabled={
+                  availableSlots < matchCount ||
+                  days.length === 0 ||
+                  selectedCourtIds.length === 0 ||
+                  loadingCourts ||
+                  isProcessing ||
+                  isLoading
+                }
+              >
+                {isLoading || isProcessing 
+                  ? (streamEndpoint === "regenerate-schedule-stream" 
+                      ? "Regenerando horarios de zona..." 
+                      : "Generando playoffs...")
+                  : "Confirmar"}
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
