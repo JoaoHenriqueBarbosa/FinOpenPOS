@@ -93,19 +93,19 @@ export default function TournamentDetailPage() {
                 </TabsTrigger>
                 <TabsTrigger 
                   value="schedule-review" 
-                  disabled={tournament.status !== "draft" && tournament.status !== "schedule_review"}
+                  disabled={tournament.status !== "schedule_review"}
                 >
                   Revisión de horarios
                 </TabsTrigger>
                 <TabsTrigger 
                   value="groups" 
-                  disabled={tournament.status !== "draft" && tournament.status !== "schedule_review" && tournament.status !== "in_progress"}
+                  disabled={tournament.status !== "in_progress"}
                 >
                   Fase de grupos
                 </TabsTrigger>
                 <TabsTrigger 
                   value="playoffs" 
-                  disabled={tournament.status !== "draft" && tournament.status !== "schedule_review" && tournament.status !== "in_progress"}
+                  disabled={tournament.status !== "in_progress"}
                 >
                   Playoffs
                 </TabsTrigger>
