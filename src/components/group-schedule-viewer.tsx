@@ -332,6 +332,114 @@ export function GroupScheduleViewer({
     return info;
   }, [scheduledMatches]);
 
+  // Calcular métricas generales
+  const scheduleMetrics = useMemo(() => {
+    // 1. Suma de diff max mismo equipo
+    let totalMaxDiff = 0;
+    let countMaxDiff = 0;
+    matchTimeDiffs.forEach(({ maxDiff }) => {
+      if (maxDiff !== null) {
+        totalMaxDiff += maxDiff;
+        countMaxDiff++;
+      }
+    });
+
+    // 2. Scoring por zona
+    const zoneMetrics = new Map<number, {
+      groupName: string;
+      totalMaxDiff: number;
+      countMaxDiff: number;
+      avgMaxDiff: number;
+      totalMinDiff: number;
+      countMinDiff: number;
+      avgMinDiff: number;
+      problemMatches: number; // matches con diff < 60min o > 240min
+      multiDayTeams: number;
+    }>();
+
+    scheduledMatches.forEach((match) => {
+      if (!match.tournament_group_id) return;
+      
+      const groupInfo = groupMap.get(match.tournament_group_id);
+      if (!groupInfo) return;
+
+      if (!zoneMetrics.has(match.tournament_group_id)) {
+        zoneMetrics.set(match.tournament_group_id, {
+          groupName: groupInfo.name,
+          totalMaxDiff: 0,
+          countMaxDiff: 0,
+          avgMaxDiff: 0,
+          totalMinDiff: 0,
+          countMinDiff: 0,
+          avgMinDiff: 0,
+          problemMatches: 0,
+          multiDayTeams: 0,
+        });
+      }
+
+      const metrics = zoneMetrics.get(match.tournament_group_id)!;
+      const diffInfo = matchTimeDiffs.get(match.id) ?? { minDiff: null, maxDiff: null, teamWithMaxDiff: null };
+      const multiDayInfo = matchMultiDayInfo.get(match.id) ?? { team1PlaysMultipleDays: false, team2PlaysMultipleDays: false };
+
+      if (diffInfo.maxDiff !== null) {
+        metrics.totalMaxDiff += diffInfo.maxDiff;
+        metrics.countMaxDiff++;
+      }
+      if (diffInfo.minDiff !== null) {
+        metrics.totalMinDiff += diffInfo.minDiff;
+        metrics.countMinDiff++;
+      }
+
+      // Contar matches problemáticos
+      if (diffInfo.minDiff !== null && (diffInfo.minDiff <= 60 || diffInfo.minDiff > 240)) {
+        metrics.problemMatches++;
+      }
+
+      // Contar equipos que juegan en múltiples días
+      if (multiDayInfo.team1PlaysMultipleDays) metrics.multiDayTeams++;
+      if (multiDayInfo.team2PlaysMultipleDays) metrics.multiDayTeams++;
+    });
+
+    // Calcular promedios por zona
+    zoneMetrics.forEach((metrics) => {
+      metrics.avgMaxDiff = metrics.countMaxDiff > 0 ? metrics.totalMaxDiff / metrics.countMaxDiff : 0;
+      metrics.avgMinDiff = metrics.countMinDiff > 0 ? metrics.totalMinDiff / metrics.countMinDiff : 0;
+    });
+
+    // 3. Otras métricas
+    const teamsWithMultipleDays = new Set<number>();
+    scheduledMatches.forEach((match) => {
+      if (!match.team1?.id || !match.team2?.id || !match.match_date) return;
+      const multiDayInfo = matchMultiDayInfo.get(match.id) ?? { team1PlaysMultipleDays: false, team2PlaysMultipleDays: false };
+      if (multiDayInfo.team1PlaysMultipleDays) teamsWithMultipleDays.add(match.team1.id);
+      if (multiDayInfo.team2PlaysMultipleDays) teamsWithMultipleDays.add(match.team2.id);
+    });
+
+    const problemMatchesCount = Array.from(matchTimeDiffs.values()).filter(
+      ({ minDiff }) => minDiff !== null && (minDiff <= 60 || minDiff > 240)
+    ).length;
+
+    // Distribución por día
+    const matchesByDay = new Map<string, number>();
+    scheduledMatches.forEach((match) => {
+      if (match.match_date) {
+        matchesByDay.set(match.match_date, (matchesByDay.get(match.match_date) || 0) + 1);
+      }
+    });
+
+    return {
+      totalMaxDiff,
+      avgMaxDiff: countMaxDiff > 0 ? totalMaxDiff / countMaxDiff : 0,
+      zoneMetrics: Array.from(zoneMetrics.entries()).map(([groupId, metrics]) => ({
+        groupId,
+        ...metrics,
+      })),
+      teamsWithMultipleDays: teamsWithMultipleDays.size,
+      problemMatchesCount,
+      matchesByDay: Array.from(matchesByDay.entries()).map(([date, count]) => ({ date, count })),
+    };
+  }, [matchTimeDiffs, scheduledMatches, groupMap, matchMultiDayInfo]);
+
 
   const handleSelectMatch = (matchId: number) => {
     if (selectedMatch1 === null) {
@@ -530,6 +638,93 @@ export function GroupScheduleViewer({
             Seleccioná partidos, zonas o equipos para intercambiar sus horarios. La métrica muestra la diferencia mínima de tiempo entre partidos del mismo equipo en el mismo día.
           </DialogDescription>
         </DialogHeader>
+
+        {/* Resumen de métricas */}
+        <div className="space-y-4 p-4 bg-muted/50 rounded-lg border">
+          <h3 className="text-sm font-semibold">Métricas del scheduling</h3>
+          
+          {/* Métricas generales */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="space-y-1">
+              <div className="text-xs text-muted-foreground">Suma diff máx.</div>
+              <div className="text-lg font-semibold">{formatTimeDiff(scheduleMetrics.totalMaxDiff)}</div>
+              <div className="text-xs text-muted-foreground">Promedio: {formatTimeDiff(scheduleMetrics.avgMaxDiff)}</div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-xs text-muted-foreground">Partidos problemáticos</div>
+              <div className="text-lg font-semibold">{scheduleMetrics.problemMatchesCount}</div>
+              <div className="text-xs text-muted-foreground">(&lt; 1h o &gt; 4h)</div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-xs text-muted-foreground">Equipos multi-día</div>
+              <div className="text-lg font-semibold">{scheduleMetrics.teamsWithMultipleDays}</div>
+              <div className="text-xs text-muted-foreground">Juegan en varios días</div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-xs text-muted-foreground">Días con partidos</div>
+              <div className="text-lg font-semibold">{scheduleMetrics.matchesByDay.length}</div>
+              <div className="text-xs text-muted-foreground space-y-0.5">
+                {scheduleMetrics.matchesByDay.slice(0, 3).map(({ date, count }) => (
+                  <div key={date}>
+                    {(() => {
+                      const d = parseLocalDate(date);
+                      const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+                      return `${dayNames[d.getDay()]}: ${count} partidos`;
+                    })()}
+                  </div>
+                ))}
+                {scheduleMetrics.matchesByDay.length > 3 && (
+                  <div>+{scheduleMetrics.matchesByDay.length - 3} más</div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Métricas por zona */}
+          {scheduleMetrics.zoneMetrics.length > 0 && (
+            <div className="space-y-2 mt-4 pt-4 border-t">
+              <h4 className="text-xs font-semibold">Métricas por zona</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {scheduleMetrics.zoneMetrics.map((zone) => {
+                  const groupInfo = groupMap.get(zone.groupId);
+                  const groupColor = groupInfo
+                    ? getGroupColor(groupInfo.index)
+                    : { badgeBg: "bg-gray-200", badgeText: "text-gray-800" };
+                  
+                  return (
+                    <div key={zone.groupId} className={`p-3 rounded-lg border ${groupColor.badgeBg} ${groupColor.badgeText} border-opacity-50`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <Badge className={`${groupColor.badgeBg} ${groupColor.badgeText} border-0`}>
+                          {zone.groupName}
+                        </Badge>
+                      </div>
+                      <div className="space-y-1 text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Prom. diff máx:</span>
+                          <span className="font-medium">{formatTimeDiff(zone.avgMaxDiff)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Prom. diff mín:</span>
+                          <span className="font-medium">{formatTimeDiff(zone.avgMinDiff)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Problemáticos:</span>
+                          <span className={`font-medium ${zone.problemMatches > 0 ? 'text-red-600' : ''}`}>
+                            {zone.problemMatches}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Multi-día:</span>
+                          <span className="font-medium">{zone.multiDayTeams} equipos</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
 
         <Tabs value={mode} onValueChange={(v) => setMode(v as "matches" | "groups" | "teams")}>
           <TabsList className="grid w-full grid-cols-3">
