@@ -271,7 +271,7 @@ function scheduleGroupsWithRestrictions(
           // Si hay exactamente 3, verificar si son válidos
           if (freeSlots.length === 3) {
             const sorted = [...freeSlots].sort((a, b) => a.datetime.getTime() - b.datetime.getTime());
-            const isValid = isValidSlotTriplet(sorted, matchDurationMs);
+            const isValid = isValidSlotGroup(sorted, matchDurationMs, 3);
             console.log(`  ¿Son válidos los 3 slots?: ${isValid}`);
             if (!isValid) {
               const slot1End = sorted[0].datetime.getTime() + matchDurationMs;
