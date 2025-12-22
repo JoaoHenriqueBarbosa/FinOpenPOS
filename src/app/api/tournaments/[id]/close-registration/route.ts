@@ -285,10 +285,10 @@ export async function POST(req: Request, { params }: RouteParams) {
     }
   }
 
-  // actualizar torneo a in_progress
+  // actualizar torneo a schedule_review (nueva etapa de revisión de horarios)
   const { error: upError } = await supabase
     .from("tournaments")
-    .update({ status: "in_progress" })
+    .update({ status: "schedule_review" })
     .eq("id", tournamentId)
     .eq("user_uid", user.id);
 

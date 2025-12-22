@@ -10,13 +10,12 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { MatchResultForm } from "@/components/match-result-form";
-import { Loader2Icon, PencilIcon, CheckIcon, XIcon, TrashIcon, CalendarIcon } from "lucide-react";
+import { Loader2Icon, PencilIcon, CheckIcon, XIcon, ArrowLeftIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatDate, formatTime } from "@/lib/date-utils";
 import { parseLocalDate } from "@/lib/court-slots-utils";
 import { TournamentScheduleDialog, ScheduleConfig } from "@/components/tournament-schedule-dialog";
-import { GroupScheduleViewer } from "@/components/group-schedule-viewer";
 import {
   Dialog,
   DialogContent,
@@ -92,7 +91,7 @@ async function fetchTournamentPlayoffs(tournamentId: number): Promise<any[]> {
   return tournamentsService.getPlayoffs(tournamentId);
 }
 
-export default function GroupsTab({ tournament }: { tournament: Pick<TournamentDTO, "id" | "has_super_tiebreak" | "match_duration"> }) {
+export default function GroupsTab({ tournament }: { tournament: Pick<TournamentDTO, "id" | "has_super_tiebreak" | "match_duration" | "status"> }) {
   const queryClient = useQueryClient();
   const [closingGroups, setClosingGroups] = useState(false);
   const [editingMatchId, setEditingMatchId] = useState<number | null>(null);
@@ -100,12 +99,7 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
   const [editTime, setEditTime] = useState<string>("");
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [playoffsError, setPlayoffsError] = useState<string | null>(null);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
-  const [showRegenerateScheduleDialog, setShowRegenerateScheduleDialog] = useState(false);
-  const [regenerating, setRegenerating] = useState(false);
-  const [showScheduleViewer, setShowScheduleViewer] = useState(false);
+  const [reopeningReview, setReopeningReview] = useState(false);
 
   // React Query para compartir cache con TeamsTab
   const {
@@ -126,14 +120,6 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
     staleTime: 1000 * 30,
   });
 
-  // Cargar horarios disponibles del torneo (agrupados) para pre-llenar el diálogo de regenerar horarios
-  const {
-    data: availableSchedulesGrouped = [],
-  } = useQuery({
-    queryKey: ["tournament-available-schedules-grouped", tournament.id],
-    queryFn: () => tournamentsService.getAvailableSchedules(tournament.id, true),
-    staleTime: 1000 * 30,
-  });
 
   // Obtener canchas para mostrar nombres
   const { data: courts = [] } = useQuery<CourtDTO[]>({
@@ -254,61 +240,47 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
     }
   };
 
-  const handleDeleteGroups = async () => {
+  const handleReopenScheduleReview = async () => {
+    if (!confirm("¿Estás seguro de volver a revisión de horarios? Solo podrás hacerlo si no hay resultados cargados.")) {
+      return;
+    }
+
     try {
-      setDeleting(true);
-      const res = await fetch(`/api/tournaments/${tournament.id}/groups`, {
-        method: "DELETE",
+      setReopeningReview(true);
+      const response = await fetch(`/api/tournaments/${tournament.id}/reopen-schedule-review`, {
+        method: "POST",
       });
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        alert(errorData.error || "Error al eliminar fase de grupos");
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        alert(errorData.error || "Error al volver a revisión de horarios");
         return;
       }
-      setShowDeleteDialog(false);
+
+      // Invalidar cache y recargar
       load();
-      // Recargar la página para actualizar el estado en otros tabs
+      queryClient.invalidateQueries({ queryKey: ["tournament", tournament.id] });
+      // Recargar la página para actualizar el estado y habilitar los tabs
       window.location.reload();
-    } catch (err) {
-      console.error(err);
-      alert("Error al eliminar fase de grupos");
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  const handleRegenerateSchedule = () => {
-    setShowRegenerateDialog(true);
-  };
-
-  const handleConfirmRegenerateSchedule = async (config: ScheduleConfig) => {
-    // Este handler ahora se maneja directamente en TournamentScheduleDialog cuando showLogs es true
-    // Solo se usa para el caso sin logs
-    try {
-      setRegenerating(true);
-      setPlayoffsError(null);
-      await tournamentsService.regenerateSchedule(tournament.id, config);
-      setShowRegenerateScheduleDialog(false);
-      setShowRegenerateDialog(false);
-      load();
     } catch (err: any) {
       console.error(err);
-      const errorMessage = err instanceof Error 
-        ? err.message 
-        : "Error al regenerar horarios. Por favor, intentá nuevamente.";
-      setPlayoffsError(errorMessage);
+      alert(err.message || "Error al volver a revisión de horarios");
     } finally {
-      setRegenerating(false);
+      setReopeningReview(false);
     }
   };
 
-  // Contar partidos con horarios asignados
-  const matchesWithSchedule = (data?.matches ?? []).filter(
-    (m) => m.match_date && m.start_time
-  ).length;
+  // Verificar si hay resultados cargados
+  const hasResults = data?.matches.some(m => 
+    m.set1_team1_games !== null || 
+    m.set1_team2_games !== null ||
+    m.status === "finished" ||
+    m.status === "in_progress"
+  ) || false;
 
-  // Contar todos los partidos de fase de grupos (para regenerar horarios)
-  const totalGroupMatches = (data?.matches ?? []).length;
+
+
+
 
   if (loading) {
     return (
@@ -343,50 +315,26 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
           </CardDescription>
         </div>
         <div className="flex gap-2">
-          {data && data.groups.length > 0 && !hasPlayoffs && (
+          {tournament.status === "in_progress" && !hasResults && (
             <Button
-              variant="destructive"
+              variant="outline"
               size="sm"
-              onClick={() => setShowDeleteDialog(true)}
-              disabled={deleting}
+              onClick={handleReopenScheduleReview}
+              disabled={reopeningReview}
             >
-              {deleting ? (
+              {reopeningReview ? (
                 <>
                   <Loader2Icon className="h-3 w-3 animate-spin mr-1" />
-                  Eliminando...
+                  Volviendo...
                 </>
               ) : (
                 <>
-                  <TrashIcon className="h-3 w-3 mr-1" />
-                  Eliminar Grupos
+                  <ArrowLeftIcon className="h-3 w-3 mr-1" />
+                  Volver a revisión de horarios
                 </>
               )}
             </Button>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowScheduleViewer(true)}
-            disabled={hasPlayoffs}
-          >
-            <CalendarIcon className="h-3 w-3 mr-1" />
-            Revisar horarios
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRegenerateSchedule}
-            disabled={regenerating || hasPlayoffs}
-          >
-            {regenerating ? (
-              <>
-                <Loader2Icon className="h-3 w-3 animate-spin mr-1" />
-                Regenerando...
-              </>
-            ) : (
-              "Regenerar horarios"
-            )}
-          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -401,15 +349,6 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
         </div>
       </CardHeader>
 
-      <GroupScheduleViewer
-        open={showScheduleViewer}
-        onOpenChange={setShowScheduleViewer}
-        matches={data?.matches || []}
-        groups={data?.groups || []}
-        tournamentId={tournament.id}
-        onScheduleUpdated={load}
-      />
-
       <TournamentScheduleDialog
         open={scheduleDialogOpen}
         onOpenChange={(open) => {
@@ -423,25 +362,6 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
         tournamentMatchDuration={tournament.match_duration}
         error={playoffsError}
         isLoading={closingGroups}
-      />
-
-      <TournamentScheduleDialog
-        open={showRegenerateScheduleDialog}
-        onOpenChange={(open) => {
-          setShowRegenerateScheduleDialog(open);
-          if (!open) {
-            setPlayoffsError(null);
-          }
-        }}
-        error={playoffsError}
-        isLoading={regenerating}
-        onConfirm={handleConfirmRegenerateSchedule}
-        matchCount={totalGroupMatches}
-        tournamentMatchDuration={tournament.match_duration}
-        availableSchedules={availableSchedulesGrouped}
-        tournamentId={tournament.id}
-        showLogs={true}
-        streamEndpoint="regenerate-schedule-stream"
       />
 
       <CardContent className="px-0 space-y-3">
@@ -632,96 +552,6 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
         })()}
       </CardContent>
 
-      {/* Diálogo de confirmación para eliminar fase de grupos */}
-      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirmar eliminación de fase de grupos</DialogTitle>
-            <DialogDescription>
-              <div>
-                ¿Estás seguro de que deseas eliminar toda la fase de grupos? Esta acción eliminará:
-                <ul className="list-disc list-inside mt-2 space-y-1">
-                  <li>Todos los grupos</li>
-                  <li>Todos los partidos de grupos</li>
-                  <li>Todos los resultados cargados</li>
-                  <li>Todas las tablas de posiciones</li>
-                  <li>Todas las asignaciones de equipos a grupos</li>
-                </ul>
-                <div className="mt-2 font-semibold text-amber-600">
-                  Esta acción no se puede deshacer. Podrás volver a generar los grupos desde la fase de inscripción.
-                </div>
-              </div>
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowDeleteDialog(false)}
-              disabled={deleting}
-            >
-              Cancelar
-            </Button>
-            <Button variant="destructive" onClick={handleDeleteGroups} disabled={deleting}>
-              {deleting ? (
-                <>
-                  <Loader2Icon className="h-4 w-4 animate-spin mr-2" />
-                  Eliminando...
-                </>
-              ) : (
-                "Confirmar y eliminar"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Diálogo de confirmación para regenerar horarios */}
-      <Dialog open={showRegenerateDialog} onOpenChange={setShowRegenerateDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Regenerar horarios de partidos</DialogTitle>
-            <DialogDescription>
-              <div>
-                {matchesWithSchedule > 0 ? (
-                  <>
-                    <div className="font-semibold text-amber-600 mb-2">
-                      ⚠️ Advertencia: {matchesWithSchedule} partido{matchesWithSchedule !== 1 ? "s" : ""} ya {matchesWithSchedule !== 1 ? "tienen" : "tiene"} horarios asignados.
-                    </div>
-                    <div className="mb-2">
-                      Al regenerar los horarios, se sobreescribirán los horarios existentes de todos los partidos de fase de grupos que aún no tengan resultados cargados.
-                    </div>
-                  </>
-                ) : (
-                  <div>
-                    Se asignarán horarios a todos los partidos de fase de grupos que aún no tengan resultados cargados.
-                  </div>
-                )}
-                <div className="mt-2 text-sm text-muted-foreground">
-                  Los partidos que ya tienen resultados no se modificarán.
-                </div>
-              </div>
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowRegenerateDialog(false)}
-              disabled={regenerating}
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={() => {
-                setShowRegenerateDialog(false);
-                setShowRegenerateScheduleDialog(true);
-              }}
-              disabled={regenerating}
-            >
-              Continuar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </Card>
   );
 }

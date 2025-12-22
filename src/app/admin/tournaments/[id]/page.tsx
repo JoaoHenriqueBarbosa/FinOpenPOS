@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/tabs";
 import { Loader2Icon, EditIcon, EyeIcon } from "lucide-react";
 import TeamsTab from "./TeamsTab";
+import ScheduleReviewTab from "./ScheduleReviewTab";
 import GroupsTab from "./GroupsTab";
 import StandingsTab from "./StandingsTab";
 import PlayoffsTab from "./PlayoffsTab";
@@ -84,9 +85,30 @@ export default function TournamentDetailPage() {
                 <span>Edición</span>
               </div>
               <TabsList className="w-full justify-start">
-                <TabsTrigger value="teams">Equipos</TabsTrigger>
-                <TabsTrigger value="groups">Fase de grupos</TabsTrigger>
-                <TabsTrigger value="playoffs">Playoffs</TabsTrigger>
+                <TabsTrigger 
+                  value="teams"
+                  disabled={tournament.status !== "draft"}
+                >
+                  Inscripción
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="schedule-review" 
+                  disabled={tournament.status !== "draft" && tournament.status !== "schedule_review"}
+                >
+                  Revisión de horarios
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="groups" 
+                  disabled={tournament.status !== "draft" && tournament.status !== "schedule_review" && tournament.status !== "in_progress"}
+                >
+                  Fase de grupos
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="playoffs" 
+                  disabled={tournament.status !== "draft" && tournament.status !== "schedule_review" && tournament.status !== "in_progress"}
+                >
+                  Playoffs
+                </TabsTrigger>
               </TabsList>
             </div>
 
@@ -107,6 +129,12 @@ export default function TournamentDetailPage() {
           {activeTab === "teams" && (
             <TabsContent value="teams" className="pt-4">
               <TeamsTab tournament={tournament} />
+            </TabsContent>
+          )}
+
+          {activeTab === "schedule-review" && (
+            <TabsContent value="schedule-review" className="pt-4">
+              <ScheduleReviewTab tournament={tournament} />
             </TabsContent>
           )}
 
