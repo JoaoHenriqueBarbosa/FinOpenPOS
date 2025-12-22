@@ -34,7 +34,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { TournamentScheduleDialog, ScheduleConfig } from "@/components/tournament-schedule-dialog";
 import { TeamScheduleRestrictionsDialog } from "@/components/team-schedule-restrictions-dialog";
 import { TournamentAvailableSchedulesDialog } from "@/components/tournament-available-schedules-dialog";
 
@@ -83,7 +82,6 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
   const [restrictionsDialogOpen, setRestrictionsDialogOpen] = useState(false);
   const [selectedTeamForRestrictions, setSelectedTeamForRestrictions] = useState<TeamDTO | null>(null);
   const [schedulesDialogOpen, setSchedulesDialogOpen] = useState(false);
-  const [closeRegistrationDialogOpen, setCloseRegistrationDialogOpen] = useState(false);
   const [closingStatus, setClosingStatus] = useState<string | null>(null);
   
   // Debounce search terms para evitar filtros costosos en cada keystroke
@@ -347,34 +345,13 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
     return { totalSlots, slotsByDate };
   }, [availableSchedulesGrouped, tournament.match_duration]);
 
-  const handleCloseRegistration = async (scheduleConfig?: ScheduleConfig) => {
+  const handleCloseRegistration = async () => {
     try {
       setClosing(true);
       setClosingStatus("Creando grupos...");
-      setCloseRegistrationDialogOpen(false);
       
-      // Si no hay scheduleConfig pero hay horarios disponibles del torneo, usarlos
-      let configToUse = scheduleConfig;
-      if (!configToUse && availableSchedulesGrouped.length > 0) {
-        setClosingStatus("Usando horarios disponibles del torneo...");
-        // Obtener canchas activas
-        const courtsResponse = await fetch("/api/courts?onlyActive=true");
-        const courts = await courtsResponse.json();
-        if (courts && courts.length > 0) {
-          configToUse = {
-            days: availableSchedulesGrouped.map(s => ({
-              date: s.date,
-              startTime: s.start_time,
-              endTime: s.end_time,
-            })),
-            matchDuration: tournament.match_duration || 60,
-            courtIds: courts.map((c: any) => c.id),
-          };
-        }
-      }
-      
-      setClosingStatus("Generando partidos y asignando horarios...");
-      await tournamentsService.closeRegistration(tournament.id, configToUse);
+      setClosingStatus("Generando zonas y partidos...");
+      await tournamentsService.closeRegistration(tournament.id);
       setClosingStatus("¡Inscripción cerrada exitosamente!");
       
       // Esperar un momento para que el usuario vea el mensaje de éxito
@@ -474,7 +451,7 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
         <div className="flex gap-2">
           <Button
             size="sm"
-            onClick={() => setCloseRegistrationDialogOpen(true)}
+            onClick={handleCloseRegistration}
             disabled={tournament.status !== "draft" || teams.length < 3 || closing}
           >
             {closing && (
@@ -739,23 +716,6 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
         </DialogContent>
       </Dialog>
 
-      <TournamentScheduleDialog
-        open={closeRegistrationDialogOpen}
-        onOpenChange={(open) => {
-          setCloseRegistrationDialogOpen(open);
-          if (!open && !closing) {
-            setClosingStatus(null);
-          }
-        }}
-        onConfirm={handleCloseRegistration}
-        matchCount={matchCount}
-        tournamentMatchDuration={tournament.match_duration}
-        availableSchedules={availableSchedulesGrouped}
-        error={closingStatus && closingStatus.includes("Error") ? closingStatus : null}
-        isLoading={closing}
-        tournamentId={tournament.id}
-        showLogs={true}
-      />
 
       <TournamentAvailableSchedulesDialog
         open={schedulesDialogOpen}

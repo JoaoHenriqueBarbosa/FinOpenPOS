@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import {
-  GroupMatchPayload,
-  scheduleGroupMatches,
-} from "@/lib/tournament-scheduler";
-import type { ScheduleConfig } from "@/models/dto/tournament";
+import type { GroupMatchPayload } from "@/lib/tournament-scheduler";
 
 type RouteParams = { params: { id: string } };
 
@@ -75,71 +71,8 @@ export async function POST(req: Request, { params }: RouteParams) {
     );
   }
 
-  // Obtener configuración de horarios del body
-  const body = await req.json().catch(() => ({}));
-  let scheduleConfig: ScheduleConfig | undefined = body.days
-    ? {
-        days: body.days,
-        matchDuration: body.matchDuration || 60,
-        courtIds: body.courtIds || [],
-      }
-    : undefined;
-  
-  // Si no hay scheduleConfig pero hay horarios disponibles del torneo, usarlos automáticamente
-  if (!scheduleConfig) {
-    const { data: availableSchedules, error: schedulesError } = await supabase
-      .from("tournament_available_schedules")
-      .select("*")
-      .eq("tournament_id", tournamentId)
-      .eq("user_uid", user.id)
-      .order("date", { ascending: true })
-      .order("start_time", { ascending: true });
-
-    if (!schedulesError && availableSchedules && availableSchedules.length > 0) {
-      // Agrupar slots consecutivos de la misma fecha en rangos
-      const groupedSchedules = new Map<string, { date: string; start_time: string; end_time: string }>();
-      
-      availableSchedules.forEach((schedule: any) => {
-        const dateKey = schedule.date;
-        if (!groupedSchedules.has(dateKey)) {
-          groupedSchedules.set(dateKey, {
-            date: schedule.date,
-            start_time: schedule.start_time,
-            end_time: schedule.end_time,
-          });
-        } else {
-          const existing = groupedSchedules.get(dateKey)!;
-          // Extender el rango si el slot es consecutivo
-          if (schedule.end_time > existing.end_time) {
-            existing.end_time = schedule.end_time;
-          }
-        }
-      });
-
-      const days = Array.from(groupedSchedules.values());
-      
-      if (days.length > 0) {
-        // Obtener canchas activas
-        const { data: courts, error: courtsError } = await supabase
-          .from("courts")
-          .select("id")
-          .eq("user_uid", user.id)
-          .eq("is_active", true);
-
-        if (!courtsError && courts && courts.length > 0) {
-          scheduleConfig = {
-            days: days.map(s => ({
-              date: s.date,
-              startTime: s.start_time,
-              endTime: s.end_time,
-            })),
-            matchDuration: t.match_duration ?? 60,
-            courtIds: courts.map((c: any) => c.id),
-          };
-        }
-      }
-    }
-  }
+  // No se asignan horarios al cerrar la inscripción
+  // Los horarios se asignarán después desde la pestaña de grupos
 
   // 2) traer equipos (las restricciones horarias se obtienen después desde tournament_team_schedule_restrictions)
   const { data: teams, error: teamsError } = await supabase
@@ -334,104 +267,8 @@ export async function POST(req: Request, { params }: RouteParams) {
     }
   }
 
-  // Asignar fechas y horarios a los partidos si hay configuración
-  if (scheduleConfig && scheduleConfig.days.length > 0) {
-    // Validar que haya canchas seleccionadas
-    if (!scheduleConfig.courtIds || scheduleConfig.courtIds.length === 0) {
-      return NextResponse.json(
-        { error: "Debes seleccionar al menos una cancha" },
-        { status: 400 }
-      );
-    }
-
-    // Verificar que las canchas seleccionadas existan y pertenezcan al usuario
-    const { data: courts, error: courtsError } = await supabase
-      .from("courts")
-      .select("id")
-      .eq("user_uid", user.id)
-      .in("id", scheduleConfig.courtIds)
-      .eq("is_active", true);
-
-    if (courtsError) {
-      console.error("Error fetching courts:", courtsError);
-      return NextResponse.json(
-        { error: "Failed to fetch courts" },
-        { status: 500 }
-      );
-    }
-
-    if (!courts || courts.length === 0) {
-      return NextResponse.json(
-        { error: "Las canchas seleccionadas no son válidas o no están activas" },
-        { status: 400 }
-      );
-    }
-
-    if (courts.length !== scheduleConfig.courtIds.length) {
-      return NextResponse.json(
-        { error: "Algunas canchas seleccionadas no son válidas" },
-        { status: 400 }
-      );
-    }
-
-    // Duración del partido del torneo (setting del torneo)
-    const matchDurationMinutes = t.match_duration ?? 60;
-
-    // Obtener horarios disponibles del torneo
-    const { data: availableSchedules, error: schedulesError } = await supabase
-      .from("tournament_available_schedules")
-      .select("*")
-      .eq("tournament_id", tournamentId)
-      .eq("user_uid", user.id)
-      .order("date", { ascending: true })
-      .order("start_time", { ascending: true });
-
-    if (schedulesError) {
-      console.error("Error fetching available schedules:", schedulesError);
-      // Continuar sin horarios disponibles (comportamiento anterior)
-    }
-
-    // Obtener restricciones de equipos (IDs de horarios que no pueden jugar)
-    const teamIds = teams.map((t: any) => t.id);
-    const teamRestrictions = new Map<number, number[]>();
-    
-    if (teamIds.length > 0) {
-      const { data: restrictions, error: restrictionsError } = await supabase
-        .from("tournament_team_schedule_restrictions")
-        .select("tournament_team_id, tournament_available_schedule_id")
-        .in("tournament_team_id", teamIds)
-        .eq("user_uid", user.id);
-
-      if (!restrictionsError && restrictions) {
-        restrictions.forEach((r: any) => {
-          const teamId = r.tournament_team_id;
-          const scheduleId = r.tournament_available_schedule_id;
-          if (!teamRestrictions.has(teamId)) {
-            teamRestrictions.set(teamId, []);
-          }
-          teamRestrictions.get(teamId)!.push(scheduleId);
-        });
-      }
-    }
-
-    const schedulerResult = await scheduleGroupMatches(
-      matchesPayload,
-      scheduleConfig.days,
-      matchDurationMinutes,
-      scheduleConfig.courtIds,
-      availableSchedules || undefined,
-      teamRestrictions
-    );
-
-    // Si no se pudieron asignar horarios, continuar igual pero sin horarios
-    // Los partidos se crearán sin match_date, start_time, end_time
-    if (!schedulerResult.success) {
-      console.warn(
-        `No se pudieron asignar horarios automáticamente: ${schedulerResult.error}. Los partidos se crearán sin horarios.`
-      );
-      // Continuar con matchesPayload sin horarios asignados
-    }
-  }
+  // Los partidos se crean sin horarios asignados
+  // Los horarios se asignarán después desde la pestaña de grupos
 
   // insertar matches
   if (matchesPayload.length > 0) {
