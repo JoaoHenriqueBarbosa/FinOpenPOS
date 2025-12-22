@@ -87,7 +87,29 @@ export async function POST(req: Request, { params }: RouteParams) {
     );
   }
 
-  // 3) Verificar que las canchas seleccionadas existan y pertenezcan al usuario
+  // 3) Limpiar horarios de todos los partidos de fase de grupos (sin resultados)
+  const { error: clearError } = await supabase
+    .from("tournament_matches")
+    .update({
+      match_date: null,
+      start_time: null,
+      end_time: null,
+      court_id: null,
+    })
+    .eq("tournament_id", tournamentId)
+    .eq("phase", "group")
+    .eq("user_uid", user.id)
+    .is("set1_team1_games", null); // Solo partidos sin resultados
+
+  if (clearError) {
+    console.error("Error clearing previous schedules:", clearError);
+    return NextResponse.json(
+      { error: `Error al limpiar horarios previos: ${clearError.message}` },
+      { status: 500 }
+    );
+  }
+
+  // 4) Verificar que las canchas seleccionadas existan y pertenezcan al usuario
   const { data: courts, error: courtsError } = await supabase
     .from("courts")
     .select("id")
@@ -117,7 +139,7 @@ export async function POST(req: Request, { params }: RouteParams) {
     );
   }
 
-  // 4) Preparar payload para el scheduler
+  // 5) Preparar payload para el scheduler
   // Incluir TODOS los partidos, incluso los que tienen equipos null (rondas de ganadores/perdedores en grupos de 4)
   // El scheduler puede programar partidos con equipos null, respetando las restricciones de orden
   const matchesPayload = matches.map((match) => ({
@@ -142,7 +164,7 @@ export async function POST(req: Request, { params }: RouteParams) {
     );
   }
 
-  // 5) Obtener horarios disponibles del torneo
+  // 6) Obtener horarios disponibles del torneo
   const { data: availableSchedules, error: schedulesError } = await supabase
     .from("tournament_available_schedules")
     .select("*")
@@ -156,7 +178,7 @@ export async function POST(req: Request, { params }: RouteParams) {
     // Continuar sin horarios disponibles (comportamiento anterior)
   }
 
-  // 6) Obtener restricciones horarias de los equipos (IDs de horarios que no pueden jugar)
+  // 7) Obtener restricciones horarias de los equipos (IDs de horarios que no pueden jugar)
   const teamIds = new Set<number>();
   matches.forEach((match) => {
     if (match.team1_id) teamIds.add(match.team1_id);
@@ -183,7 +205,7 @@ export async function POST(req: Request, { params }: RouteParams) {
     }
   }
 
-  // 7) Asignar horarios usando el scheduler
+  // 8) Asignar horarios usando el scheduler
   const matchDurationMinutes = t.match_duration ?? 60;
 
   console.log(`Regenerating schedule for ${matchesPayload.length} matches with ${scheduleConfig.days.length} days and ${scheduleConfig.courtIds.length} courts`);
@@ -207,7 +229,7 @@ export async function POST(req: Request, { params }: RouteParams) {
     );
   }
 
-  // 6) Actualizar los partidos en la base de datos
+  // 9) Actualizar los partidos en la base de datos
   // Mapear los payloads a los matches originales por tournament_group_id y match_order
   // Para partidos con equipos null, solo comparamos por tournament_group_id y match_order
   const updates = matches.map((match) => {

@@ -114,11 +114,20 @@ export async function DELETE(req: Request, { params }: RouteParams) {
       return NextResponse.json({ error: "Invalid id" }, { status: 400 });
     }
 
-    const { searchParams } = new URL(req.url);
-    const teamIdParam = searchParams.get("teamId");
-    const teamId = teamIdParam ? Number(teamIdParam) : NaN;
+    // Try to get teamId from body first, then from query params (for backwards compatibility)
+    const body = await req.json().catch(() => ({}));
+    const teamIdFromBody = body.team_id ?? body.teamId;
     
-    if (!teamIdParam || Number.isNaN(teamId)) {
+    const { searchParams } = new URL(req.url);
+    const teamIdFromQuery = searchParams.get("teamId");
+    
+    const teamId = teamIdFromBody 
+      ? Number(teamIdFromBody)
+      : teamIdFromQuery 
+        ? Number(teamIdFromQuery)
+        : NaN;
+    
+    if (Number.isNaN(teamId)) {
       return NextResponse.json({ error: "Invalid teamId" }, { status: 400 });
     }
 

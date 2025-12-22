@@ -34,7 +34,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { TournamentScheduleDialog, ScheduleConfig } from "@/components/tournament-schedule-dialog";
 import { TeamScheduleRestrictionsDialog } from "@/components/team-schedule-restrictions-dialog";
 import { TournamentAvailableSchedulesDialog } from "@/components/tournament-available-schedules-dialog";
 
@@ -83,7 +82,6 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
   const [restrictionsDialogOpen, setRestrictionsDialogOpen] = useState(false);
   const [selectedTeamForRestrictions, setSelectedTeamForRestrictions] = useState<TeamDTO | null>(null);
   const [schedulesDialogOpen, setSchedulesDialogOpen] = useState(false);
-  const [closeRegistrationDialogOpen, setCloseRegistrationDialogOpen] = useState(false);
   const [closingStatus, setClosingStatus] = useState<string | null>(null);
   
   // Debounce search terms para evitar filtros costosos en cada keystroke
@@ -277,34 +275,83 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
 
   const matchCount = calculateMatchCount();
 
-  const handleCloseRegistration = async (scheduleConfig?: ScheduleConfig) => {
+  // Calcular información de grupos que se generarán
+  const calculateGroupsInfo = useMemo(() => {
+    if (teams.length < 3) {
+      return { totalGroups: 0, groupsOf3: 0, groupsOf4: 0, groupNames: [] };
+    }
+    
+    const N = teams.length;
+    let baseGroups = Math.floor(N / 3);
+    const remainder = N % 3;
+    
+    if (baseGroups === 0) {
+      baseGroups = 1;
+    }
+    
+    const groupSizes: number[] = new Array(baseGroups).fill(3);
+    
+    if (remainder === 1 && baseGroups >= 1) {
+      groupSizes[0] = 4;
+    } else if (remainder === 2) {
+      if (baseGroups >= 2) {
+        groupSizes[0] = 4;
+        groupSizes[1] = 4;
+      } else if (baseGroups === 1) {
+        groupSizes[0] = 4;
+      }
+    }
+    
+    const groupsOf3 = groupSizes.filter(s => s === 3).length;
+    const groupsOf4 = groupSizes.filter(s => s === 4).length;
+    const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+    const groupNames = groupSizes.map((_, i) => `Zona ${letters[i] ?? String(i + 1)}`);
+    
+    return { totalGroups: groupSizes.length, groupsOf3, groupsOf4, groupNames };
+  }, [teams.length]);
+
+  // Calcular slots de horario disponibles
+  const calculateAvailableSlots = useMemo(() => {
+    if (!availableSchedulesGrouped.length || !tournament.match_duration) {
+      return { totalSlots: 0, slotsByDate: [] };
+    }
+    
+    // Necesitamos obtener las canchas activas para calcular slots
+    // Por ahora, asumimos que hay al menos 1 cancha (se puede mejorar después)
+    // El cálculo real de slots se hace en el scheduler con las canchas reales
+    // Aquí solo mostramos un estimado basado en los horarios disponibles
+    
+    const slotsByDate: Array<{ date: string; slots: number }> = [];
+    const matchDuration = tournament.match_duration || 60;
+    
+    for (const schedule of availableSchedulesGrouped) {
+      const [startH, startM] = schedule.start_time.split(":").map(Number);
+      const [endH, endM] = schedule.end_time.split(":").map(Number);
+      const startMinutes = startH * 60 + startM;
+      const endMinutes = (endH === 0 && endM === 0) ? 24 * 60 : endH * 60 + endM;
+      
+      // Calcular cuántos slots caben en este rango (estimado, sin considerar canchas)
+      const availableMinutes = endMinutes - startMinutes;
+      const slotsInRange = Math.floor(availableMinutes / matchDuration);
+      
+      slotsByDate.push({
+        date: schedule.date,
+        slots: slotsInRange,
+      });
+    }
+    
+    const totalSlots = slotsByDate.reduce((sum, item) => sum + item.slots, 0);
+    
+    return { totalSlots, slotsByDate };
+  }, [availableSchedulesGrouped, tournament.match_duration]);
+
+  const handleCloseRegistration = async () => {
     try {
       setClosing(true);
       setClosingStatus("Creando grupos...");
-      setCloseRegistrationDialogOpen(false);
       
-      // Si no hay scheduleConfig pero hay horarios disponibles del torneo, usarlos
-      let configToUse = scheduleConfig;
-      if (!configToUse && availableSchedulesGrouped.length > 0) {
-        setClosingStatus("Usando horarios disponibles del torneo...");
-        // Obtener canchas activas
-        const courtsResponse = await fetch("/api/courts?onlyActive=true");
-        const courts = await courtsResponse.json();
-        if (courts && courts.length > 0) {
-          configToUse = {
-            days: availableSchedulesGrouped.map(s => ({
-              date: s.date,
-              startTime: s.start_time,
-              endTime: s.end_time,
-            })),
-            matchDuration: tournament.match_duration || 60,
-            courtIds: courts.map((c: any) => c.id),
-          };
-        }
-      }
-      
-      setClosingStatus("Generando partidos y asignando horarios...");
-      await tournamentsService.closeRegistration(tournament.id, configToUse);
+      setClosingStatus("Generando zonas y partidos...");
+      await tournamentsService.closeRegistration(tournament.id);
       setClosingStatus("¡Inscripción cerrada exitosamente!");
       
       // Esperar un momento para que el usuario vea el mensaje de éxito
@@ -333,17 +380,78 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
   return (
     <Card className="border-none shadow-none p-0">
       <CardHeader className="px-0 pt-0 pb-2 flex items-center justify-between">
-        <div>
+        <div className="flex-1">
           <CardTitle>Equipos</CardTitle>
           <CardDescription>
             Armá las parejas del torneo. Luego cerrá la inscripción para generar
             las zonas automáticamente.
           </CardDescription>
+          
+          {/* Resumen */}
+          {teams.length > 0 && (
+            <div className="mt-3 p-3 bg-muted/50 rounded-md space-y-3 text-sm">
+              <div>
+                <span className="text-muted-foreground">Equipos:</span>{" "}
+                <span className="font-medium">{teams.length}</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div>
+                  <span className="text-muted-foreground">Zonas a generar:</span>{" "}
+                  <span className="font-medium">
+                    {calculateGroupsInfo.totalGroups > 0 ? (
+                      <>
+                        {calculateGroupsInfo.totalGroups} (
+                        {calculateGroupsInfo.groupsOf3 > 0 && `${calculateGroupsInfo.groupsOf3} de 3`}
+                        {calculateGroupsInfo.groupsOf3 > 0 && calculateGroupsInfo.groupsOf4 > 0 && ", "}
+                        {calculateGroupsInfo.groupsOf4 > 0 && `${calculateGroupsInfo.groupsOf4} de 4`}
+                        )
+                      </>
+                    ) : (
+                      "0"
+                    )}
+                  </span>
+                  {calculateGroupsInfo.groupNames.length > 0 && (
+                    <div className="text-muted-foreground mt-1">
+                      {calculateGroupsInfo.groupNames.join(", ")}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Slots disponibles:</span>{" "}
+                  <span className="font-medium">
+                    {calculateAvailableSlots.totalSlots > 0 ? (
+                      <>
+                        {calculateAvailableSlots.totalSlots} slots total
+                      </>
+                    ) : (
+                      "No configurados"
+                    )}
+                  </span>
+                  {calculateAvailableSlots.slotsByDate.length > 0 && (
+                    <div className="mt-1 space-y-0.5">
+                      {calculateAvailableSlots.slotsByDate.map((item, idx) => {
+                        // Parsear la fecha manualmente para evitar problemas de timezone
+                        // item.date está en formato YYYY-MM-DD
+                        const [year, month, day] = item.date.split('-').map(Number);
+                        const date = new Date(year, month - 1, day); // month es 0-indexed
+                        const dateStr = date.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' });
+                        return (
+                          <div key={idx} className="text-xs text-muted-foreground">
+                            {dateStr}: {item.slots} slots
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
         <div className="flex gap-2">
           <Button
             size="sm"
-            onClick={() => setCloseRegistrationDialogOpen(true)}
+            onClick={handleCloseRegistration}
             disabled={tournament.status !== "draft" || teams.length < 3 || closing}
           >
             {closing && (
@@ -608,23 +716,6 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
         </DialogContent>
       </Dialog>
 
-      <TournamentScheduleDialog
-        open={closeRegistrationDialogOpen}
-        onOpenChange={(open) => {
-          setCloseRegistrationDialogOpen(open);
-          if (!open && !closing) {
-            setClosingStatus(null);
-          }
-        }}
-        onConfirm={handleCloseRegistration}
-        matchCount={matchCount}
-        tournamentMatchDuration={tournament.match_duration}
-        availableSchedules={availableSchedulesGrouped}
-        error={closingStatus && closingStatus.includes("Error") ? closingStatus : null}
-        isLoading={closing}
-        tournamentId={tournament.id}
-        showLogs={true}
-      />
 
       <TournamentAvailableSchedulesDialog
         open={schedulesDialogOpen}

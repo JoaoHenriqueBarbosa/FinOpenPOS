@@ -145,29 +145,70 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
           const teamIds = teams.map((t) => t.id);
           sendLog(`Encontrados ${teamIds.length} equipos`);
-          sendProgress(20, "Creando grupos...");
+          sendProgress(20, "Verificando grupos existentes...");
 
-          // Crear grupos (lógica similar a close-registration)
-          const groupSizes: number[] = [];
-          let remaining = teamIds.length;
-          while (remaining > 0) {
-            if (remaining >= 4) {
-              groupSizes.push(4);
-              remaining -= 4;
-            } else if (remaining >= 3) {
-              groupSizes.push(3);
-              remaining -= 3;
-            } else {
-              groupSizes.push(remaining);
-              remaining = 0;
+          // Verificar si ya existen grupos para este torneo
+          const { data: existingGroups, error: checkError } = await supabase
+            .from("tournament_groups")
+            .select("id")
+            .eq("tournament_id", tournamentId)
+            .eq("user_uid", user.id);
+
+          if (checkError) {
+            sendLog(`⚠️ Error al verificar grupos existentes: ${checkError.message}`);
+          }
+
+          if (existingGroups && existingGroups.length > 0) {
+            sendLog(`⚠️ Ya existen ${existingGroups.length} grupos para este torneo. Eliminándolos...`);
+            // Eliminar grupos existentes y sus relaciones
+            const { error: deleteError } = await supabase
+              .from("tournament_groups")
+              .delete()
+              .eq("tournament_id", tournamentId)
+              .eq("user_uid", user.id);
+            
+            if (deleteError) {
+              sendError(`Error al eliminar grupos existentes: ${deleteError.message}`);
+              return;
+            }
+            sendLog(`✅ Grupos existentes eliminados`);
+          }
+
+          sendProgress(25, "Creando grupos...");
+
+          // Crear grupos: maximizar de 3, convertir a 4 según el resto
+          const N = teamIds.length;
+          let baseGroups = Math.floor(N / 3);
+          const remainder = N % 3;
+
+          if (baseGroups === 0) {
+            baseGroups = 1;
+          }
+
+          const groupSizes: number[] = new Array(baseGroups).fill(3);
+
+          if (remainder === 1 && baseGroups >= 1) {
+            groupSizes[0] = 4;
+          } else if (remainder === 2) {
+            if (baseGroups >= 2) {
+              groupSizes[0] = 4;
+              groupSizes[1] = 4;
+            } else if (baseGroups === 1) {
+              groupSizes[0] = 4; // caso raro de N=5
             }
           }
 
+          sendLog(`Creando ${groupSizes.length} grupos con tamaños: ${groupSizes.join(", ")}`);
+
+          const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
           const groupsPayload = groupSizes.map((size, i) => ({
             tournament_id: tournamentId,
             user_uid: user.id,
+            name: `Zona ${letters[i] ?? String(i + 1)}`,
             group_order: i + 1,
           }));
+
+          sendLog(`Payload de grupos: ${JSON.stringify(groupsPayload)}`);
 
           const { data: createdGroups, error: groupError } = await supabase
             .from("tournament_groups")
@@ -176,7 +217,16 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
             .order("group_order", { ascending: true });
 
           if (groupError || !createdGroups) {
-            sendError("Error al crear grupos");
+            const errorMessage = groupError?.message || "Error desconocido al crear grupos";
+            console.error("Error al crear grupos:", groupError);
+            sendLog(`❌ Error detallado: ${errorMessage}`);
+            if (groupError?.code) {
+              sendLog(`   Código: ${groupError.code}`);
+            }
+            if (groupError?.details) {
+              sendLog(`   Detalles: ${JSON.stringify(groupError.details)}`);
+            }
+            sendError(`Error al crear grupos: ${errorMessage}`);
             return;
           }
 
