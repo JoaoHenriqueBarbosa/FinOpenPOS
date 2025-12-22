@@ -19,13 +19,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2Icon, ArrowLeftRightIcon, CheckIcon, XIcon, UndoIcon } from "lucide-react";
+import { Loader2Icon, ArrowLeftRightIcon, CheckIcon, XIcon, UndoIcon, UsersIcon, FolderIcon } from "lucide-react";
 import { formatDate, formatTime } from "@/lib/date-utils";
 import { parseLocalDate } from "@/lib/court-slots-utils";
 import type { MatchDTO, TeamDTO, GroupDTO } from "@/models/dto/tournament";
 import type { CourtDTO } from "@/models/dto/court";
 import { useQuery } from "@tanstack/react-query";
 import { tournamentMatchesService } from "@/services";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface GroupScheduleViewerProps {
   open: boolean;
@@ -113,8 +115,13 @@ export function GroupScheduleViewer({
   onScheduleUpdated,
 }: GroupScheduleViewerProps) {
   const queryClient = useQueryClient();
+  const [mode, setMode] = useState<"matches" | "groups" | "teams">("matches");
   const [selectedMatch1, setSelectedMatch1] = useState<number | null>(null);
   const [selectedMatch2, setSelectedMatch2] = useState<number | null>(null);
+  const [selectedGroup1, setSelectedGroup1] = useState<number | null>(null);
+  const [selectedGroup2, setSelectedGroup2] = useState<number | null>(null);
+  const [selectedTeam1, setSelectedTeam1] = useState<{ teamId: number; groupId: number } | null>(null);
+  const [selectedTeam2, setSelectedTeam2] = useState<{ teamId: number; groupId: number } | null>(null);
   const [swapping, setSwapping] = useState(false);
   const [lastSwap, setLastSwap] = useState<{
     match1Id: number;
@@ -250,6 +257,36 @@ export function GroupScheduleViewer({
     return diffs;
   }, [scheduledMatches]);
 
+  // Obtener equipos únicos por grupo
+  const teamsByGroup = useMemo(() => {
+    const map = new Map<number, Set<number>>();
+    matches.forEach((match) => {
+      if (!match.tournament_group_id) return;
+      if (!map.has(match.tournament_group_id)) {
+        map.set(match.tournament_group_id, new Set());
+      }
+      const groupSet = map.get(match.tournament_group_id)!;
+      if (match.team1?.id) groupSet.add(match.team1.id);
+      if (match.team2?.id) groupSet.add(match.team2.id);
+    });
+    return map;
+  }, [matches]);
+
+  // Obtener equipos únicos con información completa
+  const teamsList = useMemo(() => {
+    const teamMap = new Map<number, { team: TeamDTO; groupId: number }>();
+    matches.forEach((match) => {
+      if (!match.tournament_group_id) return;
+      if (match.team1?.id && !teamMap.has(match.team1.id)) {
+        teamMap.set(match.team1.id, { team: match.team1, groupId: match.tournament_group_id });
+      }
+      if (match.team2?.id && !teamMap.has(match.team2.id)) {
+        teamMap.set(match.team2.id, { team: match.team2, groupId: match.tournament_group_id });
+      }
+    });
+    return Array.from(teamMap.values());
+  }, [matches]);
+
   // Calcular si algún equipo del partido juega en días diferentes
   const matchMultiDayInfo = useMemo(() => {
     const info = new Map<number, { team1PlaysMultipleDays: boolean; team2PlaysMultipleDays: boolean }>(); // matchId -> info
@@ -294,6 +331,114 @@ export function GroupScheduleViewer({
     
     return info;
   }, [scheduledMatches]);
+
+  // Calcular métricas generales
+  const scheduleMetrics = useMemo(() => {
+    // 1. Suma de diff max mismo equipo
+    let totalMaxDiff = 0;
+    let countMaxDiff = 0;
+    matchTimeDiffs.forEach(({ maxDiff }) => {
+      if (maxDiff !== null) {
+        totalMaxDiff += maxDiff;
+        countMaxDiff++;
+      }
+    });
+
+    // 2. Scoring por zona
+    const zoneMetrics = new Map<number, {
+      groupName: string;
+      totalMaxDiff: number;
+      countMaxDiff: number;
+      avgMaxDiff: number;
+      totalMinDiff: number;
+      countMinDiff: number;
+      avgMinDiff: number;
+      problemMatches: number; // matches con diff < 60min o > 240min
+      multiDayTeams: number;
+    }>();
+
+    scheduledMatches.forEach((match) => {
+      if (!match.tournament_group_id) return;
+      
+      const groupInfo = groupMap.get(match.tournament_group_id);
+      if (!groupInfo) return;
+
+      if (!zoneMetrics.has(match.tournament_group_id)) {
+        zoneMetrics.set(match.tournament_group_id, {
+          groupName: groupInfo.name,
+          totalMaxDiff: 0,
+          countMaxDiff: 0,
+          avgMaxDiff: 0,
+          totalMinDiff: 0,
+          countMinDiff: 0,
+          avgMinDiff: 0,
+          problemMatches: 0,
+          multiDayTeams: 0,
+        });
+      }
+
+      const metrics = zoneMetrics.get(match.tournament_group_id)!;
+      const diffInfo = matchTimeDiffs.get(match.id) ?? { minDiff: null, maxDiff: null, teamWithMaxDiff: null };
+      const multiDayInfo = matchMultiDayInfo.get(match.id) ?? { team1PlaysMultipleDays: false, team2PlaysMultipleDays: false };
+
+      if (diffInfo.maxDiff !== null) {
+        metrics.totalMaxDiff += diffInfo.maxDiff;
+        metrics.countMaxDiff++;
+      }
+      if (diffInfo.minDiff !== null) {
+        metrics.totalMinDiff += diffInfo.minDiff;
+        metrics.countMinDiff++;
+      }
+
+      // Contar matches problemáticos
+      if (diffInfo.minDiff !== null && (diffInfo.minDiff <= 60 || diffInfo.minDiff > 240)) {
+        metrics.problemMatches++;
+      }
+
+      // Contar equipos que juegan en múltiples días
+      if (multiDayInfo.team1PlaysMultipleDays) metrics.multiDayTeams++;
+      if (multiDayInfo.team2PlaysMultipleDays) metrics.multiDayTeams++;
+    });
+
+    // Calcular promedios por zona
+    zoneMetrics.forEach((metrics) => {
+      metrics.avgMaxDiff = metrics.countMaxDiff > 0 ? metrics.totalMaxDiff / metrics.countMaxDiff : 0;
+      metrics.avgMinDiff = metrics.countMinDiff > 0 ? metrics.totalMinDiff / metrics.countMinDiff : 0;
+    });
+
+    // 3. Otras métricas
+    const teamsWithMultipleDays = new Set<number>();
+    scheduledMatches.forEach((match) => {
+      if (!match.team1?.id || !match.team2?.id || !match.match_date) return;
+      const multiDayInfo = matchMultiDayInfo.get(match.id) ?? { team1PlaysMultipleDays: false, team2PlaysMultipleDays: false };
+      if (multiDayInfo.team1PlaysMultipleDays) teamsWithMultipleDays.add(match.team1.id);
+      if (multiDayInfo.team2PlaysMultipleDays) teamsWithMultipleDays.add(match.team2.id);
+    });
+
+    const problemMatchesCount = Array.from(matchTimeDiffs.values()).filter(
+      ({ minDiff }) => minDiff !== null && (minDiff <= 60 || minDiff > 240)
+    ).length;
+
+    // Distribución por día
+    const matchesByDay = new Map<string, number>();
+    scheduledMatches.forEach((match) => {
+      if (match.match_date) {
+        matchesByDay.set(match.match_date, (matchesByDay.get(match.match_date) || 0) + 1);
+      }
+    });
+
+    return {
+      totalMaxDiff,
+      avgMaxDiff: countMaxDiff > 0 ? totalMaxDiff / countMaxDiff : 0,
+      zoneMetrics: Array.from(zoneMetrics.entries()).map(([groupId, metrics]) => ({
+        groupId,
+        ...metrics,
+      })),
+      teamsWithMultipleDays: teamsWithMultipleDays.size,
+      problemMatchesCount,
+      matchesByDay: Array.from(matchesByDay.entries()).map(([date, count]) => ({ date, count })),
+    };
+  }, [matchTimeDiffs, scheduledMatches, groupMap, matchMultiDayInfo]);
 
 
   const handleSelectMatch = (matchId: number) => {
@@ -415,12 +560,71 @@ export function GroupScheduleViewer({
     setSelectedMatch2(null);
   };
 
+  const handleSwapGroups = async () => {
+    if (!selectedGroup1 || !selectedGroup2) return;
+
+    try {
+      setSwapping(true);
+      await tournamentMatchesService.swapGroups(tournamentId, selectedGroup1, selectedGroup2);
+      
+      // Limpiar selección
+      setSelectedGroup1(null);
+      setSelectedGroup2(null);
+
+      // Invalidar cache y recargar
+      queryClient.invalidateQueries({ queryKey: ["tournament-groups", tournamentId] });
+      if (onScheduleUpdated) {
+        onScheduleUpdated();
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || "Error al intercambiar zonas");
+    } finally {
+      setSwapping(false);
+    }
+  };
+
+  const handleSwapTeams = async () => {
+    if (!selectedTeam1 || !selectedTeam2) return;
+
+    try {
+      setSwapping(true);
+      await tournamentMatchesService.swapTeams(
+        tournamentId,
+        selectedTeam1.teamId,
+        selectedTeam1.groupId,
+        selectedTeam2.teamId,
+        selectedTeam2.groupId
+      );
+      
+      // Limpiar selección
+      setSelectedTeam1(null);
+      setSelectedTeam2(null);
+
+      // Invalidar cache y recargar
+      queryClient.invalidateQueries({ queryKey: ["tournament-groups", tournamentId] });
+      if (onScheduleUpdated) {
+        onScheduleUpdated();
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || "Error al intercambiar equipos");
+    } finally {
+      setSwapping(false);
+    }
+  };
+
   const handleDialogOpenChange = (isOpen: boolean) => {
     if (!isOpen) {
       // Limpiar selección y undo al cerrar
       setSelectedMatch1(null);
       setSelectedMatch2(null);
+      setSelectedGroup1(null);
+      setSelectedGroup2(null);
+      setSelectedTeam1(null);
+      setSelectedTeam2(null);
       setLastSwap(null);
+      setMode("matches");
     }
     onOpenChange(isOpen);
   };
@@ -431,11 +635,105 @@ export function GroupScheduleViewer({
         <DialogHeader>
           <DialogTitle>Revisar y editar horarios de partidos</DialogTitle>
           <DialogDescription>
-            Seleccioná 2 partidos para intercambiar sus horarios. La métrica muestra la diferencia mínima de tiempo entre partidos del mismo equipo en el mismo día.
+            Seleccioná partidos, zonas o equipos para intercambiar sus horarios. La métrica muestra la diferencia mínima de tiempo entre partidos del mismo equipo en el mismo día.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        {/* Resumen de métricas */}
+        <div className="space-y-4 p-4 bg-muted/50 rounded-lg border">
+          <h3 className="text-sm font-semibold">Métricas del scheduling</h3>
+          
+          {/* Métricas generales */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="space-y-1">
+              <div className="text-xs text-muted-foreground">Suma diff máx.</div>
+              <div className="text-lg font-semibold">{formatTimeDiff(scheduleMetrics.totalMaxDiff)}</div>
+              <div className="text-xs text-muted-foreground">Promedio: {formatTimeDiff(scheduleMetrics.avgMaxDiff)}</div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-xs text-muted-foreground">Partidos problemáticos</div>
+              <div className="text-lg font-semibold">{scheduleMetrics.problemMatchesCount}</div>
+              <div className="text-xs text-muted-foreground">(&lt; 1h o &gt; 4h)</div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-xs text-muted-foreground">Equipos multi-día</div>
+              <div className="text-lg font-semibold">{scheduleMetrics.teamsWithMultipleDays}</div>
+              <div className="text-xs text-muted-foreground">Juegan en varios días</div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-xs text-muted-foreground">Días con partidos</div>
+              <div className="text-lg font-semibold">{scheduleMetrics.matchesByDay.length}</div>
+              <div className="text-xs text-muted-foreground space-y-0.5">
+                {scheduleMetrics.matchesByDay.slice(0, 3).map(({ date, count }) => (
+                  <div key={date}>
+                    {(() => {
+                      const d = parseLocalDate(date);
+                      const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+                      return `${dayNames[d.getDay()]}: ${count} partidos`;
+                    })()}
+                  </div>
+                ))}
+                {scheduleMetrics.matchesByDay.length > 3 && (
+                  <div>+{scheduleMetrics.matchesByDay.length - 3} más</div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Métricas por zona */}
+          {scheduleMetrics.zoneMetrics.length > 0 && (
+            <div className="space-y-2 mt-4 pt-4 border-t">
+              <h4 className="text-xs font-semibold">Métricas por zona</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {scheduleMetrics.zoneMetrics.map((zone) => {
+                  const groupInfo = groupMap.get(zone.groupId);
+                  const groupColor = groupInfo
+                    ? getGroupColor(groupInfo.index)
+                    : { badgeBg: "bg-gray-200", badgeText: "text-gray-800" };
+                  
+                  return (
+                    <div key={zone.groupId} className={`p-3 rounded-lg border ${groupColor.badgeBg} ${groupColor.badgeText} border-opacity-50`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <Badge className={`${groupColor.badgeBg} ${groupColor.badgeText} border-0`}>
+                          {zone.groupName}
+                        </Badge>
+                      </div>
+                      <div className="space-y-1 text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Prom. diff máx:</span>
+                          <span className="font-medium">{formatTimeDiff(zone.avgMaxDiff)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Prom. diff mín:</span>
+                          <span className="font-medium">{formatTimeDiff(zone.avgMinDiff)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Problemáticos:</span>
+                          <span className={`font-medium ${zone.problemMatches > 0 ? 'text-red-600' : ''}`}>
+                            {zone.problemMatches}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Multi-día:</span>
+                          <span className="font-medium">{zone.multiDayTeams} equipos</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <Tabs value={mode} onValueChange={(v) => setMode(v as "matches" | "groups" | "teams")}>
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="matches">Intercambiar partidos</TabsTrigger>
+            <TabsTrigger value="groups">Intercambiar zonas</TabsTrigger>
+            <TabsTrigger value="teams">Intercambiar equipos</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="matches" className="space-y-4 mt-4">
           {/* Barra de acciones para selección */}
           {(selectedMatch1 || selectedMatch2) && (
             <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
@@ -666,7 +964,219 @@ export function GroupScheduleViewer({
               </TableBody>
             </Table>
           </div>
-        </div>
+          </TabsContent>
+
+          <TabsContent value="groups" className="space-y-4 mt-4">
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <div className="flex-1">
+                  <label className="text-sm font-medium mb-2 block">Zona 1</label>
+                  <Select
+                    value={selectedGroup1?.toString() || ""}
+                    onValueChange={(v) => setSelectedGroup1(Number(v))}
+                    disabled={swapping}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar zona" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sortedGroups.map((group) => (
+                        <SelectItem key={group.id} value={group.id.toString()}>
+                          {group.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex-1">
+                  <label className="text-sm font-medium mb-2 block">Zona 2</label>
+                  <Select
+                    value={selectedGroup2?.toString() || ""}
+                    onValueChange={(v) => setSelectedGroup2(Number(v))}
+                    disabled={swapping}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar zona" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sortedGroups
+                        .filter((g) => g.id !== selectedGroup1)
+                        .map((group) => (
+                          <SelectItem key={group.id} value={group.id.toString()}>
+                            {group.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {selectedGroup1 && selectedGroup2 && (
+                <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <span className="text-sm font-medium text-blue-900">
+                    ¿Intercambiar horarios de {groupMap.get(selectedGroup1)?.name} y {groupMap.get(selectedGroup2)?.name}?
+                  </span>
+                  <Button
+                    size="sm"
+                    onClick={handleSwapGroups}
+                    disabled={swapping}
+                    className="ml-auto"
+                  >
+                    {swapping ? (
+                      <>
+                        <Loader2Icon className="h-3 w-3 animate-spin mr-1" />
+                        Intercambiando...
+                      </>
+                    ) : (
+                      <>
+                        <FolderIcon className="h-3 w-3 mr-1" />
+                        Intercambiar zonas
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedGroup1(null);
+                      setSelectedGroup2(null);
+                    }}
+                    disabled={swapping}
+                  >
+                    <XIcon className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
+              <div className="text-sm text-muted-foreground">
+                <p>Seleccioná 2 zonas para intercambiar todos los horarios de sus partidos.</p>
+                <p className="mt-1">Ambas zonas deben tener la misma cantidad de equipos.</p>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="teams" className="space-y-4 mt-4">
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <div className="flex-1">
+                  <label className="text-sm font-medium mb-2 block">Equipo 1</label>
+                  <Select
+                    value={selectedTeam1 ? `${selectedTeam1.groupId}-${selectedTeam1.teamId}` : ""}
+                    onValueChange={(v) => {
+                      const [groupId, teamId] = v.split("-").map(Number);
+                      setSelectedTeam1({ teamId, groupId });
+                    }}
+                    disabled={swapping}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar equipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sortedGroups.map((group) => {
+                        const groupTeams = teamsList.filter((t) => t.groupId === group.id);
+                        if (groupTeams.length === 0) return null;
+                        return (
+                          <div key={group.id}>
+                            <div className="px-2 py-1 text-xs font-semibold text-muted-foreground">
+                              {group.name}
+                            </div>
+                            {groupTeams.map(({ team }) => (
+                              <SelectItem
+                                key={team.id}
+                                value={`${group.id}-${team.id}`}
+                              >
+                                {teamLabel(team)}
+                              </SelectItem>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex-1">
+                  <label className="text-sm font-medium mb-2 block">Equipo 2</label>
+                  <Select
+                    value={selectedTeam2 ? `${selectedTeam2.groupId}-${selectedTeam2.teamId}` : ""}
+                    onValueChange={(v) => {
+                      const [groupId, teamId] = v.split("-").map(Number);
+                      setSelectedTeam2({ teamId, groupId });
+                    }}
+                    disabled={swapping}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar equipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sortedGroups.map((group) => {
+                        const groupTeams = teamsList.filter((t) => t.groupId === group.id);
+                        if (groupTeams.length === 0) return null;
+                        // Filtrar el equipo seleccionado en equipo 1
+                        const filteredTeams = groupTeams.filter(
+                          (t) => !selectedTeam1 || t.team.id !== selectedTeam1.teamId || t.groupId !== selectedTeam1.groupId
+                        );
+                        if (filteredTeams.length === 0) return null;
+                        return (
+                          <div key={group.id}>
+                            <div className="px-2 py-1 text-xs font-semibold text-muted-foreground">
+                              {group.name}
+                            </div>
+                            {filteredTeams.map(({ team }) => (
+                              <SelectItem
+                                key={team.id}
+                                value={`${group.id}-${team.id}`}
+                              >
+                                {teamLabel(team)}
+                              </SelectItem>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {selectedTeam1 && selectedTeam2 && (
+                <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <span className="text-sm font-medium text-blue-900">
+                    ¿Intercambiar {teamLabel(teamsList.find((t) => t.team.id === selectedTeam1.teamId)?.team || null)} ({groupMap.get(selectedTeam1.groupId)?.name}) con {teamLabel(teamsList.find((t) => t.team.id === selectedTeam2.teamId)?.team || null)} ({groupMap.get(selectedTeam2.groupId)?.name})?
+                  </span>
+                  <Button
+                    size="sm"
+                    onClick={handleSwapTeams}
+                    disabled={swapping}
+                    className="ml-auto"
+                  >
+                    {swapping ? (
+                      <>
+                        <Loader2Icon className="h-3 w-3 animate-spin mr-1" />
+                        Intercambiando...
+                      </>
+                    ) : (
+                      <>
+                        <UsersIcon className="h-3 w-3 mr-1" />
+                        Intercambiar equipos
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedTeam1(null);
+                      setSelectedTeam2(null);
+                    }}
+                    disabled={swapping}
+                  >
+                    <XIcon className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
+              <div className="text-sm text-muted-foreground">
+                <p>Seleccioná 2 equipos para intercambiar sus horarios y zonas.</p>
+                <p className="mt-1">Ambos equipos deben tener la misma cantidad de partidos.</p>
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );

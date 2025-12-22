@@ -227,6 +227,42 @@ class TournamentMatchesService {
       throw new Error(errorData.error || errorData.message || "Error scheduling match");
     }
   }
+
+  async swapGroups(tournamentId: number, group1Id: number, group2Id: number): Promise<void> {
+    const response = await fetch(`/api/tournaments/${tournamentId}/swap-groups`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        group1Id,
+        group2Id,
+      }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || errorData.message || "Error swapping groups");
+    }
+  }
+
+  async swapTeams(tournamentId: number, team1Id: number, group1Id: number, team2Id: number, group2Id: number): Promise<void> {
+    const response = await fetch(`/api/tournaments/${tournamentId}/swap-teams`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        team1Id,
+        group1Id,
+        team2Id,
+        group2Id,
+      }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || errorData.message || "Error swapping teams");
+    }
+  }
 }
 
 export const tournamentsService = new TournamentsService();
