@@ -403,41 +403,55 @@ export class TournamentGroupsRepository extends BaseRepository {
 
     const groupIds = groups.map((g) => g.id);
 
-    // Delete in order: standings, matches, group_teams, groups
-    const [standingsResult, matchesResult, groupTeamsResult, groupsResult] = await Promise.all([
-      this.supabase
-        .from("tournament_group_standings")
-        .delete()
-        .in("tournament_group_id", groupIds)
-        .eq("user_uid", this.userId),
-      this.supabase
-        .from("tournament_matches")
-        .delete()
-        .eq("tournament_id", tournamentId)
-        .eq("phase", "group")
-        .in("tournament_group_id", groupIds)
-        .eq("user_uid", this.userId),
-      this.supabase
-        .from("tournament_group_teams")
-        .delete()
-        .in("tournament_group_id", groupIds)
-        .eq("user_uid", this.userId),
-      this.supabase
-        .from("tournament_groups")
-        .delete()
-        .eq("tournament_id", tournamentId)
-        .eq("user_uid", this.userId),
-    ]);
+    // Delete in order (sequentially to avoid foreign key constraint violations):
+    // 1. standings
+    // 2. matches (must be deleted before groups due to foreign key)
+    // 3. group_teams
+    // 4. groups (last, after all dependencies are removed)
+
+    // 1. Delete standings
+    const standingsResult = await this.supabase
+      .from("tournament_group_standings")
+      .delete()
+      .in("tournament_group_id", groupIds)
+      .eq("user_uid", this.userId);
 
     if (standingsResult.error) {
       throw new Error(`Failed to delete standings: ${standingsResult.error.message}`);
     }
+
+    // 2. Delete matches (CRITICAL: must be done before deleting groups)
+    // Delete all group matches for this tournament, not just those in groupIds
+    // to handle any edge cases where group_id might be null or mismatched
+    const matchesResult = await this.supabase
+      .from("tournament_matches")
+      .delete()
+      .eq("tournament_id", tournamentId)
+      .eq("phase", "group")
+      .eq("user_uid", this.userId);
+
     if (matchesResult.error) {
       throw new Error(`Failed to delete matches: ${matchesResult.error.message}`);
     }
+
+    // 3. Delete group_teams
+    const groupTeamsResult = await this.supabase
+      .from("tournament_group_teams")
+      .delete()
+      .in("tournament_group_id", groupIds)
+      .eq("user_uid", this.userId);
+
     if (groupTeamsResult.error) {
       throw new Error(`Failed to delete group teams: ${groupTeamsResult.error.message}`);
     }
+
+    // 4. Finally, delete groups (after all dependencies are removed)
+    const groupsResult = await this.supabase
+      .from("tournament_groups")
+      .delete()
+      .eq("tournament_id", tournamentId)
+      .eq("user_uid", this.userId);
+
     if (groupsResult.error) {
       throw new Error(`Failed to delete groups: ${groupsResult.error.message}`);
     }

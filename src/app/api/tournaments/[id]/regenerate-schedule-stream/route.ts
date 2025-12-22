@@ -195,9 +195,35 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           }
 
           sendLog(`Encontrados ${matches.length} partidos sin resultados`);
+          sendProgress(30, "Limpiando horarios previos...");
+
+          // 3) Limpiar horarios de TODOS los partidos de fase de grupos antes de regenerar
+          sendLog("Limpiando horarios previos de todos los partidos de fase de grupos...");
+          const { error: clearError } = await supabase
+            .from("tournament_matches")
+            .update({
+              match_date: null,
+              start_time: null,
+              end_time: null,
+              court_id: null,
+            })
+            .eq("tournament_id", tournamentId)
+            .eq("phase", "group")
+            .eq("user_uid", user.id);
+            // Nota: Limpiamos TODOS los horarios, no solo los de partidos sin resultados
+            // para empezar desde cero al regenerar
+
+          if (clearError) {
+            sendError(`Error al limpiar horarios previos: ${clearError.message}`);
+            return;
+          }
+
+          sendLog("✅ Horarios previos limpiados correctamente");
+
+          sendLog(`✅ Horarios previos limpiados para ${matches.length} partidos`);
           sendProgress(40, "Preparando datos para el scheduler...");
 
-          // 3) Construir el payload para el scheduler
+          // 4) Construir el payload para el scheduler
           sendLog("Construyendo payload de partidos...");
           const matchesPayload = matches.map((match) => ({
             tournament_id: tournamentId,
@@ -214,7 +240,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           }));
           sendLog(`Payload construido: ${matchesPayload.length} partidos`);
 
-          // 4) Obtener restricciones de equipos
+          // 5) Obtener restricciones de equipos
           sendLog("Obteniendo restricciones de equipos...");
           const teamIds = Array.from(
             new Set(
@@ -248,7 +274,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
             sendLog("No hay restricciones de equipos configuradas");
           }
 
-          // 5) Obtener horarios disponibles
+          // 6) Obtener horarios disponibles
           sendLog("Obteniendo horarios disponibles del torneo...");
           let availableSchedules: any[] | null = null;
           try {
@@ -297,10 +323,11 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
           sendProgress(60, "Generando horarios con algoritmo inteligente...");
 
-          // 6) Llamar al scheduler con callback de logging
+          // 7) Llamar al scheduler con callback de logging
           sendLog("Iniciando algoritmo de asignación de horarios...");
           sendLog(`Llamando a scheduleGroupMatches con ${matchesPayload.length} partidos...`);
           
+          let schedulerResult;
           try {
             sendLog("🔍 Verificando callback antes de llamar al scheduler...");
             if (!sendLog) {
@@ -309,7 +336,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
             }
             sendLog("✅ Callback verificado, llamando al scheduler...");
             
-            const schedulerResult = await scheduleGroupMatches(
+            schedulerResult = await scheduleGroupMatches(
               matchesPayload,
               scheduleConfig.days,
               matchDurationMinutes,
@@ -319,71 +346,186 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
               sendLog // Callback para logs
             );
 
-            sendLog(`Algoritmo completado. Resultado: ${schedulerResult.success ? "éxito" : "fallo"}`);
+            sendLog(`Algoritmo completado. Resultado: ${schedulerResult.success ? "éxito completo" : "parcial"}`);
+            sendLog(`Matches asignados: ${schedulerResult.assignments.length}/${matchesPayload.length}`);
 
-            if (!schedulerResult.success) {
-              sendError(schedulerResult.error || "No se pudieron asignar horarios para todos los partidos");
+            if (schedulerResult.assignments.length === 0) {
+              sendError(schedulerResult.error || "No se pudieron asignar horarios para ningún partido");
               return;
             }
 
-            sendLog(`✅ Horarios asignados exitosamente para ${matchesPayload.length} partidos`);
+            if (!schedulerResult.success) {
+              sendLog(`⚠️ Solución parcial: ${schedulerResult.assignments.length}/${matchesPayload.length} partidos asignados`);
+              sendLog(`⚠️ ${schedulerResult.error || "Algunos partidos no pudieron ser asignados"}`);
+            } else {
+              sendLog(`✅ Horarios asignados exitosamente para todos los ${matchesPayload.length} partidos`);
+            }
           } catch (schedulerError: any) {
             sendError(`Error en el scheduler: ${schedulerError.message || schedulerError.toString()}`);
             console.error("Scheduler error:", schedulerError);
             return;
           }
+
+          // Verificar que schedulerResult está definido y tiene asignaciones
+          if (!schedulerResult || schedulerResult.assignments.length === 0) {
+            sendError("Error: No se pudo obtener resultado del scheduler o no hay asignaciones");
+            return;
+          }
+
           sendProgress(80, "Actualizando partidos en la base de datos...");
 
-          // 7) Actualizar los partidos en la base de datos
-          const updates = matches.map((match) => {
-            const payload = schedulerResult.assignments.find(
-              (a) => {
-                const p = matchesPayload[a.matchIdx];
-                return (
-                  p.tournament_group_id === match.tournament_group_id &&
-                  (p.match_order ?? null) === (match.match_order ?? null) &&
-                  (match.team1_id === null || match.team2_id === null
-                    ? true
-                    : p.team1_id === match.team1_id && p.team2_id === match.team2_id)
-                );
-              }
-            );
+          // 8) Actualizar los partidos en la base de datos
+          sendLog(`Total de assignments del scheduler: ${schedulerResult.assignments.length}`);
+          sendLog(`Total de matches en la base de datos: ${matches.length}`);
+          sendLog(`Total de matchesPayload: ${matchesPayload.length}`);
 
-            if (!payload) return null;
+          // Crear un mapa de assignments por matchIdx para acceso rápido
+          const assignmentsByMatchIdx = new Map<number, typeof schedulerResult.assignments[0]>();
+          for (const assignment of schedulerResult.assignments) {
+            assignmentsByMatchIdx.set(assignment.matchIdx, assignment);
+          }
+
+          sendLog(`📊 Assignments disponibles: ${schedulerResult.assignments.length}`);
+          sendLog(`📊 Match indices con assignment: ${Array.from(assignmentsByMatchIdx.keys()).sort((a, b) => a - b).join(", ")}`);
+          
+          // Mostrar detalles de los assignments
+          for (const [matchIdx, assignment] of assignmentsByMatchIdx.entries()) {
+            sendLog(`  Assignment matchIdx ${matchIdx}: ${assignment.date} ${assignment.startTime}-${assignment.endTime} (Cancha ${assignment.courtId})`);
+          }
+
+          const updates = matches.map((match, matchIdx) => {
+            // Buscar el assignment correspondiente usando el índice directamente
+            const assignment = assignmentsByMatchIdx.get(matchIdx);
+
+            if (!assignment) {
+              sendLog(`⚠️ No se encontró assignment para match ${match.id} (índice ${matchIdx}, grupo ${match.tournament_group_id})`);
+              
+              // Intentar matching alternativo por características del match
+              // Buscar en todos los assignments disponibles
+              for (const [assignedMatchIdx, fallbackAssignment] of assignmentsByMatchIdx.entries()) {
+                const p = matchesPayload[assignedMatchIdx];
+                
+                // Verificar si este assignment corresponde a este match
+                const groupMatch = p.tournament_group_id === match.tournament_group_id;
+                const orderMatch = (p.match_order ?? null) === (match.match_order ?? null);
+                const teamsMatch = match.team1_id === null || match.team2_id === null
+                  ? true // Si el match original tiene equipos null, cualquier payload con mismo grupo y orden sirve
+                  : (p.team1_id === match.team1_id && p.team2_id === match.team2_id) ||
+                    (p.team1_id === match.team2_id && p.team2_id === match.team1_id); // También verificar orden inverso
+                
+                if (groupMatch && orderMatch && teamsMatch) {
+                  sendLog(`✅ Encontrado assignment alternativo para match ${match.id} (usando assignment del matchIdx ${assignedMatchIdx})`);
+                  return {
+                    id: match.id,
+                    match_date: fallbackAssignment.date,
+                    start_time: fallbackAssignment.startTime,
+                    end_time: fallbackAssignment.endTime,
+                    court_id: fallbackAssignment.courtId,
+                  };
+                }
+              }
+              
+              sendLog(`❌ No se encontró assignment alternativo para match ${match.id}`);
+              return null;
+            }
+
+            // Verificar que el assignment tenga todos los valores necesarios
+            if (!assignment.date || !assignment.startTime || !assignment.endTime || assignment.courtId === undefined) {
+              sendLog(`⚠️ Assignment para match ${match.id} tiene valores incompletos: date=${assignment.date}, startTime=${assignment.startTime}, endTime=${assignment.endTime}, courtId=${assignment.courtId}`);
+              return null;
+            }
+
+            sendLog(`✅ Assignment encontrado para match ${match.id} (índice ${matchIdx}): ${assignment.date} ${assignment.startTime} (Cancha ${assignment.courtId})`);
 
             return {
               id: match.id,
-              match_date: payload.date,
-              start_time: payload.startTime,
-              end_time: payload.endTime,
-              court_id: payload.courtId,
+              match_date: assignment.date,
+              start_time: assignment.startTime,
+              end_time: assignment.endTime,
+              court_id: assignment.courtId,
             };
-          }).filter((u): u is { id: number; match_date: string; start_time: string; end_time: string; court_id: number } => 
-            u !== null && u.match_date !== null && u.start_time !== null && u.end_time !== null && u.court_id !== undefined
-          );
+          }).filter((u): u is { id: number; match_date: string; start_time: string; end_time: string; court_id: number } => {
+            if (u === null) return false;
+            const valid = u.match_date !== null && u.match_date !== undefined &&
+                         u.start_time !== null && u.start_time !== undefined &&
+                         u.end_time !== null && u.end_time !== undefined &&
+                         u.court_id !== null && u.court_id !== undefined;
+            if (!valid) {
+              sendLog(`⚠️ Update filtrado para match ${u.id}: valores inválidos`);
+            }
+            return valid;
+          });
+
+          sendLog(`Matches con assignment encontrado: ${updates.length} de ${matches.length}`);
+          if (updates.length < matches.length) {
+            const missing = matches.length - updates.length;
+            sendLog(`⚠️ ADVERTENCIA: ${missing} partidos no tienen assignment y no se actualizarán`);
+          }
+
+          if (updates.length === 0) {
+            sendError("No hay matches para actualizar. Verifica que el scheduler haya asignado horarios correctamente.");
+            return;
+          }
 
           // Actualizar todos los partidos
           let updatedCount = 0;
+          let errorCount = 0;
+          
+          sendLog(`🔄 Iniciando actualización de ${updates.length} partidos en la base de datos...`);
+          
+          // Mostrar resumen de lo que se va a actualizar
           for (const update of updates) {
-            const { error: updateError } = await supabase
+            sendLog(`  📝 Match ${update.id} → ${update.match_date} ${update.start_time}-${update.end_time} (Cancha ${update.court_id})`);
+          }
+          
+          for (const update of updates) {
+            // Validar que todos los valores estén presentes antes de actualizar
+            if (!update.match_date || !update.start_time || !update.end_time || update.court_id === undefined || update.court_id === null) {
+              sendLog(`  ❌ Match ${update.id} tiene valores inválidos: date=${update.match_date}, start=${update.start_time}, end=${update.end_time}, court=${update.court_id}`);
+              errorCount++;
+              continue;
+            }
+            
+            sendLog(`  🔄 Actualizando match ${update.id}...`);
+            
+            // Convertir "24:00" a "00:00" del día siguiente si es necesario
+            let endTime = update.end_time;
+            if (endTime === "24:00") {
+              endTime = "00:00";
+            }
+            
+            const updatePayload = {
+              match_date: update.match_date,
+              start_time: update.start_time,
+              end_time: endTime,
+              court_id: update.court_id,
+            };
+            
+            sendLog(`  📤 Payload: ${JSON.stringify(updatePayload)}`);
+            
+            // Hacer el update con count para verificar que realmente se actualizó
+            const { error: updateError, count } = await supabase
               .from("tournament_matches")
-              .update({
-                match_date: update.match_date,
-                start_time: update.start_time,
-                end_time: update.end_time,
-                court_id: update.court_id,
-              })
+              .update(updatePayload)
               .eq("id", update.id)
-              .eq("user_uid", user.id);
-
+              .eq("user_uid", user.id)
+              .select(undefined, { count: 'exact', head: true });
+            
             if (updateError) {
               console.error(`Error updating match ${update.id}:`, updateError);
+              sendLog(`  ❌ Error actualizando match ${update.id}: ${updateError.message}`);
+              errorCount++;
+            } else if (count === 0) {
+              sendLog(`  ⚠️ Match ${update.id}: Update ejecutado pero 0 filas afectadas (posiblemente no se encontró el match o RLS bloqueó)`);
+              errorCount++;
             } else {
+              // Si no hay error y count > 0, se guardó correctamente
+              sendLog(`  ✅ Match ${update.id} actualizado (${count} fila(s)): ${update.match_date} ${update.start_time} (Cancha ${update.court_id})`);
               updatedCount++;
             }
           }
 
-          sendLog(`Actualizados ${updatedCount} partidos en la base de datos`);
+          sendLog(`✅ Actualización completada: ${updatedCount} partidos actualizados, ${errorCount} errores`);
           sendProgress(100, "¡Proceso completado!");
           sendSuccess({ ok: true, updatedCount });
         } catch (error: any) {

@@ -34,6 +34,47 @@ export async function POST(req: Request, { params }: RouteParams) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
 
+  // 1) traer torneo PRIMERO (necesario para match_duration)
+  const { data: t, error: terr } = await supabase
+    .from("tournaments")
+    .select("id, status, user_uid, match_duration")
+    .eq("id", tournamentId)
+    .single();
+
+  if (terr || !t || t.user_uid !== user.id) {
+    return NextResponse.json({ error: "Tournament not found" }, { status: 404 });
+  }
+
+  if (t.status !== "draft") {
+    return NextResponse.json(
+      { error: "Registration already closed or tournament started" },
+      { status: 400 }
+    );
+  }
+
+  // Verificar si ya existen grupos
+  const { data: existingGroups, error: existingGroupsError } = await supabase
+    .from("tournament_groups")
+    .select("id")
+    .eq("tournament_id", tournamentId)
+    .eq("user_uid", user.id)
+    .limit(1);
+
+  if (existingGroupsError) {
+    console.error("Error checking existing groups:", existingGroupsError);
+    return NextResponse.json(
+      { error: "Failed to check existing groups" },
+      { status: 500 }
+    );
+  }
+
+  if (existingGroups && existingGroups.length > 0) {
+    return NextResponse.json(
+      { error: "Groups already generated for this tournament" },
+      { status: 400 }
+    );
+  }
+
   // Obtener configuración de horarios del body
   const body = await req.json().catch(() => ({}));
   let scheduleConfig: ScheduleConfig | undefined = body.days
@@ -98,47 +139,6 @@ export async function POST(req: Request, { params }: RouteParams) {
         }
       }
     }
-  }
-
-  // 1) traer torneo
-  const { data: t, error: terr } = await supabase
-    .from("tournaments")
-    .select("id, status, user_uid, match_duration")
-    .eq("id", tournamentId)
-    .single();
-
-  if (terr || !t || t.user_uid !== user.id) {
-    return NextResponse.json({ error: "Tournament not found" }, { status: 404 });
-  }
-
-  if (t.status !== "draft") {
-    return NextResponse.json(
-      { error: "Registration already closed or tournament started" },
-      { status: 400 }
-    );
-  }
-
-  // Verificar si ya existen grupos
-  const { data: existingGroups, error: existingGroupsError } = await supabase
-    .from("tournament_groups")
-    .select("id")
-    .eq("tournament_id", tournamentId)
-    .eq("user_uid", user.id)
-    .limit(1);
-
-  if (existingGroupsError) {
-    console.error("Error checking existing groups:", existingGroupsError);
-    return NextResponse.json(
-      { error: "Failed to check existing groups" },
-      { status: 500 }
-    );
-  }
-
-  if (existingGroups && existingGroups.length > 0) {
-    return NextResponse.json(
-      { error: "Groups already generated for this tournament" },
-      { status: 400 }
-    );
   }
 
   // 2) traer equipos (las restricciones horarias se obtienen después desde tournament_team_schedule_restrictions)

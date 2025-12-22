@@ -307,6 +307,9 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
     (m) => m.match_date && m.start_time
   ).length;
 
+  // Contar todos los partidos de fase de grupos (para regenerar horarios)
+  const totalGroupMatches = (data?.matches ?? []).length;
+
   if (loading) {
     return (
       <div className="h-[200px] flex items-center justify-center">
@@ -433,7 +436,7 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
         error={playoffsError}
         isLoading={regenerating}
         onConfirm={handleConfirmRegenerateSchedule}
-        matchCount={matchesWithSchedule}
+        matchCount={totalGroupMatches}
         tournamentMatchDuration={tournament.match_duration}
         availableSchedules={availableSchedulesGrouped}
         tournamentId={tournament.id}
