@@ -104,9 +104,8 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
     staleTime: 1000 * 30, // 30 segundos
   });
 
-  // Horarios disponibles ahora se definen al momento de la revisión (no se guardan)
-  const availableSchedules: any[] = [];
-  const availableSchedulesGrouped: any[] = [];
+  // Horarios disponibles ahora se generan on the fly durante la revisión de horarios (no se guardan)
+  const availableSchedules: any[] = []; // Array vacío para el diálogo de restricciones
 
   const hasGroups = groupsData?.groups && groupsData.groups.length > 0;
   const loading = loadingTeams || loadingPlayers || loadingGroups;
@@ -173,14 +172,14 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
     }
   };
 
-  const handleSaveRestrictions = async (restrictedScheduleIds: number[]) => {
+  const handleSaveRestrictions = async (restrictedSchedules: Array<{ date: string; start_time: string; end_time: string }>) => {
     if (!selectedTeamForRestrictions) return;
     
     try {
       await tournamentsService.updateTeamRestrictions(
         tournament.id,
         selectedTeamForRestrictions.id,
-        restrictedScheduleIds
+        restrictedSchedules
       );
       // Invalidar cache para refrescar teams
       queryClient.invalidateQueries({ queryKey: ["tournament-teams", tournament.id] });
@@ -270,40 +269,7 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
     return { totalGroups: groupSizes.length, groupsOf3, groupsOf4, groupNames };
   }, [teams.length]);
 
-  // Calcular slots de horario disponibles
-  const calculateAvailableSlots = useMemo(() => {
-    if (!availableSchedulesGrouped.length || !tournament.match_duration) {
-      return { totalSlots: 0, slotsByDate: [] };
-    }
-    
-    // Necesitamos obtener las canchas activas para calcular slots
-    // Por ahora, asumimos que hay al menos 1 cancha (se puede mejorar después)
-    // El cálculo real de slots se hace en el scheduler con las canchas reales
-    // Aquí solo mostramos un estimado basado en los horarios disponibles
-    
-    const slotsByDate: Array<{ date: string; slots: number }> = [];
-    const matchDuration = tournament.match_duration || 60;
-    
-    for (const schedule of availableSchedulesGrouped) {
-      const [startH, startM] = schedule.start_time.split(":").map(Number);
-      const [endH, endM] = schedule.end_time.split(":").map(Number);
-      const startMinutes = startH * 60 + startM;
-      const endMinutes = (endH === 0 && endM === 0) ? 24 * 60 : endH * 60 + endM;
-      
-      // Calcular cuántos slots caben en este rango (estimado, sin considerar canchas)
-      const availableMinutes = endMinutes - startMinutes;
-      const slotsInRange = Math.floor(availableMinutes / matchDuration);
-      
-      slotsByDate.push({
-        date: schedule.date,
-        slots: slotsInRange,
-      });
-    }
-    
-    const totalSlots = slotsByDate.reduce((sum, item) => sum + item.slots, 0);
-    
-    return { totalSlots, slotsByDate };
-  }, [availableSchedulesGrouped, tournament.match_duration]);
+  // Los slots de horario se calculan on the fly durante la revisión de horarios
 
   const handleCloseRegistration = async () => {
     try {
@@ -378,31 +344,9 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
                 </div>
                 <div>
                   <span className="text-muted-foreground">Slots disponibles:</span>{" "}
-                  <span className="font-medium">
-                    {calculateAvailableSlots.totalSlots > 0 ? (
-                      <>
-                        {calculateAvailableSlots.totalSlots} slots total
-                      </>
-                    ) : (
-                      "No configurados"
-                    )}
+                  <span className="font-medium text-muted-foreground">
+                    Se configurarán durante la revisión de horarios
                   </span>
-                  {calculateAvailableSlots.slotsByDate.length > 0 && (
-                    <div className="mt-1 space-y-0.5">
-                      {calculateAvailableSlots.slotsByDate.map((item, idx) => {
-                        // Parsear la fecha manualmente para evitar problemas de timezone
-                        // item.date está en formato YYYY-MM-DD
-                        const [year, month, day] = item.date.split('-').map(Number);
-                        const date = new Date(year, month - 1, day); // month es 0-indexed
-                        const dateStr = date.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' });
-                        return (
-                          <div key={idx} className="text-xs text-muted-foreground">
-                            {dateStr}: {item.slots} slots
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
                 </div>
               </div>
             </div>

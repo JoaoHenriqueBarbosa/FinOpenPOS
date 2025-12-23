@@ -366,7 +366,7 @@ export async function scheduleGroupMatchesBeamSearch(
   matchDurationMinutes: number,
   courtIds: number[],
   availableSchedules?: AvailableSchedule[],
-  teamRestrictions?: Map<number, number[]>,
+  teamRestrictions?: Map<number, Array<{ date: string; start_time: string; end_time: string }>>,
   onLog?: (message: string) => void
 ): Promise<SchedulerResult> {
   if (onLog) {
@@ -481,7 +481,7 @@ export async function scheduleGroupMatchesBeamSearch(
   // 4. Preparar información de restricciones por grupo
   // Las restricciones se validarán durante la generación de candidatos
   const groupRestrictions = new Map<number, Set<string>>(); // groupId → Set de slotIds restringidos
-  if (teamRestrictions && availableSchedules && availableSchedules.length > 0) {
+  if (teamRestrictions) {
     for (const group of groups) {
       const restrictedSlotIds = new Set<string>();
       for (const slot of slots) {
@@ -492,8 +492,8 @@ export async function scheduleGroupMatchesBeamSearch(
         };
         // Verificar si algún equipo del grupo tiene restricción en este slot
         for (const teamId of group.teams) {
-          const restrictedScheduleIds = teamRestrictions.get(teamId);
-          if (slotViolatesRestriction(timeSlot, restrictedScheduleIds, availableSchedules)) {
+          const restrictedSchedules = teamRestrictions.get(teamId);
+          if (slotViolatesRestriction(timeSlot, restrictedSchedules)) {
             restrictedSlotIds.add(slot.slotId);
             break; // Solo necesitamos saber que al menos un equipo tiene restricción
           }

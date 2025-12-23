@@ -19,8 +19,8 @@ interface TeamScheduleRestrictionsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   team: TeamDTO | null;
-  availableSchedules: AvailableSchedule[];
-  onSave: (restrictedScheduleIds: number[]) => Promise<void>;
+  availableSchedules: AvailableSchedule[]; // Horarios disponibles para mostrar (generados on the fly)
+  onSave: (restrictedSchedules: Array<{ date: string; start_time: string; end_time: string }>) => Promise<void>;
 }
 
 const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
@@ -32,58 +32,71 @@ export function TeamScheduleRestrictionsDialog({
   availableSchedules,
   onSave,
 }: TeamScheduleRestrictionsDialogProps) {
-  const [restrictedIds, setRestrictedIds] = useState<Set<number>>(new Set());
+  // Usar un Set con claves de string para identificar restricciones por fecha/hora
+  const [restrictedKeys, setRestrictedKeys] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
 
+  // Función auxiliar para crear una clave única de un horario
+  const getScheduleKey = (schedule: { date: string; start_time: string; end_time: string }): string => {
+    return `${schedule.date}|${schedule.start_time}|${schedule.end_time}`;
+  };
+
   // Inicializar restricciones cuando se abre el diálogo o cambia el equipo
-  // Usar useMemo para estabilizar la referencia del team y evitar loops infinitos
   const teamId = team?.id;
-  const teamRestrictedIds = team?.restricted_schedule_ids;
+  const teamRestrictedSchedules = (team as any)?.restricted_schedules as Array<{ date: string; start_time: string; end_time: string }> | undefined;
   
   useEffect(() => {
-    if (open && team && teamRestrictedIds) {
-      // Cargar restricciones del equipo (IDs de horarios que NO puede jugar)
-      setRestrictedIds(new Set(teamRestrictedIds));
+    if (open && team && teamRestrictedSchedules) {
+      // Cargar restricciones del equipo (rangos de fecha/hora que NO puede jugar)
+      const keys = new Set(teamRestrictedSchedules.map(s => getScheduleKey(s)));
+      setRestrictedKeys(keys);
     } else if (!open) {
-      setRestrictedIds(new Set());
+      setRestrictedKeys(new Set());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, teamId, teamRestrictedIds?.join(',')]);
+  }, [open, teamId, teamRestrictedSchedules?.map(s => getScheduleKey(s)).join(',')]);
 
-  const handleToggleRestriction = (scheduleId: number) => {
-    const newRestricted = new Set(restrictedIds);
-    if (newRestricted.has(scheduleId)) {
-      newRestricted.delete(scheduleId);
+  const handleToggleRestriction = (schedule: { date: string; start_time: string; end_time: string }) => {
+    const newRestricted = new Set(restrictedKeys);
+    const key = getScheduleKey(schedule);
+    if (newRestricted.has(key)) {
+      newRestricted.delete(key);
     } else {
-      newRestricted.add(scheduleId);
+      newRestricted.add(key);
     }
-    setRestrictedIds(newRestricted);
+    setRestrictedKeys(newRestricted);
   };
 
   const handleToggleDay = (date: string, daySchedules: typeof sortedSchedules) => {
-    const newRestricted = new Set(restrictedIds);
-    const dayScheduleIds = daySchedules.map(s => s.id);
-    const allDayRestricted = dayScheduleIds.every(id => restrictedIds.has(id));
+    const newRestricted = new Set(restrictedKeys);
+    const dayScheduleKeys = daySchedules.map(s => getScheduleKey(s));
+    const allDayRestricted = dayScheduleKeys.every(key => restrictedKeys.has(key));
 
     if (allDayRestricted) {
       // Desmarcar todo el día
-      dayScheduleIds.forEach(id => newRestricted.delete(id));
+      dayScheduleKeys.forEach(key => newRestricted.delete(key));
     } else {
       // Marcar todo el día
-      dayScheduleIds.forEach(id => newRestricted.add(id));
+      dayScheduleKeys.forEach(key => newRestricted.add(key));
     }
-    setRestrictedIds(newRestricted);
+    setRestrictedKeys(newRestricted);
   };
 
   const isDayFullyRestricted = (daySchedules: typeof sortedSchedules): boolean => {
     if (daySchedules.length === 0) return false;
-    return daySchedules.every(schedule => restrictedIds.has(schedule.id));
+    return daySchedules.every(schedule => restrictedKeys.has(getScheduleKey(schedule)));
   };
 
   const handleSave = async () => {
     try {
       setSaving(true);
-      await onSave(Array.from(restrictedIds));
+      // Convertir claves de vuelta a objetos de fecha/hora
+      const restrictedSchedules = Array.from(restrictedKeys)
+        .map(key => {
+          const [date, start_time, end_time] = key.split('|');
+          return { date, start_time, end_time };
+        });
+      await onSave(restrictedSchedules);
       onOpenChange(false);
     } catch (err: any) {
       console.error(err);
@@ -171,22 +184,23 @@ export function TeamScheduleRestrictionsDialog({
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         {daySchedules.map((schedule) => {
-                          const isRestricted = restrictedIds.has(schedule.id);
+                          const scheduleKey = getScheduleKey(schedule);
+                          const isRestricted = restrictedKeys.has(scheduleKey);
                           const startTime = formatTime(schedule.start_time);
                           const endTime = formatTime(schedule.end_time);
 
                           return (
                             <div
-                              key={schedule.id}
+                              key={scheduleKey}
                               className="flex items-center space-x-2 p-2 border rounded-lg hover:bg-muted/50 transition-colors"
                             >
                               <Checkbox
-                                id={`schedule-${schedule.id}`}
+                                id={`schedule-${scheduleKey}`}
                                 checked={isRestricted}
-                                onCheckedChange={() => handleToggleRestriction(schedule.id)}
+                                onCheckedChange={() => handleToggleRestriction(schedule)}
                               />
                               <Label
-                                htmlFor={`schedule-${schedule.id}`}
+                                htmlFor={`schedule-${scheduleKey}`}
                                 className="flex-1 cursor-pointer font-normal"
                               >
                                 <div className="font-medium text-sm">

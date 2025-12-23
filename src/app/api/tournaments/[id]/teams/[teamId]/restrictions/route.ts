@@ -19,7 +19,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
     }
 
     const body = await req.json();
-    const { restricted_schedule_ids } = body;
+    const { restricted_schedules } = body; // Array de { date, start_time, end_time }
 
     // Validar que el equipo existe y pertenece al usuario y torneo
     const { data: team, error: teamError } = await supabase
@@ -57,34 +57,28 @@ export async function PATCH(req: Request, { params }: RouteParams) {
       );
     }
 
-    // Validar formato de restricted_schedule_ids
-    if (!Array.isArray(restricted_schedule_ids)) {
+    // Validar formato de restricted_schedules
+    if (!Array.isArray(restricted_schedules)) {
       return NextResponse.json(
-        { error: "restricted_schedule_ids debe ser un array" },
+        { error: "restricted_schedules debe ser un array" },
         { status: 400 }
       );
     }
 
-    // Validar que todos los schedule_ids existen y pertenecen al torneo
-    if (restricted_schedule_ids.length > 0) {
-      const { data: schedules, error: schedulesError } = await supabase
-        .from("tournament_available_schedules")
-        .select("id")
-        .eq("tournament_id", tournamentId)
-        .eq("user_uid", user.id)
-        .in("id", restricted_schedule_ids);
-
-      if (schedulesError) {
-        console.error("Error validating schedules:", schedulesError);
+    // Validar cada restricción
+    for (const schedule of restricted_schedules) {
+      if (!schedule.date || !schedule.start_time || !schedule.end_time) {
         return NextResponse.json(
-          { error: "Failed to validate schedule IDs" },
-          { status: 500 }
+          { error: "Cada restricción debe tener date, start_time y end_time" },
+          { status: 400 }
         );
       }
-
-      if (schedules.length !== restricted_schedule_ids.length) {
+      
+      // Validar formato de fecha
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(schedule.date)) {
         return NextResponse.json(
-          { error: "Algunos horarios no existen o no pertenecen a este torneo" },
+          { error: "El formato de fecha debe ser YYYY-MM-DD" },
           { status: 400 }
         );
       }
@@ -106,10 +100,12 @@ export async function PATCH(req: Request, { params }: RouteParams) {
     }
 
     // Insertar nuevas restricciones
-    if (restricted_schedule_ids.length > 0) {
-      const restrictionsToInsert = restricted_schedule_ids.map((scheduleId: number) => ({
+    if (restricted_schedules.length > 0) {
+      const restrictionsToInsert = restricted_schedules.map((schedule: { date: string; start_time: string; end_time: string }) => ({
         tournament_team_id: teamId,
-        tournament_available_schedule_id: scheduleId,
+        date: schedule.date,
+        start_time: schedule.start_time,
+        end_time: schedule.end_time,
         user_uid: user.id,
       }));
 

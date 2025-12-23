@@ -147,23 +147,26 @@ export class TournamentTeamsRepository extends BaseRepository {
 
     // Obtener restricciones para cada equipo
     const teamIds = (data ?? []).map((t: any) => t.id);
-    const restrictedScheduleIdsMap = new Map<number, number[]>();
+    const restrictedSchedulesMap = new Map<number, Array<{ date: string; start_time: string; end_time: string }>>();
     
     if (teamIds.length > 0) {
       const { data: restrictions, error: restrictionsError } = await this.supabase
         .from("tournament_team_schedule_restrictions")
-        .select("tournament_team_id, tournament_available_schedule_id")
+        .select("tournament_team_id, date, start_time, end_time")
         .in("tournament_team_id", teamIds)
         .eq("user_uid", this.userId);
 
       if (!restrictionsError && restrictions) {
         restrictions.forEach((r: any) => {
           const teamId = r.tournament_team_id;
-          const scheduleId = r.tournament_available_schedule_id;
-          if (!restrictedScheduleIdsMap.has(teamId)) {
-            restrictedScheduleIdsMap.set(teamId, []);
+          if (!restrictedSchedulesMap.has(teamId)) {
+            restrictedSchedulesMap.set(teamId, []);
           }
-          restrictedScheduleIdsMap.get(teamId)!.push(scheduleId);
+          restrictedSchedulesMap.get(teamId)!.push({
+            date: r.date,
+            start_time: r.start_time,
+            end_time: r.end_time,
+          });
         });
       }
     }
@@ -173,7 +176,7 @@ export class TournamentTeamsRepository extends BaseRepository {
       ...item,
       player1: Array.isArray(item.player1) ? (item.player1[0] || undefined) : item.player1,
       player2: Array.isArray(item.player2) ? (item.player2[0] || undefined) : item.player2,
-      restricted_schedule_ids: restrictedScheduleIdsMap.get(item.id) || [],
+      restricted_schedules: restrictedSchedulesMap.get(item.id) || [],
     })) as unknown as Array<TournamentTeam & {
       player1?: { first_name: string; last_name: string };
       player2?: { first_name: string; last_name: string };

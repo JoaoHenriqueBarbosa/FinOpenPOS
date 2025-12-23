@@ -294,29 +294,23 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           // Obtener restricciones de equipos
           const { data: restrictions, error: restrictionsError } = await supabase
             .from("tournament_team_schedule_restrictions")
-            .select("tournament_team_id, tournament_available_schedule_id")
+            .select("tournament_team_id, date, start_time, end_time")
             .in("tournament_team_id", teamIds);
 
-          const teamRestrictions = new Map<number, number[]>();
+          const teamRestrictions = new Map<number, Array<{ date: string; start_time: string; end_time: string }>>();
           if (!restrictionsError && restrictions) {
             restrictions.forEach((r: any) => {
               const teamId = r.tournament_team_id;
-              const scheduleId = r.tournament_available_schedule_id;
               if (!teamRestrictions.has(teamId)) {
                 teamRestrictions.set(teamId, []);
               }
-              teamRestrictions.get(teamId)!.push(scheduleId);
+              teamRestrictions.get(teamId)!.push({
+                date: r.date,
+                start_time: r.start_time,
+                end_time: r.end_time,
+              });
             });
           }
-
-          // Obtener horarios disponibles
-          const { data: availableSchedules, error: schedulesError } = await supabase
-            .from("tournament_available_schedules")
-            .select("*")
-            .eq("tournament_id", tournamentId)
-            .eq("user_uid", user.id)
-            .order("date", { ascending: true })
-            .order("start_time", { ascending: true });
 
           const matchDurationMinutes = scheduleConfig.matchDuration || 60;
 
@@ -327,7 +321,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
             scheduleConfig.days,
             matchDurationMinutes,
             scheduleConfig.courtIds,
-            availableSchedules || undefined,
+            undefined, // availableSchedules ya no se usa (se generan on the fly)
             teamRestrictions,
             sendLog // Callback para logs
           );
