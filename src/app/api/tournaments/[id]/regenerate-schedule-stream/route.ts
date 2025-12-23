@@ -254,18 +254,21 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
           const { data: restrictions, error: restrictionsError } = await supabase
             .from("tournament_team_schedule_restrictions")
-            .select("tournament_team_id, tournament_available_schedule_id")
+            .select("tournament_team_id, date, start_time, end_time")
             .in("tournament_team_id", teamIds.length > 0 ? teamIds : [-1]); // Usar [-1] si no hay equipos para evitar error SQL
 
-          const teamRestrictions = new Map<number, number[]>();
+          const teamRestrictions = new Map<number, Array<{ date: string; start_time: string; end_time: string }>>();
           if (!restrictionsError && restrictions) {
             restrictions.forEach((r: any) => {
               const teamId = r.tournament_team_id;
-              const scheduleId = r.tournament_available_schedule_id;
               if (!teamRestrictions.has(teamId)) {
                 teamRestrictions.set(teamId, []);
               }
-              teamRestrictions.get(teamId)!.push(scheduleId);
+              teamRestrictions.get(teamId)!.push({
+                date: r.date,
+                start_time: r.start_time,
+                end_time: r.end_time,
+              });
             });
             sendLog(`Restricciones cargadas para ${teamRestrictions.size} equipos`);
           } else if (restrictionsError) {

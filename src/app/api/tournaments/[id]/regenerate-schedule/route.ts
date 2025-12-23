@@ -171,22 +171,25 @@ export async function POST(req: Request, { params }: RouteParams) {
     if (match.team2_id) teamIds.add(match.team2_id);
   });
 
-  const teamRestrictions = new Map<number, number[]>();
+  const teamRestrictions = new Map<number, Array<{ date: string; start_time: string; end_time: string }>>();
   if (teamIds.size > 0) {
     const { data: restrictions, error: restrictionsError } = await supabase
       .from("tournament_team_schedule_restrictions")
-      .select("tournament_team_id, tournament_available_schedule_id")
+      .select("tournament_team_id, date, start_time, end_time")
       .in("tournament_team_id", Array.from(teamIds))
       .eq("user_uid", user.id);
 
     if (!restrictionsError && restrictions) {
       restrictions.forEach((r: any) => {
         const teamId = r.tournament_team_id;
-        const scheduleId = r.tournament_available_schedule_id;
         if (!teamRestrictions.has(teamId)) {
           teamRestrictions.set(teamId, []);
         }
-        teamRestrictions.get(teamId)!.push(scheduleId);
+        teamRestrictions.get(teamId)!.push({
+          date: r.date,
+          start_time: r.start_time,
+          end_time: r.end_time,
+        });
       });
     }
   }

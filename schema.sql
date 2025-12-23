@@ -314,31 +314,18 @@ CREATE TABLE tournament_teams (
 );
 
 -- =========================================================
--- TOURNAMENT_AVAILABLE_SCHEDULES (horarios disponibles del torneo)
--- =========================================================
-
-CREATE TABLE tournament_available_schedules (
-    id                  BIGSERIAL PRIMARY KEY,
-    tournament_id       BIGINT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
-    user_uid            UUID NOT NULL,
-    date                DATE NOT NULL,     -- Fecha específica (ej: 2025-12-26)
-    start_time          TIME NOT NULL,     -- Hora de inicio (ej: 13:00)
-    end_time            TIME NOT NULL,      -- Hora de fin (ej: 23:00)
-    created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(tournament_id, date, start_time, end_time)
-);
-
--- =========================================================
 -- TOURNAMENT_TEAM_SCHEDULE_RESTRICTIONS (restricciones de equipos)
 -- =========================================================
 
 CREATE TABLE tournament_team_schedule_restrictions (
     id                          BIGSERIAL PRIMARY KEY,
     tournament_team_id           BIGINT NOT NULL REFERENCES tournament_teams(id) ON DELETE CASCADE,
-    tournament_available_schedule_id BIGINT NOT NULL REFERENCES tournament_available_schedules(id) ON DELETE CASCADE,
+    date                        DATE NOT NULL,
+    start_time                  TIME NOT NULL,
+    end_time                    TIME NOT NULL,
     user_uid                    UUID NOT NULL,
     created_at                  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(tournament_team_id, tournament_available_schedule_id)
+    UNIQUE(tournament_team_id, date, start_time, end_time)
 );
 
 -- =========================================================

@@ -231,27 +231,29 @@ export function calculateEndTime(startTime: string, matchDurationMinutes: number
 }
 
 // Verificar si un slot viola alguna restricción de un equipo
-// Verificar si un slot viola las restricciones de un equipo
-// restrictions es un array de IDs de horarios disponibles que el equipo NO puede jugar
+// restrictions es un array de rangos de fecha/hora que el equipo NO puede jugar
 export function slotViolatesRestriction(
   slot: TimeSlot,
-  restrictedScheduleIds: number[] | undefined,
-  availableSchedules: AvailableSchedule[]
+  restrictedSchedules: Array<{ date: string; start_time: string; end_time: string }> | undefined
 ): boolean {
-  if (!restrictedScheduleIds || restrictedScheduleIds.length === 0) return false;
-  if (!availableSchedules || availableSchedules.length === 0) return false;
+  if (!restrictedSchedules || restrictedSchedules.length === 0) return false;
 
-  // Encontrar TODOS los horarios disponibles que coinciden con este slot
-  // Un slot puede coincidir con múltiples horarios disponibles (por ejemplo, si hay slots de 1 hora que se agrupan)
-  const matchingSchedules = availableSchedules.filter((schedule) =>
-    slotMatchesAvailableSchedule(slot, schedule)
-  );
-
-  if (matchingSchedules.length === 0) return false;
-
-  // Si CUALQUIERA de los horarios que coinciden está en las restricciones, el slot está prohibido
-  // Esto es importante porque un slot puede estar dentro de múltiples horarios disponibles
-  return matchingSchedules.some((schedule) => restrictedScheduleIds.includes(schedule.id));
+  // Verificar si el slot coincide con alguna restricción
+  return restrictedSchedules.some((restriction) => {
+    // El slot viola la restricción si:
+    // 1. La fecha coincide
+    // 2. El slot está dentro del rango de la restricción (start_time <= slot.start < end_time)
+    if (slot.date !== restriction.date) return false;
+    
+    const slotStart = timeToMinutesOfDay(slot.startTime);
+    const restrictionStart = timeToMinutesOfDay(restriction.start_time);
+    const restrictionEnd = timeToMinutesOfDay(restriction.end_time);
+    
+    // Si end_time es 00:00, interpretarlo como 24:00 (fin del día)
+    const restrictionEndMinutes = restrictionEnd === 0 ? 24 * 60 : restrictionEnd;
+    
+    return slotStart >= restrictionStart && slotStart < restrictionEndMinutes;
+  });
 }
 
 // Asigna horarios directamente sobre el arreglo de matches (modificándolo)
@@ -261,7 +263,7 @@ export async function scheduleGroupMatches(
   matchDurationMinutes: number,
   courtIds: number[],
   availableSchedules?: AvailableSchedule[],
-  teamRestrictions?: Map<number, number[]>, // teamId -> restrictedScheduleIds[]
+  teamRestrictions?: Map<number, Array<{ date: string; start_time: string; end_time: string }>>, // teamId -> restrictedSchedules[]
   onLog?: (message: string) => void // Callback para logs en tiempo real
 ): Promise<SchedulerResult> {
   // Usar la heurística Beam Search (Puzzle) por defecto
