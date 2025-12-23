@@ -164,21 +164,7 @@ export async function POST(req: Request, { params }: RouteParams) {
     );
   }
 
-  // 6) Obtener horarios disponibles del torneo
-  const { data: availableSchedules, error: schedulesError } = await supabase
-    .from("tournament_available_schedules")
-    .select("*")
-    .eq("tournament_id", tournamentId)
-    .eq("user_uid", user.id)
-      .order("date", { ascending: true })
-    .order("start_time", { ascending: true });
-
-  if (schedulesError) {
-    console.error("Error fetching available schedules:", schedulesError);
-    // Continuar sin horarios disponibles (comportamiento anterior)
-  }
-
-  // 7) Obtener restricciones horarias de los equipos (IDs de horarios que no pueden jugar)
+  // 6) Obtener restricciones horarias de los equipos (IDs de horarios que no pueden jugar)
   const teamIds = new Set<number>();
   matches.forEach((match) => {
     if (match.team1_id) teamIds.add(match.team1_id);
@@ -205,7 +191,7 @@ export async function POST(req: Request, { params }: RouteParams) {
     }
   }
 
-  // 8) Asignar horarios usando el scheduler
+  // 7) Asignar horarios usando el scheduler
   const matchDurationMinutes = t.match_duration ?? 60;
 
   console.log(`Regenerating schedule for ${matchesPayload.length} matches with ${scheduleConfig.days.length} days and ${scheduleConfig.courtIds.length} courts`);
@@ -215,7 +201,7 @@ export async function POST(req: Request, { params }: RouteParams) {
     scheduleConfig.days,
     matchDurationMinutes,
     scheduleConfig.courtIds,
-    availableSchedules || undefined,
+    undefined, // Horarios disponibles ahora se generan en memoria a partir de la configuración
     teamRestrictions
   );
 

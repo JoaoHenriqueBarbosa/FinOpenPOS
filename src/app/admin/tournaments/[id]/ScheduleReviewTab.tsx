@@ -52,14 +52,8 @@ export default function ScheduleReviewTab({
     staleTime: 1000 * 30,
   });
 
-  // Cargar horarios disponibles del torneo (agrupados) para pre-llenar el diálogo de regenerar horarios
-  const {
-    data: availableSchedulesGrouped = [],
-  } = useQuery<AvailableSchedule[]>({
-    queryKey: ["tournament-available-schedules-grouped", tournament.id],
-    queryFn: () => tournamentsService.getAvailableSchedules(tournament.id, true),
-    staleTime: 1000 * 30,
-  });
+  // Los horarios disponibles ahora se generan en memoria durante la revisión de horarios
+  const availableSchedulesGrouped: AvailableSchedule[] = [];
 
   const load = () => {
     queryClient.invalidateQueries({ queryKey: ["tournament-groups", tournament.id] });
@@ -163,10 +157,29 @@ export default function ScheduleReviewTab({
               No hay horarios asignados. Generá horarios para los partidos de la fase de grupos.
             </div>
             {tournament.status === "schedule_review" && (
-              <Button onClick={handleRegenerateSchedule}>
-                <RefreshCwIcon className="h-4 w-4 mr-2" />
-                Generar horarios
-              </Button>
+              <div className="flex items-center justify-center gap-2">
+                <Button onClick={handleRegenerateSchedule}>
+                  <RefreshCwIcon className="h-4 w-4 mr-2" />
+                  Generar horarios
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => setShowDeleteDialog(true)}
+                  disabled={deleting}
+                >
+                  {deleting ? (
+                    <>
+                      <Loader2Icon className="h-4 w-4 animate-spin mr-2" />
+                      Eliminando...
+                    </>
+                  ) : (
+                    <>
+                      <TrashIcon className="h-4 w-4 mr-2" />
+                      Eliminar grupos
+                    </>
+                  )}
+                </Button>
+              </div>
             )}
             {tournament.status !== "schedule_review" && (
               <div className="text-sm text-amber-600">

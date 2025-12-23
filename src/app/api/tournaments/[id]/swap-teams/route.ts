@@ -51,13 +51,15 @@ export async function POST(req: Request, { params }: RouteParams) {
     }
 
     // Verificar que los grupos pertenecen al torneo
+    // Si ambos equipos están en la misma zona, group1Id === group2Id, así que solo necesitamos 1 grupo
+    const uniqueGroupIds = group1Id === group2Id ? [group1Id] : [group1Id, group2Id];
     const { data: groups, error: groupsError } = await supabase
       .from("tournament_groups")
       .select("id, tournament_id")
-      .in("id", [group1Id, group2Id])
+      .in("id", uniqueGroupIds)
       .eq("tournament_id", tournamentId);
 
-    if (groupsError || !groups || groups.length !== 2) {
+    if (groupsError || !groups || groups.length !== uniqueGroupIds.length) {
       return NextResponse.json({ error: "Groups not found or invalid" }, { status: 404 });
     }
 
@@ -77,7 +79,7 @@ export async function POST(req: Request, { params }: RouteParams) {
       .from("tournament_group_teams")
       .select("team_id, tournament_group_id")
       .in("team_id", [team1Id, team2Id])
-      .in("tournament_group_id", [group1Id, group2Id]);
+      .in("tournament_group_id", uniqueGroupIds);
 
     if (groupTeamsError || !groupTeams) {
       return NextResponse.json({ error: "Error verifying team-group assignments" }, { status: 500 });
@@ -134,43 +136,47 @@ export async function POST(req: Request, { params }: RouteParams) {
     }
 
     // Intercambiar referencias en tournament_group_teams
-    // Remover team1 de group1 y agregarlo a group2
-    // Remover team2 de group2 y agregarlo a group1
-    updates.push(
-      supabase
-        .from("tournament_group_teams")
-        .delete()
-        .eq("team_id", team1Id)
-        .eq("tournament_group_id", group1Id)
-    );
+    // Solo si los equipos están en grupos diferentes
+    if (group1Id !== group2Id) {
+      // Remover team1 de group1 y agregarlo a group2
+      // Remover team2 de group2 y agregarlo a group1
+      updates.push(
+        supabase
+          .from("tournament_group_teams")
+          .delete()
+          .eq("team_id", team1Id)
+          .eq("tournament_group_id", group1Id)
+      );
 
-    updates.push(
-      supabase
-        .from("tournament_group_teams")
-        .delete()
-        .eq("team_id", team2Id)
-        .eq("tournament_group_id", group2Id)
-    );
+      updates.push(
+        supabase
+          .from("tournament_group_teams")
+          .delete()
+          .eq("team_id", team2Id)
+          .eq("tournament_group_id", group2Id)
+      );
 
-    updates.push(
-      supabase
-        .from("tournament_group_teams")
-        .insert({
-          team_id: team1Id,
-          tournament_group_id: group2Id,
-          user_uid: user.id,
-        })
-    );
+      updates.push(
+        supabase
+          .from("tournament_group_teams")
+          .insert({
+            team_id: team1Id,
+            tournament_group_id: group2Id,
+            user_uid: user.id,
+          })
+      );
 
-    updates.push(
-      supabase
-        .from("tournament_group_teams")
-        .insert({
-          team_id: team2Id,
-          tournament_group_id: group1Id,
-          user_uid: user.id,
-        })
-    );
+      updates.push(
+        supabase
+          .from("tournament_group_teams")
+          .insert({
+            team_id: team2Id,
+            tournament_group_id: group1Id,
+            user_uid: user.id,
+          })
+      );
+    }
+    // Si ambos equipos están en el mismo grupo, no necesitamos cambiar tournament_group_teams
 
     await Promise.all(updates);
 

@@ -274,35 +274,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
             sendLog("No hay restricciones de equipos configuradas");
           }
 
-          // 6) Obtener horarios disponibles
-          sendLog("Obteniendo horarios disponibles del torneo...");
-          let availableSchedules: any[] | null = null;
-          try {
-            sendLog("Ejecutando consulta a Supabase...");
-            const { data, error: schedulesError } = await supabase
-              .from("tournament_available_schedules")
-              .select("*")
-              .eq("tournament_id", tournamentId)
-              .eq("user_uid", user.id)
-              .order("date", { ascending: true })
-              .order("start_time", { ascending: true });
-
-            sendLog("Consulta a Supabase completada");
-            
-            if (schedulesError) {
-              sendLog(`⚠️ Error al obtener horarios disponibles: ${schedulesError.message}`);
-            } else {
-              availableSchedules = data;
-              sendLog(`Horarios disponibles: ${availableSchedules?.length || 0} slots`);
-            }
-          } catch (error: any) {
-            sendLog(`❌ Excepción al obtener horarios: ${error.message || error.toString()}`);
-            sendError(`Error al obtener horarios disponibles: ${error.message || error.toString()}`);
-            console.error("Error getting available schedules:", error);
-            return;
-          }
-          
-          sendLog("Continuando después de obtener horarios disponibles...");
+          // 6) Horarios disponibles: ahora se generan en memoria desde la configuración recibida
+          sendLog("Horarios disponibles: se generan en memoria a partir de la configuración de días/canchas");
+          const availableSchedules = undefined;
 
           const matchDurationMinutes = scheduleConfig.matchDuration || 60;
           sendLog(`Duración de partidos: ${matchDurationMinutes} minutos`);
