@@ -471,6 +471,9 @@ export function GroupScheduleViewer({
       multiDayTeams: number;
     }>();
 
+    // Set por zona para contar equipos únicos que juegan en múltiples días
+    const multiDayTeamsByZone = new Map<number, Set<number>>();
+
     scheduledMatches.forEach((match) => {
       if (!match.tournament_group_id) return;
       
@@ -489,6 +492,7 @@ export function GroupScheduleViewer({
           problemMatches: 0,
           multiDayTeams: 0,
         });
+        multiDayTeamsByZone.set(match.tournament_group_id, new Set());
       }
 
       const metrics = zoneMetrics.get(match.tournament_group_id)!;
@@ -509,15 +513,20 @@ export function GroupScheduleViewer({
         metrics.problemMatches++;
       }
 
-      // Contar equipos que juegan en múltiples días
-      if (multiDayInfo.team1PlaysMultipleDays) metrics.multiDayTeams++;
-      if (multiDayInfo.team2PlaysMultipleDays) metrics.multiDayTeams++;
+      // Agregar equipos únicos que juegan en múltiples días al Set de la zona
+      if (match.team1?.id && multiDayInfo.team1PlaysMultipleDays) {
+        multiDayTeamsByZone.get(match.tournament_group_id)!.add(match.team1.id);
+      }
+      if (match.team2?.id && multiDayInfo.team2PlaysMultipleDays) {
+        multiDayTeamsByZone.get(match.tournament_group_id)!.add(match.team2.id);
+      }
     });
 
-    // Calcular promedios por zona
-    zoneMetrics.forEach((metrics) => {
+    // Calcular promedios por zona y asignar el conteo de equipos únicos
+    zoneMetrics.forEach((metrics, groupId) => {
       metrics.avgMaxDiff = metrics.countMaxDiff > 0 ? metrics.totalMaxDiff / metrics.countMaxDiff : 0;
       metrics.avgMinDiff = metrics.countMinDiff > 0 ? metrics.totalMinDiff / metrics.countMinDiff : 0;
+      metrics.multiDayTeams = multiDayTeamsByZone.get(groupId)?.size ?? 0;
     });
 
     // 3. Otras métricas
@@ -992,12 +1001,14 @@ export function GroupScheduleViewer({
                           </Badge>
                         </TableCell>
                         <TableCell className={`font-medium ${
+                          multiDayInfo.team1PlaysMultipleDays ? 'bg-red-100 text-red-800 font-bold' :
                           team1MaxDiff !== null ? getTeamHighlightClass(team1MaxDiff) : 
                           (minDiff !== null) ? getTeamHighlightClass(minDiff) : ''
                         }`}>
                           {teamLabel(match.team1, match.match_order, true)}
                         </TableCell>
                         <TableCell className={`font-medium ${
+                          multiDayInfo.team2PlaysMultipleDays ? 'bg-red-100 text-red-800 font-bold' :
                           team2MaxDiff !== null ? getTeamHighlightClass(team2MaxDiff) : 
                           (minDiff !== null) ? getTeamHighlightClass(minDiff) : ''
                         }`}>
@@ -1067,12 +1078,14 @@ export function GroupScheduleViewer({
                         </TableCell>
                         <TableCell className="text-center">
                           {hasMultiDayTeam ? (
-                            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                            <Badge variant="outline" className="bg-red-100 text-red-800 border-red-200">
                               Sí
                               {multiDayInfo.team1PlaysMultipleDays && multiDayInfo.team2PlaysMultipleDays && " (ambos)"}
                             </Badge>
                           ) : (
-                            <span className="text-muted-foreground">No</span>
+                            <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200">
+                              No
+                            </Badge>
                           )}
                         </TableCell>
                       </TableRow>
