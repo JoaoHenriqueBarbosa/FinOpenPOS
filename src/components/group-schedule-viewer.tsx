@@ -106,6 +106,25 @@ function formatTimeDiff(minutes: number | null): string {
   return mins > 0 ? `${hours}h ${mins}min` : `${hours}h`;
 }
 
+// Obtener clases CSS para el highlight del equipo basado en la diferencia
+function getTeamHighlightClass(diff: number | null): string {
+  if (diff === null) return "";
+  
+  // Misma lógica que el Badge de diff
+  if (diff <= 60 || diff > 240) {
+    // Rojo para <= 1h o > 4h
+    return "bg-red-100 text-red-800 font-bold";
+  } else if (diff === 240) {
+    // Amarillo para 4h exactas
+    return "bg-yellow-100 text-yellow-800 font-bold";
+  } else if (diff >= 120 && diff <= 180) {
+    // Verde para 2-3h (incluyendo 180 minutos = 3h)
+    return "bg-green-100 text-green-800 font-bold";
+  }
+  // Por defecto, sin highlight especial
+  return "";
+}
+
 export function GroupScheduleViewer({
   open,
   onOpenChange,
@@ -178,19 +197,64 @@ export function GroupScheduleViewer({
 
   // Calcular diferencias de tiempo para cada partido (mínima y máxima diferencia con otro partido del mismo equipo en el mismo día)
   const matchTimeDiffs = useMemo(() => {
-    const diffs = new Map<number, { minDiff: number | null; maxDiff: number | null; teamWithMaxDiff: 'team1' | 'team2' | null }>(); // matchId -> { minDiff, maxDiff, teamWithMaxDiff }
+    // Función auxiliar para obtener equipos lógicos de un partido (para grupos de 4)
+    // Retorna un array de IDs de equipos que representan lógicamente a este partido
+    const getLogicalTeamIds = (match: MatchDTO): number[] => {
+      // Si el partido tiene equipos reales, usarlos
+      if (match.team1?.id && match.team2?.id) {
+        return [match.team1.id, match.team2.id];
+      }
+      
+      // Si es un partido de ganadores/perdedores (match_order 3 o 4) sin equipos asignados
+      if ((match.match_order === 3 || match.match_order === 4) && match.tournament_group_id) {
+        // Buscar los partidos con match_order 1 y 2 del mismo grupo
+        const match1 = scheduledMatches.find(
+          m => m.tournament_group_id === match.tournament_group_id && m.match_order === 1
+        );
+        const match2 = scheduledMatches.find(
+          m => m.tournament_group_id === match.tournament_group_id && m.match_order === 2
+        );
+        
+        if (match1 && match2 && match1.team1?.id && match1.team2?.id && match2.team1?.id && match2.team2?.id) {
+          // Para match_order 3 (GANADOR 1 vs GANADOR 2): los equipos pueden ser cualquiera de los 4
+          // Para match_order 4 (PERDEDOR 1 vs PERDEDOR 2): los equipos pueden ser cualquiera de los 4
+          // Retornamos todos los equipos de los partidos 1 y 2 para que se consideren en el cálculo
+          return [match1.team1.id, match1.team2.id, match2.team1.id, match2.team2.id];
+        }
+      }
+      
+      return [];
+    };
+
+    // Función auxiliar para verificar si algún equipo lógico de un partido juega en otro partido
+    const teamsOverlap = (match1: MatchDTO, match2: MatchDTO): boolean => {
+      const teams1 = getLogicalTeamIds(match1);
+      const teams2 = getLogicalTeamIds(match2);
+      
+      // Verificar si hay intersección entre los equipos lógicos
+      return teams1.some(t1 => teams2.includes(t1));
+    };
+    const diffs = new Map<number, { minDiff: number | null; maxDiff: number | null; teamWithMaxDiff: 'team1' | 'team2' | null; team1MaxDiff: number | null; team2MaxDiff: number | null }>(); // matchId -> { minDiff, maxDiff, teamWithMaxDiff, team1MaxDiff, team2MaxDiff }
     
     scheduledMatches.forEach((match) => {
-      if (!match.team1?.id || !match.team2?.id || !match.match_date || !match.start_time) {
-        diffs.set(match.id, { minDiff: null, maxDiff: null, teamWithMaxDiff: null });
+      if (!match.match_date || !match.start_time) {
+        diffs.set(match.id, { minDiff: null, maxDiff: null, teamWithMaxDiff: null, team1MaxDiff: null, team2MaxDiff: null });
         return;
       }
       
-      const team1Id = match.team1.id;
-      const team2Id = match.team2.id;
+      const logicalTeamIds = getLogicalTeamIds(match);
+      
+      if (logicalTeamIds.length === 0) {
+        diffs.set(match.id, { minDiff: null, maxDiff: null, teamWithMaxDiff: null, team1MaxDiff: null, team2MaxDiff: null });
+        return;
+      }
+      
+      // Para cada equipo lógico, calcular su máxima diferencia
+      const teamMaxDiffs = new Map<number, number>(); // teamId -> maxDiff
       let minDiff: number | null = null;
-      let team1MaxDiff: number | null = null;
-      let team2MaxDiff: number | null = null;
+      
+      // Determinar si el partido actual es de ganadores/perdedores (sin equipos reales)
+      const isMatchWithoutRealTeams = (match.match_order === 3 || match.match_order === 4) && !match.team1?.id && !match.team2?.id;
       
       // Buscar otros partidos del mismo equipo en el mismo día
       scheduledMatches.forEach((otherMatch) => {
@@ -198,11 +262,16 @@ export function GroupScheduleViewer({
         if (otherMatch.match_date !== match.match_date) return;
         if (!otherMatch.start_time) return;
         
-        // Verificar si alguno de los equipos del match actual juega en otherMatch
-        const team1Plays = otherMatch.team1?.id === team1Id || otherMatch.team2?.id === team1Id;
-        const team2Plays = otherMatch.team1?.id === team2Id || otherMatch.team2?.id === team2Id;
+        // Si el partido actual es de ganadores/perdedores, solo comparar con partidos que tienen equipos reales
+        if (isMatchWithoutRealTeams) {
+          // Solo comparar con partidos que tienen equipos asignados (no con otros partidos de ganadores/perdedores)
+          if (!otherMatch.team1?.id || !otherMatch.team2?.id) {
+            return; // Saltar partidos sin equipos reales
+          }
+        }
         
-        if (team1Plays || team2Plays) {
+        // Verificar si hay equipos en común entre los dos partidos
+        if (teamsOverlap(match, otherMatch)) {
           const diff = calculateTimeDiff(
             match.match_date,
             match.start_time,
@@ -216,17 +285,16 @@ export function GroupScheduleViewer({
               minDiff = diff;
             }
             
-            // Actualizar máxima diferencia por equipo
-            if (team1Plays) {
-              if (team1MaxDiff === null || diff > team1MaxDiff) {
-                team1MaxDiff = diff;
+            // Actualizar máxima diferencia para cada equipo lógico que participa
+            logicalTeamIds.forEach(teamId => {
+              const otherLogicalTeamIds = getLogicalTeamIds(otherMatch);
+              if (otherLogicalTeamIds.includes(teamId)) {
+                const currentMax = teamMaxDiffs.get(teamId);
+                if (currentMax === undefined || diff > currentMax) {
+                  teamMaxDiffs.set(teamId, diff);
+                }
               }
-            }
-            if (team2Plays) {
-              if (team2MaxDiff === null || diff > team2MaxDiff) {
-                team2MaxDiff = diff;
-              }
-            }
+            });
           }
         }
       });
@@ -235,23 +303,69 @@ export function GroupScheduleViewer({
       let maxDiff: number | null = null;
       let teamWithMaxDiff: 'team1' | 'team2' | null = null;
       
-      if (team1MaxDiff !== null && team2MaxDiff !== null) {
-        if (team1MaxDiff >= team2MaxDiff) {
+      // Si el partido tiene equipos reales, usar team1 y team2
+      let team1MaxDiff: number | null = null;
+      let team2MaxDiff: number | null = null;
+      
+      if (match.team1?.id && match.team2?.id) {
+        team1MaxDiff = teamMaxDiffs.get(match.team1.id) ?? null;
+        team2MaxDiff = teamMaxDiffs.get(match.team2.id) ?? null;
+        
+        if (team1MaxDiff !== null && team2MaxDiff !== null) {
+          if (team1MaxDiff >= team2MaxDiff) {
+            maxDiff = team1MaxDiff;
+            teamWithMaxDiff = 'team1';
+          } else {
+            maxDiff = team2MaxDiff;
+            teamWithMaxDiff = 'team2';
+          }
+        } else if (team1MaxDiff !== null) {
           maxDiff = team1MaxDiff;
           teamWithMaxDiff = 'team1';
-        } else {
+        } else if (team2MaxDiff !== null) {
           maxDiff = team2MaxDiff;
           teamWithMaxDiff = 'team2';
         }
-      } else if (team1MaxDiff !== null) {
-        maxDiff = team1MaxDiff;
-        teamWithMaxDiff = 'team1';
-      } else if (team2MaxDiff !== null) {
-        maxDiff = team2MaxDiff;
-        teamWithMaxDiff = 'team2';
+      } else {
+        // Para partidos sin equipos reales, usar la máxima diferencia de todos los equipos lógicos
+        let maxTeamId: number | null = null;
+        let maxTeamDiff: number | null = null;
+        
+        teamMaxDiffs.forEach((diff, teamId) => {
+          if (maxTeamDiff === null || diff > maxTeamDiff) {
+            maxTeamDiff = diff;
+            maxTeamId = teamId;
+          }
+        });
+        
+        if (maxTeamDiff !== null) {
+          maxDiff = maxTeamDiff;
+          // Determinar si corresponde a team1 o team2 basado en el match_order
+          if (match.match_order === 3) {
+            // GANADOR 1 vs GANADOR 2: usar team1 si es del match_order 1, team2 si es del match_order 2
+            const match1 = scheduledMatches.find(
+              m => m.tournament_group_id === match.tournament_group_id && m.match_order === 1
+            );
+            if (match1 && (match1.team1?.id === maxTeamId || match1.team2?.id === maxTeamId)) {
+              teamWithMaxDiff = 'team1';
+            } else {
+              teamWithMaxDiff = 'team2';
+            }
+          } else if (match.match_order === 4) {
+            // PERDEDOR 1 vs PERDEDOR 2: usar team1 si es del match_order 1, team2 si es del match_order 2
+            const match1 = scheduledMatches.find(
+              m => m.tournament_group_id === match.tournament_group_id && m.match_order === 1
+            );
+            if (match1 && (match1.team1?.id === maxTeamId || match1.team2?.id === maxTeamId)) {
+              teamWithMaxDiff = 'team1';
+            } else {
+              teamWithMaxDiff = 'team2';
+            }
+          }
+        }
       }
       
-      diffs.set(match.id, { minDiff, maxDiff, teamWithMaxDiff });
+      diffs.set(match.id, { minDiff, maxDiff, teamWithMaxDiff, team1MaxDiff, team2MaxDiff });
     });
     
     return diffs;
@@ -378,7 +492,7 @@ export function GroupScheduleViewer({
       }
 
       const metrics = zoneMetrics.get(match.tournament_group_id)!;
-      const diffInfo = matchTimeDiffs.get(match.id) ?? { minDiff: null, maxDiff: null, teamWithMaxDiff: null };
+      const diffInfo = matchTimeDiffs.get(match.id) ?? { minDiff: null, maxDiff: null, teamWithMaxDiff: null, team1MaxDiff: null, team2MaxDiff: null };
       const multiDayInfo = matchMultiDayInfo.get(match.id) ?? { team1PlaysMultipleDays: false, team2PlaysMultipleDays: false };
 
       if (diffInfo.maxDiff !== null) {
@@ -839,10 +953,12 @@ export function GroupScheduleViewer({
                     const isSelected1 = selectedMatch1 === match.id;
                     const isSelected2 = selectedMatch2 === match.id;
                     const isSelected = isSelected1 || isSelected2;
-                    const diffInfo = matchTimeDiffs.get(match.id) ?? { minDiff: null, maxDiff: null, teamWithMaxDiff: null };
+                    const diffInfo = matchTimeDiffs.get(match.id) ?? { minDiff: null, maxDiff: null, teamWithMaxDiff: null, team1MaxDiff: null, team2MaxDiff: null };
                     const minDiff = diffInfo.minDiff;
                     const maxDiff = diffInfo.maxDiff;
                     const teamWithMaxDiff = diffInfo.teamWithMaxDiff;
+                    const team1MaxDiff = diffInfo.team1MaxDiff;
+                    const team2MaxDiff = diffInfo.team2MaxDiff;
                     const multiDayInfo = matchMultiDayInfo.get(match.id) ?? { team1PlaysMultipleDays: false, team2PlaysMultipleDays: false };
                     const hasMultiDayTeam = multiDayInfo.team1PlaysMultipleDays || multiDayInfo.team2PlaysMultipleDays;
                     const groupInfo = match.tournament_group_id
@@ -876,12 +992,14 @@ export function GroupScheduleViewer({
                           </Badge>
                         </TableCell>
                         <TableCell className={`font-medium ${
-                          teamWithMaxDiff === 'team1' ? 'bg-yellow-100 font-bold' : ''
+                          team1MaxDiff !== null ? getTeamHighlightClass(team1MaxDiff) : 
+                          (minDiff !== null) ? getTeamHighlightClass(minDiff) : ''
                         }`}>
                           {teamLabel(match.team1, match.match_order, true)}
                         </TableCell>
                         <TableCell className={`font-medium ${
-                          teamWithMaxDiff === 'team2' ? 'bg-yellow-100 font-bold' : ''
+                          team2MaxDiff !== null ? getTeamHighlightClass(team2MaxDiff) : 
+                          (minDiff !== null) ? getTeamHighlightClass(minDiff) : ''
                         }`}>
                           {teamLabel(match.team2, match.match_order, false)}
                         </TableCell>
@@ -918,7 +1036,7 @@ export function GroupScheduleViewer({
                               className={
                                 minDiff <= 60 || minDiff > 240 ? "" : // rojo (destructive)
                                 minDiff === 240 ? "bg-yellow-100 text-yellow-800 border-yellow-200" : // amarillo para 4h
-                                minDiff >= 120 && minDiff < 180 ? "bg-green-100 text-green-800 border-green-200" : "" // verde para 2-3h
+                                minDiff >= 120 && minDiff <= 180 ? "bg-green-100 text-green-800 border-green-200" : "" // verde para 2-3h (incluyendo 180 min = 3h)
                               }
                             >
                               {formatTimeDiff(minDiff)}
@@ -938,7 +1056,7 @@ export function GroupScheduleViewer({
                               className={
                                 maxDiff <= 60 || maxDiff > 240 ? "" : // rojo (destructive)
                                 maxDiff === 240 ? "bg-yellow-100 text-yellow-800 border-yellow-200" : // amarillo para 4h
-                                maxDiff >= 120 && maxDiff < 180 ? "bg-green-100 text-green-800 border-green-200" : "" // verde para 2-3h
+                                maxDiff >= 120 && maxDiff <= 180 ? "bg-green-100 text-green-800 border-green-200" : "" // verde para 2-3h (incluyendo 180 min = 3h)
                               }
                             >
                               {formatTimeDiff(maxDiff)}

@@ -41,58 +41,6 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         }
       : undefined;
     
-    // Si no hay scheduleConfig pero hay horarios disponibles del torneo, usarlos automáticamente
-    if (!scheduleConfig) {
-      const { data: availableSchedules, error: schedulesError } = await supabase
-        .from("tournament_available_schedules")
-        .select("*")
-        .eq("tournament_id", tournamentId)
-        .eq("user_uid", user.id)
-        .order("date", { ascending: true })
-        .order("start_time", { ascending: true });
-
-      if (!schedulesError && availableSchedules && availableSchedules.length > 0) {
-        // Agrupar slots consecutivos de la misma fecha en rangos
-        const groupedSchedules = new Map<string, { date: string; start_time: string; end_time: string }>();
-        
-        availableSchedules.forEach((schedule: any) => {
-          const dateKey = schedule.date;
-          if (!groupedSchedules.has(dateKey)) {
-            groupedSchedules.set(dateKey, {
-              date: schedule.date,
-              start_time: schedule.start_time,
-              end_time: schedule.end_time,
-            });
-          } else {
-            const existing = groupedSchedules.get(dateKey)!;
-            // Extender el rango si el slot es consecutivo
-            if (schedule.end_time > existing.end_time) {
-              existing.end_time = schedule.end_time;
-            }
-          }
-        });
-
-        // Obtener canchas activas
-        const { data: courts, error: courtsError } = await supabase
-          .from("courts")
-          .select("id")
-          .eq("active", true)
-          .eq("user_uid", user.id);
-
-        if (!courtsError && courts && courts.length > 0) {
-          scheduleConfig = {
-            days: Array.from(groupedSchedules.values()).map(s => ({
-              date: s.date,
-              startTime: s.start_time,
-              endTime: s.end_time,
-            })),
-            matchDuration: 60, // Default
-            courtIds: courts.map(c => c.id),
-          };
-        }
-      }
-    }
-
     if (!scheduleConfig || !scheduleConfig.days.length || !scheduleConfig.courtIds.length) {
       return new Response(
         JSON.stringify({ error: "Configuración de horarios o canchas inválida" }),
