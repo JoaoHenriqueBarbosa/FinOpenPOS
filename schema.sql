@@ -198,6 +198,25 @@ CREATE TABLE court_slot_day_notes (
 );
 
 -- =========================================================
+-- COURT_PRICING (precios por cancha y horario)
+-- =========================================================
+
+CREATE TABLE court_pricing (
+    id              BIGSERIAL PRIMARY KEY,
+    user_uid        UUID NOT NULL,
+    court_id        BIGINT NOT NULL REFERENCES courts(id) ON DELETE CASCADE,
+    start_time      TIME NOT NULL,             -- hora de inicio del rango (ej: 13:00)
+    end_time        TIME NOT NULL,             -- hora de fin del rango (ej: 19:00)
+    price_per_player NUMERIC(10, 2) NOT NULL CHECK (price_per_player >= 0),
+    created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (user_uid, court_id, start_time, end_time)
+);
+
+CREATE INDEX idx_court_pricing_court_id ON court_pricing(court_id);
+CREATE INDEX idx_court_pricing_time_range ON court_pricing(start_time, end_time);
+
+-- =========================================================
 -- TRANSACTIONS (movimientos de caja del buffet)
 -- =========================================================
 
