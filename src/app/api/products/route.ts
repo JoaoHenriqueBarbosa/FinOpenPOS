@@ -16,7 +16,13 @@ export async function GET(request: Request) {
       onlyActive,
     });
 
-    return NextResponse.json(products);
+    // Transformar ProductDB a ProductDTO con categoría normalizada
+    const productsWithCategory = products.map((p: any) => ({
+      ...p,
+      category: Array.isArray(p.category) ? (p.category[0] || null) : (p.category || null),
+    }));
+
+    return NextResponse.json(productsWithCategory);
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

@@ -41,6 +41,7 @@ import type { ProductDTO } from "@/models/dto/product";
 import type { PaymentMethodDTO } from "@/models/dto/payment-method";
 import { productsService, paymentMethodsService, playersService, ordersService } from "@/services";
 import type { PlayerDTO } from "@/models/dto/player";
+import { ProductSelector } from "@/components/product-selector/ProductSelector";
 
 // Función para obtener o crear el cliente genérico de venta rápida
 async function getOrCreateQuickSalePlayer(): Promise<PlayerDTO> {
@@ -274,8 +275,6 @@ export default function QuickSalePage() {
     );
   }
 
-  // Filtrar solo productos activos
-  const activeProducts = products.filter((p) => p.is_active);
 
   return (
     <div className="space-y-6">
@@ -307,26 +306,11 @@ export default function QuickSalePage() {
             <Label className="text-base font-semibold mb-3 block">
               Productos disponibles
             </Label>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-              {activeProducts.map((product) => (
-                <Button
-                  key={product.id}
-                  variant="outline"
-                  className="flex flex-col items-start h-auto p-3"
-                  onClick={() => handleAddProduct(product)}
-                >
-                  <div className="font-medium text-sm">{product.name}</div>
-                  <div className="text-xs text-muted-foreground mt-1">
-                    ${product.price.toFixed(2)}
-                  </div>
-                </Button>
-              ))}
-              {activeProducts.length === 0 && (
-                <div className="col-span-full text-center text-muted-foreground py-4">
-                  No hay productos disponibles
-                </div>
-              )}
-            </div>
+            <ProductSelector
+              products={products}
+              onProductSelect={handleAddProduct}
+              disabled={isProcessing}
+            />
           </div>
 
           {/* Carrito */}

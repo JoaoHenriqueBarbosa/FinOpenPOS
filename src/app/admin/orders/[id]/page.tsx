@@ -44,6 +44,7 @@ import type { OrderDTO, OrderItemDTO, OrderStatus } from "@/models/dto/order";
 import type { ProductDTO } from "@/models/dto/product";
 import type { PaymentMethodDTO } from "@/models/dto/payment-method";
 import { ordersService, productsService, paymentMethodsService } from "@/services";
+import { ProductSelector } from "@/components/product-selector/ProductSelector";
 
 async function fetchOrder(orderId: number): Promise<OrderDTO> {
   return ordersService.getById(orderId);
@@ -76,11 +77,9 @@ export default function OrderDetailPage() {
   const [savingChanges, setSavingChanges] = useState(false);
 
 
-  // UI state para agregar ítem
-  const [selectedProductId, setSelectedProductId] = useState<number | "none">(
-    "none"
-  );
-  const [newItemQty, setNewItemQty] = useState<number | "">("");
+  // UI state para agregar ítem (ya no se usa selectedProductId)
+  const [newItemQty, setNewItemQty] = useState<number | "">(1);
+  const [moreProductsSelectValue, setMoreProductsSelectValue] = useState<string>("none");
 
   // UI pago
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<
@@ -516,28 +515,19 @@ export default function OrderDetailPage() {
     [displayOrder, orderId, order, isOrderOpen]
   );
 
-  const handleAddItem = useCallback(() => {
+  // Nueva función para agregar producto directamente desde el selector
+  // Si viene de "Más productos", usa cantidad 1, sino usa newItemQty
+  const handleProductSelect = useCallback((product: ProductDTO, quantity?: number) => {
     if (!displayOrder || !orderId || !order || !isOrderOpen) return;
 
-    if (selectedProductId === "none") {
-      toast.error("Elegí un producto.");
-      return;
-    }
-
-    const qty =
-      typeof newItemQty === "string" ? Number(newItemQty) : newItemQty;
+    const qty = quantity !== undefined ? quantity : (typeof newItemQty === "string" ? Number(newItemQty) : newItemQty || 1);
 
     if (!qty || qty <= 0) {
       toast.error("Cantidad inválida.");
       return;
     }
 
-    const productIdNumber = Number(selectedProductId);
-    const product = products.find((p) => p.id === productIdNumber);
-    if (!product) {
-      toast.error("Producto no encontrado.");
-      return;
-    }
+    const productIdNumber = product.id;
 
     // Buscar si ya existe un item con ese producto en la orden
     const existingItem = (order.items ?? []).find(
@@ -548,9 +538,7 @@ export default function OrderDetailPage() {
       // Si existe, sumamos la cantidad al mismo ítem usando updateItemQuantity
       updateItemQuantity(existingItem, existingItem.quantity + qty);
 
-      // limpiamos UI
-      setSelectedProductId("none");
-      setNewItemQty("");
+      // limpiamos UI (mantener cantidad para siguiente producto)
       return;
     }
 
@@ -574,9 +562,7 @@ export default function OrderDetailPage() {
       items: [...(order.items ?? []), optimisticItem],
     });
 
-    // Limpiar UI inmediatamente
-    setSelectedProductId("none");
-    setNewItemQty("");
+    // Mantener cantidad para siguiente producto
 
     // Agregar a la cola de cambios pendientes
     pendingChangesRef.current.push({ 
@@ -589,14 +575,16 @@ export default function OrderDetailPage() {
   }, [
     displayOrder,
     orderId,
-    selectedProductId,
     newItemQty,
-    addItemMutation,
     updateItemQuantity,
     order,
-    products,
     isOrderOpen,
   ]);
+
+  // Función legacy para compatibilidad (ya no se usa)
+  const handleAddItem = useCallback(() => {
+    toast.error("Usá el selector de productos para agregar items.");
+  }, []);
 
   // Limpiar cambios pendientes al desmontar (opcional: podrías guardar antes de desmontar)
   useEffect(() => {
@@ -693,7 +681,7 @@ export default function OrderDetailPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4 p-4">
+    <div className="flex flex-col gap-4 p-6 w-full">
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
@@ -736,7 +724,7 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-[2fr_1fr] items-start">
+      <div className="grid gap-4 md:grid-cols-[4fr_1fr] lg:grid-cols-[5fr_1fr] items-start">
         {/* Items de la cuenta */}
         <Card className={!isOrderOpen ? "opacity-75" : ""}>
           <CardHeader>
@@ -886,64 +874,61 @@ export default function OrderDetailPage() {
                 )}
               </Button>
             )}
-            <div className="flex flex-wrap items-end gap-4">
-              <div className="flex flex-col gap-2 min-w-[220px]">
-                <Label>Producto</Label>
+            <div className="space-y-6 w-full">
+              {/* Productos por categoría */}
+              <div>
+                <Label className="text-sm font-semibold mb-3 block">
+                  Productos por categoría
+                </Label>
+                <ProductSelector
+                  products={products}
+                  onProductSelect={(product) => handleProductSelect(product)}
+                  disabled={!isOrderOpen || loadingProducts}
+                  showSearch={false}
+                  compact={true}
+                />
+              </div>
+
+              {/* Más productos - Select dropdown */}
+              <div className="border-t pt-4">
+                <Label className="text-sm font-semibold mb-2 block">
+                  Más productos
+                </Label>
                 <Select
-                  value={
-                    selectedProductId === "none"
-                      ? "none"
-                      : String(selectedProductId)
-                  }
+                  value={moreProductsSelectValue}
                   onValueChange={(value) => {
-                    if (value === "none") setSelectedProductId("none");
-                    else setSelectedProductId(Number(value));
+                    if (value !== "none") {
+                      const product = products.find((p) => p.id === Number(value));
+                      if (product) {
+                        handleProductSelect(product, 1); // Siempre cantidad 1 desde "Más productos"
+                        // Resetear el select después de agregar
+                        setMoreProductsSelectValue("none");
+                      }
+                    } else {
+                      setMoreProductsSelectValue("none");
+                    }
                   }}
                   disabled={!isOrderOpen || loadingProducts}
                 >
                   <SelectTrigger>
-                    <SelectValue
-                      placeholder={
-                        loadingProducts
-                          ? "Cargando productos..."
-                          : "Elegir producto"
-                      }
-                    />
+                    <SelectValue placeholder="Seleccionar producto adicional..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Seleccionar...</SelectItem>
-                    {products.map((p) => (
-                      <SelectItem key={p.id} value={String(p.id)}>
-                        {p.name} (${p.price.toFixed(2)})
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="none">Seleccionar producto...</SelectItem>
+                    {products
+                      .filter((p) => p.is_active)
+                      .map((p) => (
+                        <SelectItem key={p.id} value={String(p.id)}>
+                          {p.name} - ${p.price.toFixed(2)}
+                          {p.category && ` (${p.category.name})`}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Los productos seleccionados aquí se agregan con cantidad 1. Podés ajustar la cantidad desde la lista de consumos.
+                </p>
               </div>
-              <div className="flex flex-col gap-2 w-24">
-                <Label>Cantidad</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={newItemQty}
-                  disabled={!isOrderOpen}
-                  onChange={(e) =>
-                    setNewItemQty(
-                      e.target.value === "" ? "" : Number(e.target.value)
-                    )
-                  }
-                />
-              </div>
-              <Button
-                className="mt-6"
-                onClick={handleAddItem}
-                disabled={
-                  !isOrderOpen ||
-                  selectedProductId === "none"
-                }
-              >
-                Agregar
-              </Button>
             </div>
           </CardFooter>
         </Card>
