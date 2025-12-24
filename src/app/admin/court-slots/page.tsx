@@ -329,6 +329,7 @@ export default function CourtSlotsPage() {
             <ColorLegend
               paymentMethods={paymentMethods}
               isLoadingPayments={loadingPayments}
+              courts={courts}
             />
 
             <CourtSlotTable
