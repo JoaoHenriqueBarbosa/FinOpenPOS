@@ -32,6 +32,7 @@ const pageNames: { [key: string]: string } = {
   "/admin/product-categories": "Categorias de Productos",
   "/admin/orders": "Cuentas abiertas",
   "/admin/orders/[id]": "Cuenta",
+  "/admin/quick-sale": "Venta rápida",
   "/admin/purchases": "Compras",
   "/admin/suppliers": "Proveedores",
   "/admin/purchases-history": "Historial de compras",
@@ -153,7 +154,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
       {/* Layout sin sidebar - solo contenido */}
       <div className="flex flex-col sm:gap-4 sm:py-4">
         {/* Contenido principal */}
-        <main className="flex-1 p-4 sm:px-6 sm:py-0">{children}</main>
+        <main className="flex-1 p-2 sm:px-4 sm:py-0">{children}</main>
       </div>
     </div>
   );

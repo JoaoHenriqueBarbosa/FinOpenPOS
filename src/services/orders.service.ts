@@ -17,7 +17,7 @@ export interface UpdateOrderInput {
 }
 
 export interface AddOrderItemInput {
-  product_id: number;
+  productId: number;
   quantity: number;
 }
 
@@ -147,6 +147,25 @@ class OrdersService {
     }
     const orders: OrderDTO[] = await response.json();
     return orders.filter((o) => o.status === "open").length;
+  }
+
+  async quickSale(input: {
+    playerId: number;
+    items: Array<{ productId: number; quantity: number }>;
+    paymentMethodId: number;
+  }): Promise<OrderDTO> {
+    const response = await fetch(`${this.baseUrl}/quick-sale`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(input),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || "Error processing quick sale");
+    }
+    return response.json();
   }
 }
 

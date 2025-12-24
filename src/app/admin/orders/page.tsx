@@ -35,7 +35,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2Icon, PlusIcon, SearchIcon, FilePenIcon } from "lucide-react";
+import { Loader2Icon, PlusIcon, SearchIcon, FilePenIcon, ShoppingCartIcon } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { PlayerSearchSelect } from "@/components/player-search-select/PlayerSearchSelect";
 import Link from "next/link";
@@ -397,10 +397,20 @@ export default function OrdersPage() {
             <CardTitle className="text-xl font-semibold">
               Cuentas del buffet
             </CardTitle>
-            <Button size="sm" onClick={() => setIsNewOrderDialogOpen(true)}>
-              <PlusIcon className="w-4 h-4 mr-2" />
-              Abrir cuenta
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                size="sm" 
+                variant="outline"
+                onClick={() => router.push("/admin/quick-sale")}
+              >
+                <ShoppingCartIcon className="w-4 h-4 mr-2" />
+                Venta rápida
+              </Button>
+              <Button size="sm" onClick={() => setIsNewOrderDialogOpen(true)}>
+                <PlusIcon className="w-4 h-4 mr-2" />
+                Abrir cuenta
+              </Button>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-4">

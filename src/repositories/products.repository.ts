@@ -9,7 +9,26 @@ export class ProductsRepository extends BaseRepository {
   async findAll(options: FindProductsOptions = {}): Promise<ProductDB[]> {
     let query = this.supabase
       .from("products")
-      .select("id, name, description, price, uses_stock, min_stock, category_id, is_active, created_at, updated_at")
+      .select(`
+        id, 
+        name, 
+        description, 
+        price, 
+        uses_stock, 
+        min_stock, 
+        category_id, 
+        is_active, 
+        created_at, 
+        updated_at,
+        category:category_id (
+          id,
+          name,
+          description,
+          color,
+          is_active,
+          created_at
+        )
+      `)
       .eq("user_uid", this.userId);
 
     if (options.onlyActive) {
