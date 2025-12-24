@@ -32,6 +32,7 @@ const pageNames: { [key: string]: string } = {
   "/admin/product-categories": "Categorias de Productos",
   "/admin/orders": "Cuentas abiertas",
   "/admin/orders/[id]": "Cuenta",
+  "/admin/quick-sale": "Venta rápida",
   "/admin/purchases": "Compras",
   "/admin/suppliers": "Proveedores",
   "/admin/purchases-history": "Historial de compras",
