@@ -151,7 +151,7 @@ export class CourtSlotsRepository extends BaseRepository {
         slot_date: input.slot_date,
         start_time: input.start_time,
         end_time: input.end_time,
-        was_played: input.was_played ?? true, // Default to played
+        was_played: input.was_played ?? false, // Default to not played
         notes: input.notes ?? null,
         player1_payment_method_id: input.player1_payment_method_id ?? null,
         player1_note: input.player1_note ?? null,
@@ -470,7 +470,7 @@ export class CourtSlotsRepository extends BaseRepository {
           slot_date: date,
           start_time: ts.start,
           end_time: ts.end,
-          was_played: true, // Default to played
+          was_played: false, // Default to not played
         });
       }
     }

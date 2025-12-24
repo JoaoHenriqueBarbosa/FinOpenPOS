@@ -72,4 +72,30 @@ export interface CourtSlotWithCourt extends CourtSlotDB {
   } | null;
 }
 
+export type CourtType = 'INDOOR' | 'OUTDOOR' | 'OTRAS';
+
+export interface CourtPricingDB {
+  id: number;
+  user_uid: string;
+  court_id: number;
+  start_time: string; // TIME
+  end_time: string; // TIME
+  price_per_player: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateCourtPricingInput {
+  court_id: number;
+  start_time: string;
+  end_time: string;
+  price_per_player: number;
+}
+
+export interface UpdateCourtPricingInput {
+  start_time?: string;
+  end_time?: string;
+  price_per_player?: number;
+}
+
 

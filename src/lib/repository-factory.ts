@@ -5,6 +5,7 @@ import { ProductsRepository } from "@/repositories/products.repository";
 import { CourtsRepository } from "@/repositories/courts.repository";
 import { CourtSlotsRepository } from "@/repositories/court-slots.repository";
 import { CourtSlotDayNotesRepository } from "@/repositories/court-slot-day-notes.repository";
+import { CourtPricingRepository } from "@/repositories/court-pricing.repository";
 import { SuppliersRepository } from "@/repositories/suppliers.repository";
 import { PaymentMethodsRepository } from "@/repositories/payment-methods.repository";
 import { ProductCategoriesRepository } from "@/repositories/product-categories.repository";
@@ -79,6 +80,7 @@ export async function createRepositories() {
     courts: new CourtsRepository(supabase, user.id),
     courtSlots: new CourtSlotsRepository(supabase, user.id),
     courtSlotDayNotes: new CourtSlotDayNotesRepository(supabase, user.id),
+    courtPricing: new CourtPricingRepository(),
     suppliers: new SuppliersRepository(supabase, user.id),
     paymentMethods: new PaymentMethodsRepository(supabase, user.id),
     purchases: new PurchasesRepository(supabase, user.id),

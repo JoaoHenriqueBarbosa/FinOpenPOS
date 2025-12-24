@@ -37,15 +37,89 @@ export function paymentColorById(
   return PAYMENT_COLORS[idx % PAYMENT_COLORS.length];
 }
 
-export function getPricePerPlayer(courtName?: string | null) {
-  if (!courtName) return 0;
+export function getPricePerPlayer(
+  courtId?: number | null,
+  startTime?: string | null,
+  pricingMap?: Map<string, number>,
+  courtName?: string | null // Para fallback
+): number {
+  if (!courtId) {
+    // Fallback a valores hardcodeados si no hay court_id
+    console.log(`[getPricePerPlayer] No court_id provided, using fallback for: ${courtName}`);
+    if (courtName) {
+      const upper = courtName.toUpperCase();
+      if (upper.includes("INDOOR")) return 7000;
+      if (upper.includes("OUTDOOR")) return 5000;
+    }
+    return 0;
+  }
 
-  const upper = courtName.toUpperCase();
+  // Si hay un mapa de precios, usarlo
+  if (pricingMap && startTime && pricingMap.size > 0) {
+    const normalizedTime = startTime.slice(0, 5); // Asegurar formato HH:MM
+    
+    // Debug: mostrar qué hay en el mapa para este court_id
+    const courtEntries = Array.from(pricingMap.entries()).filter(([key]) => {
+      const [id] = key.split("|");
+      return parseInt(id, 10) === courtId;
+    });
+    
+    if (courtName?.toUpperCase().includes("INDOOR")) {
+      console.log(`[getPricePerPlayer] INDOOR court_id=${courtId} at ${normalizedTime}`);
+      console.log(`[getPricePerPlayer] Pricing map size: ${pricingMap.size}, entries for this court: ${courtEntries.length}`);
+      console.log(`[getPricePerPlayer] Court entries:`, courtEntries);
+    }
+    
+    // Ordenar las entradas para procesar los rangos en orden (por start_time descendente)
+    // Esto asegura que si hay solapamiento en los bordes, use el rango que empieza en ese tiempo
+    const entries = Array.from(pricingMap.entries());
+    const matchingEntries = entries
+      .map(([key, price]) => {
+        const [id, start, end] = key.split("|");
+        return { id: parseInt(id, 10), start: start.slice(0, 5), end: end.slice(0, 5), price, key };
+      })
+      .filter(({ id, start, end, price }) => {
+        if (id !== courtId) return false;
+        // Incluir si el tiempo está dentro del rango
+        // Si el tiempo es exactamente el start_time, incluirlo
+        // Si el tiempo es exactamente el end_time, NO incluirlo (pertenece al siguiente rango)
+        const matches = normalizedTime >= start && normalizedTime < end;
+        if (courtName?.toUpperCase().includes("INDOOR") && matches) {
+          console.log(`[getPricePerPlayer] Match found: ${start}-${end} = ${price}`);
+        }
+        return matches;
+      })
+      .sort((a, b) => b.start.localeCompare(a.start)); // Ordenar por hora de inicio descendente (más tarde primero)
+    
+    if (matchingEntries.length > 0) {
+      // Si hay múltiples coincidencias, usar el primero (rango que empieza más tarde)
+      // Esto asegura que en el borde (ej: 19:00) use el rango que empieza a las 19:00
+      const selected = matchingEntries[0];
+      if (courtName?.toUpperCase().includes("INDOOR")) {
+        console.log(`[getPricePerPlayer] Selected: ${selected.start}-${selected.end} = ${selected.price}`);
+      }
+      return selected.price;
+    } else {
+      if (courtName?.toUpperCase().includes("INDOOR")) {
+        console.log(`[getPricePerPlayer] No matches found, using fallback`);
+      }
+    }
+  } else {
+    if (courtName?.toUpperCase().includes("INDOOR")) {
+      console.log(`[getPricePerPlayer] Pricing map empty or missing: map=${!!pricingMap}, startTime=${startTime}, size=${pricingMap?.size || 0}`);
+    }
+  }
 
-  if (upper.includes("INDOOR")) return 7000;
-  if (upper.includes("OUTDOOR")) return 5000;
+  // Fallback a valores hardcodeados si no hay precios en DB
+  if (courtName) {
+    const upper = courtName.toUpperCase();
+    if (upper.includes("INDOOR")) {
+      console.log(`[getPricePerPlayer] Using hardcoded fallback for INDOOR: 7000`);
+      return 7000;
+    }
+    if (upper.includes("OUTDOOR")) return 5000;
+  }
 
-  // fallback si el nombre no contiene ninguna de las palabras
   return 0;
 }
 

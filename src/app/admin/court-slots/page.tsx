@@ -19,8 +19,10 @@ import { DayNotesEditor } from "@/components/court-slots/DayNotesEditor";
 import { ColorLegend } from "@/components/court-slots/ColorLegend";
 import { CourtSlotTable } from "@/components/court-slots/CourtSlotTable";
 import { DaySummary } from "@/components/court-slots/DaySummary";
+import { CourtPricingDialog } from "@/components/court-slots/CourtPricingDialog";
 import type { CourtSlotDTO } from "@/models/dto/court";
 import type { CourtSlotDB } from "@/models/db/court";
+import { useQuery } from "@tanstack/react-query";
 
 export default function CourtSlotsPage() {
   const [selectedDate, setSelectedDate] = useState<string>(() => {
@@ -68,6 +70,17 @@ export default function CourtSlotsPage() {
     dayNoteData,
     loadingDayNotes,
   } = useCourtSlotsData(selectedDate);
+
+  // Obtener canchas activas
+  const { data: courts = [] } = useQuery({
+    queryKey: ["courts", "active"],
+    queryFn: async () => {
+      const response = await fetch("/api/courts");
+      if (!response.ok) throw new Error("Failed to fetch courts");
+      return response.json();
+    },
+    staleTime: 1000 * 60 * 5,
+  });
 
   // Limpiar cambios pendientes cuando cambia la fecha
   useEffect(() => {
@@ -304,9 +317,19 @@ export default function CourtSlotsPage() {
               isLoading={loadingDayNotes}
             />
 
+            <div className="flex gap-2 flex-wrap">
+              {courts.map((court: { id: number; name: string }) => (
+                <CourtPricingDialog
+                  key={court.id}
+                  court={court}
+                />
+              ))}
+            </div>
+
             <ColorLegend
               paymentMethods={paymentMethods}
               isLoadingPayments={loadingPayments}
+              courts={courts}
             />
 
             <CourtSlotTable

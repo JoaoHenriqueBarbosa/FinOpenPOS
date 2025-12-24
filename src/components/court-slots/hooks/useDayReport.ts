@@ -2,11 +2,13 @@ import { useMemo } from "react";
 import type { CourtSlotDTO } from "@/models/dto/court";
 import type { PaymentMethodDTO } from "@/models/dto/payment-method";
 import { getPricePerPlayer, formatTime, getCourtType } from "@/lib/court-slots-utils";
+import { useCourtPricing } from "./useCourtPricing";
 
 export function useDayReport(
   localSlots: CourtSlotDTO[],
   paymentMethods: PaymentMethodDTO[]
 ) {
+  const { pricing } = useCourtPricing();
   const dayReport = useMemo(() => {
     if (!localSlots.length) {
       return {
@@ -83,7 +85,21 @@ export function useDayReport(
 
       courtsMap.set(courtName, existingCourt);
 
-      const pricePerPlayer = getPricePerPlayer(slot.court?.name);
+      // Debug: verificar court_id
+      if (slot.court?.name?.toUpperCase().includes("INDOOR")) {
+        console.log(`[useDayReport] Slot INDOOR - court_id: ${slot.court?.id}, start_time: ${slot.start_time}, court_name: ${slot.court?.name}`);
+      }
+      
+      const pricePerPlayer = getPricePerPlayer(
+        slot.court?.id,
+        slot.start_time,
+        pricing,
+        slot.court?.name // Para fallback
+      );
+      
+      if (slot.court?.name?.toUpperCase().includes("INDOOR")) {
+        console.log(`[useDayReport] Price calculated: ${pricePerPlayer}`);
+      }
 
       const playersPaymentIds = [
         slot.player1_payment_method?.id,
@@ -155,7 +171,7 @@ export function useDayReport(
         })
       ),
     };
-  }, [localSlots, paymentMethods]);
+  }, [localSlots, paymentMethods, pricing]);
 
   const totalRevenue = useMemo(
     () =>
