@@ -109,16 +109,19 @@ export function DaySummary({
 
         {/* 2. FALTAN PAGAR */}
         {dayReport.slotsWithUnpaidPlayers > 0 ? (
-          <div className="space-y-2">
-            <h2 className="text-sm font-semibold">2. Faltan pagar</h2>
+          <div className="space-y-2 rounded-lg border-2 border-destructive/50 bg-destructive/10 p-3 shadow-sm">
+            <h2 className="text-sm font-bold text-destructive flex items-center gap-2">
+              <span className="inline-block w-2 h-2 rounded-full bg-destructive animate-pulse"></span>
+              2. Faltan pagar
+            </h2>
             
             <div className="space-y-2 text-xs">
               {unpaidByCourtType.INDOOR.length > 0 && (
                 <div>
-                  <h3 className="text-xs font-semibold mb-1">INDOOR</h3>
+                  <h3 className="text-xs font-semibold mb-1 text-foreground">INDOOR</h3>
                   <div className="space-y-0.5 pl-2">
                     {unpaidByCourtType.INDOOR.map((slot, idx) => (
-                      <p key={idx} className="text-[11px] text-muted-foreground">
+                      <p key={idx} className="text-[11px] font-medium text-destructive/90">
                         {slot.courtName} - {slot.timeRange} ({slot.unpaidCount} jug.)
                       </p>
                     ))}
@@ -128,10 +131,10 @@ export function DaySummary({
 
               {unpaidByCourtType.OUTDOOR.length > 0 && (
                 <div>
-                  <h3 className="text-xs font-semibold mb-1">OUTDOOR</h3>
+                  <h3 className="text-xs font-semibold mb-1 text-foreground">OUTDOOR</h3>
                   <div className="space-y-0.5 pl-2">
                     {unpaidByCourtType.OUTDOOR.map((slot, idx) => (
-                      <p key={idx} className="text-[11px] text-muted-foreground">
+                      <p key={idx} className="text-[11px] font-medium text-destructive/90">
                         {slot.courtName} - {slot.timeRange} ({slot.unpaidCount} jug.)
                       </p>
                     ))}
@@ -141,10 +144,10 @@ export function DaySummary({
 
               {unpaidByCourtType.OTRAS.length > 0 && (
                 <div>
-                  <h3 className="text-xs font-semibold mb-1">OTRAS</h3>
+                  <h3 className="text-xs font-semibold mb-1 text-foreground">OTRAS</h3>
                   <div className="space-y-0.5 pl-2">
                     {unpaidByCourtType.OTRAS.map((slot, idx) => (
-                      <p key={idx} className="text-[11px] text-muted-foreground">
+                      <p key={idx} className="text-[11px] font-medium text-destructive/90">
                         {slot.courtName} - {slot.timeRange} ({slot.unpaidCount} jug.)
                       </p>
                     ))}
@@ -154,9 +157,9 @@ export function DaySummary({
             </div>
 
             {/* Resumen */}
-            <div className="pt-2 border-t border-border/50">
-              <p className="text-xs font-semibold">
-                Resumen: {dayReport.slotsWithUnpaidPlayers} turno(s) con{" "}
+            <div className="pt-2 border-t border-destructive/30">
+              <p className="text-xs font-bold text-destructive">
+                ⚠️ Resumen: {dayReport.slotsWithUnpaidPlayers} turno(s) con{" "}
                 {dayReport.totalUnpaidPlayers} jugador(es) sin método de pago
               </p>
             </div>
