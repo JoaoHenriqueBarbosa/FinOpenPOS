@@ -34,8 +34,8 @@ const pageNames: { [key: string]: string } = {
   "/admin/orders/[id]": "Cuenta",
   "/admin/quick-sale": "Venta rápida",
   "/admin/purchases": "Compras",
+  "/admin/purchases-history": "Compras", // Redirigir a compras
   "/admin/suppliers": "Proveedores",
-  "/admin/purchases-history": "Historial de compras",
   "/admin/court-slots": "Turnos de canchas",
   "/admin/tournaments": "Torneos",
   "/admin/tournaments/[id]": "Torneo",

@@ -208,21 +208,7 @@ export default function Page() {
             </CardHeader>
             <CardContent>
               <CardDescription className="text-xs">
-                Registrar compras y proveedores
-              </CardDescription>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => router.push("/admin/purchases-history")}>
-            <CardHeader className="pb-2">
-              <div className="flex items-center gap-2">
-                <LayersIcon className="h-4 w-4 text-muted-foreground" />
-                <CardTitle className="text-sm font-medium">Historial</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <CardDescription className="text-xs">
-                Ver historial de compras
+                Registrar compras e historial
               </CardDescription>
             </CardContent>
           </Card>
