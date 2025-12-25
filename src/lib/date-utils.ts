@@ -53,7 +53,8 @@ export function formatTime(timeStr: string | null | undefined): string {
 
 /**
  * Formats a datetime string to dd/mm/yyyy HH:MM format
- * @param datetimeStr - Datetime string in ISO format
+ * Uses the browser's local timezone for display
+ * @param datetimeStr - Datetime string in ISO format (UTC from DB)
  * @returns Formatted datetime string (dd/mm/yyyy HH:MM) or "Sin fecha" if invalid
  */
 export function formatDateTime(datetimeStr: string | null | Date | undefined): string {
@@ -61,7 +62,25 @@ export function formatDateTime(datetimeStr: string | null | Date | undefined): s
   
   let date: Date;
   if (typeof datetimeStr === "string") {
-    date = new Date(datetimeStr);
+    // Supabase devuelve timestamps en formato ISO pero puede que no tengan 'Z' al final
+    // Si no tiene 'Z' y no tiene offset (+/-HH:MM), asumimos que es UTC
+    let normalizedStr = datetimeStr.trim();
+    
+    // Si ya tiene 'Z' o un offset, usarlo directamente
+    if (normalizedStr.endsWith('Z') || normalizedStr.match(/[+-]\d{2}:?\d{2}$/)) {
+      date = new Date(normalizedStr);
+    }
+    // Si es un ISO string sin 'Z' ni offset (ej: "2025-12-25T14:30:00" o "2025-12-25T14:30:00.123456")
+    // Supabase lo devuelve como UTC, así que agregamos 'Z' explícitamente
+    else if (normalizedStr.includes('T')) {
+      // Remover cualquier punto final (por si acaso) y agregar 'Z'
+      normalizedStr = normalizedStr.replace(/\.$/, '') + 'Z';
+      date = new Date(normalizedStr);
+    }
+    // Formato legacy o sin formato ISO - intentar parsear directamente
+    else {
+      date = new Date(normalizedStr);
+    }
   } else {
     date = datetimeStr;
   }
@@ -70,6 +89,8 @@ export function formatDateTime(datetimeStr: string | null | Date | undefined): s
     return "Sin fecha";
   }
 
+  // Use local timezone methods (getDate, getMonth, etc.) to display in browser's timezone
+  // Estos métodos automáticamente convierten de UTC a la zona horaria local del navegador
   const day = String(date.getDate()).padStart(2, "0");
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const year = date.getFullYear();

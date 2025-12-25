@@ -46,6 +46,7 @@ import type { PaymentMethodDTO } from "@/models/dto/payment-method";
 import { ordersService, productsService, paymentMethodsService } from "@/services";
 import { ProductSelector } from "@/components/product-selector/ProductSelector";
 import { PaymentMethodSelector } from "@/components/payment-method-selector/PaymentMethodSelector";
+import { formatDateTime } from "@/lib/date-utils";
 
 async function fetchOrder(orderId: number): Promise<OrderDTO> {
   return ordersService.getById(orderId);
@@ -717,7 +718,7 @@ export default function OrderDetailPage() {
               {displayOrder && getStatusBadge(displayOrder.status)}
               {displayOrder && (
                 <span className="text-xs text-muted-foreground">
-                  {new Date(displayOrder.created_at).toLocaleString()}
+                  {formatDateTime(displayOrder.created_at)}
                 </span>
               )}
             </>

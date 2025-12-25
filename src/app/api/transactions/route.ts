@@ -45,15 +45,35 @@ export async function GET(request: Request) {
   }
 
   if (from) {
-    // Si from no tiene hora, agregar 00:00:00 para incluir desde el inicio del día
-    const fromWithTime = from.includes(' ') ? from : `${from} 00:00:00`;
-    query = query.gte('created_at', fromWithTime);
+    // El frontend ahora envía ISO strings que ya representan el inicio del día en zona horaria local
+    // convertidos a UTC. Si viene como "YYYY-MM-DD HH:MM:SS", mantener compatibilidad.
+    // Si viene como ISO string completo, usarlo directamente.
+    if (from.includes('T') || from.includes('Z')) {
+      // Es un ISO string completo (viene del frontend con zona horaria local convertida)
+      query = query.gte('created_at', from);
+    } else if (from.includes(' ')) {
+      // Formato "YYYY-MM-DD HH:MM:SS" (legacy, mantener compatibilidad)
+      query = query.gte('created_at', from);
+    } else {
+      // Formato "YYYY-MM-DD" - interpretar como inicio del día en UTC (legacy)
+      query = query.gte('created_at', `${from} 00:00:00`);
+    }
   }
 
   if (to) {
-    // Si to no tiene hora, agregar 23:59:59 para incluir hasta el fin del día
-    const toWithTime = to.includes(' ') ? to : `${to} 23:59:59`;
-    query = query.lte('created_at', toWithTime);
+    // El frontend ahora envía ISO strings que ya representan el fin del día en zona horaria local
+    // convertidos a UTC. Si viene como "YYYY-MM-DD HH:MM:SS", mantener compatibilidad.
+    // Si viene como ISO string completo, usarlo directamente.
+    if (to.includes('T') || to.includes('Z')) {
+      // Es un ISO string completo (viene del frontend con zona horaria local convertida)
+      query = query.lte('created_at', to);
+    } else if (to.includes(' ')) {
+      // Formato "YYYY-MM-DD HH:MM:SS" (legacy, mantener compatibilidad)
+      query = query.lte('created_at', to);
+    } else {
+      // Formato "YYYY-MM-DD" - interpretar como fin del día en UTC (legacy)
+      query = query.lte('created_at', `${to} 23:59:59`);
+    }
   }
 
   if (orderId) {

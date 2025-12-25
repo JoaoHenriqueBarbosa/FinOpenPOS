@@ -140,14 +140,33 @@ export default function OrdersPage() {
     queryKey: ["transactions", fromDate, toDate],
     queryFn: async () => {
       if (!fromDate || !toDate) return [];
-      // Asegurar que "desde" incluya el inicio del día y "hasta" el fin del día
-      const fromWithTime = `${fromDate} 00:00:00`;
-      const toWithTime = `${toDate} 23:59:59`;
+      
+      // Convertir fechas del navegador (zona horaria local) a ISO strings
+      // para compararlas correctamente con los timestamps UTC de la DB
+      const getLocalDateStartISO = (dateStr: string): string => {
+        // Crear fecha en zona horaria local: "2025-12-25" -> "2025-12-25T00:00:00" en local
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const localDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+        // Convertir a ISO string (UTC) para comparar con la DB
+        return localDate.toISOString();
+      };
+      
+      const getLocalDateEndISO = (dateStr: string): string => {
+        // Crear fecha en zona horaria local: "2025-12-25" -> "2025-12-25T23:59:59.999" en local
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const localDate = new Date(year, month - 1, day, 23, 59, 59, 999);
+        // Convertir a ISO string (UTC) para comparar con la DB
+        return localDate.toISOString();
+      };
+      
+      const fromISO = getLocalDateStartISO(fromDate);
+      const toISO = getLocalDateEndISO(toDate);
+      
       return transactionsService.getAll({
         type: "income",
         status: "completed",
-        from: fromWithTime,
-        to: toWithTime,
+        from: fromISO,
+        to: toISO,
       });
     },
     enabled: activeTab === "sales" && !!fromDate && !!toDate,
@@ -645,7 +664,7 @@ export default function OrdersPage() {
                         <TableCell>{getStatusBadge(order.status)}</TableCell>
                         <TableCell>${order.total_amount.toFixed(2)}</TableCell>
                         <TableCell>
-                          {new Date(order.created_at).toLocaleString()}
+                          {formatDateTime(order.created_at)}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -775,8 +794,8 @@ export default function OrdersPage() {
                           <TableCell>${order.total_amount.toFixed(2)}</TableCell>
                           <TableCell>
                             {order.closed_at 
-                              ? new Date(order.closed_at).toLocaleString()
-                              : new Date(order.created_at).toLocaleString()}
+                              ? formatDateTime(order.closed_at)
+                              : formatDateTime(order.created_at)}
                           </TableCell>
                         </TableRow>
                       ))}
