@@ -42,12 +42,12 @@ import {
   TrashIcon,
   Loader2Icon,
 } from "lucide-react";
-
 import type { ProductCategoryDTO } from "@/models/dto/product";
+import { toast } from "sonner";
 
 type ActiveFilter = "all" | "active" | "inactive";
 
-export default function ProductCategoriesPage() {
+export function ProductCategoriesTab() {
   const [categories, setCategories] = useState<ProductCategoryDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -87,6 +87,7 @@ export default function ProductCategoriesPage() {
         setCategories(data);
       } catch (err) {
         console.error("Error fetching categories:", err);
+        toast.error("Error al cargar las categorías");
       } finally {
         setLoading(false);
       }
@@ -129,7 +130,7 @@ export default function ProductCategoriesPage() {
 
   const handleSave = useCallback(async () => {
     if (!name.trim()) {
-      console.error("Name is required");
+      toast.error("El nombre es obligatorio");
       return;
     }
 
@@ -149,12 +150,13 @@ export default function ProductCategoriesPage() {
         });
 
         if (!res.ok) {
-          console.error("Failed to create category");
+          toast.error("Error al crear la categoría");
           return;
         }
 
         const created: ProductCategoryDTO = await res.json();
         setCategories((prev) => [...prev, created]);
+        toast.success("Categoría creada correctamente");
       } else if (selectedCategoryId) {
         // Edit
         const res = await fetch(
@@ -167,7 +169,7 @@ export default function ProductCategoriesPage() {
         );
 
         if (!res.ok) {
-          console.error("Failed to update category");
+          toast.error("Error al actualizar la categoría");
           return;
         }
 
@@ -175,12 +177,14 @@ export default function ProductCategoriesPage() {
         setCategories((prev) =>
           prev.map((c) => (c.id === updated.id ? updated : c))
         );
+        toast.success("Categoría actualizada correctamente");
       }
 
       setIsDialogOpen(false);
       resetForm();
     } catch (err) {
       console.error("Error saving category:", err);
+      toast.error("Error al guardar la categoría");
     }
   }, [isEdit, selectedCategoryId, name, description, color]);
 
@@ -196,7 +200,7 @@ export default function ProductCategoriesPage() {
       );
 
       if (!res.ok) {
-        console.error("Failed to delete category");
+        toast.error("Error al eliminar la categoría");
         return;
       }
 
@@ -208,8 +212,10 @@ export default function ProductCategoriesPage() {
       );
       setIsDeleteConfirmationOpen(false);
       setCategoryToDelete(null);
+      toast.success("Categoría eliminada correctamente");
     } catch (err) {
       console.error("Error deleting category:", err);
+      toast.error("Error al eliminar la categoría");
     }
   }, [categoryToDelete]);
 
@@ -281,7 +287,7 @@ export default function ProductCategoriesPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nombre</TableHead>
-                  <TableHead>Descripcion</TableHead>
+                  <TableHead>Descripción</TableHead>
                   <TableHead>Color</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead>Acciones</TableHead>
@@ -322,7 +328,7 @@ export default function ProductCategoriesPage() {
                           onClick={() => openEditDialog(cat)}
                         >
                           <FilePenIcon className="w-4 h-4" />
-                          <span className="sr-only">Edit</span>
+                          <span className="sr-only">Editar</span>
                         </Button>
                         <Button
                           size="icon"
@@ -334,7 +340,7 @@ export default function ProductCategoriesPage() {
                           disabled={!cat.is_active}
                         >
                           <TrashIcon className="w-4 h-4" />
-                          <span className="sr-only">Delete</span>
+                          <span className="sr-only">Eliminar</span>
                         </Button>
                       </div>
                     </TableCell>
@@ -468,3 +474,4 @@ export default function ProductCategoriesPage() {
     </>
   );
 }
+
