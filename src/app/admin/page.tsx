@@ -99,13 +99,31 @@ export default function Page() {
                     <span className="text-lg font-semibold">${totalRevenue.toFixed(2)}</span>
                   </div>
                 </div>
-                <Button
-                  className="w-full"
-                  onClick={() => router.push("/admin/orders")}
-                >
-                  Ver cuentas
-                  <ArrowRightIcon className="ml-2 h-4 w-4" />
-                </Button>
+                <div className="space-y-2">
+                  <Button
+                    className="w-full"
+                    onClick={() => router.push("/admin/quick-sale")}
+                  >
+                    Venta rápida
+                    <ArrowRightIcon className="ml-2 h-4 w-4" />
+                  </Button>
+                  <Button
+                    className="w-full"
+                    variant="outline"
+                    onClick={() => router.push("/admin/orders?tab=open-accounts")}
+                  >
+                    Abrir cuenta
+                    <ArrowRightIcon className="ml-2 h-4 w-4" />
+                  </Button>
+                  <Button
+                    className="w-full"
+                    variant="outline"
+                    onClick={() => router.push("/admin/orders?tab=sales")}
+                  >
+                    Ver ventas
+                    <ArrowRightIcon className="ml-2 h-4 w-4" />
+                  </Button>
+                </div>
               </>
             )}
           </CardContent>

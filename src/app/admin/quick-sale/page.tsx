@@ -42,6 +42,7 @@ import type { PaymentMethodDTO } from "@/models/dto/payment-method";
 import { productsService, paymentMethodsService, playersService, ordersService } from "@/services";
 import type { PlayerDTO } from "@/models/dto/player";
 import { ProductSelector } from "@/components/product-selector/ProductSelector";
+import { PaymentMethodSelector } from "@/components/payment-method-selector/PaymentMethodSelector";
 
 // Función para obtener o crear el cliente genérico de venta rápida
 async function getOrCreateQuickSalePlayer(): Promise<PlayerDTO> {
@@ -386,28 +387,15 @@ export default function QuickSalePage() {
           </div>
 
           {/* Método de pago y total */}
-          <div className="flex flex-col md:flex-row gap-4 items-end">
-            <div className="flex-1">
-              <Label htmlFor="payment-method">Método de pago</Label>
-              <Select
-                value={selectedPaymentMethodId === "none" ? "none" : String(selectedPaymentMethodId)}
-                onValueChange={(value) =>
-                  setSelectedPaymentMethodId(value === "none" ? "none" : Number(value))
-                }
-              >
-                <SelectTrigger id="payment-method" className="w-full">
-                  <SelectValue placeholder="Seleccionar método de pago" />
-                </SelectTrigger>
-                <SelectContent>
-                  {paymentMethods.map((pm) => (
-                    <SelectItem key={pm.id} value={String(pm.id)}>
-                      {pm.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="text-right">
+          <div className="flex flex-col gap-4">
+            <PaymentMethodSelector
+              paymentMethods={paymentMethods}
+              selectedPaymentMethodId={selectedPaymentMethodId === "none" ? "none" : selectedPaymentMethodId}
+              onSelect={(id) => setSelectedPaymentMethodId(id)}
+              disabled={isProcessing}
+              isLoading={loadingPaymentMethods}
+            />
+            <div className="text-right border-t pt-4">
               <div className="text-sm text-muted-foreground mb-1">Total</div>
               <div className="text-2xl font-bold">${total.toFixed(2)}</div>
             </div>

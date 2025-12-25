@@ -45,6 +45,7 @@ import type { ProductDTO } from "@/models/dto/product";
 import type { PaymentMethodDTO } from "@/models/dto/payment-method";
 import { ordersService, productsService, paymentMethodsService } from "@/services";
 import { ProductSelector } from "@/components/product-selector/ProductSelector";
+import { PaymentMethodSelector } from "@/components/payment-method-selector/PaymentMethodSelector";
 
 async function fetchOrder(orderId: number): Promise<OrderDTO> {
   return ordersService.getById(orderId);
@@ -970,39 +971,13 @@ export default function OrderDetailPage() {
 
             <div className="h-px bg-border my-2" />
 
-            <div className="space-y-2">
-              <Label>Método de pago</Label>
-              <Select
-                value={
-                  selectedPaymentMethodId === "none"
-                    ? "none"
-                    : String(selectedPaymentMethodId)
-                }
-                onValueChange={(value) => {
-                  if (value === "none") setSelectedPaymentMethodId("none");
-                  else setSelectedPaymentMethodId(Number(value));
-                }}
-                disabled={!isOrderOpen || loadingPM}
-              >
-                <SelectTrigger>
-                  <SelectValue
-                    placeholder={
-                      loadingPM
-                        ? "Cargando métodos de pago..."
-                        : "Elegí método de pago"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Seleccionar...</SelectItem>
-                  {paymentMethods.map((pm) => (
-                    <SelectItem key={pm.id} value={String(pm.id)}>
-                      {pm.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <PaymentMethodSelector
+              paymentMethods={paymentMethods}
+              selectedPaymentMethodId={selectedPaymentMethodId === "none" ? "none" : selectedPaymentMethodId}
+              onSelect={(id) => setSelectedPaymentMethodId(id)}
+              disabled={!isOrderOpen}
+              isLoading={loadingPM}
+            />
           </CardContent>
           <CardFooter className="flex flex-col gap-2">
             <Button

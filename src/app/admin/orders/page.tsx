@@ -35,7 +35,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2Icon, PlusIcon, SearchIcon, FilePenIcon, ShoppingCartIcon } from "lucide-react";
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from "@/components/ui/tabs";
+import { Loader2Icon, PlusIcon, SearchIcon, FilePenIcon, ShoppingCartIcon, ReceiptIcon, CalendarIcon } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { PlayerSearchSelect } from "@/components/player-search-select/PlayerSearchSelect";
 import Link from "next/link";
@@ -45,7 +51,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { OrderDTO, OrderStatus } from "@/models/dto/order";
 import type { PlayerDTO } from "@/models/dto/player";
 import type { PlayerStatus } from "@/models/db/player";
@@ -63,9 +69,33 @@ async function fetchPlayers(): Promise<PlayerDTO[]> {
 export default function OrdersPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
+  // Leer el tab desde query params
+  const tabFromQuery = searchParams.get("tab");
+  const initialTab = (tabFromQuery === "sales" ? "sales" : "open-accounts") as "open-accounts" | "sales";
+  
+  // Obtener fecha de hoy en formato YYYY-MM-DD
+  const getTodayDate = () => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
+
+  const [activeTab, setActiveTab] = useState<"open-accounts" | "sales">(initialTab);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | OrderStatus>("open");
+  const [statusFilterOpenAccounts, setStatusFilterOpenAccounts] = useState<"all" | OrderStatus>("open");
+  const [statusFilterSales, setStatusFilterSales] = useState<"all" | OrderStatus>("all");
+  const [fromDate, setFromDate] = useState<string>(initialTab === "sales" ? getTodayDate() : "");
+  const [toDate, setToDate] = useState<string>(initialTab === "sales" ? getTodayDate() : "");
+
+  // Cuando cambia el tab a "sales", establecer fechas de hoy si no están configuradas
+  useEffect(() => {
+    if (activeTab === "sales" && !fromDate && !toDate) {
+      const today = getTodayDate();
+      setFromDate(today);
+      setToDate(today);
+    }
+  }, [activeTab, fromDate, toDate]);
 
   const [isNewOrderDialogOpen, setIsNewOrderDialogOpen] = useState(false);
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
@@ -111,20 +141,43 @@ export default function OrdersPage() {
   }, [playersError]);
 
   // ---- Filtro en memoria ----
-  const filteredOrders = orders.filter((order) => {
-    if (statusFilter !== "all" && order.status !== statusFilter) return false;
+  const getFilteredOrders = (statusFilter: "all" | OrderStatus, includeDateFilter: boolean = false) => {
+    return orders.filter((order) => {
+      if (statusFilter !== "all" && order.status !== statusFilter) return false;
 
-    const term = searchTerm.toLowerCase();
-    const playerName = order.player
-      ? `${order.player.first_name} ${order.player.last_name}`
-      : "";
-    const idString = String(order.id);
+      // Filtro por fecha (solo en el tab de ventas)
+      if (includeDateFilter) {
+        if (fromDate) {
+          const from = new Date(fromDate);
+          const created = new Date(order.created_at);
+          if (created < from) return false;
+        }
 
-    return (
-      playerName.toLowerCase().includes(term) ||
-      idString.includes(term)
-    );
-  });
+        if (toDate) {
+          const to = new Date(toDate);
+          const created = new Date(order.created_at);
+          // sumar un día para inclusive
+          to.setDate(to.getDate() + 1);
+          if (created >= to) return false;
+        }
+      }
+
+      const term = searchTerm.toLowerCase();
+      const playerName = order.player
+        ? `${order.player.first_name} ${order.player.last_name}`
+        : "";
+      const idString = String(order.id);
+
+      return (
+        playerName.toLowerCase().includes(term) ||
+        idString.includes(term)
+      );
+    });
+  };
+
+  const filteredOrders = activeTab === "open-accounts" 
+    ? getFilteredOrders(statusFilterOpenAccounts, false)
+    : getFilteredOrders(statusFilterSales, true);
 
   const getStatusBadge = (status: OrderStatus) => {
     switch (status) {
@@ -391,106 +444,248 @@ export default function OrdersPage() {
 
   return (
     <>
-      <Card className="flex flex-col gap-6 p-6">
-        <CardHeader className="p-0 flex flex-col gap-4">
-          <div className="flex items-center justify-between gap-4">
-            <CardTitle className="text-xl font-semibold">
-              Cuentas del buffet
-            </CardTitle>
-            <div className="flex gap-2">
-              <Button 
-                size="sm" 
-                variant="outline"
-                onClick={() => router.push("/admin/quick-sale")}
-              >
-                <ShoppingCartIcon className="w-4 h-4 mr-2" />
-                Venta rápida
-              </Button>
-              <Button size="sm" onClick={() => setIsNewOrderDialogOpen(true)}>
-                <PlusIcon className="w-4 h-4 mr-2" />
-                Abrir cuenta
-              </Button>
-            </div>
-          </div>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "open-accounts" | "sales")}>
+        <TabsList className="mb-4">
+          <TabsTrigger value="open-accounts">
+            <FilePenIcon className="w-4 h-4 mr-2" />
+            Cuentas abiertas
+          </TabsTrigger>
+          <TabsTrigger value="sales">
+            <ReceiptIcon className="w-4 h-4 mr-2" />
+            Ver ventas
+          </TabsTrigger>
+        </TabsList>
 
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="relative max-w-xs w-full">
-              <Input
-                placeholder="Buscar por cliente o #cuenta..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pr-8"
-              />
-              <SearchIcon className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            </div>
-
-            <Select
-              value={statusFilter}
-              onValueChange={(value: "all" | OrderStatus) =>
-                setStatusFilter(value)
-              }
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Estado" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="open">Abiertas</SelectItem>
-                <SelectItem value="closed">Pagadas</SelectItem>
-                <SelectItem value="cancelled">Canceladas</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardHeader>
-
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>#</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead>Fecha</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredOrders.map((order) => (
-                  <TableRow 
-                    key={order.id}
-                    onClick={() => router.push(`/admin/orders/${order.id}`)}
-                    className="cursor-pointer hover:bg-muted/60"
+        <TabsContent value="open-accounts">
+          <Card className="flex flex-col gap-6 p-6">
+            <CardHeader className="p-0 flex flex-col gap-4">
+              <div className="flex items-center justify-between gap-4">
+                <CardTitle className="text-xl font-semibold">
+                  Cuentas abiertas
+                </CardTitle>
+                <div className="flex gap-2">
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => router.push("/admin/quick-sale")}
                   >
-                    <TableCell className="font-mono text-xs">
-                      #{order.id}
-                    </TableCell>
-                    <TableCell>
-                      {(order.player?.first_name ?? "") + " " + (order.player?.last_name ?? "") || "Sin nombre"}
-                    </TableCell>
-                    <TableCell>{getStatusBadge(order.status)}</TableCell>
-                    <TableCell>${order.total_amount.toFixed(2)}</TableCell>
-                    <TableCell>
-                      {new Date(order.created_at).toLocaleString()}
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {filteredOrders.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-6">
-                      No hay cuentas para mostrar.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
+                    <ShoppingCartIcon className="w-4 h-4 mr-2" />
+                    Venta rápida
+                  </Button>
+                  <Button size="sm" onClick={() => setIsNewOrderDialogOpen(true)}>
+                    <PlusIcon className="w-4 h-4 mr-2" />
+                    Abrir cuenta
+                  </Button>
+                </div>
+              </div>
 
-        <CardFooter className="flex justify-between text-sm text-muted-foreground">
-          <span>Total cuentas: {filteredOrders.length}</span>
-        </CardFooter>
-      </Card>
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="relative max-w-xs w-full">
+                  <Input
+                    placeholder="Buscar por cliente o #cuenta..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pr-8"
+                  />
+                  <SearchIcon className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                </div>
+
+                <Select
+                  value={statusFilterOpenAccounts}
+                  onValueChange={(value: "all" | OrderStatus) =>
+                    setStatusFilterOpenAccounts(value)
+                  }
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Estado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="open">Abiertas</SelectItem>
+                    <SelectItem value="all">Todas</SelectItem>
+                    <SelectItem value="closed">Pagadas</SelectItem>
+                    <SelectItem value="cancelled">Canceladas</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardHeader>
+
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>#</TableHead>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead>Total</TableHead>
+                      <TableHead>Fecha</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredOrders.map((order) => (
+                      <TableRow 
+                        key={order.id}
+                        onClick={() => router.push(`/admin/orders/${order.id}`)}
+                        className="cursor-pointer hover:bg-muted/60"
+                      >
+                        <TableCell className="font-mono text-xs">
+                          #{order.id}
+                        </TableCell>
+                        <TableCell>
+                          {(order.player?.first_name ?? "") + " " + (order.player?.last_name ?? "") || "Sin nombre"}
+                        </TableCell>
+                        <TableCell>{getStatusBadge(order.status)}</TableCell>
+                        <TableCell>${order.total_amount.toFixed(2)}</TableCell>
+                        <TableCell>
+                          {new Date(order.created_at).toLocaleString()}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {filteredOrders.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-6">
+                          No hay cuentas para mostrar.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+
+            <CardFooter className="flex justify-between text-sm text-muted-foreground">
+              <span>Total cuentas: {filteredOrders.length}</span>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="sales">
+          <Card className="flex flex-col gap-6 p-6">
+            <CardHeader className="p-0 flex flex-col gap-4">
+              <div className="flex items-center justify-between gap-4">
+                <CardTitle className="text-xl font-semibold">
+                  Ver ventas
+                </CardTitle>
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => router.push("/admin/quick-sale")}
+                >
+                  <ShoppingCartIcon className="w-4 h-4 mr-2" />
+                  Venta rápida
+                </Button>
+              </div>
+
+              <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="relative max-w-xs w-full">
+                    <Input
+                      placeholder="Buscar por cliente o #cuenta..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pr-8"
+                    />
+                    <SearchIcon className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  </div>
+
+                  <Select
+                    value={statusFilterSales}
+                    onValueChange={(value: "all" | OrderStatus) =>
+                      setStatusFilterSales(value)
+                    }
+                  >
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Estado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas</SelectItem>
+                      <SelectItem value="closed">Pagadas</SelectItem>
+                      <SelectItem value="open">Abiertas</SelectItem>
+                      <SelectItem value="cancelled">Canceladas</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Rango de fechas */}
+                <div className="flex flex-wrap gap-3 items-end">
+                  <div className="space-y-1">
+                    <Label className="flex items-center gap-1 text-xs">
+                      <CalendarIcon className="w-3 h-3" />
+                      Desde
+                    </Label>
+                    <Input
+                      type="date"
+                      value={fromDate}
+                      onChange={(e) => setFromDate(e.target.value)}
+                      className="w-40"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="flex items-center gap-1 text-xs">
+                      <CalendarIcon className="w-3 h-3" />
+                      Hasta
+                    </Label>
+                    <Input
+                      type="date"
+                      value={toDate}
+                      onChange={(e) => setToDate(e.target.value)}
+                      className="w-40"
+                    />
+                  </div>
+                </div>
+              </div>
+            </CardHeader>
+
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>#</TableHead>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead>Total</TableHead>
+                      <TableHead>Fecha</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredOrders.map((order) => (
+                      <TableRow 
+                        key={order.id}
+                        onClick={() => router.push(`/admin/orders/${order.id}`)}
+                        className="cursor-pointer hover:bg-muted/60"
+                      >
+                        <TableCell className="font-mono text-xs">
+                          #{order.id}
+                        </TableCell>
+                        <TableCell>
+                          {(order.player?.first_name ?? "") + " " + (order.player?.last_name ?? "") || "Sin nombre"}
+                        </TableCell>
+                        <TableCell>{getStatusBadge(order.status)}</TableCell>
+                        <TableCell>${order.total_amount.toFixed(2)}</TableCell>
+                        <TableCell>
+                          {new Date(order.created_at).toLocaleString()}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {filteredOrders.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-6">
+                          No hay ventas para mostrar.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+
+            <CardFooter className="flex justify-between text-sm text-muted-foreground">
+              <span>Total ventas: {filteredOrders.length}</span>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Nueva cuenta */}
       <Dialog

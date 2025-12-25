@@ -39,6 +39,7 @@ import type { ProductNestedDTO } from "@/models/dto/product";
 import type { SupplierNestedDTO } from "@/models/dto/supplier";
 import type { PaymentMethodNestedDTO } from "@/models/dto/payment-method";
 import { productsService, suppliersService, paymentMethodsService, purchasesService } from "@/services";
+import { PaymentMethodSelector } from "@/components/payment-method-selector/PaymentMethodSelector";
 import { PurchasesHistoryTab } from "@/components/purchases/PurchasesHistoryTab";
 
 type PurchaseLine = {
@@ -228,7 +229,7 @@ export default function PurchasesPage() {
 
       <CardContent className="space-y-6 p-0">
         {/* Datos generales */}
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <Label>Proveedor</Label>
             <Select
@@ -257,33 +258,6 @@ export default function PurchasesPage() {
           </div>
 
           <div className="space-y-2">
-            <Label>Método de pago</Label>
-            <Select
-              value={
-                selectedPaymentMethodId === "none"
-                  ? "none"
-                  : String(selectedPaymentMethodId)
-              }
-              onValueChange={(value) => {
-                if (value === "none") setSelectedPaymentMethodId("none");
-                else setSelectedPaymentMethodId(Number(value));
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccionar método de pago" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Seleccionar...</SelectItem>
-                {paymentMethods.map((pm) => (
-                  <SelectItem key={pm.id} value={String(pm.id)}>
-                    {pm.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
             <Label htmlFor="notes">Notas (opcional)</Label>
             <Input
               id="notes"
@@ -292,6 +266,17 @@ export default function PurchasesPage() {
               placeholder="Ej: Factura A 0012-000123"
             />
           </div>
+        </div>
+
+        {/* Método de pago - Ocupa todo el ancho */}
+        <div className="space-y-2">
+          <PaymentMethodSelector
+            paymentMethods={paymentMethods}
+            selectedPaymentMethodId={selectedPaymentMethodId === "none" ? "none" : selectedPaymentMethodId}
+            onSelect={(id) => setSelectedPaymentMethodId(id)}
+            disabled={saving}
+            isLoading={loadingPM}
+          />
         </div>
 
         {/* Líneas de compra */}
