@@ -28,11 +28,19 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
-import { Loader2Icon, PlusIcon, TrashIcon } from "lucide-react";
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from "@/components/ui/tabs";
+import { Loader2Icon, PlusIcon, TrashIcon, ShoppingCartIcon, LayersIcon } from "lucide-react";
 import type { ProductNestedDTO } from "@/models/dto/product";
 import type { SupplierNestedDTO } from "@/models/dto/supplier";
 import type { PaymentMethodNestedDTO } from "@/models/dto/payment-method";
 import { productsService, suppliersService, paymentMethodsService, purchasesService } from "@/services";
+import { PaymentMethodSelector } from "@/components/payment-method-selector/PaymentMethodSelector";
+import { PurchasesHistoryTab } from "@/components/purchases/PurchasesHistoryTab";
 
 type PurchaseLine = {
   id: number;
@@ -42,6 +50,7 @@ type PurchaseLine = {
 };
 
 export default function PurchasesPage() {
+  const [activeTab, setActiveTab] = useState<"purchases" | "history">("purchases");
   const [products, setProducts] = useState<ProductNestedDTO[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierNestedDTO[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodNestedDTO[]>([]);
@@ -195,18 +204,32 @@ export default function PurchasesPage() {
   }
 
   return (
-    <Card className="flex flex-col gap-4 p-6">
-      <CardHeader className="p-0 space-y-1">
-        <CardTitle>Compras a proveedores</CardTitle>
-        <CardDescription>
-          Registrá las compras para actualizar el stock con el costo de cada
-          producto y registrar el gasto en caja.
-        </CardDescription>
-      </CardHeader>
+    <>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "purchases" | "history")}>
+        <TabsList className="mb-4">
+          <TabsTrigger value="purchases">
+            <ShoppingCartIcon className="w-4 h-4 mr-2" />
+            Compras
+          </TabsTrigger>
+          <TabsTrigger value="history">
+            <LayersIcon className="w-4 h-4 mr-2" />
+            Historial
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="purchases">
+          <Card className="flex flex-col gap-4 p-6">
+            <CardHeader className="p-0 space-y-1">
+              <CardTitle>Compras a proveedores</CardTitle>
+              <CardDescription>
+                Registrá las compras para actualizar el stock con el costo de cada
+                producto y registrar el gasto en caja.
+              </CardDescription>
+            </CardHeader>
 
       <CardContent className="space-y-6 p-0">
         {/* Datos generales */}
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <Label>Proveedor</Label>
             <Select
@@ -235,33 +258,6 @@ export default function PurchasesPage() {
           </div>
 
           <div className="space-y-2">
-            <Label>Método de pago</Label>
-            <Select
-              value={
-                selectedPaymentMethodId === "none"
-                  ? "none"
-                  : String(selectedPaymentMethodId)
-              }
-              onValueChange={(value) => {
-                if (value === "none") setSelectedPaymentMethodId("none");
-                else setSelectedPaymentMethodId(Number(value));
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccionar método de pago" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Seleccionar...</SelectItem>
-                {paymentMethods.map((pm) => (
-                  <SelectItem key={pm.id} value={String(pm.id)}>
-                    {pm.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
             <Label htmlFor="notes">Notas (opcional)</Label>
             <Input
               id="notes"
@@ -270,6 +266,17 @@ export default function PurchasesPage() {
               placeholder="Ej: Factura A 0012-000123"
             />
           </div>
+        </div>
+
+        {/* Método de pago - Ocupa todo el ancho */}
+        <div className="space-y-2">
+          <PaymentMethodSelector
+            paymentMethods={paymentMethods}
+            selectedPaymentMethodId={selectedPaymentMethodId === "none" ? "none" : selectedPaymentMethodId}
+            onSelect={(id) => setSelectedPaymentMethodId(id)}
+            disabled={saving}
+            isLoading={loadingPM}
+          />
         </div>
 
         {/* Líneas de compra */}
@@ -417,5 +424,12 @@ export default function PurchasesPage() {
         </Button>
       </CardFooter>
     </Card>
+        </TabsContent>
+
+        <TabsContent value="history">
+          <PurchasesHistoryTab />
+        </TabsContent>
+      </Tabs>
+    </>
   );
 }

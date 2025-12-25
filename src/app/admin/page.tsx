@@ -99,13 +99,31 @@ export default function Page() {
                     <span className="text-lg font-semibold">${totalRevenue.toFixed(2)}</span>
                   </div>
                 </div>
-                <Button
-                  className="w-full"
-                  onClick={() => router.push("/admin/orders")}
-                >
-                  Ver cuentas
-                  <ArrowRightIcon className="ml-2 h-4 w-4" />
-                </Button>
+                <div className="space-y-2">
+                  <Button
+                    className="w-full"
+                    onClick={() => router.push("/admin/quick-sale")}
+                  >
+                    Venta rápida
+                    <ArrowRightIcon className="ml-2 h-4 w-4" />
+                  </Button>
+                  <Button
+                    className="w-full"
+                    variant="outline"
+                    onClick={() => router.push("/admin/orders?tab=open-accounts")}
+                  >
+                    Abrir cuenta
+                    <ArrowRightIcon className="ml-2 h-4 w-4" />
+                  </Button>
+                  <Button
+                    className="w-full"
+                    variant="outline"
+                    onClick={() => router.push("/admin/orders?tab=sales")}
+                  >
+                    Ver ventas
+                    <ArrowRightIcon className="ml-2 h-4 w-4" />
+                  </Button>
+                </div>
               </>
             )}
           </CardContent>
@@ -208,21 +226,7 @@ export default function Page() {
             </CardHeader>
             <CardContent>
               <CardDescription className="text-xs">
-                Registrar compras y proveedores
-              </CardDescription>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => router.push("/admin/purchases-history")}>
-            <CardHeader className="pb-2">
-              <div className="flex items-center gap-2">
-                <LayersIcon className="h-4 w-4 text-muted-foreground" />
-                <CardTitle className="text-sm font-medium">Historial</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <CardDescription className="text-xs">
-                Ver historial de compras
+                Registrar compras e historial
               </CardDescription>
             </CardContent>
           </Card>

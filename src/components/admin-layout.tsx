@@ -34,8 +34,8 @@ const pageNames: { [key: string]: string } = {
   "/admin/orders/[id]": "Cuenta",
   "/admin/quick-sale": "Venta rápida",
   "/admin/purchases": "Compras",
+  "/admin/purchases-history": "Compras", // Redirigir a compras
   "/admin/suppliers": "Proveedores",
-  "/admin/purchases-history": "Historial de compras",
   "/admin/court-slots": "Turnos de canchas",
   "/admin/tournaments": "Torneos",
   "/admin/tournaments/[id]": "Torneo",
@@ -43,20 +43,24 @@ const pageNames: { [key: string]: string } = {
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
-  const pathname = usePathname();
+  const [pathname, setPathname] = useState<string>("");
+  
+  // Usar usePathname normalmente - Next.js debería manejarlo
+  const currentPathname = usePathname();
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    setPathname(currentPathname);
+  }, [currentPathname]);
 
   // elegir el key más específico que matchee el pathname
-  const effectiveKey = mounted
+  const effectiveKey = mounted && pathname
     ? Object.keys(pageNames)
-        .filter((k) => pathname?.startsWith(k))
+        .filter((k) => pathname.startsWith(k))
         .sort((a, b) => b.length - a.length)[0] ?? pathname
     : "";
 
-  const title = mounted ? (pageNames[effectiveKey] ?? "") : "";
+  const title = mounted && pathname ? (pageNames[effectiveKey] ?? "") : "";
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-muted/40">
