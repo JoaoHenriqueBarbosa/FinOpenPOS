@@ -120,36 +120,56 @@ export function ProductSelector({
       {/* Productos agrupados por categoría */}
       {filteredProductsByCategory.length > 0 && (
         <div className="space-y-4">
-          {filteredProductsByCategory.map((group) => (
-            <div key={group.category?.id ?? "no-category"} className="space-y-2">
-              {group.category && (
-                <Label className="text-sm font-semibold text-muted-foreground">
-                  {group.category.name}
-                </Label>
-              )}
-              {!group.category && (
-                <Label className="text-sm font-semibold text-muted-foreground">
-                  Sin categoría
-                </Label>
-              )}
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                {group.products.map((product) => (
-                  <Button
-                    key={product.id}
-                    variant="outline"
-                    className="flex flex-col items-start h-auto p-3 hover:bg-primary/5"
-                    onClick={() => handleProductClick(product)}
-                    disabled={disabled}
-                  >
-                    <div className="font-medium text-sm">{product.name}</div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      ${product.price.toFixed(2)}
-                    </div>
-                  </Button>
-                ))}
+          {filteredProductsByCategory.map((group) => {
+            const categoryColor = group.category?.color;
+            const hasColor = categoryColor && categoryColor.trim() !== "";
+            
+            return (
+              <div
+                key={group.category?.id ?? "no-category"}
+                className={`space-y-2 rounded-lg p-3 border-l-4 ${
+                  hasColor
+                    ? ""
+                    : "border-l-muted"
+                }`}
+                style={
+                  hasColor
+                    ? {
+                        borderLeftColor: categoryColor,
+                        backgroundColor: `${categoryColor}15`, // 15 = ~8% opacity en hex
+                      }
+                    : undefined
+                }
+              >
+                {group.category && (
+                  <Label className="text-sm font-semibold text-muted-foreground">
+                    {group.category.name}
+                  </Label>
+                )}
+                {!group.category && (
+                  <Label className="text-sm font-semibold text-muted-foreground">
+                    Sin categoría
+                  </Label>
+                )}
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                  {group.products.map((product) => (
+                    <Button
+                      key={product.id}
+                      variant="outline"
+                      className="flex flex-col items-start h-auto p-3 hover:bg-primary/5"
+                      onClick={() => handleProductClick(product)}
+                      disabled={disabled}
+                    >
+                      <div className="font-medium text-sm">{product.name}</div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        ${product.price.toFixed(2)}
+                      </div>
+                    </Button>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

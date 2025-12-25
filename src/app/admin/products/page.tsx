@@ -147,7 +147,7 @@ export default function Products() {
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
   const filteredProducts = useMemo(() => {
-    return products.filter((product) => {
+    const filtered = products.filter((product) => {
       if (
         filters.categoryId !== "all" &&
         product.category?.id !== Number(filters.categoryId)
@@ -160,6 +160,25 @@ export default function Products() {
         product.name.toLowerCase().includes(term) ||
         (product.description ?? "").toLowerCase().includes(term)
       );
+    });
+
+    // Ordenar por categoría: primero los que tienen categoría (ordenados por nombre de categoría), luego los sin categoría
+    return filtered.sort((a, b) => {
+      // Si ambos tienen categoría, ordenar por nombre de categoría
+      if (a.category && b.category) {
+        const categoryNameA = a.category.name.toLowerCase();
+        const categoryNameB = b.category.name.toLowerCase();
+        if (categoryNameA !== categoryNameB) {
+          return categoryNameA.localeCompare(categoryNameB);
+        }
+        // Si tienen la misma categoría, ordenar por nombre de producto
+        return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+      }
+      // Si solo uno tiene categoría, el que tiene categoría va primero
+      if (a.category && !b.category) return -1;
+      if (!a.category && b.category) return 1;
+      // Si ninguno tiene categoría, ordenar por nombre de producto
+      return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
     });
   }, [products, filters.categoryId, debouncedSearchTerm]);
 
@@ -284,6 +303,12 @@ export default function Products() {
     return cat ? cat.name : "-";
   };
 
+  const getCategoryColor = (categoryId: number | null) => {
+    if (categoryId == null) return null;
+    const cat = categories.find((c) => c.id === categoryId);
+    return cat?.color && cat.color.trim() !== "" ? cat.color : null;
+  };
+
   if (loading) {
     return (
       <div className="h-[80vh] flex items-center justify-center">
@@ -373,15 +398,32 @@ export default function Products() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {currentProducts.map((product) => (
-                      <TableRow key={product.id}>
-                        <TableCell className="font-medium">
-                          {product.name}
-                        </TableCell>
-                        <TableCell>{product.description}</TableCell>
-                        <TableCell>{getCategoryName(product.category?.id ?? null)}</TableCell>
-                        <TableCell>${product.price.toFixed(2)}</TableCell>
-                        <TableCell>
+                    {currentProducts.map((product) => {
+                      const categoryColor = getCategoryColor(product.category?.id ?? null);
+                      const hasColor = categoryColor !== null;
+                      
+                      return (
+                        <TableRow
+                          key={product.id}
+                          className={`border-l-4 ${
+                            hasColor ? "" : "border-l-muted"
+                          }`}
+                          style={
+                            hasColor
+                              ? {
+                                  borderLeftColor: categoryColor,
+                                  backgroundColor: `${categoryColor}08`, // ~3% opacity
+                                }
+                              : undefined
+                          }
+                        >
+                          <TableCell className="font-medium">
+                            {product.name}
+                          </TableCell>
+                          <TableCell>{product.description}</TableCell>
+                          <TableCell>{getCategoryName(product.category?.id ?? null)}</TableCell>
+                          <TableCell>${product.price.toFixed(2)}</TableCell>
+                          <TableCell>
                           <div className="flex items-center gap-2">
                             <Button
                               size="icon"
@@ -414,7 +456,8 @@ export default function Products() {
                           </div>
                         </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                     {currentProducts.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={6} className="text-center py-6">

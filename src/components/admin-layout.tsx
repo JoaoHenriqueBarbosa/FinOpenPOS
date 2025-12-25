@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
@@ -42,15 +42,21 @@ const pageNames: { [key: string]: string } = {
 };
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
 
-  // elegir el key más específico que matchee el pathname
-  const effectiveKey =
-    Object.keys(pageNames)
-      .filter((k) => pathname.startsWith(k))
-      .sort((a, b) => b.length - a.length)[0] ?? pathname;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
-  const title = pageNames[effectiveKey] ?? "";
+  // elegir el key más específico que matchee el pathname
+  const effectiveKey = mounted
+    ? Object.keys(pageNames)
+        .filter((k) => pathname?.startsWith(k))
+        .sort((a, b) => b.length - a.length)[0] ?? pathname
+    : "";
+
+  const title = mounted ? (pageNames[effectiveKey] ?? "") : "";
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-muted/40">
@@ -107,7 +113,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           <Link
             href="/admin"
             className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-              pathname === "/admin"
+              mounted && pathname === "/admin"
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:bg-background/50 hover:text-foreground"
             }`}
@@ -118,7 +124,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           <Link
             href="/admin/orders"
             className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-              pathname.startsWith("/admin/orders")
+              mounted && pathname?.startsWith("/admin/orders")
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:bg-background/50 hover:text-foreground"
             }`}
@@ -129,7 +135,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           <Link
             href="/admin/court-slots"
             className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-              pathname.startsWith("/admin/court-slots")
+              mounted && pathname?.startsWith("/admin/court-slots")
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:bg-background/50 hover:text-foreground"
             }`}
@@ -140,7 +146,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           <Link
             href="/admin/tournaments"
             className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-              pathname.startsWith("/admin/tournaments")
+              mounted && pathname?.startsWith("/admin/tournaments")
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:bg-background/50 hover:text-foreground"
             }`}
