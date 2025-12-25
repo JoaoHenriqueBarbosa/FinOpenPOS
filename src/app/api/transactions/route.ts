@@ -1,10 +1,7 @@
-// app/api/transactions/[id]/route.ts
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
-type Params = { params: { id: string } };
-
-export async function GET(_request: Request, { params }: Params) {
+export async function GET(request: Request) {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -12,12 +9,17 @@ export async function GET(_request: Request, { params }: Params) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const id = Number(params.id);
+  const url = new URL(request.url);
+  const type = url.searchParams.get('type');       // income | expense
+  const status = url.searchParams.get('status');   // pending | completed | failed
+  const from = url.searchParams.get('from');       // '2025-01-01'
+  const to = url.searchParams.get('to');           // '2025-01-31'
+  const orderId = url.searchParams.get('orderId'); // opcional
+  const playerId = url.searchParams.get('playerId'); // opcional
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('transactions')
-    .select(
-      `
+    .select(`
       id,
       order_id,
       player_id,
@@ -26,124 +28,68 @@ export async function GET(_request: Request, { params }: Params) {
       amount,
       type,
       status,
-      created_at
-    `
-    )
-    .eq('user_uid', user.id)
-    .eq('id', id)
-    .single();
+      created_at,
+      payment_method:payment_method_id (
+        id,
+        name
+      )
+    `)
+    .eq('user_uid', user.id);
+
+  if (type) {
+    query = query.eq('type', type);
+  }
+
+  if (status) {
+    query = query.eq('status', status);
+  }
+
+  if (from) {
+    // El frontend ahora envía ISO strings que ya representan el inicio del día en zona horaria local
+    // convertidos a UTC. Si viene como "YYYY-MM-DD HH:MM:SS", mantener compatibilidad.
+    // Si viene como ISO string completo, usarlo directamente.
+    if (from.includes('T') || from.includes('Z')) {
+      // Es un ISO string completo (viene del frontend con zona horaria local convertida)
+      query = query.gte('created_at', from);
+    } else if (from.includes(' ')) {
+      // Formato "YYYY-MM-DD HH:MM:SS" (legacy, mantener compatibilidad)
+      query = query.gte('created_at', from);
+    } else {
+      // Formato "YYYY-MM-DD" - interpretar como inicio del día en UTC (legacy)
+      query = query.gte('created_at', `${from} 00:00:00`);
+    }
+  }
+
+  if (to) {
+    // El frontend ahora envía ISO strings que ya representan el fin del día en zona horaria local
+    // convertidos a UTC. Si viene como "YYYY-MM-DD HH:MM:SS", mantener compatibilidad.
+    // Si viene como ISO string completo, usarlo directamente.
+    if (to.includes('T') || to.includes('Z')) {
+      // Es un ISO string completo (viene del frontend con zona horaria local convertida)
+      query = query.lte('created_at', to);
+    } else if (to.includes(' ')) {
+      // Formato "YYYY-MM-DD HH:MM:SS" (legacy, mantener compatibilidad)
+      query = query.lte('created_at', to);
+    } else {
+      // Formato "YYYY-MM-DD" - interpretar como fin del día en UTC (legacy)
+      query = query.lte('created_at', `${to} 23:59:59`);
+    }
+  }
+
+  if (orderId) {
+    query = query.eq('order_id', Number(orderId));
+  }
+
+  if (playerId) {
+    query = query.eq('player_id', Number(playerId));
+  }
+
+  const { data, error } = await query.order('created_at', { ascending: false });
 
   if (error) {
-    console.error('GET /transactions/[id] error:', error);
-    return NextResponse.json({ error: error.message }, { status: 404 });
-  }
-
-  return NextResponse.json(data);
-}
-
-export async function PATCH(request: Request, { params }: Params) {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const id = Number(params.id);
-  const body = await request.json();
-
-  const updateFields: Record<string, any> = {};
-
-  if (body.description !== undefined) {
-    updateFields.description = body.description ?? null;
-  }
-
-  if (body.amount !== undefined) {
-    const amount = Number(body.amount);
-    if (!amount || Number.isNaN(amount)) {
-      return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
-    }
-    updateFields.amount = amount;
-  }
-
-  if (body.paymentMethodId !== undefined) {
-    updateFields.payment_method_id = body.paymentMethodId ?? null;
-  }
-
-  if (body.orderId !== undefined) {
-    updateFields.order_id = body.orderId ?? null;
-  }
-
-  if (body.playerId !== undefined) {
-    updateFields.player_id = body.playerId ?? null;
-  }
-
-  if (body.type !== undefined) {
-    if (!['income', 'expense'].includes(body.type)) {
-      return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
-    }
-    updateFields.type = body.type;
-  }
-
-  if (body.status !== undefined) {
-    if (!['pending', 'completed', 'failed'].includes(body.status)) {
-      return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
-    }
-    updateFields.status = body.status;
-  }
-
-  if (Object.keys(updateFields).length === 0) {
-    return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
-  }
-
-  const { data, error } = await supabase
-    .from('transactions')
-    .update(updateFields)
-    .eq('user_uid', user.id)
-    .eq('id', id)
-    .select(
-      `
-      id,
-      order_id,
-      player_id,
-      payment_method_id,
-      description,
-      amount,
-      type,
-      status,
-      created_at
-    `
-    )
-    .single();
-
-  if (error) {
-    console.error('PATCH /transactions/[id] error:', error);
+    console.error('GET /transactions error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json(data);
-}
-
-export async function DELETE(_request: Request, { params }: Params) {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const id = Number(params.id);
-
-  const { error } = await supabase
-    .from('transactions')
-    .delete()
-    .eq('user_uid', user.id)
-    .eq('id', id);
-
-  if (error) {
-    console.error('DELETE /transactions/[id] error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ success: true });
+  return NextResponse.json(data ?? []);
 }

@@ -55,7 +55,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { OrderDTO, OrderStatus } from "@/models/dto/order";
 import type { PlayerDTO } from "@/models/dto/player";
 import type { PlayerStatus } from "@/models/db/player";
-import { ordersService, playersService } from "@/services";
+import { ordersService, playersService, transactionsService } from "@/services";
+import type { TransactionDTO } from "@/services/transactions.service";
 
 // ---- fetchers ----
 async function fetchOrders(): Promise<OrderDTO[]> {
@@ -131,6 +132,47 @@ export default function OrdersPage() {
     staleTime: 1000 * 60 * 10, // 10 minutos - los players cambian menos frecuentemente
   });
 
+  // Query para transacciones (solo cuando estamos en el tab de ventas)
+  const {
+    data: transactions = [],
+    isLoading: loadingTransactions,
+  } = useQuery({
+    queryKey: ["transactions", fromDate, toDate],
+    queryFn: async () => {
+      if (!fromDate || !toDate) return [];
+      
+      // Convertir fechas del navegador (zona horaria local) a ISO strings
+      // para compararlas correctamente con los timestamps UTC de la DB
+      const getLocalDateStartISO = (dateStr: string): string => {
+        // Crear fecha en zona horaria local: "2025-12-25" -> "2025-12-25T00:00:00" en local
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const localDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+        // Convertir a ISO string (UTC) para comparar con la DB
+        return localDate.toISOString();
+      };
+      
+      const getLocalDateEndISO = (dateStr: string): string => {
+        // Crear fecha en zona horaria local: "2025-12-25" -> "2025-12-25T23:59:59.999" en local
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const localDate = new Date(year, month - 1, day, 23, 59, 59, 999);
+        // Convertir a ISO string (UTC) para comparar con la DB
+        return localDate.toISOString();
+      };
+      
+      const fromISO = getLocalDateStartISO(fromDate);
+      const toISO = getLocalDateEndISO(toDate);
+      
+      return transactionsService.getAll({
+        type: "income",
+        status: "completed",
+        from: fromISO,
+        to: toISO,
+      });
+    },
+    enabled: activeTab === "sales" && !!fromDate && !!toDate,
+    staleTime: 1000 * 30, // 30 segundos
+  });
+
   // toasts de error de carga
   useEffect(() => {
     if (ordersError) toast.error("Error al cargar las cuentas.");
@@ -146,19 +188,34 @@ export default function OrdersPage() {
       if (statusFilter !== "all" && order.status !== statusFilter) return false;
 
       // Filtro por fecha (solo en el tab de ventas)
+      // Usar closed_at para filtrar por fecha de cierre de la venta
       if (includeDateFilter) {
-        if (fromDate) {
-          const from = new Date(fromDate);
-          const created = new Date(order.created_at);
-          if (created < from) return false;
-        }
+        // Si la orden no tiene closed_at, no se muestra en el filtro de ventas
+        if (!order.closed_at) return false;
 
-        if (toDate) {
-          const to = new Date(toDate);
-          const created = new Date(order.created_at);
-          // sumar un día para inclusive
-          to.setDate(to.getDate() + 1);
-          if (created >= to) return false;
+        // Normalizar fecha de closed_at usando la zona horaria local del usuario
+        // Usar la misma lógica que en el resumen para mantener consistencia
+        const normalizeDate = (dateStr: string | Date): string => {
+          const date = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
+          // Usar la fecha en la zona horaria local del usuario (no UTC)
+          // Esto asegura que si una venta se cerró el día 25 en hora local, se muestre cuando filtre por el día 25
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        };
+
+        const closedDateStr = normalizeDate(order.closed_at);
+
+        // Debug: verificar que la normalización esté funcionando correctamente
+        // Si fromDate es "2025-12-25" y closedDateStr es "2025-12-24", no debería pasar el filtro
+        if (fromDate && toDate) {
+          // Solo mostrar órdenes donde la fecha normalizada esté dentro del rango
+          if (closedDateStr < fromDate || closedDateStr > toDate) return false;
+        } else if (fromDate) {
+          if (closedDateStr < fromDate) return false;
+        } else if (toDate) {
+          if (closedDateStr > toDate) return false;
         }
       }
 
@@ -178,6 +235,76 @@ export default function OrdersPage() {
   const filteredOrders = activeTab === "open-accounts" 
     ? getFilteredOrders(statusFilterOpenAccounts, false)
     : getFilteredOrders(statusFilterSales, true);
+
+  // Calcular resumen para el tab de ventas
+  const salesSummary = (() => {
+    if (activeTab !== "sales" || !fromDate || !toDate) {
+      return null;
+    }
+
+    // Normalizar fechas usando la zona horaria local del usuario
+    const normalizeDate = (dateStr: string | Date): string => {
+      const date = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
+      // Usar la fecha en la zona horaria local del usuario
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    // fromDate y toDate ya vienen como "YYYY-MM-DD" desde el input
+    const fromDateStr = fromDate;
+    const toDateStr = toDate;
+
+    // 1. Cuentas abiertas en el día (created_at dentro del rango)
+    const openedToday = orders.filter((order) => {
+      const createdDateStr = normalizeDate(order.created_at);
+      return createdDateStr >= fromDateStr && createdDateStr <= toDateStr;
+    }).length;
+
+    // 2. Cuentas cerradas en el día (closed_at dentro del rango)
+    const closedToday = orders.filter((order) => {
+      if (!order.closed_at) return false;
+      const closedDateStr = normalizeDate(order.closed_at);
+      return closedDateStr >= fromDateStr && closedDateStr <= toDateStr;
+    }).length;
+
+    // 3. Ventas rápidas (cliente "Venta rápida")
+    const quickSales = orders.filter((order) => {
+      if (!order.closed_at) return false;
+      const closedDateStr = normalizeDate(order.closed_at);
+      if (closedDateStr < fromDateStr || closedDateStr > toDateStr) return false;
+      return (
+        order.player?.first_name === "Venta rápida" &&
+        order.player?.last_name === "Cliente ocasional"
+      );
+    }).length;
+
+    // 4. Total por método de pago (de las transacciones)
+    const salesByPaymentMethod: Record<string, number> = {};
+    transactions.forEach((tx: TransactionDTO) => {
+      if (tx.type === "income" && tx.status === "completed" && tx.payment_method) {
+        const methodName = tx.payment_method.name;
+        if (!salesByPaymentMethod[methodName]) {
+          salesByPaymentMethod[methodName] = 0;
+        }
+        salesByPaymentMethod[methodName] += Number(tx.amount);
+      }
+    });
+
+    // 5. Total general (suma de todas las transacciones de ingresos completadas)
+    const totalSales = transactions
+      .filter((tx: TransactionDTO) => tx.type === "income" && tx.status === "completed")
+      .reduce((sum, tx: TransactionDTO) => sum + Number(tx.amount), 0);
+
+    return {
+      openedToday,
+      closedToday,
+      quickSales,
+      salesByPaymentMethod,
+      totalSales,
+    };
+  })();
 
   const getStatusBadge = (status: OrderStatus) => {
     switch (status) {
@@ -537,7 +664,7 @@ export default function OrdersPage() {
                         <TableCell>{getStatusBadge(order.status)}</TableCell>
                         <TableCell>${order.total_amount.toFixed(2)}</TableCell>
                         <TableCell>
-                          {new Date(order.created_at).toLocaleString()}
+                          {formatDateTime(order.created_at)}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -560,130 +687,193 @@ export default function OrdersPage() {
         </TabsContent>
 
         <TabsContent value="sales">
-          <Card className="flex flex-col gap-6 p-6">
-            <CardHeader className="p-0 flex flex-col gap-4">
-              <div className="flex items-center justify-between gap-4">
-                <CardTitle className="text-xl font-semibold">
-                  Ver ventas
-                </CardTitle>
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  onClick={() => router.push("/admin/quick-sale")}
-                >
-                  <ShoppingCartIcon className="w-4 h-4 mr-2" />
-                  Venta rápida
-                </Button>
-              </div>
-
-              <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-                <div className="flex flex-wrap items-end gap-3">
-                  <div className="relative max-w-xs w-full">
-                    <Input
-                      placeholder="Buscar por cliente o #cuenta..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pr-8"
-                    />
-                    <SearchIcon className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  </div>
-
-                  <Select
-                    value={statusFilterSales}
-                    onValueChange={(value: "all" | OrderStatus) =>
-                      setStatusFilterSales(value)
-                    }
+          <div className="grid gap-4 md:grid-cols-[2fr_1fr]">
+            {/* Tabla de ventas */}
+            <Card className="flex flex-col gap-6 p-6">
+              <CardHeader className="p-0 flex flex-col gap-4">
+                <div className="flex items-center justify-between gap-4">
+                  <CardTitle className="text-xl font-semibold">
+                    Ver ventas
+                  </CardTitle>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => router.push("/admin/quick-sale")}
                   >
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder="Estado" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas</SelectItem>
-                      <SelectItem value="closed">Pagadas</SelectItem>
-                      <SelectItem value="open">Abiertas</SelectItem>
-                      <SelectItem value="cancelled">Canceladas</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    <ShoppingCartIcon className="w-4 h-4 mr-2" />
+                    Venta rápida
+                  </Button>
                 </div>
 
-                {/* Rango de fechas */}
-                <div className="flex flex-wrap gap-3 items-end">
-                  <div className="space-y-1">
-                    <Label className="flex items-center gap-1 text-xs">
-                      <CalendarIcon className="w-3 h-3" />
-                      Desde
-                    </Label>
-                    <Input
-                      type="date"
-                      value={fromDate}
-                      onChange={(e) => setFromDate(e.target.value)}
-                      className="w-40"
-                    />
+                <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                  <div className="flex flex-wrap items-end gap-3">
+                    <div className="relative max-w-xs w-full">
+                      <Input
+                        placeholder="Buscar por cliente o #cuenta..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pr-8"
+                      />
+                      <SearchIcon className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    </div>
+
+                    <Select
+                      value={statusFilterSales}
+                      onValueChange={(value: "all" | OrderStatus) =>
+                        setStatusFilterSales(value)
+                      }
+                    >
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Estado" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todas</SelectItem>
+                        <SelectItem value="closed">Pagadas</SelectItem>
+                        <SelectItem value="open">Abiertas</SelectItem>
+                        <SelectItem value="cancelled">Canceladas</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <div className="space-y-1">
-                    <Label className="flex items-center gap-1 text-xs">
-                      <CalendarIcon className="w-3 h-3" />
-                      Hasta
-                    </Label>
-                    <Input
-                      type="date"
-                      value={toDate}
-                      onChange={(e) => setToDate(e.target.value)}
-                      className="w-40"
-                    />
+
+                  {/* Rango de fechas */}
+                  <div className="flex flex-wrap gap-3 items-end">
+                    <div className="space-y-1">
+                      <Label className="flex items-center gap-1 text-xs">
+                        <CalendarIcon className="w-3 h-3" />
+                        Desde
+                      </Label>
+                      <Input
+                        type="date"
+                        value={fromDate}
+                        onChange={(e) => setFromDate(e.target.value)}
+                        className="w-40"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="flex items-center gap-1 text-xs">
+                        <CalendarIcon className="w-3 h-3" />
+                        Hasta
+                      </Label>
+                      <Input
+                        type="date"
+                        value={toDate}
+                        onChange={(e) => setToDate(e.target.value)}
+                        className="w-40"
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
-            </CardHeader>
+              </CardHeader>
 
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>#</TableHead>
-                      <TableHead>Cliente</TableHead>
-                      <TableHead>Estado</TableHead>
-                      <TableHead>Total</TableHead>
-                      <TableHead>Fecha</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredOrders.map((order) => (
-                      <TableRow 
-                        key={order.id}
-                        onClick={() => router.push(`/admin/orders/${order.id}`)}
-                        className="cursor-pointer hover:bg-muted/60"
-                      >
-                        <TableCell className="font-mono text-xs">
-                          #{order.id}
-                        </TableCell>
-                        <TableCell>
-                          {(order.player?.first_name ?? "") + " " + (order.player?.last_name ?? "") || "Sin nombre"}
-                        </TableCell>
-                        <TableCell>{getStatusBadge(order.status)}</TableCell>
-                        <TableCell>${order.total_amount.toFixed(2)}</TableCell>
-                        <TableCell>
-                          {new Date(order.created_at).toLocaleString()}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {filteredOrders.length === 0 && (
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center py-6">
-                          No hay ventas para mostrar.
-                        </TableCell>
+                        <TableHead>#</TableHead>
+                        <TableHead>Cliente</TableHead>
+                        <TableHead>Estado</TableHead>
+                        <TableHead>Total</TableHead>
+                        <TableHead>Fecha</TableHead>
                       </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredOrders.map((order) => (
+                        <TableRow 
+                          key={order.id}
+                          onClick={() => router.push(`/admin/orders/${order.id}`)}
+                          className="cursor-pointer hover:bg-muted/60"
+                        >
+                          <TableCell className="font-mono text-xs">
+                            #{order.id}
+                          </TableCell>
+                          <TableCell>
+                            {(order.player?.first_name ?? "") + " " + (order.player?.last_name ?? "") || "Sin nombre"}
+                          </TableCell>
+                          <TableCell>{getStatusBadge(order.status)}</TableCell>
+                          <TableCell>${order.total_amount.toFixed(2)}</TableCell>
+                          <TableCell>
+                            {order.closed_at 
+                              ? formatDateTime(order.closed_at)
+                              : formatDateTime(order.created_at)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {filteredOrders.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center py-6">
+                            No hay ventas para mostrar.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
 
-            <CardFooter className="flex justify-between text-sm text-muted-foreground">
-              <span>Total ventas: {filteredOrders.length}</span>
-            </CardFooter>
-          </Card>
+              <CardFooter className="flex justify-between text-sm text-muted-foreground">
+                <span>Total ventas: {filteredOrders.length}</span>
+              </CardFooter>
+            </Card>
+
+            {/* Resumen */}
+            <Card className="h-fit">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold">Resumen del día</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {loadingTransactions ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2Icon className="h-5 w-5 animate-spin" />
+                  </div>
+                ) : salesSummary ? (
+                  <>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Cuentas abiertas</span>
+                        <span className="text-lg font-semibold">{salesSummary.openedToday}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Cuentas cerradas</span>
+                        <span className="text-lg font-semibold">{salesSummary.closedToday}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Ventas rápidas</span>
+                        <span className="text-lg font-semibold">{salesSummary.quickSales}</span>
+                      </div>
+                    </div>
+
+                    <div className="border-t pt-3 space-y-2">
+                      <div className="text-sm font-semibold">Ventas por método de pago</div>
+                      {Object.keys(salesSummary.salesByPaymentMethod).length > 0 ? (
+                        <div className="space-y-1">
+                          {Object.entries(salesSummary.salesByPaymentMethod).map(([method, amount]) => (
+                            <div key={method} className="flex items-center justify-between text-sm">
+                              <span className="text-muted-foreground">{method}</span>
+                              <span className="font-medium">${Number(amount).toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-xs text-muted-foreground">No hay ventas</div>
+                      )}
+                    </div>
+
+                    <div className="border-t pt-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold">Total general</span>
+                        <span className="text-xl font-bold">${salesSummary.totalSales.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-sm text-muted-foreground text-center py-4">
+                    Seleccioná un rango de fechas para ver el resumen
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
 

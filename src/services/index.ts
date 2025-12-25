@@ -7,4 +7,5 @@ export * from "./court-slots.service";
 export * from "./court-slot-day-notes.service";
 export * from "./tournaments.service";
 export * from "./admin.service";
+export * from "./transactions.service";
 
