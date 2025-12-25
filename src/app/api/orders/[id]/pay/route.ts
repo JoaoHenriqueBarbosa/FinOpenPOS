@@ -240,10 +240,13 @@ export async function POST(request: Request, { params }: RouteParams) {
       );
     }
 
-    // 8) Marcar order como completed
+    // 8) Marcar order como completed y setear closed_at
     const { error: updateOrderError } = await supabase
       .from("orders")
-      .update({ status: "closed" })
+      .update({ 
+        status: "closed",
+        closed_at: new Date().toISOString()
+      })
       .eq("id", orderId)
       .eq("user_uid", user.id);
 
