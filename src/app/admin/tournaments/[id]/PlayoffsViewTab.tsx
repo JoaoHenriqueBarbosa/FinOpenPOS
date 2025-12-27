@@ -17,15 +17,38 @@ import type { PlayoffRow, TeamDTO, TournamentDTO } from "@/models/dto/tournament
 
 // Using Pick from TournamentDTO
 
+// Función para obtener la posición y zona de un equipo (ej: "1A", "2B")
+function getTeamPositionLabel(team: TeamDTO | null): string | null {
+  if (!team || !team.standings || team.standings.length === 0) return null;
+  const standing = team.standings[0]; // Tomar el primer standing (debería haber solo uno)
+  if (!standing.group) return null;
+  // Extraer la letra de la zona (ej: "Zona A" -> "A")
+  const zoneMatch = standing.group.name.match(/([A-Z])$/i);
+  const zoneLetter = zoneMatch ? zoneMatch[1].toUpperCase() : "";
+  return `${standing.position}${zoneLetter}`;
+}
+
 // Función para mostrar solo apellidos en el bracket
-function teamLabelBracket(team: TeamDTO | null) {
+function teamLabelBracket(team: TeamDTO | null, showPosition: boolean = false) {
   if (!team) return "—";
-  if (team.display_name) return team.display_name;
-  const lastName1 = team.player1?.last_name ?? "";
-  const lastName2 = team.player2?.last_name ?? "";
-  if (!lastName1 && !lastName2) return "—";
-  const result = `${lastName1} / ${lastName2}`.replace(/^\/\s*|\s*\/\s*$/g, "").trim();
-  return result || "—";
+  let name = "";
+  if (team.display_name) {
+    name = team.display_name;
+  } else {
+    const lastName1 = team.player1?.last_name ?? "";
+    const lastName2 = team.player2?.last_name ?? "";
+    if (!lastName1 && !lastName2) return "—";
+    name = `${lastName1} / ${lastName2}`.replace(/^\/\s*|\s*\/\s*$/g, "").trim();
+  }
+  
+  if (showPosition) {
+    const positionLabel = getTeamPositionLabel(team);
+    if (positionLabel) {
+      return `${name} (${positionLabel})`;
+    }
+  }
+  
+  return name || "—";
 }
 
 // Fetch function para React Query
@@ -147,15 +170,18 @@ export default function PlayoffsViewTab({ tournament }: { tournament: Pick<Tourn
     // Los byes de la primera ronda no tienen horarios
     const isBye = ((!match.team1 && match.team2) || (match.team1 && !match.team2)) && !r.source_team1 && !r.source_team2;
     
+    // Determinar si es la primera ronda (para mostrar posición y zona)
+    const isFirstRound = rounds.indexOf(r.round) === 0;
+    
     matchesByRound[r.round].push({
       id: match.id,
       round: r.round,
       bracketPos: r.bracket_pos,
       team1: match.team1
-        ? { id: match.team1.id, name: teamLabelBracket(match.team1) }
+        ? { id: match.team1.id, name: teamLabelBracket(match.team1, isFirstRound) }
         : null,
       team2: match.team2
-        ? { id: match.team2.id, name: teamLabelBracket(match.team2) }
+        ? { id: match.team2.id, name: teamLabelBracket(match.team2, isFirstRound) }
         : null,
       winner: isBye ? (match.team1 ? { id: match.team1.id } : match.team2 ? { id: match.team2.id } : undefined) : (winner ? { id: winner.id } : undefined),
       isFinished: isBye ? true : match.status === "finished", // Los byes están "finalizados" (pasan directo)
