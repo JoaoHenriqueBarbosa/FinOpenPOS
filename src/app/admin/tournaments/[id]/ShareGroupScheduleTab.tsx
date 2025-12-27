@@ -16,6 +16,7 @@ import { tournamentsService } from "@/services";
 import { useRef } from "react";
 import { toast } from "sonner";
 import type { CourtDTO } from "@/models/dto/court";
+import { Logo } from "@/components/Logo";
 
 async function fetchTournamentGroups(tournamentId: number): Promise<GroupsApiResponse> {
   return tournamentsService.getGroups(tournamentId);
@@ -179,6 +180,20 @@ export default function ShareGroupScheduleTab({
       dayRef.scrollIntoView({ behavior: "smooth", block: "center" });
       await new Promise(resolve => setTimeout(resolve, 500));
 
+      // Asegurar que todas las imágenes estén cargadas antes de capturar
+      const images = dayRef.querySelectorAll('img');
+      await Promise.all(
+        Array.from(images).map((img) => {
+          if (img.complete) return Promise.resolve();
+          return new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+            // Timeout después de 5 segundos
+            setTimeout(resolve, 5000);
+          });
+        })
+      );
+
       // Obtener dimensiones reales del elemento
       const elementWidth = dayRef.offsetWidth;
       const elementHeight = dayRef.scrollHeight;
@@ -188,6 +203,7 @@ export default function ShareGroupScheduleTab({
         quality: 1.0,
         width: elementWidth + 20, // Agregar un poco de margen para evitar cortes
         height: elementHeight,
+        useCORS: true,
         style: {
           transform: 'scale(1)',
           transformOrigin: 'top left',
@@ -288,19 +304,26 @@ export default function ShareGroupScheduleTab({
                 }}
               >
                 {/* Header */}
-                <div className="text-center mb-4 pb-3 border-b-2 border-gray-300">
-                  <h1 className="text-2xl font-bold text-gray-900 mb-1">
-                    {tournament.name}
-                  </h1>
-                  {tournament.category && (
-                    <p className="text-base text-gray-600">{tournament.category}</p>
-                  )}
-                  <p className="text-lg font-semibold text-gray-800 mt-1">
-                    📅 HORARIOS DE ZONA
-                  </p>
-                  <p className="text-base font-bold text-gray-700 mt-2">
-                    {getDayOfWeek(date).toUpperCase()} - {formatDate(date)}
-                  </p>
+                <div className="mb-4 pb-3 border-b-2 border-gray-300">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 text-center">
+                      <h1 className="text-2xl font-bold text-gray-900 mb-1">
+                        {tournament.name}
+                      </h1>
+                      {tournament.category && (
+                        <p className="text-base text-gray-600">{tournament.category}</p>
+                      )}
+                      <p className="text-lg font-semibold text-gray-800 mt-1">
+                        📅 HORARIOS DE ZONA
+                      </p>
+                      <p className="text-base font-bold text-gray-700 mt-2">
+                        {getDayOfWeek(date).toUpperCase()} - {formatDate(date)}
+                      </p>
+                    </div>
+                    <div className="flex-shrink-0">
+                      <Logo className="h-28" />
+                    </div>
+                  </div>
                 </div>
 
               {/* Schedule for this day */}
