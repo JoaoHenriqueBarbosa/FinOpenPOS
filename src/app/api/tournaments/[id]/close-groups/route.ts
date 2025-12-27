@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { generatePlayoffs } from "@/lib/tournament-playoffs";
 
 type RouteParams = { params: { id: string } };
 
@@ -329,7 +330,7 @@ export async function POST(req: Request, { params }: RouteParams) {
     );
   }
 
-  // Ordenar grupos por group_order para saber el orden de las zonas
+  // Obtener grupos ordenados para construir el mapa de group_order
   const { data: groupsOrdered, error: groupsOrderError } = await supabase
     .from("tournament_groups")
     .select("id, group_order")
@@ -351,285 +352,17 @@ export async function POST(req: Request, { params }: RouteParams) {
     groupOrderMap.set(g.id, g.group_order);
   });
 
-  // Ordenar qualifiedTeams según la nueva lógica:
-  // 1. Primero todos los 1ros en orden normal (A, B, C, ...)
-  // 2. Luego todos los 2dos en orden inverso (última, penúltima, ..., B, A)
-  // 3. Luego todos los 3ros en orden normal (A, B, C, ...)
-  qualifiedTeams.sort((a, b) => {
-    if (a.pos !== b.pos) {
-      return a.pos - b.pos; // Primero todos los 1°, luego 2°, luego 3°
-    }
+  // Generar playoffs usando la nueva lógica
+  const allMatches = generatePlayoffs(qualifiedTeams, groupOrderMap);
 
-    const aGroupOrder = groupOrderMap.get(a.from_group_id) ?? 0;
-    const bGroupOrder = groupOrderMap.get(b.from_group_id) ?? 0;
-
-    if (a.pos === 2) {
-      // Para los 2dos: orden inverso (última zona primero)
-      return bGroupOrder - aGroupOrder;
-    } else {
-      // Para 1ros y 3ros: orden normal (primera zona primero)
-      return aGroupOrder - bGroupOrder;
-    }
-  });
-
-  const n = qualifiedTeams.length;
-
-  // Calcular cuántos equipos deben jugar en la primera ronda
-  // La idea es que la siguiente ronda tenga un número par de equipos (preferiblemente potencia de 2)
-  const calculateFirstRound = (totalTeams: number): {
-    firstRoundName: string;
-    teamsPlaying: number;
-    teamsWithBye: number;
-    nextRoundSize: number;
-  } => {
-    if (totalTeams <= 2) {
-      return { firstRoundName: "final", teamsPlaying: totalTeams, teamsWithBye: 0, nextRoundSize: 2 };
-    }
-
-    // Determinar el tamaño objetivo de la siguiente ronda
-    // Queremos la potencia de 2 más cercana que sea >= totalTeams/2
-    let nextRoundSize = 2;
-    if (totalTeams > 16) nextRoundSize = 16;
-    else if (totalTeams > 8) nextRoundSize = 8;
-    else if (totalTeams > 4) nextRoundSize = 4;
-    else nextRoundSize = 2;
-
-    // Calcular cuántos equipos deben jugar para llenar la siguiente ronda
-    // Estrategia: queremos que la siguiente ronda tenga nextRoundSize equipos
-    // Si totalTeams > nextRoundSize: algunos pasan directo
-    // Si totalTeams <= nextRoundSize: todos juegan
-    
-    let teamsPlaying: number;
-    let teamsWithBye: number;
-
-    if (totalTeams > nextRoundSize) {
-      // Algunos pasan directo
-      // Queremos: teamsPlaying/2 + teamsWithBye = nextRoundSize
-      // Donde: teamsWithBye = totalTeams - teamsPlaying
-      // Resolviendo: teamsPlaying = 2 * (totalTeams - nextRoundSize)
-      teamsPlaying = 2 * (totalTeams - nextRoundSize);
-      teamsWithBye = totalTeams - teamsPlaying;
-      
-      // Validar que teamsPlaying sea par y positivo
-      if (teamsPlaying <= 0 || teamsPlaying % 2 !== 0) {
-        // Si la fórmula no funciona, usar una estrategia alternativa:
-        // Hacer que el máximo número par de equipos juegue
-        teamsPlaying = totalTeams % 2 === 0 ? totalTeams : totalTeams - 1;
-        teamsWithBye = totalTeams - teamsPlaying;
-        
-        // Ajustar nextRoundSize si es necesario
-        const actualNextRoundSize = Math.floor(teamsPlaying / 2) + teamsWithBye;
-        if (actualNextRoundSize !== nextRoundSize && actualNextRoundSize > 0) {
-          // Ajustar el nombre de la ronda si cambió el tamaño
-          if (actualNextRoundSize === 2) {
-            nextRoundSize = 2;
-          } else if (actualNextRoundSize <= 4) {
-            nextRoundSize = 4;
-          } else if (actualNextRoundSize <= 8) {
-            nextRoundSize = 8;
-          }
-        }
-      }
-    } else {
-      // Todos juegan en la primera ronda
-      teamsPlaying = totalTeams;
-      teamsWithBye = 0;
-    }
-
-    // Determinar el nombre de la primera ronda
-    let firstRoundName = "cuartos";
-    if (nextRoundSize === 16) firstRoundName = "16avos";
-    else if (nextRoundSize === 8) firstRoundName = "octavos";
-    else if (nextRoundSize === 4) firstRoundName = "cuartos";
-    else if (nextRoundSize === 2) firstRoundName = "semifinal";
-
-    return { firstRoundName, teamsPlaying, teamsWithBye, nextRoundSize };
-  };
-
-  const { firstRoundName, teamsPlaying, teamsWithBye, nextRoundSize } = calculateFirstRound(n);
-  const firstRoundMatches = Math.floor(teamsPlaying / 2);
-  const teamsAdvancing = firstRoundMatches + teamsWithBye;
-
-  // Generar todas las rondas necesarias
-  type RoundInfo = {
-    name: string;
-    matches: number;
-    teamsIn: number;
-  };
-
-  const rounds: RoundInfo[] = [{
-    name: firstRoundName,
-    matches: firstRoundMatches,
-    teamsIn: teamsPlaying,
-  }];
-
-  // Calcular rondas siguientes
-  let currentTeams = teamsAdvancing;
-  while (currentTeams > 1) {
-    const nextMatches = Math.ceil(currentTeams / 2);
-    let nextRoundName = "";
-    
-    if (nextMatches === 1) {
-      nextRoundName = "final";
-    } else if (currentTeams <= 4) {
-      nextRoundName = "semifinal";
-    } else if (currentTeams <= 8) {
-      nextRoundName = "cuartos";
-    } else if (currentTeams <= 16) {
-      nextRoundName = "octavos";
-    } else {
-      nextRoundName = "16avos";
-    }
-
-    // Evitar duplicar rondas con el mismo nombre y número de matches
-    const alreadyExists = rounds.some(
-      r => r.name === nextRoundName && r.matches === nextMatches
-    );
-    if (alreadyExists) break;
-
-    rounds.push({
-      name: nextRoundName,
-      matches: nextMatches,
-      teamsIn: currentTeams,
-    });
-    
-    currentTeams = nextMatches;
-  }
-
-  // Crear todos los partidos de todas las rondas
-  const allMatches: Array<{
-    round: string;
-    bracket_pos: number;
-    team1_id: number | null;
-    team2_id: number | null;
-    source_team1: string | null;
-    source_team2: string | null;
-    match_date?: string | null;
-    start_time?: string | null;
-    end_time?: string | null;
-    court_id?: number | null;
-  }> = [];
-
-  // Primera ronda: los mejores seeds pasan directo, los restantes juegan
-  // Ejemplo con 6 equipos: seeds 1-2 pasan directo, seeds 3-6 juegan cuartos
-  const teamsPlayingInFirstRound = qualifiedTeams.slice(teamsWithBye);
-  const teamsWithByeList = qualifiedTeams.slice(0, teamsWithBye);
-  
-  // Crear matches de la primera ronda con emparejamiento: más fuerte vs más débil
-  // Además, asegurar que 1ro y 2do de la misma zona no se crucen
-  for (let i = 0; i < firstRoundMatches; i++) {
-    let t1Index = i;
-    let t2Index = teamsPlayingInFirstRound.length - 1 - i;
-    
-    // Verificar restricción: 1ro y 2do de la misma zona no deben cruzarse
-    let t1 = teamsPlayingInFirstRound[t1Index];
-    let t2 = teamsPlayingInFirstRound[t2Index];
-    
-    // Si ambos son de la misma zona y uno es 1ro y el otro 2do, ajustar
-    if (t1.from_group_id === t2.from_group_id && 
-        ((t1.pos === 1 && t2.pos === 2) || (t1.pos === 2 && t2.pos === 1))) {
-      // Buscar otro equipo para emparejar con t1 (buscar hacia atrás desde t2Index)
-      let foundAlternative = false;
-      for (let j = t2Index - 1; j > t1Index; j--) {
-        const altT2 = teamsPlayingInFirstRound[j];
-        if (altT2.from_group_id !== t1.from_group_id || 
-            (altT2.pos !== 1 && altT2.pos !== 2) ||
-            (t1.pos === 1 && altT2.pos !== 2) ||
-            (t1.pos === 2 && altT2.pos !== 1)) {
-          // Intercambiar
-          [teamsPlayingInFirstRound[t2Index], teamsPlayingInFirstRound[j]] = 
-            [teamsPlayingInFirstRound[j], teamsPlayingInFirstRound[t2Index]];
-          foundAlternative = true;
-          break;
-        }
-      }
-      
-      // Si no se encontró alternativa, intentar con el siguiente equipo del lado fuerte
-      if (!foundAlternative && t1Index + 1 < teamsPlayingInFirstRound.length - 1 - i) {
-        [teamsPlayingInFirstRound[t1Index], teamsPlayingInFirstRound[t1Index + 1]] = 
-          [teamsPlayingInFirstRound[t1Index + 1], teamsPlayingInFirstRound[t1Index]];
-        t1 = teamsPlayingInFirstRound[t1Index];
-      }
-    }
-    
-    const finalT1 = teamsPlayingInFirstRound[t1Index];
-    const finalT2 = teamsPlayingInFirstRound[teamsPlayingInFirstRound.length - 1 - i];
-    
-    allMatches.push({
-      round: firstRoundName,
-      bracket_pos: i + 1,
-      team1_id: finalT1.team_id,
-      team2_id: finalT2.team_id,
-      source_team1: null,
-      source_team2: null,
-    });
-  }
-
-  // Generar rondas siguientes
-  for (let r = 1; r < rounds.length; r++) {
-    const round = rounds[r];
-    const prevRound = rounds[r - 1];
-    const prevRoundLabel = prevRound.name.charAt(0).toUpperCase() + prevRound.name.slice(1);
-
-    // Si es la primera ronda después de la inicial, asignar los equipos con bye
-    if (r === 1 && teamsWithBye > 0) {
-      // Distribuir los equipos con bye en diferentes matches (uno por match)
-      // Luego completar con ganadores de la primera ronda
-      let byeIndex = 0;
-      let winnerIndex = 0;
-
-      for (let i = 0; i < round.matches; i++) {
-        const matchNum = i + 1;
-        let team1Id: number | null = null;
-        let team2Id: number | null = null;
-        let source1: string | null = null;
-        let source2: string | null = null;
-
-        // Estrategia: distribuir un bye por match (si hay disponibles)
-        // Esto asegura que los primeros de cada zona estén en diferentes cruces
-        if (byeIndex < teamsWithBye) {
-          // Asignar un bye a team1 de este match
-          team1Id = teamsWithByeList[byeIndex].team_id;
-          source1 = null;
-          byeIndex++;
-          
-          // El segundo equipo es un ganador de la ronda anterior
-          source2 = `Ganador ${prevRoundLabel}${winnerIndex + 1}`;
-          winnerIndex++;
-        } else {
-          // Ya no hay más byes, ambos equipos son ganadores
-          source1 = `Ganador ${prevRoundLabel}${winnerIndex + 1}`;
-          source2 = `Ganador ${prevRoundLabel}${winnerIndex + 2}`;
-          winnerIndex += 2;
-        }
-
-        allMatches.push({
-          round: round.name,
-          bracket_pos: matchNum,
-          team1_id: team1Id,
-          team2_id: team2Id,
-          source_team1: source1,
-          source_team2: source2,
-        });
-      }
-    } else {
-      // Rondas normales: solo ganadores avanzan
-      for (let i = 0; i < round.matches; i++) {
-        const matchNum = i + 1;
-        const prevMatch1 = i * 2 + 1;
-        const prevMatch2 = i * 2 + 2;
-
-        allMatches.push({
-          round: round.name,
-          bracket_pos: matchNum,
-          team1_id: null,
-          team2_id: null,
-          source_team1: `Ganador ${prevRoundLabel}${prevMatch1}`,
-          source_team2: `Ganador ${prevRoundLabel}${prevMatch2}`,
-        });
-      }
-    }
-  }
+  // Agregar campos de horarios a los matches
+  const allMatchesWithSchedule = allMatches.map(m => ({
+    ...m,
+    match_date: undefined as string | null | undefined,
+    start_time: undefined as string | null | undefined,
+    end_time: undefined as string | null | undefined,
+    court_id: undefined as number | null | undefined,
+  }));
 
   // Asignar horarios a los matches si se proporcionó configuración
   const tournamentMatchDuration = t.match_duration ?? 60;
@@ -695,7 +428,7 @@ export async function POST(req: Request, { params }: RouteParams) {
   }
 
   // Insertar todos los partidos en la base de datos
-  const playoffMatchesPayload: any[] = allMatches.map((m: any) => ({
+  const playoffMatchesPayload: any[] = allMatchesWithSchedule.map((m: any) => ({
     tournament_id: tournamentId,
     user_uid: user.id,
     phase: "playoff",
@@ -723,7 +456,7 @@ export async function POST(req: Request, { params }: RouteParams) {
   }
 
   // Crear las filas de tournament_playoffs con referencias correctas
-  const playoffRows: any[] = allMatches.map((m, idx) => ({
+  const playoffRows: any[] = allMatchesWithSchedule.map((m, idx) => ({
     tournament_id: tournamentId,
     user_uid: user.id,
     match_id: createdMatches[idx].id,
