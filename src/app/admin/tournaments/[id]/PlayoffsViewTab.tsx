@@ -143,6 +143,9 @@ export default function PlayoffsViewTab({ tournament }: { tournament: Pick<Tourn
       matchesByRound[r.round] = [];
     }
 
+    // Si es un match de bye (solo tiene team1 o team2), marcarlo correctamente
+    const isBye = (!match.team1 && match.team2) || (match.team1 && !match.team2);
+    
     matchesByRound[r.round].push({
       id: match.id,
       round: r.round,
@@ -153,14 +156,23 @@ export default function PlayoffsViewTab({ tournament }: { tournament: Pick<Tourn
       team2: match.team2
         ? { id: match.team2.id, name: teamLabelBracket(match.team2) }
         : null,
-      winner: winner ? { id: winner.id } : undefined,
-      isFinished: match.status === "finished",
-      scores,
-      sourceTeam1: r.source_team1,
-      sourceTeam2: r.source_team2,
-      matchDate: match.match_date,
-      startTime: match.start_time,
+      winner: isBye ? (match.team1 ? { id: match.team1.id } : match.team2 ? { id: match.team2.id } : undefined) : (winner ? { id: winner.id } : undefined),
+      isFinished: isBye ? true : match.status === "finished", // Los byes están "finalizados" (pasan directo)
+      scores: isBye ? undefined : scores, // Los byes no tienen scores
+      sourceTeam1: isBye ? null : r.source_team1, // Los byes no tienen source (pasan directo)
+      sourceTeam2: isBye ? null : r.source_team2,
+      matchDate: isBye ? null : match.match_date, // Los byes no tienen fecha/hora
+      startTime: isBye ? null : match.start_time,
       status: match.status,
+    });
+  });
+
+  // Ordenar matches dentro de cada ronda por bracket_pos
+  Object.keys(matchesByRound).forEach((round) => {
+    matchesByRound[round].sort((a, b) => {
+      const posA = a.bracketPos ?? 999;
+      const posB = b.bracketPos ?? 999;
+      return posA - posB;
     });
   });
 

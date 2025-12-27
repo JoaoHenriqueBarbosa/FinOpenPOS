@@ -226,8 +226,89 @@ export function generatePlayoffBracket(rankedTeams: QualifiedTeam[]): PlayoffMat
     return "16avos";
   };
 
-  // PRIMERA RONDA (si hay equipos que juegan)
-  if (teamsPlaying > 0) {
+  // PRIMERA RONDA
+  // Si hay byes, necesitamos crear matches para todas las posiciones del bracket
+  // para mantener el orden correcto en la visualización
+  if (teamsWithBye > 0 && teamsPlaying > 0) {
+    // Distribuir todos los equipos (byes + jugadores) en las posiciones del bracket usando seeding
+    const allTeamsForNextRound = [...rankedTeams];
+    const nextRoundSeeded = seedTeams(allTeamsForNextRound, nextRoundSize);
+    
+    // Crear matches para TODAS las posiciones que alimentan la siguiente ronda
+    // Si la siguiente ronda tiene 8 posiciones (cuartos), entonces la primera ronda debe tener 8 matches
+    // (uno por cada posición de la siguiente ronda)
+    // Algunos serán byes (solo team1_id o team2_id), otros serán matches reales
+    const firstRoundMatchesCount = nextRoundSize; // Un match por cada posición de la siguiente ronda
+    
+    // Crear matches para todas las posiciones de la siguiente ronda
+    // Cada posición de cuartos tiene su propio match en octavos
+    // Algunos son byes (solo un equipo), otros son reales (dos equipos)
+    
+    // Primero, identificar qué posiciones tienen byes
+    const positionsWithByes: Array<{ position: number; team: QualifiedTeam }> = [];
+    const positionsNeedingWinners: number[] = [];
+    
+    for (let i = 0; i < nextRoundSize; i++) {
+      const team = nextRoundSeeded[i];
+      const teamIsBye = team ? teamsWithByeList.some(t => t.team_id === team.team_id) : false;
+      
+      if (teamIsBye) {
+        positionsWithByes.push({ position: i, team: team! });
+      } else {
+        positionsNeedingWinners.push(i);
+      }
+    }
+    
+    // Distribuir los equipos que juegan usando seeding para emparejarlos
+    const playingSeeded = seedTeams(teamsPlayingInFirstRound, teamsPlaying);
+    const realMatchesCount = Math.floor(teamsPlaying / 2);
+    
+    // Crear todos los matches: primero los byes, luego los reales
+    // Ordenar por posición para mantener el orden del bracket
+    const allMatchData: Array<{ bracketPos: number; team1_id: number | null; team2_id: number | null }> = [];
+    
+    // Agregar matches de bye
+    for (const { position, team } of positionsWithByes) {
+      allMatchData.push({
+        bracketPos: position + 1,
+        team1_id: team.team_id,
+        team2_id: null,
+      });
+    }
+    
+    // Agregar matches reales: emparejar mejor vs peor, segundo mejor vs segundo peor, etc.
+    for (let i = 0; i < realMatchesCount; i++) {
+      const team1Index = i;
+      const team2Index = teamsPlaying - 1 - i;
+      const team1 = playingSeeded[team1Index];
+      const team2 = playingSeeded[team2Index];
+      
+      // Asignar este match a la posición correspondiente que necesita ganador
+      // Las posiciones que necesitan ganadores están en orden según el seeding
+      const bracketPos = positionsNeedingWinners[i] + 1;
+      
+      allMatchData.push({
+        bracketPos,
+        team1_id: team1?.team_id || null,
+        team2_id: team2?.team_id || null,
+      });
+    }
+    
+    // Ordenar por bracketPos y crear los matches
+    allMatchData.sort((a, b) => a.bracketPos - b.bracketPos);
+    
+    for (const matchData of allMatchData) {
+      allMatches.push({
+        round: firstRoundName,
+        bracket_pos: matchData.bracketPos,
+        team1_id: matchData.team1_id,
+        team2_id: matchData.team2_id,
+        source_team1: null,
+        source_team2: null,
+      });
+    }
+  } else if (teamsPlaying > 0) {
+    // No hay byes, solo equipos que juegan
     // Distribuir los equipos que juegan en las posiciones del bracket usando seeding
     const firstRoundSeeded = seedTeams(teamsPlayingInFirstRound, teamsPlaying);
     

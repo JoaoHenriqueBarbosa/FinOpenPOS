@@ -375,10 +375,13 @@ export async function POST(req: Request, { params }: RouteParams) {
       scheduleConfig.courtIds.length
     );
 
-    // Validar que hay suficientes slots
-    if (timeSlots.length < allMatches.length) {
+    // Contar solo los matches reales (que tienen ambos equipos) - los byes no necesitan horarios
+    const realMatchesCount = allMatchesWithSchedule.filter(m => m.team1_id && m.team2_id).length;
+    
+    // Validar que hay suficientes slots solo para los matches reales
+    if (timeSlots.length < realMatchesCount) {
       return NextResponse.json(
-        { error: `No hay suficientes slots disponibles. Se necesitan ${allMatches.length} slots pero solo hay ${timeSlots.length} disponibles.` },
+        { error: `No hay suficientes slots disponibles. Se necesitan ${realMatchesCount} slots para los partidos reales pero solo hay ${timeSlots.length} disponibles.` },
         { status: 400 }
       );
     }
@@ -418,18 +421,24 @@ export async function POST(req: Request, { params }: RouteParams) {
     });
 
     // Asignar horarios a los matches usando los índices ordenados
-    matchIndices.forEach((originalIndex, sortedIndex) => {
-      if (sortedIndex < timeSlots.length) {
-        const slot = timeSlots[sortedIndex];
-        const match = allMatchesWithSchedule[originalIndex];
+    // Solo asignar horarios a matches reales (que tienen ambos equipos)
+    let slotIndex = 0;
+    matchIndices.forEach((originalIndex) => {
+      const match = allMatchesWithSchedule[originalIndex];
+      // Solo asignar horarios a matches reales (que tienen ambos equipos)
+      // Los matches de bye (solo un equipo) no reciben horarios
+      if (match.team1_id && match.team2_id && slotIndex < timeSlots.length) {
+        const slot = timeSlots[slotIndex];
         match.match_date = slot.date;
         match.start_time = slot.startTime;
         match.end_time = calculateEndTime(slot.startTime);
         // Los slots se generan con un slot por cancha en cada intervalo
-        // Entonces el índice de la cancha es: sortedIndex % numCourts
-        const courtIndex = sortedIndex % scheduleConfig.courtIds.length;
+        // Entonces el índice de la cancha es: slotIndex % numCourts
+        const courtIndex = slotIndex % scheduleConfig.courtIds.length;
         match.court_id = scheduleConfig.courtIds[courtIndex];
+        slotIndex++;
       }
+      // Los matches de bye mantienen match_date, start_time, end_time y court_id como null
     });
   }
 

@@ -200,32 +200,20 @@ export default function PlayoffsTab({ tournament }: { tournament: Pick<Tournamen
     return labels[round] || round;
   };
 
-  // Obtener todos los matches y ordenarlos por fecha y hora
+  // Obtener todos los matches y ordenarlos por ronda y posición del bracket
+  // Esto asegura que los byes aparezcan en el orden correcto del bracket
   const allMatches = rows
     .filter(r => r.match !== null)
     .map(r => ({ ...r, match: r.match! }))
     .sort((a, b) => {
-      const matchA = a.match;
-      const matchB = b.match;
-      
-      // Primero por fecha
-      if (matchA.match_date && matchB.match_date) {
-        const dateCompare = matchA.match_date.localeCompare(matchB.match_date);
-        if (dateCompare !== 0) return dateCompare;
-      } else if (matchA.match_date) return -1;
-      else if (matchB.match_date) return 1;
-
-      // Luego por hora
-      if (matchA.start_time && matchB.start_time) {
-        return matchA.start_time.localeCompare(matchB.start_time);
-      } else if (matchA.start_time) return -1;
-      else if (matchB.start_time) return 1;
-
-      // Finalmente por ronda y posición
+      // Primero por ronda (16avos, octavos, cuartos, semifinal, final)
       const roundCompare = (roundOrder[a.round] || 99) - (roundOrder[b.round] || 99);
       if (roundCompare !== 0) return roundCompare;
       
-      return a.bracket_pos - b.bracket_pos;
+      // Luego por posición en el bracket (asegurar que bracket_pos esté definido)
+      const posA = a.bracket_pos ?? 999;
+      const posB = b.bracket_pos ?? 999;
+      return posA - posB;
     });
 
   return (
@@ -318,7 +306,7 @@ export default function PlayoffsTab({ tournament }: { tournament: Pick<Tournamen
                 ) : (
                   <div className="flex items-center gap-4 text-xs flex-wrap">
                     <Badge variant="outline" className={`text-[10px] ${roundColor.badgeBg} ${roundColor.badgeText} border-current`}>
-                      {getRoundLabel(row.round)}
+                      {getRoundLabel(row.round)} - {row.bracket_pos}
                     </Badge>
                     {match.match_date && (
                       <span className="font-medium text-muted-foreground">
@@ -331,6 +319,11 @@ export default function PlayoffsTab({ tournament }: { tournament: Pick<Tournamen
                         {match.court_id && courtMap.get(match.court_id) && (
                           <span className="ml-1">- {courtMap.get(match.court_id)}</span>
                         )}
+                      </span>
+                    )}
+                    {(!match.team1 || !match.team2) && !match.match_date && (
+                      <span className="text-muted-foreground italic">
+                        BYE
                       </span>
                     )}
                     <Button
@@ -375,6 +368,23 @@ export default function PlayoffsTab({ tournament }: { tournament: Pick<Tournamen
                     load();
                   }}
                 />
+              ) : match.team1 || match.team2 ? (
+                // Es un bye: mostrar el equipo con bye con el mismo formato que un match real
+                <div className={`p-4 ${roundColor.bg} min-h-[120px] flex items-center justify-center`}>
+                  <div className="text-center w-full">
+                    <p className={`text-sm font-semibold ${roundColor.text} mb-2`}>
+                      BYE
+                    </p>
+                    <div className={`border rounded-md p-3 mb-2 bg-white/50 ${roundColor.border}`}>
+                      <p className={`text-base font-medium ${roundColor.text}`}>
+                        {match.team1 ? team1Name : team2Name}
+                      </p>
+                    </div>
+                    <p className={`text-xs ${roundColor.text} opacity-75`}>
+                      Pasa directo a la siguiente ronda
+                    </p>
+                  </div>
+                </div>
               ) : (
                 <div className={`p-4 ${roundColor.bg}`}>
                   <p className={`text-sm ${roundColor.text}`}>
