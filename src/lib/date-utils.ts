@@ -144,3 +144,30 @@ export function inputFormatToDate(dateStr: string | null | undefined): Date | nu
   return null;
 }
 
+/**
+ * Gets the day of the week in Spanish
+ * @param dateStr - Date string in ISO format (YYYY-MM-DD) or Date object
+ * @returns Day of the week in Spanish (e.g., "LUNES", "MARTES")
+ */
+export function getDayOfWeek(dateStr: string | Date): string {
+  let date: Date;
+  if (typeof dateStr === "string") {
+    // Handle ISO date strings (YYYY-MM-DD)
+    if (dateStr.includes("T")) {
+      date = new Date(dateStr);
+    } else {
+      // Date only string (YYYY-MM-DD)
+      date = new Date(dateStr + "T00:00:00");
+    }
+  } else {
+    date = dateStr;
+  }
+
+  if (isNaN(date.getTime())) {
+    return "";
+  }
+
+  const days = ["DOMINGO", "LUNES", "MARTES", "MIÉRCOLES", "JUEVES", "VIERNES", "SÁBADO"];
+  return days[date.getDay()] || "";
+}
+

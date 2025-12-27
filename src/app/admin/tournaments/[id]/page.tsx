@@ -15,13 +15,15 @@ import {
   TabsTrigger,
   TabsContent,
 } from "@/components/ui/tabs";
-import { Loader2Icon, EditIcon, EyeIcon } from "lucide-react";
+import { Loader2Icon, EditIcon, EyeIcon, Share2Icon } from "lucide-react";
 import TeamsTab from "./TeamsTab";
 import ScheduleReviewTab from "./ScheduleReviewTab";
 import GroupsTab from "./GroupsTab";
 import StandingsTab from "./StandingsTab";
 import PlayoffsTab from "./PlayoffsTab";
 import PlayoffsViewTab from "./PlayoffsViewTab";
+import ShareGroupScheduleTab from "./ShareGroupScheduleTab";
+import ShareGroupStandingsTab from "./ShareGroupStandingsTab";
 import type { TournamentDTO } from "@/models/dto/tournament";
 import { tournamentsService } from "@/services";
 
@@ -123,6 +125,19 @@ export default function TournamentDetailPage() {
                 <TabsTrigger value="playoffs-view">Vista de playoffs</TabsTrigger>
               </TabsList>
             </div>
+
+            {/* Sección de compartir */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground px-1">
+                <Share2Icon className="h-3 w-3" />
+                <span>Compartir</span>
+              </div>
+              <TabsList className="w-full justify-start">
+                <TabsTrigger value="share-schedule">Horarios Grupos</TabsTrigger>
+                <TabsTrigger value="share-standings-results">Resultados Grupos</TabsTrigger>
+                <TabsTrigger value="share-playoffs">Playoffs</TabsTrigger>
+              </TabsList>
+            </div>
           </div>
 
           {/* Solo renderizar el tab activo para evitar cargas innecesarias */}
@@ -159,6 +174,26 @@ export default function TournamentDetailPage() {
           {activeTab === "playoffs-view" && (
             <TabsContent value="playoffs-view" className="pt-4">
               <PlayoffsViewTab tournament={tournament} />
+            </TabsContent>
+          )}
+
+          {activeTab === "share-schedule" && (
+            <TabsContent value="share-schedule" className="pt-4">
+              <ShareGroupScheduleTab tournament={tournament} />
+            </TabsContent>
+          )}
+
+          {activeTab === "share-standings-results" && (
+            <TabsContent value="share-standings-results" className="pt-4">
+              <ShareGroupStandingsTab tournament={tournament} />
+            </TabsContent>
+          )}
+
+          {activeTab === "share-playoffs" && (
+            <TabsContent value="share-playoffs" className="pt-4">
+              <div className="text-center py-8 text-muted-foreground">
+                Próximamente: Compartir playoffs
+              </div>
             </TabsContent>
           )}
         </Tabs>
