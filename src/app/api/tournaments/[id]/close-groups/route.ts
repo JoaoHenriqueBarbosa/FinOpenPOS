@@ -396,7 +396,11 @@ export async function POST(req: Request, { params }: RouteParams) {
     // Asignar slots secuencialmente a los matches
     // Ordenar matches por ronda y posición para asignar horarios lógicamente
     // Los más fuertes (primeros matches de la primera ronda) deben jugar primero
-    const sortedMatches = [...allMatches].sort((a, b) => {
+    // Crear un array de índices ordenados para mapear los horarios correctamente
+    const matchIndices = allMatchesWithSchedule.map((_, index) => index);
+    matchIndices.sort((a, b) => {
+      const matchA = allMatchesWithSchedule[a];
+      const matchB = allMatchesWithSchedule[b];
       const roundOrder: Record<string, number> = {
         "16avos": 1,
         "octavos": 2,
@@ -404,24 +408,26 @@ export async function POST(req: Request, { params }: RouteParams) {
         "semifinal": 4,
         "final": 5,
       };
-      const aOrder = roundOrder[a.round] || 999;
-      const bOrder = roundOrder[b.round] || 999;
+      const aOrder = roundOrder[matchA.round] || 999;
+      const bOrder = roundOrder[matchB.round] || 999;
       if (aOrder !== bOrder) return aOrder - bOrder;
       
       // Dentro de la misma ronda, los primeros matches (más fuertes) van primero
       // Esto da ventaja deportiva a los equipos más fuertes (más descanso)
-      return a.bracket_pos - b.bracket_pos;
+      return matchA.bracket_pos - matchB.bracket_pos;
     });
 
-    sortedMatches.forEach((match, index) => {
-      if (index < timeSlots.length) {
-        const slot = timeSlots[index];
+    // Asignar horarios a los matches usando los índices ordenados
+    matchIndices.forEach((originalIndex, sortedIndex) => {
+      if (sortedIndex < timeSlots.length) {
+        const slot = timeSlots[sortedIndex];
+        const match = allMatchesWithSchedule[originalIndex];
         match.match_date = slot.date;
         match.start_time = slot.startTime;
         match.end_time = calculateEndTime(slot.startTime);
         // Los slots se generan con un slot por cancha en cada intervalo
-        // Entonces el índice de la cancha es: index % numCourts
-        const courtIndex = index % scheduleConfig.courtIds.length;
+        // Entonces el índice de la cancha es: sortedIndex % numCourts
+        const courtIndex = sortedIndex % scheduleConfig.courtIds.length;
         match.court_id = scheduleConfig.courtIds[courtIndex];
       }
     });
