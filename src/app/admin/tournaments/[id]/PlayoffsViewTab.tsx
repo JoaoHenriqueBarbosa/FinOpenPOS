@@ -143,8 +143,9 @@ export default function PlayoffsViewTab({ tournament }: { tournament: Pick<Tourn
       matchesByRound[r.round] = [];
     }
 
-    // Si es un match de bye (solo tiene team1 o team2), marcarlo correctamente
-    const isBye = (!match.team1 && match.team2) || (match.team1 && !match.team2);
+    // Si es un match de bye de la primera ronda (solo tiene team1 o team2, y no tiene source)
+    // Los byes de la primera ronda no tienen horarios
+    const isBye = ((!match.team1 && match.team2) || (match.team1 && !match.team2)) && !r.source_team1 && !r.source_team2;
     
     matchesByRound[r.round].push({
       id: match.id,
@@ -161,7 +162,7 @@ export default function PlayoffsViewTab({ tournament }: { tournament: Pick<Tourn
       scores: isBye ? undefined : scores, // Los byes no tienen scores
       sourceTeam1: isBye ? null : r.source_team1, // Los byes no tienen source (pasan directo)
       sourceTeam2: isBye ? null : r.source_team2,
-      matchDate: isBye ? null : match.match_date, // Los byes no tienen fecha/hora
+      matchDate: isBye ? null : match.match_date, // Los byes de primera ronda no tienen fecha/hora, pero los demás sí
       startTime: isBye ? null : match.start_time,
       status: match.status,
     });
@@ -201,8 +202,10 @@ export default function PlayoffsViewTab({ tournament }: { tournament: Pick<Tourn
           
           {/* Partidos con horario programado */}
           {(() => {
+            // Incluir matches que tienen horario, incluso si aún no tienen equipos definidos
+            // (por ejemplo, matches de cuartos que dependen de ganadores de octavos)
             const matchesWithSchedule = rows
-              .filter((r) => r.match && r.match.team1 && r.match.team2 && r.match.match_date)
+              .filter((r) => r.match && r.match.match_date)
               .sort((a, b) => {
                 const aDate = a.match!.match_date || "";
                 const bDate = b.match!.match_date || "";
@@ -212,8 +215,14 @@ export default function PlayoffsViewTab({ tournament }: { tournament: Pick<Tourn
                 return aTime.localeCompare(bTime);
               });
 
+            // Matches sin horario (excluyendo byes de primera ronda que no deberían tener horario)
             const matchesWithoutSchedule = rows
-              .filter((r) => r.match && r.match.team1 && r.match.team2 && !r.match.match_date);
+              .filter((r) => {
+                if (!r.match) return false;
+                // Excluir byes de primera ronda (solo tienen un equipo y no tienen source)
+                const isBye = ((!r.match.team1 && r.match.team2) || (r.match.team1 && !r.match.team2)) && !r.source_team1 && !r.source_team2;
+                return !isBye && !r.match.match_date;
+              });
 
             return (
               <>
@@ -250,9 +259,16 @@ export default function PlayoffsViewTab({ tournament }: { tournament: Pick<Tourn
                             </div>
                             
                             <div className="space-y-2">
-                              <div className="font-medium text-sm">
-                                {teamLabelBracket(match.team1)} vs {teamLabelBracket(match.team2)}
-                              </div>
+                              {/* Mostrar equipos si están definidos, o source si no */}
+                              {match.team1 && match.team2 ? (
+                                <div className="font-medium text-sm">
+                                  {teamLabelBracket(match.team1)} vs {teamLabelBracket(match.team2)}
+                                </div>
+                              ) : (
+                                <div className="font-medium text-sm text-muted-foreground">
+                                  {r.source_team1 || "—"} vs {r.source_team2 || "—"}
+                                </div>
+                              )}
                               
                               {/* Horario destacado */}
                               <div className="bg-muted/50 rounded-md p-2 space-y-1">

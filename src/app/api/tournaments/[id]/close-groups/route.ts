@@ -375,13 +375,23 @@ export async function POST(req: Request, { params }: RouteParams) {
       scheduleConfig.courtIds.length
     );
 
-    // Contar solo los matches reales (que tienen ambos equipos) - los byes no necesitan horarios
-    const realMatchesCount = allMatchesWithSchedule.filter(m => m.team1_id && m.team2_id).length;
+    // Contar matches que necesitan horarios:
+    // - Matches reales de la primera ronda (tienen ambos team1_id y team2_id)
+    // - Matches de rondas siguientes (tienen source_team1 o source_team2, aunque aún no tengan equipos)
+    // NO contar: byes de la primera ronda (solo tienen team1_id o team2_id, pero no ambos, y no tienen source)
+    const matchesNeedingSchedule = allMatchesWithSchedule.filter(m => {
+      // Es un match real de la primera ronda (tiene ambos equipos)
+      if (m.team1_id && m.team2_id) return true;
+      // Es un match de una ronda posterior (tiene source, aunque aún no tenga equipos)
+      if (m.source_team1 || m.source_team2) return true;
+      // Es un bye de la primera ronda (solo tiene un equipo y no tiene source)
+      return false;
+    });
     
-    // Validar que hay suficientes slots solo para los matches reales
-    if (timeSlots.length < realMatchesCount) {
+    // Validar que hay suficientes slots
+    if (timeSlots.length < matchesNeedingSchedule.length) {
       return NextResponse.json(
-        { error: `No hay suficientes slots disponibles. Se necesitan ${realMatchesCount} slots para los partidos reales pero solo hay ${timeSlots.length} disponibles.` },
+        { error: `No hay suficientes slots disponibles. Se necesitan ${matchesNeedingSchedule.length} slots pero solo hay ${timeSlots.length} disponibles.` },
         { status: 400 }
       );
     }
@@ -421,13 +431,20 @@ export async function POST(req: Request, { params }: RouteParams) {
     });
 
     // Asignar horarios a los matches usando los índices ordenados
-    // Solo asignar horarios a matches reales (que tienen ambos equipos)
+    // Asignar horarios a:
+    // - Matches reales de la primera ronda (tienen ambos team1_id y team2_id)
+    // - Matches de rondas siguientes (tienen source_team1 o source_team2)
+    // NO asignar horarios a: byes de la primera ronda (solo tienen un equipo y no tienen source)
     let slotIndex = 0;
     matchIndices.forEach((originalIndex) => {
       const match = allMatchesWithSchedule[originalIndex];
-      // Solo asignar horarios a matches reales (que tienen ambos equipos)
-      // Los matches de bye (solo un equipo) no reciben horarios
-      if (match.team1_id && match.team2_id && slotIndex < timeSlots.length) {
+      
+      // Determinar si este match necesita horario
+      const needsSchedule = 
+        (match.team1_id && match.team2_id) || // Match real de primera ronda
+        (match.source_team1 || match.source_team2); // Match de ronda posterior
+      
+      if (needsSchedule && slotIndex < timeSlots.length) {
         const slot = timeSlots[slotIndex];
         match.match_date = slot.date;
         match.start_time = slot.startTime;
@@ -438,7 +455,7 @@ export async function POST(req: Request, { params }: RouteParams) {
         match.court_id = scheduleConfig.courtIds[courtIndex];
         slotIndex++;
       }
-      // Los matches de bye mantienen match_date, start_time, end_time y court_id como null
+      // Los matches de bye de la primera ronda mantienen match_date, start_time, end_time y court_id como null
     });
   }
 
