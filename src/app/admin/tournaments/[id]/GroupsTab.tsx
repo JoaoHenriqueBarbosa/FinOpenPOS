@@ -102,6 +102,7 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
   const [playoffsError, setPlayoffsError] = useState<string | null>(null);
   const [reopeningReview, setReopeningReview] = useState(false);
   const [showDeleteGroupsDialog, setShowDeleteGroupsDialog] = useState(false);
+  const [simulatingResults, setSimulatingResults] = useState(false);
 
   // React Query para compartir cache con TeamsTab
   const {
@@ -272,6 +273,36 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
     }
   };
 
+  const handleSimulateResults = async () => {
+    if (!confirm("¿Estás seguro de simular resultados para todos los partidos de grupo? Esto sobrescribirá cualquier resultado existente.")) {
+      return;
+    }
+
+    try {
+      setSimulatingResults(true);
+      const response = await fetch(`/api/tournaments/${tournament.id}/simulate-group-results`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        alert(errorData.error || "Error al simular resultados");
+        return;
+      }
+
+      const data = await response.json();
+      alert(data.message || `Se simularon ${data.results?.length || 0} partidos`);
+
+      // Recargar los datos
+      load();
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || "Error al simular resultados");
+    } finally {
+      setSimulatingResults(false);
+    }
+  };
+
   const handleDeleteGroupsPhase = async () => {
     try {
       setDeletingGroups(true);
@@ -367,6 +398,23 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
               )}
             </Button>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSimulateResults}
+            disabled={simulatingResults}
+          >
+            {simulatingResults ? (
+              <>
+                <Loader2Icon className="h-3 w-3 animate-spin mr-1" />
+                Simulando...
+              </>
+            ) : (
+              <>
+                🎲 Simular resultados
+              </>
+            )}
+          </Button>
           <Button
             variant="destructive"
             size="sm"
