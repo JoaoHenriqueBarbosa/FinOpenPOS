@@ -41,19 +41,16 @@ export async function DELETE(_req: Request, { params }: RouteParams) {
       return NextResponse.json({ error: "Tournament not found" }, { status: 404 });
     }
 
-    // Validar: no se pueden eliminar grupos si ya hay playoffs generados
+    // Si hay playoffs generados, eliminarlos primero
     const hasPlayoffs = await repos.tournamentPlayoffs.existsForTournament(tournamentId);
     if (hasPlayoffs) {
-      return NextResponse.json(
-        { error: "No se pueden eliminar los grupos si ya hay playoffs generados. Eliminá primero los playoffs." },
-        { status: 403 }
-      );
+      await repos.tournamentPlayoffs.deleteByTournamentId(tournamentId);
     }
 
     // Eliminar grupos (esto elimina standings, matches, group_teams y groups)
     await repos.tournamentGroups.deleteByTournamentId(tournamentId);
 
-    // Cambiar el estado del torneo a "draft"
+    // Cambiar el estado del torneo a "draft" para volver a la fase de inscripción
     try {
       await repos.tournaments.update(tournamentId, { status: "draft" });
     } catch (error) {

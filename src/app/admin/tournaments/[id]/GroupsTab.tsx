@@ -98,8 +98,10 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
   const [editDate, setEditDate] = useState<string>("");
   const [editTime, setEditTime] = useState<string>("");
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const [deletingGroups, setDeletingGroups] = useState(false);
   const [playoffsError, setPlayoffsError] = useState<string | null>(null);
   const [reopeningReview, setReopeningReview] = useState(false);
+  const [showDeleteGroupsDialog, setShowDeleteGroupsDialog] = useState(false);
 
   // React Query para compartir cache con TeamsTab
   const {
@@ -270,6 +272,36 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
     }
   };
 
+  const handleDeleteGroupsPhase = async () => {
+    try {
+      setDeletingGroups(true);
+      const response = await fetch(`/api/tournaments/${tournament.id}/groups`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        alert(errorData.error || "Error al eliminar la fase de grupos");
+        return;
+      }
+
+      // Cerrar el diálogo
+      setShowDeleteGroupsDialog(false);
+
+      // Invalidar cache y recargar
+      load();
+      queryClient.invalidateQueries({ queryKey: ["tournament", tournament.id] });
+      queryClient.invalidateQueries({ queryKey: ["tournament-playoffs", tournament.id] });
+      // Recargar la página para actualizar el estado y habilitar los tabs
+      window.location.reload();
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || "Error al eliminar la fase de grupos");
+    } finally {
+      setDeletingGroups(false);
+    }
+  };
+
   // Verificar si hay resultados cargados
   const hasResults = data?.matches.some(m => 
     m.set1_team1_games !== null || 
@@ -336,6 +368,15 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
             </Button>
           )}
           <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => setShowDeleteGroupsDialog(true)}
+            disabled={deletingGroups}
+          >
+            <XIcon className="h-3 w-3 mr-1" />
+            Eliminar fase de grupos
+          </Button>
+          <Button
             variant="outline"
             size="sm"
             onClick={handleCloseGroups}
@@ -363,6 +404,46 @@ export default function GroupsTab({ tournament }: { tournament: Pick<TournamentD
         error={playoffsError}
         isLoading={closingGroups}
       />
+
+      {/* Diálogo de confirmación para eliminar fase de grupos */}
+      <Dialog open={showDeleteGroupsDialog} onOpenChange={setShowDeleteGroupsDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar eliminación de fase de grupos</DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro de que deseas eliminar toda la fase de grupos? Esta acción eliminará:
+              <ul className="list-disc list-inside mt-2 space-y-1">
+                <li>Todos los grupos y zonas</li>
+                <li>Todos los partidos y resultados</li>
+                <li>Todas las posiciones y estadísticas</li>
+                <li>Los playoffs si existen</li>
+              </ul>
+              <p className="mt-2 font-semibold text-amber-600">
+                El torneo volverá al estado de inscripción. Esta acción no se puede deshacer.
+              </p>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteGroupsDialog(false)}
+              disabled={deletingGroups}
+            >
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteGroupsPhase} disabled={deletingGroups}>
+              {deletingGroups ? (
+                <>
+                  <Loader2Icon className="h-4 w-4 animate-spin mr-2" />
+                  Eliminando...
+                </>
+              ) : (
+                "Confirmar y eliminar"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <CardContent className="px-0 space-y-3">
         {(() => {
