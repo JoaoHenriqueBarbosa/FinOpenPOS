@@ -106,7 +106,15 @@ export function calculateFirstRound(totalTeams: number): {
     // En ese caso, hacer que todos jueguen
     teamsPlaying = totalTeams % 2 === 0 ? totalTeams : totalTeams - 1;
     teamsWithBye = totalTeams - teamsPlaying;
-    nextRoundSize = Math.floor(teamsPlaying / 2);
+    const calculatedNextRoundSize = Math.floor(teamsPlaying / 2);
+    
+    // Asegurar que nextRoundSize sea una potencia de 2
+    // Encontrar la potencia de 2 más cercana (redondear hacia arriba)
+    let adjustedNextRoundSize = 1;
+    while (adjustedNextRoundSize < calculatedNextRoundSize) {
+      adjustedNextRoundSize *= 2;
+    }
+    nextRoundSize = adjustedNextRoundSize;
   }
 
   // Determinar el nombre de la primera ronda basado en cuántos equipos hay en la siguiente ronda
@@ -159,14 +167,42 @@ function seedTeams(teams: QualifiedTeam[], numPositions: number): (QualifiedTeam
   // Esto asegura que los mejores no se enfrenten hasta las rondas finales
   
   function getStandardSeedOrder(size: number): number[] {
+    // Validar entrada
+    if (!Number.isInteger(size) || size < 1) {
+      return Array.from({ length: Math.max(1, Math.floor(size)) }, (_, i) => i + 1);
+    }
+    
+    // Casos base
     if (size === 1) return [1];
     if (size === 2) return [1, 2];
+    
+    // Validar que size sea una potencia de 2
+    if (size % 2 !== 0 || size < 2) {
+      // Si no es potencia de 2, usar un orden secuencial simple
+      return Array.from({ length: size }, (_, i) => i + 1);
+    }
     
     // Para tamaños mayores, construir recursivamente usando el patrón estándar
     // Patrón estándar: [1, 8, 4, 5, 2, 7, 3, 6] para 8
     // [1, 4, 2, 3] para 4
     const half = size / 2;
+    
+    // Validar que half sea un entero y una potencia de 2
+    if (!Number.isInteger(half) || half < 1) {
+      return Array.from({ length: size }, (_, i) => i + 1);
+    }
+    
+    // Protección contra recursión infinita: limitar profundidad
+    if (size > 1024) {
+      return Array.from({ length: size }, (_, i) => i + 1);
+    }
+    
     const firstHalf = getStandardSeedOrder(half);
+    
+    // Validar que firstHalf tenga el tamaño correcto
+    if (firstHalf.length !== half) {
+      return Array.from({ length: size }, (_, i) => i + 1);
+    }
     
     const result: number[] = [];
     // Algoritmo correcto: usar el patrón estándar de brackets
