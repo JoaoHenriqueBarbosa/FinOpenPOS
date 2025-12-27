@@ -17,15 +17,38 @@ import type { PlayoffRow, TeamDTO, TournamentDTO } from "@/models/dto/tournament
 
 // Using Pick from TournamentDTO
 
+// Función para obtener la posición y zona de un equipo (ej: "1A", "2B")
+function getTeamPositionLabel(team: TeamDTO | null): string | null {
+  if (!team || !team.standings || team.standings.length === 0) return null;
+  const standing = team.standings[0]; // Tomar el primer standing (debería haber solo uno)
+  if (!standing.group) return null;
+  // Extraer la letra de la zona (ej: "Zona A" -> "A")
+  const zoneMatch = standing.group.name.match(/([A-Z])$/i);
+  const zoneLetter = zoneMatch ? zoneMatch[1].toUpperCase() : "";
+  return `${standing.position}${zoneLetter}`;
+}
+
 // Función para mostrar solo apellidos en el bracket
-function teamLabelBracket(team: TeamDTO | null) {
+function teamLabelBracket(team: TeamDTO | null, showPosition: boolean = false) {
   if (!team) return "—";
-  if (team.display_name) return team.display_name;
-  const lastName1 = team.player1?.last_name ?? "";
-  const lastName2 = team.player2?.last_name ?? "";
-  if (!lastName1 && !lastName2) return "—";
-  const result = `${lastName1} / ${lastName2}`.replace(/^\/\s*|\s*\/\s*$/g, "").trim();
-  return result || "—";
+  let name = "";
+  if (team.display_name) {
+    name = team.display_name;
+  } else {
+    const lastName1 = team.player1?.last_name ?? "";
+    const lastName2 = team.player2?.last_name ?? "";
+    if (!lastName1 && !lastName2) return "—";
+    name = `${lastName1} / ${lastName2}`.replace(/^\/\s*|\s*\/\s*$/g, "").trim();
+  }
+  
+  if (showPosition) {
+    const positionLabel = getTeamPositionLabel(team);
+    if (positionLabel) {
+      return `${name} (${positionLabel})`;
+    }
+  }
+  
+  return name || "—";
 }
 
 // Fetch function para React Query
@@ -143,24 +166,40 @@ export default function PlayoffsViewTab({ tournament }: { tournament: Pick<Tourn
       matchesByRound[r.round] = [];
     }
 
+    // Si es un match de bye de la primera ronda (solo tiene team1 o team2, y no tiene source)
+    // Los byes de la primera ronda no tienen horarios
+    const isBye = ((!match.team1 && match.team2) || (match.team1 && !match.team2)) && !r.source_team1 && !r.source_team2;
+    
+    // Determinar si es la primera ronda (para mostrar posición y zona)
+    const isFirstRound = rounds.indexOf(r.round) === 0;
+    
     matchesByRound[r.round].push({
       id: match.id,
       round: r.round,
       bracketPos: r.bracket_pos,
       team1: match.team1
-        ? { id: match.team1.id, name: teamLabelBracket(match.team1) }
+        ? { id: match.team1.id, name: teamLabelBracket(match.team1, isFirstRound) }
         : null,
       team2: match.team2
-        ? { id: match.team2.id, name: teamLabelBracket(match.team2) }
+        ? { id: match.team2.id, name: teamLabelBracket(match.team2, isFirstRound) }
         : null,
-      winner: winner ? { id: winner.id } : undefined,
-      isFinished: match.status === "finished",
-      scores,
-      sourceTeam1: r.source_team1,
-      sourceTeam2: r.source_team2,
-      matchDate: match.match_date,
-      startTime: match.start_time,
+      winner: isBye ? (match.team1 ? { id: match.team1.id } : match.team2 ? { id: match.team2.id } : undefined) : (winner ? { id: winner.id } : undefined),
+      isFinished: isBye ? true : match.status === "finished", // Los byes están "finalizados" (pasan directo)
+      scores: isBye ? undefined : scores, // Los byes no tienen scores
+      sourceTeam1: isBye ? null : r.source_team1, // Los byes no tienen source (pasan directo)
+      sourceTeam2: isBye ? null : r.source_team2,
+      matchDate: isBye ? null : match.match_date, // Los byes de primera ronda no tienen fecha/hora, pero los demás sí
+      startTime: isBye ? null : match.start_time,
       status: match.status,
+    });
+  });
+
+  // Ordenar matches dentro de cada ronda por bracket_pos
+  Object.keys(matchesByRound).forEach((round) => {
+    matchesByRound[round].sort((a, b) => {
+      const posA = a.bracketPos ?? 999;
+      const posB = b.bracketPos ?? 999;
+      return posA - posB;
     });
   });
 
@@ -189,8 +228,10 @@ export default function PlayoffsViewTab({ tournament }: { tournament: Pick<Tourn
           
           {/* Partidos con horario programado */}
           {(() => {
+            // Incluir matches que tienen horario, incluso si aún no tienen equipos definidos
+            // (por ejemplo, matches de cuartos que dependen de ganadores de octavos)
             const matchesWithSchedule = rows
-              .filter((r) => r.match && r.match.team1 && r.match.team2 && r.match.match_date)
+              .filter((r) => r.match && r.match.match_date)
               .sort((a, b) => {
                 const aDate = a.match!.match_date || "";
                 const bDate = b.match!.match_date || "";
@@ -200,8 +241,14 @@ export default function PlayoffsViewTab({ tournament }: { tournament: Pick<Tourn
                 return aTime.localeCompare(bTime);
               });
 
+            // Matches sin horario (excluyendo byes de primera ronda que no deberían tener horario)
             const matchesWithoutSchedule = rows
-              .filter((r) => r.match && r.match.team1 && r.match.team2 && !r.match.match_date);
+              .filter((r) => {
+                if (!r.match) return false;
+                // Excluir byes de primera ronda (solo tienen un equipo y no tienen source)
+                const isBye = ((!r.match.team1 && r.match.team2) || (r.match.team1 && !r.match.team2)) && !r.source_team1 && !r.source_team2;
+                return !isBye && !r.match.match_date;
+              });
 
             return (
               <>
@@ -238,9 +285,16 @@ export default function PlayoffsViewTab({ tournament }: { tournament: Pick<Tourn
                             </div>
                             
                             <div className="space-y-2">
-                              <div className="font-medium text-sm">
-                                {teamLabelBracket(match.team1)} vs {teamLabelBracket(match.team2)}
-                              </div>
+                              {/* Mostrar equipos si están definidos, o source si no */}
+                              {match.team1 && match.team2 ? (
+                                <div className="font-medium text-sm">
+                                  {teamLabelBracket(match.team1)} vs {teamLabelBracket(match.team2)}
+                                </div>
+                              ) : (
+                                <div className="font-medium text-sm text-muted-foreground">
+                                  {r.source_team1 || "—"} vs {r.source_team2 || "—"}
+                                </div>
+                              )}
                               
                               {/* Horario destacado */}
                               <div className="bg-muted/50 rounded-md p-2 space-y-1">

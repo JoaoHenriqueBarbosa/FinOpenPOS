@@ -747,13 +747,25 @@ export class TournamentPlayoffsRepository extends BaseRepository {
             id,
             display_name,
             player1:player1_id ( first_name, last_name ),
-            player2:player2_id ( first_name, last_name )
+            player2:player2_id ( first_name, last_name ),
+            standings:tournament_group_standings!team_id (
+              position,
+              group:tournament_group_id (
+                name
+              )
+            )
           ),
           team2:team2_id (
             id,
             display_name,
             player1:player1_id ( first_name, last_name ),
-            player2:player2_id ( first_name, last_name )
+            player2:player2_id ( first_name, last_name ),
+            standings:tournament_group_standings!team_id (
+              position,
+              group:tournament_group_id (
+                name
+              )
+            )
           )
         )
       `
@@ -771,12 +783,28 @@ export class TournamentPlayoffsRepository extends BaseRepository {
     return (data ?? []).map((item: any) => {
       const match = Array.isArray(item.match) ? (item.match[0] || undefined) : item.match;
       if (match) {
+        // Normalize standings (Supabase returns array for relations)
+        const normalizeStandings = (standings: any) => {
+          if (!standings) return undefined;
+          const standingsArray = Array.isArray(standings) ? standings : [standings];
+          return standingsArray.map((s: any) => ({
+            position: s.position,
+            group: Array.isArray(s.group) ? (s.group[0] || undefined) : s.group,
+          }));
+        };
+
         return {
           ...item,
           match: {
             ...match,
-            team1: Array.isArray(match.team1) ? (match.team1[0] || undefined) : match.team1,
-            team2: Array.isArray(match.team2) ? (match.team2[0] || undefined) : match.team2,
+            team1: match.team1 ? {
+              ...(Array.isArray(match.team1) ? match.team1[0] : match.team1),
+              standings: normalizeStandings(Array.isArray(match.team1) ? match.team1[0]?.standings : match.team1?.standings),
+            } : undefined,
+            team2: match.team2 ? {
+              ...(Array.isArray(match.team2) ? match.team2[0] : match.team2),
+              standings: normalizeStandings(Array.isArray(match.team2) ? match.team2[0]?.standings : match.team2?.standings),
+            } : undefined,
           },
         };
       }
@@ -788,12 +816,20 @@ export class TournamentPlayoffsRepository extends BaseRepository {
           display_name: string | null;
           player1?: { first_name: string; last_name: string };
           player2?: { first_name: string; last_name: string };
+          standings?: Array<{
+            position: number;
+            group?: { name: string };
+          }>;
         };
         team2?: {
           id: number;
           display_name: string | null;
           player1?: { first_name: string; last_name: string };
           player2?: { first_name: string; last_name: string };
+          standings?: Array<{
+            position: number;
+            group?: { name: string };
+          }>;
         };
       };
     }>;

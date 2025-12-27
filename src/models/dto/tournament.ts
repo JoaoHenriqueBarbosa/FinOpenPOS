@@ -51,6 +51,12 @@ export interface TeamDTO {
   player1: TeamPlayer;
   player2: TeamPlayer;
   restricted_schedule_ids?: number[]; // IDs de horarios disponibles que el equipo NO puede jugar
+  standings?: Array<{
+    position: number;
+    group?: {
+      name: string;
+    };
+  }>; // Posición y zona del equipo en la fase de grupos
 }
 
 // Group DTOs
@@ -126,8 +132,18 @@ export interface PlayoffRow {
     set2_team2_games: number | null;
     set3_team1_games: number | null;
     set3_team2_games: number | null;
-    team1: TeamDTO | null;
-    team2: TeamDTO | null;
+    team1: (TeamDTO & {
+      standings?: Array<{
+        position: number;
+        group?: { name: string };
+      }>;
+    }) | null;
+    team2: (TeamDTO & {
+      standings?: Array<{
+        position: number;
+        group?: { name: string };
+      }>;
+    }) | null;
   } | null;
 }
 
