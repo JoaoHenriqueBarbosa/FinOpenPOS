@@ -106,10 +106,11 @@ export default function ScheduleReviewTab({
 
   const handleConfirmRegenerateSchedule = async () => {
     // Este handler se maneja directamente en TournamentScheduleDialog cuando showLogs es true
-    // Solo se usa para limpiar el estado
+    // Solo actualizar los datos sin cerrar el dialog ni recargar la página
     setRegenerating(false);
     setRegenerateError(null);
-    setShowRegenerateDialog(false);
+    // No cerrar el dialog: setShowRegenerateDialog(false);
+    // Solo actualizar los datos en silencio
     load();
   };
 

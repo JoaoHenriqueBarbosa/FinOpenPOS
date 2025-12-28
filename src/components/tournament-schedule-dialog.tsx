@@ -253,10 +253,9 @@ export function TournamentScheduleDialog({
                         setLogs((prev) => [...prev, { message: "✅ Proceso completado exitosamente", timestamp: new Date() }]);
                         setIsProcessing(false);
                         abortControllerRef.current = null;
-                        setTimeout(() => {
-                          onConfirm(scheduleConfig);
-                          window.location.reload();
-                        }, 1000);
+                        // No cerrar el dialog ni recargar la página
+                        // Solo llamar a onConfirm para que el componente padre actualice los datos si es necesario
+                        onConfirm(scheduleConfig);
                         return;
                       }
                     } catch (e) {
