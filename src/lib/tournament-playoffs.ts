@@ -222,8 +222,11 @@ function seedByeTeams(teams: QualifiedTeam[], numPositions: number): (QualifiedT
 
 /**
  * Genera los cruces de la primera ronda emparejando mejor seed vs peor seed disponible.
+ * Evita que equipos de la misma zona se enfrenten.
+ * Usa seeding estándar para asignar las posiciones correctas en el bracket.
  * 
  * @param teamsPlaying Lista de equipos que juegan (ordenados por seed, mejor primero)
+ * @param roundName Nombre de la ronda
  * @returns Array de matches con los cruces
  */
 function generateFirstRoundMatches(
@@ -232,21 +235,131 @@ function generateFirstRoundMatches(
 ): PlayoffMatch[] {
   const matches: PlayoffMatch[] = [];
   const numMatches = Math.floor(teamsPlaying.length / 2);
+  const numPositions = teamsPlaying.length;
   
-  // Emparejar: mejor vs peor, segundo mejor vs segundo peor, etc.
+  // Generar los cruces: mejor vs peor, segundo mejor vs segundo peor, etc.
+  // Pero evitar que equipos de la misma zona se enfrenten
+  const matchPairs: Array<{ team1: QualifiedTeam; team2: QualifiedTeam }> = [];
+  const usedIndices = new Set<number>();
+  
   for (let i = 0; i < numMatches; i++) {
     const team1Index = i; // Mejor seed disponible
-    const team2Index = teamsPlaying.length - 1 - i; // Peor seed disponible
+    const team1 = teamsPlaying[team1Index];
     
-    matches.push({
-      round: roundName,
-      bracket_pos: i + 1,
-      team1_id: teamsPlaying[team1Index].team_id,
-      team2_id: teamsPlaying[team2Index].team_id,
-      source_team1: null,
-      source_team2: null,
+    // Buscar el peor seed disponible que NO sea de la misma zona
+    let team2Index = teamsPlaying.length - 1 - i; // Empezar con el peor seed correspondiente
+    let team2 = teamsPlaying[team2Index];
+    
+    // Si son de la misma zona, buscar el siguiente disponible de otra zona
+    if (team1.from_group_id === team2.from_group_id) {
+      // Buscar desde el final hacia adelante el primer equipo de otra zona que no esté usado
+      let found = false;
+      for (let j = teamsPlaying.length - 1; j >= numMatches; j--) {
+        if (!usedIndices.has(j) && teamsPlaying[j].from_group_id !== team1.from_group_id) {
+          team2Index = j;
+          team2 = teamsPlaying[team2Index];
+          found = true;
+          break;
+        }
+      }
+      
+      // Si no encontramos uno disponible, buscar desde el principio de los segundos
+      if (!found) {
+        for (let j = numMatches; j < teamsPlaying.length; j++) {
+          if (!usedIndices.has(j) && teamsPlaying[j].from_group_id !== team1.from_group_id) {
+            team2Index = j;
+            team2 = teamsPlaying[team2Index];
+            found = true;
+            break;
+          }
+        }
+      }
+    }
+    
+    usedIndices.add(team2Index);
+    matchPairs.push({
+      team1,
+      team2,
     });
   }
+  
+  // Usar seeding estándar para asignar los matches a las posiciones correctas del bracket
+  function getStandardSeedOrder(size: number): number[] {
+    if (size === 1) return [1];
+    if (size === 2) return [1, 2];
+    
+    if (size % 2 !== 0 || size < 2) {
+      return Array.from({ length: size }, (_, i) => i + 1);
+    }
+    
+    const half = size / 2;
+    if (!Number.isInteger(half) || half < 1) {
+      return Array.from({ length: size }, (_, i) => i + 1);
+    }
+    
+    if (size > 1024) {
+      return Array.from({ length: size }, (_, i) => i + 1);
+    }
+    
+    const firstHalf = getStandardSeedOrder(half);
+    if (firstHalf.length !== half) {
+      return Array.from({ length: size }, (_, i) => i + 1);
+    }
+    
+    const result: number[] = [];
+    for (let i = 0; i < half; i++) {
+      result.push(firstHalf[i]);
+      result.push(size - firstHalf[i] + 1);
+    }
+    return result;
+  }
+  
+  // Obtener el orden estándar de seeds para las posiciones del bracket
+  const seedOrder = getStandardSeedOrder(numPositions);
+  
+  // Crear matches en las posiciones correctas según el seeding estándar
+  const matchesByPosition: Array<{ bracketPos: number; team1: QualifiedTeam; team2: QualifiedTeam } | null> = 
+    new Array(numPositions).fill(null);
+  
+  // Para cada match pair, encontrar su posición en el bracket usando el seedOrder
+  // El match pair i contiene equipos de seeds aproximadamente (i+1) y (numPositions - i)
+  // Necesitamos encontrar dónde está el mejor seed de cada match en el seedOrder
+  for (let i = 0; i < matchPairs.length; i++) {
+    const match = matchPairs[i];
+    
+    // Encontrar el seed global del mejor equipo del match
+    // El mejor equipo es el que tiene menor índice en teamsPlaying
+    const team1GlobalSeed = teamsPlaying.findIndex(t => t.team_id === match.team1.team_id) + 1; // 1-based
+    const team2GlobalSeed = teamsPlaying.findIndex(t => t.team_id === match.team2.team_id) + 1; // 1-based
+    const bestSeed = Math.min(team1GlobalSeed, team2GlobalSeed);
+    
+    // Encontrar la posición en el bracket donde está este seed según el seedOrder
+    const position = seedOrder.findIndex(seed => seed === bestSeed);
+    if (position !== -1) {
+      matchesByPosition[position] = {
+        bracketPos: position + 1, // bracket_pos es 1-based
+        team1: match.team1,
+        team2: match.team2,
+      };
+    }
+  }
+  
+  // Crear los matches finales ordenados por bracket_pos
+  for (const matchData of matchesByPosition) {
+    if (matchData) {
+      matches.push({
+        round: roundName,
+        bracket_pos: matchData.bracketPos,
+        team1_id: matchData.team1.team_id,
+        team2_id: matchData.team2.team_id,
+        source_team1: null,
+        source_team2: null,
+      });
+    }
+  }
+  
+  // Ordenar por bracket_pos para asegurar el orden correcto
+  matches.sort((a, b) => a.bracket_pos - b.bracket_pos);
   
   return matches;
 }
