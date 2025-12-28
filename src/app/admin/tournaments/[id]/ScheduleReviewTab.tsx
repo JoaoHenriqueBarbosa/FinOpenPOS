@@ -41,6 +41,7 @@ export default function ScheduleReviewTab({
   const [regenerateError, setRegenerateError] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showCloseReviewDialog, setShowCloseReviewDialog] = useState(false);
 
   const {
     data,
@@ -61,10 +62,6 @@ export default function ScheduleReviewTab({
   };
 
   const handleCloseReview = async () => {
-    if (!confirm("¿Estás seguro de cerrar la revisión de horarios? Una vez cerrada, no podrás modificar los horarios de la fase de grupos.")) {
-      return;
-    }
-
     try {
       setClosingReview(true);
       const response = await fetch(`/api/tournaments/${tournament.id}/close-schedule-review`, {
@@ -76,6 +73,9 @@ export default function ScheduleReviewTab({
         alert(errorData.error || "Error al cerrar revisión de horarios");
         return;
       }
+
+      // Cerrar el diálogo
+      setShowCloseReviewDialog(false);
 
       // Invalidar cache y recargar
       load();
@@ -238,22 +238,25 @@ export default function ScheduleReviewTab({
                     >
                       Revisar y editar horarios
                     </Button>
-                    <Button
-                      onClick={handleCloseReview}
-                      disabled={closingReview}
-                    >
-                      {closingReview ? (
-                        <>
-                          <Loader2Icon className="h-4 w-4 animate-spin mr-2" />
-                          Cerrando...
-                        </>
-                      ) : (
-                        <>
-                          <CheckIcon className="h-4 w-4 mr-2" />
-                          Cerrar revisión de horarios
-                        </>
-                      )}
-                    </Button>
+                    {hasScheduledMatches && tournament.status === "schedule_review" && (
+                      <Button
+                        variant="default"
+                        onClick={() => setShowCloseReviewDialog(true)}
+                        disabled={closingReview}
+                      >
+                        {closingReview ? (
+                          <>
+                            <Loader2Icon className="h-4 w-4 animate-spin mr-2" />
+                            Cerrando...
+                          </>
+                        ) : (
+                          <>
+                            <CheckIcon className="h-4 w-4 mr-2" />
+                            Cerrar revisión de horarios
+                          </>
+                        )}
+                      </Button>
+                    )}
                   </>
                 ) : (
                   <div className="text-sm text-amber-600">
@@ -351,6 +354,44 @@ export default function ScheduleReviewTab({
                   </>
                 ) : (
                   "Confirmar y eliminar"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Diálogo de confirmación para cerrar revisión de horarios */}
+        <Dialog open={showCloseReviewDialog} onOpenChange={setShowCloseReviewDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Confirmar cierre de revisión de horarios</DialogTitle>
+              <DialogDescription>
+                ¿Estás seguro de que deseas cerrar la revisión de horarios? Esta acción:
+                <ul className="list-disc list-inside mt-2 space-y-1">
+                  <li>Bloqueará la modificación de horarios de la fase de grupos</li>
+                  <li>Pasará el torneo a la fase de grupos (in_progress)</li>
+                </ul>
+                <p className="mt-2 font-semibold text-amber-600">
+                  Una vez cerrada, no podrás modificar los horarios de los partidos. Esta acción no se puede deshacer.
+                </p>
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setShowCloseReviewDialog(false)}
+                disabled={closingReview}
+              >
+                Cancelar
+              </Button>
+              <Button variant="default" onClick={handleCloseReview} disabled={closingReview}>
+                {closingReview ? (
+                  <>
+                    <Loader2Icon className="h-4 w-4 animate-spin mr-2" />
+                    Cerrando...
+                  </>
+                ) : (
+                  "Confirmar y cerrar"
                 )}
               </Button>
             </DialogFooter>
