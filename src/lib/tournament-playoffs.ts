@@ -774,12 +774,12 @@ export function generatePlayoffBracket(rankedTeams: QualifiedTeam[]): PlayoffMat
       const nextRoundName = getRoundName(currentRoundSize);
       const prevRoundLabel = currentRoundName.charAt(0).toUpperCase() + currentRoundName.slice(1);
       
-      // En cada ronda, los matches se generan emparejando matches de la ronda anterior
-      // Patrón estándar de brackets: match 1 (arriba) vs match último (abajo), match 2 vs penúltimo, etc.
+      // Cambiar el patrón a consecutivo: matches consecutivos se enfrentan
       for (let i = 0; i < nextRoundMatches; i++) {
         const matchNum = i + 1;
-        const prevMatch1 = i + 1;
-        const prevMatch2 = currentRoundSize - i;
+        // Matches consecutivos se enfrentan: (1,2), (3,4), (5,6), etc.
+        const prevMatch1 = i * 2 + 1; // Primer match del par (1, 3, 5, ...)
+        const prevMatch2 = i * 2 + 2; // Segundo match del par (2, 4, 6, ...)
         
         allMatches.push({
           round: nextRoundName,
@@ -870,8 +870,8 @@ export function generatePlayoffBracket(rankedTeams: QualifiedTeam[]): PlayoffMat
       
       for (let i = 0; i < nextRoundMatches; i++) {
         const matchNum = i + 1;
-        const prevMatch1 = i + 1;
-        const prevMatch2 = currentRoundSize - i;
+        const prevMatch1 = i * 2 + 1;
+        const prevMatch2 = i * 2 + 2;
         
         allMatches.push({
           round: nextRoundName,
