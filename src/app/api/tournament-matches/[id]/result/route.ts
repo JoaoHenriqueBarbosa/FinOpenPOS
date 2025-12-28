@@ -184,32 +184,40 @@ export async function POST(req: Request, { params }: RouteParams) {
     if (previousRounds.length > 0 && validationResults[0]) {
       const { data: previousRoundMatches, error: prevRoundsError } = validationResults[0];
       if (!prevRoundsError && previousRoundMatches && previousRoundMatches.length > 0) {
-        const previousMatchIds = previousRoundMatches.map(p => p.match_id);
-        const { data: previousMatches, error: prevMatchesError } = await supabase
-          .from("tournament_matches")
-          .select("id, status")
-          .in("id", previousMatchIds)
-          .eq("user_uid", user.id);
+        // Si el match actual tiene ambos equipos definidos, significa que todos los matches
+        // anteriores necesarios ya están completos (jugados o por bye)
+        // Si falta algún equipo, entonces hay matches anteriores incompletos
+        if (!match.team1_id || !match.team2_id) {
+          // El match actual no tiene ambos equipos, verificar qué matches anteriores faltan
+          const previousMatchIds = previousRoundMatches.map(p => p.match_id);
+          const { data: previousMatches, error: prevMatchesError } = await supabase
+            .from("tournament_matches")
+            .select("id, status")
+            .in("id", previousMatchIds)
+            .eq("user_uid", user.id);
 
-        if (!prevMatchesError && previousMatches) {
-          const incompleteMatches = previousMatches.filter(m => m.status !== "finished");
-          if (incompleteMatches.length > 0) {
-            const incompleteRounds = new Set(
-              incompleteMatches
-                .map(m => {
-                  const playoff = previousRoundMatches.find(p => p.match_id === m.id);
-                  return playoff?.round;
-                })
-                .filter(Boolean)
-            );
-            return NextResponse.json(
-              { 
-                error: `No se pueden cargar resultados de ${currentRound} hasta que todas las rondas anteriores estén completas. Rondas incompletas: ${Array.from(incompleteRounds).join(", ")}` 
-              },
-              { status: 403 }
-            );
+          if (!prevMatchesError && previousMatches) {
+            const incompleteMatches = previousMatches.filter(m => m.status !== "finished");
+            if (incompleteMatches.length > 0) {
+              const incompleteRounds = new Set(
+                incompleteMatches
+                  .map(m => {
+                    const playoff = previousRoundMatches.find(p => p.match_id === m.id);
+                    return playoff?.round;
+                  })
+                  .filter(Boolean)
+              );
+              return NextResponse.json(
+                { 
+                  error: `No se pueden cargar resultados de ${currentRound} hasta que todas las rondas anteriores estén completas. Rondas incompletas: ${Array.from(incompleteRounds).join(", ")}` 
+                },
+                { status: 403 }
+              );
+            }
           }
         }
+        // Si el match actual tiene ambos equipos, no hay necesidad de validar rondas anteriores
+        // porque ya están resueltos (jugados o por bye)
       }
     }
 
