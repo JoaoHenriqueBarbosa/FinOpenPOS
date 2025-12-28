@@ -318,17 +318,14 @@ function generateFirstRoundMatches(
   const seedOrder = getStandardSeedOrder(numPositions);
   
   // Crear matches en las posiciones correctas según el seeding estándar
-  const matchesByPosition: Array<{ bracketPos: number; team1: QualifiedTeam; team2: QualifiedTeam } | null> = 
+  const matchesByPosition: Array<{ team1: QualifiedTeam; team2: QualifiedTeam } | null> = 
     new Array(numPositions).fill(null);
   
   // Para cada match pair, encontrar su posición en el bracket usando el seedOrder
-  // El match pair i contiene equipos de seeds aproximadamente (i+1) y (numPositions - i)
-  // Necesitamos encontrar dónde está el mejor seed de cada match en el seedOrder
   for (let i = 0; i < matchPairs.length; i++) {
     const match = matchPairs[i];
     
     // Encontrar el seed global del mejor equipo del match
-    // El mejor equipo es el que tiene menor índice en teamsPlaying
     const team1GlobalSeed = teamsPlaying.findIndex(t => t.team_id === match.team1.team_id) + 1; // 1-based
     const team2GlobalSeed = teamsPlaying.findIndex(t => t.team_id === match.team2.team_id) + 1; // 1-based
     const bestSeed = Math.min(team1GlobalSeed, team2GlobalSeed);
@@ -337,25 +334,69 @@ function generateFirstRoundMatches(
     const position = seedOrder.findIndex(seed => seed === bestSeed);
     if (position !== -1) {
       matchesByPosition[position] = {
-        bracketPos: position + 1, // bracket_pos es 1-based
         team1: match.team1,
         team2: match.team2,
       };
     }
   }
   
-  // Crear los matches finales ordenados por bracket_pos
-  for (const matchData of matchesByPosition) {
-    if (matchData) {
-      matches.push({
-        round: roundName,
-        bracket_pos: matchData.bracketPos,
-        team1_id: matchData.team1.team_id,
-        team2_id: matchData.team2.team_id,
-        source_team1: null,
-        source_team2: null,
+  // Crear los matches finales, asignando bracket_pos secuencialmente (1, 2, 3, 4...)
+  // basado en el orden de las posiciones en el bracket (de arriba a abajo)
+  // Las posiciones del bracket se emparejan: 0-1, 2-3, 4-5, 6-7
+  // Cada par forma un match, y el bracket_pos debe ser secuencial según el orden visual
+  
+  // Primero, necesitamos identificar qué matches están en qué posiciones
+  // y luego agruparlos en pares según el orden visual del bracket
+  const matchesWithPosition: Array<{ position: number; team1: QualifiedTeam; team2: QualifiedTeam }> = [];
+  
+  for (let pos = 0; pos < matchesByPosition.length; pos++) {
+    if (matchesByPosition[pos]) {
+      matchesWithPosition.push({
+        position: pos,
+        team1: matchesByPosition[pos]!.team1,
+        team2: matchesByPosition[pos]!.team2,
       });
     }
+  }
+  
+  // Ordenar por posición para mantener el orden del bracket
+  matchesWithPosition.sort((a, b) => a.position - b.position);
+  
+  // Ahora agrupar en pares según el orden visual del bracket
+  // Para 8 posiciones: pares son (0-1), (2-3), (4-5), (6-7)
+  // Cada par forma un match con bracket_pos secuencial
+  const finalMatches: Array<{ bracketPos: number; team1: QualifiedTeam; team2: QualifiedTeam }> = [];
+  
+  for (let pairIndex = 0; pairIndex < numMatches; pairIndex++) {
+    const pos1 = pairIndex * 2;
+    const pos2 = pairIndex * 2 + 1;
+    
+    // Buscar el match que está en pos1 o pos2
+    const match1 = matchesWithPosition.find(m => m.position === pos1);
+    const match2 = matchesWithPosition.find(m => m.position === pos2);
+    
+    // El match debería estar en una de las dos posiciones del par
+    const matchData = match1 || match2;
+    
+    if (matchData) {
+      finalMatches.push({
+        bracketPos: pairIndex + 1, // Secuencial: 1, 2, 3, 4...
+        team1: matchData.team1,
+        team2: matchData.team2,
+      });
+    }
+  }
+  
+  // Crear los matches finales
+  for (const matchPair of finalMatches) {
+    matches.push({
+      round: roundName,
+      bracket_pos: matchPair.bracketPos,
+      team1_id: matchPair.team1.team_id,
+      team2_id: matchPair.team2.team_id,
+      source_team1: null,
+      source_team2: null,
+    });
   }
   
   // Ordenar por bracket_pos para asegurar el orden correcto
@@ -569,19 +610,50 @@ export function generatePlayoffBracket(rankedTeams: QualifiedTeam[]): PlayoffMat
     // que alimentan la siguiente ronda para mantener el orden correcto
     
     // Generar los cruces reales: mejor seed vs peor seed disponible
+    // Pero evitar que equipos de la misma zona se enfrenten
     const realMatchesCount = Math.floor(teamsPlaying / 2);
     const realMatches: Array<{ team1: QualifiedTeam; team2: QualifiedTeam; strength: number }> = [];
+    const usedIndices = new Set<number>();
     
     for (let i = 0; i < realMatchesCount; i++) {
       const team1Index = i; // Mejor seed disponible
-      const team2Index = teamsPlayingInFirstRound.length - 1 - i; // Peor seed disponible
       const team1 = teamsPlayingInFirstRound[team1Index];
-      const team2 = teamsPlayingInFirstRound[team2Index];
       
-      // Calcular la fuerza del ganador esperado (usando el índice en rankedTeams)
+      // Buscar el peor seed disponible que NO sea de la misma zona
+      let team2Index = teamsPlayingInFirstRound.length - 1 - i; // Empezar con el peor seed correspondiente
+      let team2 = teamsPlayingInFirstRound[team2Index];
+      
+      // Si son de la misma zona, buscar el siguiente disponible de otra zona
+      if (team1.from_group_id === team2.from_group_id) {
+        // Buscar desde el final hacia adelante el primer equipo de otra zona que no esté usado
+        let found = false;
+        for (let j = teamsPlayingInFirstRound.length - 1; j >= realMatchesCount; j--) {
+          if (!usedIndices.has(j) && teamsPlayingInFirstRound[j].from_group_id !== team1.from_group_id) {
+            team2Index = j;
+            team2 = teamsPlayingInFirstRound[team2Index];
+            found = true;
+            break;
+          }
+        }
+        
+        // Si no encontramos uno disponible, buscar desde el principio de los segundos
+        if (!found) {
+          for (let j = realMatchesCount; j < teamsPlayingInFirstRound.length; j++) {
+            if (!usedIndices.has(j) && teamsPlayingInFirstRound[j].from_group_id !== team1.from_group_id) {
+              team2Index = j;
+              team2 = teamsPlayingInFirstRound[team2Index];
+              found = true;
+              break;
+            }
+          }
+        }
+      }
+      
+      usedIndices.add(team2Index);
+      
+      // Calcular la fuerza del ganador esperado
       const team1GlobalIndex = rankedTeams.findIndex(t => t.team_id === team1.team_id);
       const team2GlobalIndex = rankedTeams.findIndex(t => t.team_id === team2.team_id);
-      // La fuerza es el MEJOR seed del match (menor índice = más fuerte)
       const strength = Math.min(team1GlobalIndex, team2GlobalIndex);
       
       realMatches.push({
@@ -729,7 +801,11 @@ export function generatePlayoffBracket(rankedTeams: QualifiedTeam[]): PlayoffMat
     allMatches.push(...firstRoundMatches);
     
     // Generar rondas restantes (solo ganadores)
-    let currentRoundSize = Math.floor(teamsPlaying / 2);
+    // El patrón estándar de bracket es: match 1 vs match 2, match 3 vs match 4, etc.
+    // Para cuartos (4 matches): semis = (1 vs 2), (3 vs 4)
+    // Para semis (2 matches): final = (1 vs 2)
+    // Esto asegura que los matches consecutivos se enfrenten en la siguiente ronda
+    let currentRoundSize = firstRoundMatches.length; // Número de matches en la ronda actual
     let currentRoundName = firstRoundName;
     
     while (currentRoundSize > 1) {
@@ -737,11 +813,14 @@ export function generatePlayoffBracket(rankedTeams: QualifiedTeam[]): PlayoffMat
       const nextRoundName = getRoundName(currentRoundSize);
       const prevRoundLabel = currentRoundName.charAt(0).toUpperCase() + currentRoundName.slice(1);
       
-      // Mismo patrón: match 1 vs match último, match 2 vs match penúltimo, etc.
+      // Patrón de bracket: matches consecutivos se enfrentan
+      // Para 4 cuartos: Semis 1 = Cuartos 1 vs Cuartos 2, Semis 2 = Cuartos 3 vs Cuartos 4
+      // Para 2 semis: Final = Semis 1 vs Semis 2
       for (let i = 0; i < nextRoundMatches; i++) {
         const matchNum = i + 1;
-        const prevMatch1 = i + 1;
-        const prevMatch2 = currentRoundSize - i;
+        // Matches consecutivos se enfrentan: (1,2), (3,4), (5,6), etc.
+        const prevMatch1 = i * 2 + 1; // Primer match del par (1, 3, 5, ...)
+        const prevMatch2 = i * 2 + 2; // Segundo match del par (2, 4, 6, ...)
         
         allMatches.push({
           round: nextRoundName,
