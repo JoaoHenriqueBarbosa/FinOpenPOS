@@ -110,8 +110,12 @@ export default function ScheduleReviewTab({
     setRegenerating(false);
     setRegenerateError(null);
     // No cerrar el dialog: setShowRegenerateDialog(false);
-    // Solo actualizar los datos en silencio
-    load();
+    // Solo actualizar los datos en silencio (sin invalidar la query del torneo para evitar re-render)
+    queryClient.invalidateQueries({ queryKey: ["tournament-groups", tournament.id] });
+    // Invalidar la query del torneo solo después de un delay para evitar que se resetee el dialog
+    setTimeout(() => {
+      queryClient.invalidateQueries({ queryKey: ["tournament", tournament.id] });
+    }, 1000);
   };
 
   const handleDeleteGroups = async () => {

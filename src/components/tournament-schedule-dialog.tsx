@@ -81,19 +81,67 @@ export function TournamentScheduleDialog({
   const wasOpenRef = useRef<boolean>(false);
   const isCompletedRef = useRef<boolean>(false);
 
+  // Key única para sessionStorage basada en tournamentId y streamEndpoint
+  const storageKey = useMemo(() => {
+    return `tournament-schedule-dialog-${tournamentId}-${streamEndpoint}`;
+  }, [tournamentId, streamEndpoint]);
+
   // Estabilizar availableSchedules para evitar loops infinitos
   const availableSchedulesKey = useMemo(() => {
     return availableSchedules.map(s => `${s.date}-${s.start_time}-${s.end_time}`).join('|');
   }, [availableSchedules]);
 
-  // Resetear matchDuration y días cuando cambia el valor del torneo o se abre el diálogo
-  // Solo resetear si el dialog se está abriendo después de estar cerrado (no si ya estaba abierto)
+  // Leer estado de completado y logs desde sessionStorage al montar
+  useEffect(() => {
+    if (typeof window !== 'undefined' && storageKey) {
+      const savedCompleted = sessionStorage.getItem(storageKey);
+      if (savedCompleted === 'true') {
+        isCompletedRef.current = true;
+        setIsCompleted(true);
+        setIsLogsExpanded(true);
+        // Intentar recuperar logs guardados
+        const savedLogsKey = `${storageKey}-logs`;
+        const savedLogs = sessionStorage.getItem(savedLogsKey);
+        if (savedLogs) {
+          try {
+            const parsedLogs = JSON.parse(savedLogs);
+            // Convertir timestamps de string a Date
+            const logsWithDates = parsedLogs.map((log: { message: string; timestamp: string | Date }) => ({
+              ...log,
+              timestamp: typeof log.timestamp === 'string' ? new Date(log.timestamp) : log.timestamp,
+            }));
+            setLogs(logsWithDates);
+          } catch (e) {
+            console.error("Error parsing saved logs:", e);
+          }
+        }
+      }
+    }
+  }, [storageKey]);
+
+  // Inicializar matchDuration y días cuando el dialog se abre por primera vez
   useEffect(() => {
     if (open && !wasOpenRef.current) {
       // El dialog se está abriendo por primera vez o después de estar cerrado
       setMatchDuration(tournamentMatchDuration);
       // Si hay horarios disponibles, pre-llenar los días
       setDays(getInitialDays(availableSchedules));
+      wasOpenRef.current = true;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, tournamentMatchDuration, availableSchedulesKey]);
+
+  // Resetear logs y estado cuando el dialog se abre/cierra
+  // Solo resetear si el dialog se está abriendo después de estar cerrado (no si ya estaba abierto)
+  useEffect(() => {
+    // Si el proceso ya está completado y el dialog está abierto, no resetear nada
+    // Esto previene que se resetee cuando el componente padre se re-renderiza
+    if (open && isCompletedRef.current) {
+      return; // Preservar todo el estado cuando está completado
+    }
+    
+    // Solo procesar cambios cuando el dialog cambia de estado (abrir/cerrar)
+    if (open && !wasOpenRef.current) {
       // Solo resetear logs y estado si no está completado (preservar logs si ya se completó)
       const shouldReset = !isCompletedRef.current;
       if (shouldReset) {
@@ -108,16 +156,20 @@ export function TournamentScheduleDialog({
         abortControllerRef.current.abort();
         abortControllerRef.current = null;
       }
-      wasOpenRef.current = true;
     } else if (!open && wasOpenRef.current) {
       // El dialog se cerró después de estar abierto
       wasOpenRef.current = false;
       // Si se cierra, resetear el estado completado para la próxima vez
       setIsCompleted(false);
       isCompletedRef.current = false;
+      // Limpiar sessionStorage cuando se cierra el dialog
+      if (typeof window !== 'undefined' && storageKey) {
+        sessionStorage.removeItem(storageKey);
+        sessionStorage.removeItem(`${storageKey}-logs`);
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, tournamentMatchDuration, availableSchedulesKey]);
+    // Solo depender de 'open' para evitar re-ejecuciones cuando cambian las props del torneo
+  }, [open, storageKey]);
 
   // Cargar canchas al abrir el diálogo
   useEffect(() => {
@@ -269,12 +321,24 @@ export function TournamentScheduleDialog({
                         alert(data.error);
                         return;
                       } else if (data.type === "success") {
-                        setLogs((prev) => [...prev, { message: "✅ Proceso completado exitosamente", timestamp: new Date() }]);
+                        setLogs((prev) => {
+                          const finalLogs = [...prev, { message: "✅ Proceso completado exitosamente", timestamp: new Date() }];
+                          // Guardar logs en sessionStorage para persistir entre re-renders
+                          if (typeof window !== 'undefined' && storageKey) {
+                            const savedLogsKey = `${storageKey}-logs`;
+                            sessionStorage.setItem(savedLogsKey, JSON.stringify(finalLogs));
+                          }
+                          return finalLogs;
+                        });
                         setIsProcessing(false);
                         setIsCompleted(true);
                         isCompletedRef.current = true; // Marcar como completado en la referencia también
                         setIsLogsExpanded(true); // Expandir logs automáticamente al completar
                         abortControllerRef.current = null;
+                        // Guardar estado de completado en sessionStorage para persistir entre re-renders
+                        if (typeof window !== 'undefined' && storageKey) {
+                          sessionStorage.setItem(storageKey, 'true');
+                        }
                         // Scroll al final de los logs
                         setTimeout(() => {
                           logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -552,19 +616,27 @@ export function TournamentScheduleDialog({
                   {logs.length === 0 && isProcessing && (
                     <div className="text-muted-foreground">Esperando logs...</div>
                   )}
-                  {logs.map((log, idx) => (
-                    <div key={idx} className="text-foreground flex items-start gap-2">
-                      <span className="text-xs text-muted-foreground whitespace-nowrap">
-                        {log.timestamp.toLocaleTimeString("es-AR", { 
-                          hour: "2-digit", 
-                          minute: "2-digit", 
-                          second: "2-digit",
-                          fractionalSecondDigits: 3
-                        })}
-                      </span>
-                      <span>{log.message}</span>
-                    </div>
-                  ))}
+                  {logs.map((log, idx) => {
+                    // Asegurar que timestamp sea un Date
+                    const timestamp = log.timestamp instanceof Date 
+                      ? log.timestamp 
+                      : typeof log.timestamp === 'string' 
+                        ? new Date(log.timestamp) 
+                        : new Date();
+                    return (
+                      <div key={idx} className="text-foreground flex items-start gap-2">
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">
+                          {timestamp.toLocaleTimeString("es-AR", { 
+                            hour: "2-digit", 
+                            minute: "2-digit", 
+                            second: "2-digit",
+                            fractionalSecondDigits: 3
+                          })}
+                        </span>
+                        <span>{log.message}</span>
+                      </div>
+                    );
+                  })}
                   <div ref={logsEndRef} />
                 </div>
               )}
