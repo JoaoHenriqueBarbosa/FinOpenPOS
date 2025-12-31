@@ -27,6 +27,8 @@ type TournamentScheduleDialogProps = {
   tournamentId?: number; // ID del torneo para usar con SSE
   showLogs?: boolean; // Si mostrar la bitácora de logs
   streamEndpoint?: string; // Endpoint para el stream (por defecto: close-registration-stream)
+  error?: string | null; // Error a mostrar
+  isLoading?: boolean; // Si está cargando
 };
 
 import type { CourtDTO } from "@/models/dto/court";
@@ -73,8 +75,11 @@ export function TournamentScheduleDialog({
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState<string>("");
   const [isLogsExpanded, setIsLogsExpanded] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const wasOpenRef = useRef<boolean>(false);
+  const isCompletedRef = useRef<boolean>(false);
 
   // Estabilizar availableSchedules para evitar loops infinitos
   const availableSchedulesKey = useMemo(() => {
@@ -82,20 +87,34 @@ export function TournamentScheduleDialog({
   }, [availableSchedules]);
 
   // Resetear matchDuration y días cuando cambia el valor del torneo o se abre el diálogo
+  // Solo resetear si el dialog se está abriendo después de estar cerrado (no si ya estaba abierto)
   useEffect(() => {
-    if (open) {
+    if (open && !wasOpenRef.current) {
+      // El dialog se está abriendo por primera vez o después de estar cerrado
       setMatchDuration(tournamentMatchDuration);
       // Si hay horarios disponibles, pre-llenar los días
       setDays(getInitialDays(availableSchedules));
-      setLogs([]);
-      setProgress(0);
-      setStatus("");
-      setIsProcessing(false);
-      // Cancelar cualquier proceso en curso
-      if (abortControllerRef.current) {
+      // Solo resetear logs y estado si no está completado (preservar logs si ya se completó)
+      const shouldReset = !isCompletedRef.current;
+      if (shouldReset) {
+        setLogs([]);
+        setProgress(0);
+        setStatus("");
+        setIsProcessing(false);
+        setIsLogsExpanded(false);
+      }
+      // Cancelar cualquier proceso en curso (solo si no está completado)
+      if (abortControllerRef.current && shouldReset) {
         abortControllerRef.current.abort();
         abortControllerRef.current = null;
       }
+      wasOpenRef.current = true;
+    } else if (!open && wasOpenRef.current) {
+      // El dialog se cerró después de estar abierto
+      wasOpenRef.current = false;
+      // Si se cierra, resetear el estado completado para la próxima vez
+      setIsCompleted(false);
+      isCompletedRef.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, tournamentMatchDuration, availableSchedulesKey]);
@@ -252,7 +271,14 @@ export function TournamentScheduleDialog({
                       } else if (data.type === "success") {
                         setLogs((prev) => [...prev, { message: "✅ Proceso completado exitosamente", timestamp: new Date() }]);
                         setIsProcessing(false);
+                        setIsCompleted(true);
+                        isCompletedRef.current = true; // Marcar como completado en la referencia también
+                        setIsLogsExpanded(true); // Expandir logs automáticamente al completar
                         abortControllerRef.current = null;
+                        // Scroll al final de los logs
+                        setTimeout(() => {
+                          logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
+                        }, 100);
                         // No cerrar el dialog ni recargar la página
                         // Solo llamar a onConfirm para que el componente padre actualice los datos si es necesario
                         onConfirm(scheduleConfig);
@@ -494,21 +520,23 @@ export function TournamentScheduleDialog({
           )}
 
           {/* Bitácora de logs (solo si showLogs es true) */}
-          {showLogs && (isProcessing || logs.length > 0) && (
+          {showLogs && (isProcessing || logs.length > 0 || isCompleted) && (
             <div className="mt-4 space-y-2">
               <div className="flex items-center justify-between">
                 <Label>Bitácora del proceso</Label>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsLogsExpanded(!isLogsExpanded)}
-                  className="h-6 px-2 text-xs"
-                >
-                  {isLogsExpanded ? "Ocultar" : "Mostrar"}
-                </Button>
+                {!isCompleted && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsLogsExpanded(!isLogsExpanded)}
+                    className="h-6 px-2 text-xs"
+                  >
+                    {isLogsExpanded ? "Ocultar" : "Mostrar"}
+                  </Button>
+                )}
               </div>
-              {status && (
+              {status && !isCompleted && (
                 <div className="flex items-center gap-2">
                   <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
                     <div
@@ -519,7 +547,7 @@ export function TournamentScheduleDialog({
                   <span className="text-xs text-muted-foreground min-w-[120px]">{status}</span>
                 </div>
               )}
-              {isLogsExpanded && (
+              {(isLogsExpanded || isCompleted) && (
                 <div className="bg-muted rounded-lg p-3 max-h-64 overflow-y-auto font-mono text-xs space-y-1">
                   {logs.length === 0 && isProcessing && (
                     <div className="text-muted-foreground">Esperando logs...</div>
@@ -551,6 +579,13 @@ export function TournamentScheduleDialog({
               onClick={handleCancel}
             >
               Cancelar proceso
+            </Button>
+          ) : isCompleted ? (
+            <Button 
+              variant="outline" 
+              onClick={() => onOpenChange(false)}
+            >
+              Cerrar
             </Button>
           ) : (
             <>
