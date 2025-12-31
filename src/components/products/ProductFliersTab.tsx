@@ -140,6 +140,8 @@ export function ProductFliersTab() {
     const scale = 2;
     const width = 1080;
     const height = 1350;
+    const horizontalMargin = 80; // Márgenes laterales
+    const contentWidth = width - (horizontalMargin * 2);
     const canvas = document.createElement("canvas");
     canvas.width = width * scale;
     canvas.height = height * scale;
@@ -152,6 +154,10 @@ export function ProductFliersTab() {
 
     // Escalar el contexto para trabajar con las dimensiones originales
     ctx.scale(scale, scale);
+    
+    // Fondo blanco para los márgenes
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillRect(0, 0, width, height);
 
     // Determinar qué imagen de fondo usar
     const categoryName = category?.name || "";
@@ -175,25 +181,29 @@ export function ProductFliersTab() {
         let drawX = 0;
         let drawY = 0;
 
+        // Calcular dimensiones para el área de contenido (sin márgenes)
+        const contentAspect = contentWidth / height;
+        
         // Priorizar mostrar más ancho: si la imagen es más alta, escalar por altura para mostrar más ancho
-        if (imgAspect < canvasAspect) {
-          // La imagen es más alta que el canvas, escalar por altura para mostrar más ancho
+        if (imgAspect < contentAspect) {
+          // La imagen es más alta que el área de contenido, escalar por altura
           drawHeight = height;
           drawWidth = height * imgAspect;
-          drawX = (width - drawWidth) / 2;
+          drawX = horizontalMargin + (contentWidth - drawWidth) / 2;
         } else {
-          // La imagen es más ancha o similar, escalar por ancho para cubrir todo
-          drawWidth = width;
-          drawHeight = width / imgAspect;
+          // La imagen es más ancha o similar, escalar por ancho del área de contenido
+          drawWidth = contentWidth;
+          drawHeight = contentWidth / imgAspect;
           drawY = (height - drawHeight) / 2;
+          drawX = horizontalMargin;
         }
 
-        // Dibujar imagen de fondo centrada y escalada
+        // Dibujar imagen de fondo en el área de contenido (con márgenes laterales)
         ctx.drawImage(backgroundImage, drawX, drawY, drawWidth, drawHeight);
         
-        // Agregar overlay negro para oscurecer la imagen
+        // Agregar overlay negro para oscurecer la imagen (solo en el área de contenido)
         ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
-        ctx.fillRect(0, 0, width, height);
+        ctx.fillRect(horizontalMargin, 0, contentWidth, height);
         
         resolve();
       };
@@ -234,7 +244,7 @@ export function ProductFliersTab() {
     let yPosition = 280; // Aumentado de 200 a 280 para más espacio
     const productHeight = 70;
     const padding = 60;
-    const maxWidth = width - padding * 2;
+    const maxWidth = contentWidth - padding * 2;
 
     categoryProducts.forEach((product, index) => {
       if (yPosition + productHeight > height - 60) return;
@@ -262,7 +272,7 @@ export function ProductFliersTab() {
         }
         displayName += "...";
       }
-      ctx.fillText(displayName, padding, yPosition);
+      ctx.fillText(displayName, horizontalMargin + padding, yPosition);
       
       // Resetear sombra
       ctx.shadowColor = "transparent";
@@ -282,7 +292,7 @@ export function ProductFliersTab() {
       ctx.shadowOffsetY = 2;
       
       const price = `$${product.price.toFixed(3).replace(/\.?0+$/, "")}`;
-      ctx.fillText(price, width - padding, yPosition);
+      ctx.fillText(price, width - horizontalMargin - padding, yPosition);
       
       // Resetear sombra
       ctx.shadowColor = "transparent";
@@ -290,12 +300,12 @@ export function ProductFliersTab() {
       ctx.shadowOffsetX = 0;
       ctx.shadowOffsetY = 0;
 
-      // Línea separadora blanca más visible y gruesa
+      // Línea separadora blanca más visible y gruesa (con márgenes)
       ctx.strokeStyle = "rgba(255, 255, 255, 0.6)"; // Aumentado de 0.3 a 0.6 para más visibilidad
       ctx.lineWidth = 3; // Aumentado a 3 para más grosor
       ctx.beginPath();
-      ctx.moveTo(padding, yPosition + productHeight - 5);
-      ctx.lineTo(width - padding, yPosition + productHeight - 5);
+      ctx.moveTo(horizontalMargin + padding, yPosition + productHeight - 5);
+      ctx.lineTo(width - horizontalMargin - padding, yPosition + productHeight - 5);
       ctx.stroke();
 
       yPosition += productHeight;
