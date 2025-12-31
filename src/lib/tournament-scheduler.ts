@@ -1,4 +1,5 @@
 // Helper para asignar fechas y horarios a partidos de fase de grupos
+// Helper para asignar fechas y horarios a partidos de fase de grupos
 // siguiendo la heurística acordada:
 // - Respeto de orden deportivo (match_order en grupos de 4)
 // - Descanso mínimo por equipo (no dos turnos seguidos el mismo día)
@@ -56,6 +57,9 @@ function slotMatchesAvailableSchedule(
   const scheduleEndMinutes = timeToMinutesOfDay(availableSchedule.end_time);
 
   // El slot debe estar completamente dentro del rango del horario disponible
+  // Validación estricta: el slot completo debe estar dentro del horario disponible
+  // Si el slot termina a las 00:00 (24:00), solo es válido si el horario disponible también termina a las 00:00
+  // Si el horario disponible termina a las 22:00, un slot que termina a las 23:00 NO es válido
   return (
     slotStartMinutes >= scheduleStartMinutes &&
     slotEndMinutes <= scheduleEndMinutes
@@ -88,121 +92,34 @@ export function generateTimeSlots(
       // Si el slot termina después de medianoche, ajustar a 24:00
       let slotEndH: number;
       let slotEndM: number;
+      let slotEndTimeStr: string;
       if (slotEndMinutes >= 24 * 60) {
         slotEndH = 0;
         slotEndM = 0;
+        slotEndTimeStr = "00:00";
       } else {
         slotEndH = Math.floor(slotEndMinutes / 60);
         slotEndM = slotEndMinutes % 60;
+        slotEndTimeStr = `${String(slotEndH).padStart(2, "0")}:${String(slotEndM).padStart(2, "0")}`;
       }
 
       // Crear un identificador único para el slot físico (sin incluir la fecha)
-      // Esto permite identificar slots que representan el mismo tiempo físico en diferentes días
-      const physicalSlotKey = `${slotStartH.toString().padStart(2, "0")}:${slotStartM.toString().padStart(2, "0")}-${slotEndH.toString().padStart(2, "0")}:${slotEndM.toString().padStart(2, "0")}`;
+      const physicalSlotKey = `${String(slotStartH).padStart(2, "0")}:${String(slotStartM).padStart(2, "0")}-${slotEndTimeStr}`;
       
       const slot: TimeSlot = {
         date: day.date,
-        startTime: `${String(slotStartH).padStart(2, "0")}:${String(
-          slotStartM
-        ).padStart(2, "0")}`,
-        endTime: `${String(slotEndH).padStart(2, "0")}:${String(
-          slotEndM
-        ).padStart(2, "0")}`,
+        startTime: `${String(slotStartH).padStart(2, "0")}:${String(slotStartM).padStart(2, "0")}`,
+        endTime: slotEndTimeStr,
         physicalSlotId: physicalSlotKey,
       };
 
       // Si hay horarios disponibles configurados, filtrar slots que no coincidan
-      if (availableSchedules && availableSchedules.length > 0) {
-        // Para slots que terminan a las 00:00, verificar tanto el día actual como el siguiente
-        let matchesSchedule = false;
-        if (slotEndH === 0 && slotEndM === 0) {
-          // Slot que termina a medianoche: puede coincidir con horarios del día actual o del siguiente
-          const nextDay = new Date(day.date + "T00:00:00");
-          nextDay.setDate(nextDay.getDate() + 1);
-          const nextDayDate = nextDay.toISOString().split("T")[0];
-          
-          matchesSchedule = availableSchedules.some((schedule) => {
-            // Verificar si coincide con el día actual (el horario disponible termina a las 00:00)
-            if (schedule.date === day.date && slotMatchesAvailableSchedule(slot, schedule)) {
-              return true;
-            }
-            // Verificar si coincide con el día siguiente (slot que empieza el día anterior y termina a las 00:00)
-            if (schedule.date === nextDayDate) {
-              const scheduleStartMinutes = timeToMinutesOfDay(schedule.start_time);
-              const scheduleEndMinutes = timeToMinutesOfDay(schedule.end_time);
-              // Si el horario disponible del día siguiente empieza a las 00:00, acepta slots que terminan a medianoche
-              // del día anterior (cualquier hora del día anterior es válida si termina a las 00:00)
-              if (scheduleStartMinutes === 0 || scheduleStartMinutes === 24 * 60) {
-                return true; // Acepta cualquier slot que termine a medianoche del día anterior
-              }
-              // Si el horario disponible no empieza a medianoche, el slot debe empezar dentro del rango
-              // pero como el slot termina a las 00:00, solo es válido si el horario disponible incluye medianoche
-              return scheduleEndMinutes >= 24 * 60; // El horario disponible debe incluir medianoche
-            }
-            return false;
-          });
-        } else {
-          matchesSchedule = availableSchedules.some((schedule) =>
-            slotMatchesAvailableSchedule(slot, schedule)
-          );
-        }
-        
-        if (!matchesSchedule) {
-          currentMinutes += matchDuration;
-          continue;
-        }
-      }
-
+      // IMPORTANTE: No usar availableSchedules aquí porque los días ya definen los horarios disponibles
+      // Los días en el payload ya son los horarios disponibles, así que todos los slots generados son válidos
+      
       // Un slot por cada cancha disponible
       for (let i = 0; i < numCourts; i++) {
         slots.push(slot);
-      }
-
-      // Si el slot termina a las 00:00, también crear una versión para el día siguiente
-      // Esto permite que el slot pueda ser usado tanto para el día actual como para el siguiente
-      // Es similar a cómo un slot de 7-8 y otro de 8-9 comparten la hora 8:00
-      // Aquí, un slot que termina a las 00:00 puede ser compartido entre el día actual y el siguiente
-      if (slotEndH === 0 && slotEndM === 0) {
-        const nextDay = new Date(day.date + "T00:00:00");
-        nextDay.setDate(nextDay.getDate() + 1);
-        const nextDayDate = nextDay.toISOString().split("T")[0];
-        
-        // Verificar si el día siguiente tiene horarios disponibles que acepten este slot
-        let shouldAddNextDaySlot = false;
-        if (availableSchedules && availableSchedules.length > 0) {
-          shouldAddNextDaySlot = availableSchedules.some((schedule) => {
-            if (schedule.date === nextDayDate) {
-              const scheduleStartMinutes = timeToMinutesOfDay(schedule.start_time);
-              const scheduleEndMinutes = timeToMinutesOfDay(schedule.end_time);
-              // Si el horario disponible del día siguiente empieza a las 00:00, acepta slots que terminan a medianoche
-              // del día anterior (cualquier hora del día anterior es válida si termina a las 00:00)
-              if (scheduleStartMinutes === 0 || scheduleStartMinutes === 24 * 60) {
-                return true; // Acepta cualquier slot que termine a medianoche del día anterior
-              }
-              // Si el horario disponible no empieza a medianoche, el slot debe empezar dentro del rango
-              // pero como el slot termina a las 00:00, solo es válido si el horario disponible incluye medianoche
-              return scheduleEndMinutes >= 24 * 60; // El horario disponible debe incluir medianoche
-            }
-            return false;
-          });
-        } else {
-          // Si no hay horarios disponibles configurados, agregar el slot del día siguiente de todas formas
-          shouldAddNextDaySlot = true;
-        }
-
-        if (shouldAddNextDaySlot) {
-          const nextDaySlot: TimeSlot = {
-            date: nextDayDate,
-            startTime: slot.startTime,
-            endTime: slot.endTime,
-            physicalSlotId: physicalSlotKey, // Mismo identificador físico que el slot del día anterior
-          };
-          // Un slot por cada cancha disponible para el día siguiente también
-          // Estos representan el mismo slot físico que puede ser usado en cualquiera de los dos días
-          for (let i = 0; i < numCourts; i++) {
-            slots.push(nextDaySlot);
-          }
-        }
       }
 
       currentMinutes += matchDuration;

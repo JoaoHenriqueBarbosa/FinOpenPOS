@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2Icon, PencilIcon, CheckIcon, XIcon, TrashIcon } from "lucide-react";
+import { Loader2Icon, PencilIcon, CheckIcon, XIcon, TrashIcon, PlayIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { MatchResultForm } from "@/components/match-result-form";
 import { formatDate, formatTime } from "@/lib/date-utils";
@@ -65,6 +65,7 @@ export default function PlayoffsTab({ tournament }: { tournament: Pick<Tournamen
   const [editTime, setEditTime] = useState<string>("");
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [simulatingResults, setSimulatingResults] = useState(false);
 
   // React Query para compartir cache con GroupsTab y PlayoffsViewTab
   const {
@@ -132,6 +133,34 @@ export default function PlayoffsTab({ tournament }: { tournament: Pick<Tournamen
     } catch (err: any) {
       console.error(err);
       alert(err.message || "Error al actualizar horario");
+    }
+  };
+
+  const handleSimulateResults = async () => {
+    if (!confirm("¿Estás seguro de simular resultados para todos los partidos de playoffs? Esto sobrescribirá cualquier resultado existente y procesará los partidos en orden de ronda.")) {
+      return;
+    }
+
+    try {
+      setSimulatingResults(true);
+      const response = await fetch(`/api/tournaments/${tournament.id}/simulate-playoff-results`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        alert(errorData.error || "Error al simular resultados");
+        return;
+      }
+
+      const data = await response.json();
+      alert(data.message || "Resultados simulados exitosamente");
+      load(); // Recargar los datos
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || "Error al simular resultados");
+    } finally {
+      setSimulatingResults(false);
     }
   };
 
@@ -227,24 +256,44 @@ export default function PlayoffsTab({ tournament }: { tournament: Pick<Tournamen
             </CardDescription>
           </div>
           {rows.length > 0 && (
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setShowDeleteDialog(true)}
-              disabled={deleting}
-            >
-              {deleting ? (
-                <>
-                  <Loader2Icon className="h-4 w-4 animate-spin mr-2" />
-                  Eliminando...
-                </>
-              ) : (
-                <>
-                  <TrashIcon className="h-4 w-4 mr-2" />
-                  Eliminar Playoffs
-                </>
-              )}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSimulateResults}
+                disabled={simulatingResults}
+              >
+                {simulatingResults ? (
+                  <>
+                    <Loader2Icon className="h-4 w-4 animate-spin mr-2" />
+                    Simulando...
+                  </>
+                ) : (
+                  <>
+                    <PlayIcon className="h-4 w-4 mr-2" />
+                    Simular Resultados
+                  </>
+                )}
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setShowDeleteDialog(true)}
+                disabled={deleting}
+              >
+                {deleting ? (
+                  <>
+                    <Loader2Icon className="h-4 w-4 animate-spin mr-2" />
+                    Eliminando...
+                  </>
+                ) : (
+                  <>
+                    <TrashIcon className="h-4 w-4 mr-2" />
+                    Eliminar Playoffs
+                  </>
+                )}
+              </Button>
+            </div>
           )}
         </div>
       </CardHeader>

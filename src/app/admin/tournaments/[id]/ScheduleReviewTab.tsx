@@ -106,11 +106,16 @@ export default function ScheduleReviewTab({
 
   const handleConfirmRegenerateSchedule = async () => {
     // Este handler se maneja directamente en TournamentScheduleDialog cuando showLogs es true
-    // Solo se usa para limpiar el estado
+    // Solo actualizar los datos sin cerrar el dialog ni recargar la página
     setRegenerating(false);
     setRegenerateError(null);
-    setShowRegenerateDialog(false);
-    load();
+    // No cerrar el dialog: setShowRegenerateDialog(false);
+    // Solo actualizar los datos en silencio (sin invalidar la query del torneo para evitar re-render)
+    queryClient.invalidateQueries({ queryKey: ["tournament-groups", tournament.id] });
+    // Invalidar la query del torneo solo después de un delay para evitar que se resetee el dialog
+    setTimeout(() => {
+      queryClient.invalidateQueries({ queryKey: ["tournament", tournament.id] });
+    }, 1000);
   };
 
   const handleDeleteGroups = async () => {
