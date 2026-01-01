@@ -35,9 +35,9 @@ This particular iteration embraces the spirit of open-source development, making
    - Add the following lines to the file:
      ```
      NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
-     NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=your_supabase_publishable_key
      ```
-   - Replace `your_supabase_project_url` and `your_supabase_anon_key` with your actual Supabase project URL and anon key
+   - Replace `your_supabase_project_url` and `your_supabase_publishable_key` with your actual Supabase project URL and publishable key
 4. Run the development server:
    ```
    npm run dev
