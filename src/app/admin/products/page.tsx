@@ -35,6 +35,7 @@ import {
   Loader2Icon,
   TagIcon,
   PackageIcon,
+  Share2Icon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -65,12 +66,13 @@ import type { ProductDTO } from "@/models/dto/product";
 import type { ProductCategoryDTO } from "@/models/dto/product";
 import { productsService, productCategoriesService } from "@/services/products.service";
 import { ProductCategoriesTab } from "@/components/product-categories/ProductCategoriesTab";
+import { ProductFliersTab } from "@/components/products/ProductFliersTab";
 
 type Product = ProductDTO;
 
 export default function Products() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"products" | "categories">("products");
+  const [activeTab, setActiveTab] = useState<"products" | "categories" | "share">("products");
   const [products, setProducts] = useState<ProductDTO[]>([]);
   const [categories, setCategories] = useState<ProductCategoryDTO[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -319,7 +321,7 @@ export default function Products() {
 
   return (
     <>
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "products" | "categories")}>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "products" | "categories" | "share")}>
         <TabsList className="mb-4">
           <TabsTrigger value="products">
             <PackageIcon className="w-4 h-4 mr-2" />
@@ -328,6 +330,10 @@ export default function Products() {
           <TabsTrigger value="categories">
             <TagIcon className="w-4 h-4 mr-2" />
             Categorías
+          </TabsTrigger>
+          <TabsTrigger value="share">
+            <Share2Icon className="w-4 h-4 mr-2" />
+            Compartir
           </TabsTrigger>
         </TabsList>
 
@@ -489,6 +495,10 @@ export default function Products() {
 
         <TabsContent value="categories">
           <ProductCategoriesTab />
+        </TabsContent>
+
+        <TabsContent value="share">
+          <ProductFliersTab />
         </TabsContent>
       </Tabs>
 
