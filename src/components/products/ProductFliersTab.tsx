@@ -140,8 +140,6 @@ export function ProductFliersTab() {
     const scale = 2;
     const width = 1080;
     const height = 1350;
-    const horizontalMargin = 80; // Márgenes laterales
-    const contentWidth = width - (horizontalMargin * 2);
     const canvas = document.createElement("canvas");
     canvas.width = width * scale;
     canvas.height = height * scale;
@@ -154,10 +152,6 @@ export function ProductFliersTab() {
 
     // Escalar el contexto para trabajar con las dimensiones originales
     ctx.scale(scale, scale);
-    
-    // Fondo blanco para los márgenes
-    ctx.fillStyle = "#FFFFFF";
-    ctx.fillRect(0, 0, width, height);
 
     // Determinar qué imagen de fondo usar
     const categoryName = category?.name || "";
@@ -172,7 +166,8 @@ export function ProductFliersTab() {
 
     await new Promise<void>((resolve, reject) => {
       backgroundImage.onload = () => {
-        // Calcular dimensiones para mostrar más ancho de la imagen
+        // Calcular dimensiones para cubrir todo el canvas (object-fit: cover)
+        // Esto asegura que no queden espacios blancos o grises
         const imgAspect = backgroundImage.width / backgroundImage.height;
         const canvasAspect = width / height;
         
@@ -181,29 +176,27 @@ export function ProductFliersTab() {
         let drawX = 0;
         let drawY = 0;
 
-        // Calcular dimensiones para el área de contenido (sin márgenes)
-        const contentAspect = contentWidth / height;
-        
-        // Priorizar mostrar más ancho: si la imagen es más alta, escalar por altura para mostrar más ancho
-        if (imgAspect < contentAspect) {
-          // La imagen es más alta que el área de contenido, escalar por altura
+        // Usar object-fit: cover logic - siempre cubrir todo el canvas
+        if (imgAspect > canvasAspect) {
+          // La imagen es más ancha que el canvas, escalar por altura para cubrir todo el alto
+          // Esto recortará los lados pero cubrirá todo el ancho y alto
           drawHeight = height;
           drawWidth = height * imgAspect;
-          drawX = horizontalMargin + (contentWidth - drawWidth) / 2;
+          drawX = (width - drawWidth) / 2; // Centrar horizontalmente
         } else {
-          // La imagen es más ancha o similar, escalar por ancho del área de contenido
-          drawWidth = contentWidth;
-          drawHeight = contentWidth / imgAspect;
-          drawY = (height - drawHeight) / 2;
-          drawX = horizontalMargin;
+          // La imagen es más alta o similar al canvas, escalar por ancho para cubrir todo el ancho
+          // Esto recortará arriba/abajo pero cubrirá todo el ancho y alto
+          drawWidth = width;
+          drawHeight = width / imgAspect;
+          drawY = (height - drawHeight) / 2; // Centrar verticalmente
         }
 
-        // Dibujar imagen de fondo en el área de contenido (con márgenes laterales)
+        // Dibujar imagen de fondo cubriendo todo el canvas (puede recortar partes de la imagen)
         ctx.drawImage(backgroundImage, drawX, drawY, drawWidth, drawHeight);
         
-        // Agregar overlay negro para oscurecer la imagen (solo en el área de contenido)
-        ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
-        ctx.fillRect(horizontalMargin, 0, contentWidth, height);
+        // Agregar overlay negro para oscurecer más la imagen
+        ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+        ctx.fillRect(0, 0, width, height);
         
         resolve();
       };
@@ -244,7 +237,7 @@ export function ProductFliersTab() {
     let yPosition = 280; // Aumentado de 200 a 280 para más espacio
     const productHeight = 70;
     const padding = 60;
-    const maxWidth = contentWidth - padding * 2;
+    const maxWidth = width - padding * 2;
 
     categoryProducts.forEach((product, index) => {
       if (yPosition + productHeight > height - 60) return;
@@ -272,7 +265,7 @@ export function ProductFliersTab() {
         }
         displayName += "...";
       }
-      ctx.fillText(displayName, horizontalMargin + padding, yPosition);
+      ctx.fillText(displayName, padding, yPosition);
       
       // Resetear sombra
       ctx.shadowColor = "transparent";
@@ -292,7 +285,7 @@ export function ProductFliersTab() {
       ctx.shadowOffsetY = 2;
       
       const price = `$${product.price.toFixed(3).replace(/\.?0+$/, "")}`;
-      ctx.fillText(price, width - horizontalMargin - padding, yPosition);
+      ctx.fillText(price, width - padding, yPosition);
       
       // Resetear sombra
       ctx.shadowColor = "transparent";
@@ -300,12 +293,12 @@ export function ProductFliersTab() {
       ctx.shadowOffsetX = 0;
       ctx.shadowOffsetY = 0;
 
-      // Línea separadora blanca más visible y gruesa (con márgenes)
+      // Línea separadora blanca más visible y gruesa
       ctx.strokeStyle = "rgba(255, 255, 255, 0.6)"; // Aumentado de 0.3 a 0.6 para más visibilidad
       ctx.lineWidth = 3; // Aumentado a 3 para más grosor
       ctx.beginPath();
-      ctx.moveTo(horizontalMargin + padding, yPosition + productHeight - 5);
-      ctx.lineTo(width - horizontalMargin - padding, yPosition + productHeight - 5);
+      ctx.moveTo(padding, yPosition + productHeight - 5);
+      ctx.lineTo(width - padding, yPosition + productHeight - 5);
       ctx.stroke();
 
       yPosition += productHeight;
