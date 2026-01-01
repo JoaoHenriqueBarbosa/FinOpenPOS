@@ -171,25 +171,19 @@ export function ProductFliersTab() {
         const imgAspect = backgroundImage.width / backgroundImage.height;
         const canvasAspect = width / height;
         
-        let drawWidth = width;
-        let drawHeight = height;
-        let drawX = 0;
-        let drawY = 0;
-
-        // Usar object-fit: cover logic - siempre cubrir todo el canvas
-        if (imgAspect > canvasAspect) {
-          // La imagen es más ancha que el canvas, escalar por altura para cubrir todo el alto
-          // Esto recortará los lados pero cubrirá todo el ancho y alto
-          drawHeight = height;
-          drawWidth = height * imgAspect;
-          drawX = (width - drawWidth) / 2; // Centrar horizontalmente
-        } else {
-          // La imagen es más alta o similar al canvas, escalar por ancho para cubrir todo el ancho
-          // Esto recortará arriba/abajo pero cubrirá todo el ancho y alto
-          drawWidth = width;
-          drawHeight = width / imgAspect;
-          drawY = (height - drawHeight) / 2; // Centrar verticalmente
-        }
+        // Calcular ambos escalados posibles
+        const scaleByWidth = width / backgroundImage.width;
+        const scaleByHeight = height / backgroundImage.height;
+        
+        // Usar el escalado mayor para garantizar que cubra todo el canvas
+        const scale = Math.max(scaleByWidth, scaleByHeight);
+        
+        const drawWidth = backgroundImage.width * scale;
+        const drawHeight = backgroundImage.height * scale;
+        
+        // Centrar la imagen (puede recortar partes que sobren)
+        const drawX = (width - drawWidth) / 2;
+        const drawY = (height - drawHeight) / 2;
 
         // Dibujar imagen de fondo cubriendo todo el canvas (puede recortar partes de la imagen)
         ctx.drawImage(backgroundImage, drawX, drawY, drawWidth, drawHeight);
@@ -235,12 +229,13 @@ export function ProductFliersTab() {
 
     // Lista de productos (más chica) con más margen desde el título
     let yPosition = 280; // Aumentado de 200 a 280 para más espacio
-    const productHeight = 70;
     const padding = 60;
     const maxWidth = width - padding * 2;
+    const itemSpacing = 50; // Espacio total entre items (similar al preview con py-3 + margins)
 
     categoryProducts.forEach((product, index) => {
-      if (yPosition + productHeight > height - 60) return;
+      // Verificar si hay espacio suficiente
+      if (yPosition + 50 > height - 60) return;
 
       // Nombre del producto en blanco usando Poppins (más grande)
       ctx.fillStyle = "#FFFFFF";
@@ -293,15 +288,28 @@ export function ProductFliersTab() {
       ctx.shadowOffsetX = 0;
       ctx.shadowOffsetY = 0;
 
-      // Línea separadora blanca más visible y gruesa
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.6)"; // Aumentado de 0.3 a 0.6 para más visibilidad
-      ctx.lineWidth = 3; // Aumentado a 3 para más grosor
-      ctx.beginPath();
-      ctx.moveTo(padding, yPosition + productHeight - 5);
-      ctx.lineTo(width - padding, yPosition + productHeight - 5);
-      ctx.stroke();
+      // Calcular altura real del texto (usar la altura de la fuente más grande)
+      const textMetrics = ctx.measureText("M"); // Medir con un carácter alto
+      const actualTextHeight = textMetrics.actualBoundingBoxAscent + textMetrics.actualBoundingBoxDescent;
+      
+      // Mover posición después del texto (padding bottom similar a py-3 = 12px)
+      yPosition += actualTextHeight + 12;
 
-      yPosition += productHeight;
+      // Línea separadora blanca más visible y gruesa (solo si no es el último item)
+      if (index < categoryProducts.length - 1) {
+        // Más espacio antes de la línea (similar al preview con marginTop: 20px)
+        yPosition += 20;
+        
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(padding, yPosition);
+        ctx.lineTo(width - padding, yPosition);
+        ctx.stroke();
+        
+        // Espacio después de la línea antes del siguiente item (similar al preview con marginBottom: 5px + padding top)
+        yPosition += 5 + 12; // marginBottom + padding top del siguiente item
+      }
     });
 
     // Convertir canvas a imagen y descargar con alta calidad
@@ -552,13 +560,10 @@ export function ProductFliersTab() {
                       ? productsByCategory.get(previewCategory.id) ?? []
                       : productsWithoutCategory;
                     return products.map((product, index) => (
-                      <div
-                        key={product.id}
-                        className="flex items-center justify-between py-3"
-                        style={{
-                          borderBottom: index < products.length - 1 ? "3px solid rgba(255, 255, 255, 0.6)" : "none"
-                        }}
-                      >
+                      <div key={product.id}>
+                        <div
+                          className="flex items-center justify-between py-3"
+                        >
                         <div className="flex-1">
                           <h3 
                             className="text-3xl text-white drop-shadow-lg"
@@ -573,6 +578,14 @@ export function ProductFliersTab() {
                         >
                           ${product.price.toFixed(3).replace(/\.?0+$/, "")}
                         </p>
+                        </div>
+                        {/* Línea separadora con más espacio */}
+                        {index < products.length - 1 && (
+                          <div 
+                            className="h-[3px] bg-white/60 my-3"
+                            style={{ marginTop: "20px", marginBottom: "5px" }}
+                          />
+                        )}
                       </div>
                     ));
                   })()}
