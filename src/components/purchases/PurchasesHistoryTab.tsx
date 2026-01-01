@@ -42,13 +42,25 @@ import {
   SearchIcon,
   FilterIcon,
   CalendarIcon,
+  FilePenIcon,
+  XCircleIcon,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogHeader,
+  DialogTitle,
+  DialogContent,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { useQueryClient } from "@tanstack/react-query";
 import type { PurchaseDTO, PurchaseStatus } from "@/models/dto/purchase";
 import type { SupplierNestedDTO } from "@/models/dto/supplier";
 import type { PaymentMethodNestedDTO } from "@/models/dto/payment-method";
 import { purchasesService, suppliersService, paymentMethodsService } from "@/services";
+import { PaymentMethodSelector } from "@/components/payment-method-selector/PaymentMethodSelector";
 
 export function PurchasesHistoryTab() {
+  const queryClient = useQueryClient();
   const [purchases, setPurchases] = useState<PurchaseDTO[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierNestedDTO[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodNestedDTO[]>([]);
@@ -66,6 +78,18 @@ export function PurchasesHistoryTab() {
   );
   const [fromDate, setFromDate] = useState<string>("");
   const [toDate, setToDate] = useState<string>("");
+
+  // Estado para edición
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingPurchase, setEditingPurchase] = useState<PurchaseDTO | null>(null);
+  const [editPaymentMethodId, setEditPaymentMethodId] = useState<number | "none">("none");
+  const [editNotes, setEditNotes] = useState<string>("");
+  const [saving, setSaving] = useState(false);
+
+  // Estado para cancelación
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+  const [purchaseToCancel, setPurchaseToCancel] = useState<PurchaseDTO | null>(null);
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -159,6 +183,59 @@ export function PurchasesHistoryTab() {
     (sum, p) => sum + Number(p.total_amount),
     0
   );
+
+  const openEditDialog = (purchase: PurchaseDTO) => {
+    setEditingPurchase(purchase);
+    setEditPaymentMethodId(purchase.payment_method?.id ?? "none");
+    setEditNotes(purchase.notes ?? "");
+    setIsEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingPurchase) return;
+
+    try {
+      setSaving(true);
+      await purchasesService.update(editingPurchase.id, {
+        payment_method_id: editPaymentMethodId === "none" ? null : editPaymentMethodId,
+        notes: editNotes || null,
+      });
+
+      // Refrescar datos
+      const purchasesData = await purchasesService.getAll();
+      setPurchases(purchasesData);
+      
+      // Invalidar cache de React Query
+      queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+      
+      setIsEditDialogOpen(false);
+      setEditingPurchase(null);
+    } catch (err) {
+      console.error("Error updating purchase:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancelPurchase = async () => {
+    if (!purchaseToCancel) return;
+
+    try {
+      setCancelling(true);
+      await purchasesService.cancel(purchaseToCancel.id);
+
+      // Refrescar datos
+      const purchasesData = await purchasesService.getAll();
+      setPurchases(purchasesData);
+      
+      setIsCancelDialogOpen(false);
+      setPurchaseToCancel(null);
+    } catch (err) {
+      console.error("Error cancelling purchase:", err);
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -330,12 +407,13 @@ export function PurchasesHistoryTab() {
                 <TableHead>Notas</TableHead>
                 <TableHead className="text-right">Total</TableHead>
                 <TableHead>Estado</TableHead>
+                <TableHead>Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredPurchases.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-6">
+                  <TableCell colSpan={8} className="text-center py-6">
                     No se encontraron compras con los filtros actuales.
                   </TableCell>
                 </TableRow>
@@ -361,6 +439,33 @@ export function PurchasesHistoryTab() {
                       ? "Pendiente"
                       : "Cancelada"}
                   </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      {p.status !== "cancelled" && (
+                        <>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => openEditDialog(p)}
+                          >
+                            <FilePenIcon className="w-4 h-4" />
+                            <span className="sr-only">Editar</span>
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => {
+                              setPurchaseToCancel(p);
+                              setIsCancelDialogOpen(true);
+                            }}
+                          >
+                            <XCircleIcon className="w-4 h-4 text-destructive" />
+                            <span className="sr-only">Cancelar</span>
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -378,6 +483,82 @@ export function PurchasesHistoryTab() {
           </span>
         </div>
       </CardContent>
+
+      {/* Dialog de edición */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar compra #{editingPurchase?.id}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <PaymentMethodSelector
+                paymentMethods={paymentMethods}
+                selectedPaymentMethodId={editPaymentMethodId === "none" ? "none" : editPaymentMethodId}
+                onSelect={(id) => setEditPaymentMethodId(id === "none" ? "none" : id)}
+                disabled={saving}
+                isLoading={false}
+              />
+              <p className="text-xs text-muted-foreground">
+                {editPaymentMethodId === "none" 
+                  ? "La compra quedará como pendiente" 
+                  : "La compra quedará como completada"}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-notes">Notas</Label>
+              <Input
+                id="edit-notes"
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+                placeholder="Notas adicionales"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="secondary"
+              onClick={() => setIsEditDialogOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={saving}>
+              {saving && <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />}
+              Guardar cambios
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de cancelación */}
+      <Dialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancelar compra #{purchaseToCancel?.id}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm">
+            ¿Estás seguro de que querés cancelar esta compra? Esta acción marcará la compra como cancelada.
+          </p>
+          {purchaseToCancel && (
+            <div className="text-sm text-muted-foreground space-y-1">
+              <p><strong>Proveedor:</strong> {purchaseToCancel.supplier?.name}</p>
+              <p><strong>Total:</strong> ${Number(purchaseToCancel.total_amount).toFixed(2)}</p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="secondary"
+              onClick={() => setIsCancelDialogOpen(false)}
+            >
+              No cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleCancelPurchase} disabled={cancelling}>
+              {cancelling && <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />}
+              Sí, cancelar compra
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

@@ -34,13 +34,14 @@ import {
   TabsTrigger,
   TabsContent,
 } from "@/components/ui/tabs";
-import { Loader2Icon, PlusIcon, TrashIcon, ShoppingCartIcon, LayersIcon } from "lucide-react";
+import { Loader2Icon, PlusIcon, TrashIcon, ShoppingCartIcon, LayersIcon, UsersIcon } from "lucide-react";
 import type { ProductNestedDTO } from "@/models/dto/product";
 import type { SupplierNestedDTO } from "@/models/dto/supplier";
 import type { PaymentMethodNestedDTO } from "@/models/dto/payment-method";
 import { productsService, suppliersService, paymentMethodsService, purchasesService } from "@/services";
 import { PaymentMethodSelector } from "@/components/payment-method-selector/PaymentMethodSelector";
 import { PurchasesHistoryTab } from "@/components/purchases/PurchasesHistoryTab";
+import { SuppliersTab } from "@/components/purchases/SuppliersTab";
 
 type PurchaseLine = {
   id: number;
@@ -50,7 +51,7 @@ type PurchaseLine = {
 };
 
 export default function PurchasesPage() {
-  const [activeTab, setActiveTab] = useState<"purchases" | "history">("purchases");
+  const [activeTab, setActiveTab] = useState<"purchases" | "history" | "suppliers">("purchases");
   const [products, setProducts] = useState<ProductNestedDTO[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierNestedDTO[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodNestedDTO[]>([]);
@@ -159,11 +160,6 @@ export default function PurchasesPage() {
       return;
     }
 
-    if (selectedPaymentMethodId === "none") {
-      console.error("Falta seleccionar método de pago");
-      return;
-    }
-
     if (validLines.length === 0) {
       console.error("No hay líneas válidas para guardar");
       return;
@@ -174,7 +170,7 @@ export default function PurchasesPage() {
 
       await purchasesService.create({
         supplier_id: Number(selectedSupplierId),
-        payment_method_id: Number(selectedPaymentMethodId),
+        payment_method_id: selectedPaymentMethodId === "none" ? null : Number(selectedPaymentMethodId),
         notes: notes || null,
         items: validLines.map((l) => ({
           productId: Number(l.productId),
@@ -205,7 +201,7 @@ export default function PurchasesPage() {
 
   return (
     <>
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "purchases" | "history")}>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "purchases" | "history" | "suppliers")}>
         <TabsList className="mb-4">
           <TabsTrigger value="purchases">
             <ShoppingCartIcon className="w-4 h-4 mr-2" />
@@ -214,6 +210,10 @@ export default function PurchasesPage() {
           <TabsTrigger value="history">
             <LayersIcon className="w-4 h-4 mr-2" />
             Historial
+          </TabsTrigger>
+          <TabsTrigger value="suppliers">
+            <UsersIcon className="w-4 h-4 mr-2" />
+            Proveedores
           </TabsTrigger>
         </TabsList>
 
@@ -415,8 +415,7 @@ export default function PurchasesPage() {
           disabled={
             saving ||
             validLines.length === 0 ||
-            selectedSupplierId === "none" ||
-            selectedPaymentMethodId === "none"
+            selectedSupplierId === "none"
           }
         >
           {saving && <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />}
@@ -428,6 +427,10 @@ export default function PurchasesPage() {
 
         <TabsContent value="history">
           <PurchasesHistoryTab />
+        </TabsContent>
+
+        <TabsContent value="suppliers">
+          <SuppliersTab />
         </TabsContent>
       </Tabs>
     </>
