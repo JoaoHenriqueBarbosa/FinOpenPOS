@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { useDebounce } from "@/hooks/useDebounce";
 import { formatDateTime } from "@/lib/date-utils";
 import {
@@ -42,13 +43,18 @@ import {
   SearchIcon,
   FilterIcon,
   CalendarIcon,
+  PlusIcon,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { PurchaseDTO, PurchaseStatus } from "@/models/dto/purchase";
 import type { SupplierNestedDTO } from "@/models/dto/supplier";
 import type { PaymentMethodNestedDTO } from "@/models/dto/payment-method";
 import { purchasesService, suppliersService, paymentMethodsService } from "@/services";
+import { PaymentMethodSelector } from "@/components/payment-method-selector/PaymentMethodSelector";
 
 export function PurchasesHistoryTab() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const [purchases, setPurchases] = useState<PurchaseDTO[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierNestedDTO[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodNestedDTO[]>([]);
@@ -160,6 +166,8 @@ export function PurchasesHistoryTab() {
     0
   );
 
+
+
   if (loading) {
     return (
       <div className="h-[80vh] flex items-center justify-center">
@@ -171,11 +179,19 @@ export function PurchasesHistoryTab() {
   return (
     <Card className="flex flex-col gap-4 p-6">
       <CardHeader className="p-0 space-y-1">
-        <CardTitle>Historial de compras</CardTitle>
-        <CardDescription>
-          Revisá las compras realizadas a proveedores, con sus montos, fechas y
-          métodos de pago.
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>Historial de compras</CardTitle>
+            <CardDescription>
+              Revisá las compras realizadas a proveedores, con sus montos, fechas y
+              métodos de pago.
+            </CardDescription>
+          </div>
+          <Button onClick={() => router.push("/admin/purchases/new")}>
+            <PlusIcon className="w-4 h-4 mr-2" />
+            Nueva compra
+          </Button>
+        </div>
       </CardHeader>
 
       <CardContent className="space-y-4 p-0">
@@ -335,13 +351,17 @@ export function PurchasesHistoryTab() {
             <TableBody>
               {filteredPurchases.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-6">
+                  <TableCell colSpan={8} className="text-center py-6">
                     No se encontraron compras con los filtros actuales.
                   </TableCell>
                 </TableRow>
               )}
               {filteredPurchases.map((p) => (
-                <TableRow key={p.id}>
+                <TableRow 
+                  key={p.id}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => router.push(`/admin/purchases/${p.id}`)}
+                >
                   <TableCell>{p.id}</TableCell>
                   <TableCell>
                     {formatDateTime(p.created_at)}
@@ -378,6 +398,7 @@ export function PurchasesHistoryTab() {
           </span>
         </div>
       </CardContent>
+
     </Card>
   );
 }

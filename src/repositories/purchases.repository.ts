@@ -89,13 +89,10 @@ export class PurchasesRepository extends BaseRepository {
       .select(
         `
         id,
-        user_uid,
         purchase_id,
         product_id,
         quantity,
         unit_cost,
-        notes,
-        created_at,
         product:product_id (
           id,
           name
@@ -103,7 +100,6 @@ export class PurchasesRepository extends BaseRepository {
       `
       )
       .eq("purchase_id", purchaseId)
-      .eq("user_uid", this.userId)
       .order("id", { ascending: true });
 
     if (itemsError) {
@@ -238,9 +234,12 @@ export class PurchasesRepository extends BaseRepository {
     );
 
     // Create purchase
+    // Si hay método de pago, la compra está completada; si no, está pendiente
+    const purchaseStatus = input.payment_method_id ? "completed" : "pending";
     const purchase = await this.create({
       ...input,
       total_amount: totalAmount,
+      status: purchaseStatus,
     });
 
     // Create purchase items
@@ -251,7 +250,6 @@ export class PurchasesRepository extends BaseRepository {
         product_id: item.productId ?? null,
         quantity: item.quantity,
         unit_cost: item.unitCost,
-        notes: null,
       });
     }
 
@@ -342,13 +340,10 @@ export class PurchaseItemsRepository extends BaseRepository {
       .select(
         `
         id,
-        user_uid,
         purchase_id,
         product_id,
         quantity,
         unit_cost,
-        notes,
-        created_at,
         product:product_id (
           id,
           name
@@ -356,7 +351,6 @@ export class PurchaseItemsRepository extends BaseRepository {
       `
       )
       .eq("purchase_id", purchaseId)
-      .eq("user_uid", this.userId)
       .order("id", { ascending: true });
 
     if (error) {
@@ -381,19 +375,14 @@ export class PurchaseItemsRepository extends BaseRepository {
         product_id: input.product_id ?? null,
         quantity: input.quantity,
         unit_cost: input.unit_cost,
-        notes: input.notes ?? null,
-        user_uid: this.userId,
       })
       .select(
         `
         id,
-        user_uid,
         purchase_id,
         product_id,
         quantity,
         unit_cost,
-        notes,
-        created_at,
         product:product_id (
           id,
           name
@@ -421,8 +410,7 @@ export class PurchaseItemsRepository extends BaseRepository {
     const { error } = await this.supabase
       .from("purchase_items")
       .delete()
-      .eq("id", itemId)
-      .eq("user_uid", this.userId);
+      .eq("id", itemId);
 
     if (error) {
       throw new Error(`Failed to delete purchase item: ${error.message}`);
@@ -436,8 +424,7 @@ export class PurchaseItemsRepository extends BaseRepository {
     const { error } = await this.supabase
       .from("purchase_items")
       .delete()
-      .eq("purchase_id", purchaseId)
-      .eq("user_uid", this.userId);
+      .eq("purchase_id", purchaseId);
 
     if (error) {
       throw new Error(`Failed to delete purchase items: ${error.message}`);

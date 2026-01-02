@@ -32,9 +32,12 @@ export async function POST(request: Request) {
     const repos = await createRepositories();
     const body = await request.json();
 
-    const supplierId = Number(body.supplierId);
+    // Aceptar tanto snake_case como camelCase para compatibilidad
+    const supplierId = Number(body.supplier_id || body.supplierId);
     const paymentMethodId =
-      body.paymentMethodId !== undefined && body.paymentMethodId !== null
+      (body.payment_method_id !== undefined && body.payment_method_id !== null)
+        ? Number(body.payment_method_id)
+        : (body.paymentMethodId !== undefined && body.paymentMethodId !== null)
         ? Number(body.paymentMethodId)
         : null;
     const notes: string = body.notes ?? "";
@@ -46,7 +49,7 @@ export async function POST(request: Request) {
 
     if (!supplierId || Number.isNaN(supplierId)) {
       return NextResponse.json(
-        { error: "supplierId is required and must be a number" },
+        { error: "supplier_id is required and must be a number" },
         { status: 400 }
       );
     }

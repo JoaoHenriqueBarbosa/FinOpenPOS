@@ -8,11 +8,12 @@ import type { PaymentMethodDTO } from "@/models/dto/payment-method";
 interface PaymentMethodSelectorProps {
   paymentMethods: PaymentMethodDTO[];
   selectedPaymentMethodId: number | "none";
-  onSelect: (paymentMethodId: number) => void;
+  onSelect: (paymentMethodId: number | "none") => void;
   disabled?: boolean;
   isLoading?: boolean;
   label?: string;
   className?: string;
+  allowDeselect?: boolean;
 }
 
 export function PaymentMethodSelector({
@@ -23,6 +24,7 @@ export function PaymentMethodSelector({
   isLoading = false,
   label = "Método de pago",
   className = "",
+  allowDeselect = false,
 }: PaymentMethodSelectorProps) {
   if (isLoading) {
     return (
@@ -45,6 +47,15 @@ export function PaymentMethodSelector({
     );
   }
 
+  const handleSelect = (pmId: number) => {
+    if (allowDeselect && selectedPaymentMethodId === pmId) {
+      // Si ya está seleccionado y allowDeselect está activado, deseleccionar
+      onSelect("none");
+    } else {
+      onSelect(pmId);
+    }
+  };
+
   return (
     <div className={`space-y-2 ${className}`}>
       <Label>{label}</Label>
@@ -55,13 +66,24 @@ export function PaymentMethodSelector({
             type="button"
             variant={selectedPaymentMethodId === pm.id ? "default" : "outline"}
             className="h-auto py-4 flex flex-col items-center justify-center gap-2"
-            onClick={() => onSelect(pm.id)}
+            onClick={() => handleSelect(pm.id)}
             disabled={disabled}
           >
             <span className="text-base font-medium">{pm.name}</span>
           </Button>
         ))}
       </div>
+      {allowDeselect && selectedPaymentMethodId !== "none" && (
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full mt-2"
+          onClick={() => onSelect("none")}
+          disabled={disabled}
+        >
+          Sin método de pago
+        </Button>
+      )}
     </div>
   );
 }

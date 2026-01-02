@@ -47,6 +47,25 @@ class PurchasesService {
     }
     return response.json();
   }
+
+  async update(id: number, input: { payment_method_id?: number | null; notes?: string | null; status?: PurchaseStatus }): Promise<PurchaseDTO> {
+    const response = await fetch(`${this.baseUrl}/${id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(input),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || "Error updating purchase");
+    }
+    return response.json();
+  }
+
+  async cancel(id: number): Promise<PurchaseDTO> {
+    return this.update(id, { status: "cancelled" });
+  }
 }
 
 class SuppliersService {
