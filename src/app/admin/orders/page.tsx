@@ -41,7 +41,7 @@ import {
   TabsTrigger,
   TabsContent,
 } from "@/components/ui/tabs";
-import { Loader2Icon, PlusIcon, SearchIcon, FilePenIcon, ShoppingCartIcon, ReceiptIcon, CalendarIcon } from "lucide-react";
+import { Loader2Icon, PlusIcon, SearchIcon, FilePenIcon, ShoppingCartIcon, ReceiptIcon, CalendarIcon, BarChart3Icon } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { PlayerSearchSelect } from "@/components/player-search-select/PlayerSearchSelect";
 import Link from "next/link";
@@ -55,8 +55,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { OrderDTO, OrderStatus } from "@/models/dto/order";
 import type { PlayerDTO } from "@/models/dto/player";
 import type { PlayerStatus } from "@/models/db/player";
-import { ordersService, playersService, transactionsService } from "@/services";
+import { ordersService, playersService, transactionsService, productsService, productCategoriesService } from "@/services";
 import type { TransactionDTO } from "@/services/transactions.service";
+import type { ProductDTO } from "@/models/dto/product";
+import type { ProductCategoryDTO } from "@/models/dto/product-category";
+import { useMemo } from "react";
 
 // ---- fetchers ----
 async function fetchOrders(): Promise<OrderDTO[]> {
@@ -67,6 +70,14 @@ async function fetchPlayers(): Promise<PlayerDTO[]> {
   return playersService.getAll(true);
 }
 
+async function fetchProducts(): Promise<ProductDTO[]> {
+  return productsService.getAll();
+}
+
+async function fetchProductCategories(): Promise<ProductCategoryDTO[]> {
+  return productCategoriesService.getAll(true);
+}
+
 export default function OrdersPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -74,7 +85,7 @@ export default function OrdersPage() {
 
   // Leer el tab desde query params
   const tabFromQuery = searchParams.get("tab");
-  const initialTab = (tabFromQuery === "sales" ? "sales" : "open-accounts") as "open-accounts" | "sales";
+  const initialTab = (tabFromQuery === "sales" ? "sales" : tabFromQuery === "statistics" ? "statistics" : "open-accounts") as "open-accounts" | "sales" | "statistics";
   
   // Obtener fecha de hoy en formato YYYY-MM-DD
   const getTodayDate = () => {
@@ -82,12 +93,18 @@ export default function OrdersPage() {
     return today.toISOString().split('T')[0];
   };
 
-  const [activeTab, setActiveTab] = useState<"open-accounts" | "sales">(initialTab);
+  const [activeTab, setActiveTab] = useState<"open-accounts" | "sales" | "statistics">(initialTab);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilterOpenAccounts, setStatusFilterOpenAccounts] = useState<"all" | OrderStatus>("open");
   const [statusFilterSales, setStatusFilterSales] = useState<"all" | OrderStatus>("all");
   const [fromDate, setFromDate] = useState<string>(initialTab === "sales" ? getTodayDate() : "");
   const [toDate, setToDate] = useState<string>(initialTab === "sales" ? getTodayDate() : "");
+  
+  // Filtros para estadísticas
+  const [statsFromDate, setStatsFromDate] = useState<string>(getTodayDate());
+  const [statsToDate, setStatsToDate] = useState<string>(getTodayDate());
+  const [selectedProductId, setSelectedProductId] = useState<number | "all">("all");
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | "all">("all");
 
   // Cuando cambia el tab a "sales", establecer fechas de hoy si no están configuradas
   useEffect(() => {
@@ -97,6 +114,15 @@ export default function OrdersPage() {
       setToDate(today);
     }
   }, [activeTab, fromDate, toDate]);
+
+  // Cuando cambia el tab a "statistics", establecer fechas de hoy si no están configuradas
+  useEffect(() => {
+    if (activeTab === "statistics" && !statsFromDate && !statsToDate) {
+      const today = getTodayDate();
+      setStatsFromDate(today);
+      setStatsToDate(today);
+    }
+  }, [activeTab, statsFromDate, statsToDate]);
 
   const [isNewOrderDialogOpen, setIsNewOrderDialogOpen] = useState(false);
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
@@ -130,6 +156,45 @@ export default function OrdersPage() {
     queryKey: ["players", "onlyActive"],
     queryFn: fetchPlayers,
     staleTime: 1000 * 60 * 10, // 10 minutos - los players cambian menos frecuentemente
+  });
+
+  // Query para productos y categorías (para estadísticas)
+  const {
+    data: products = [],
+    isLoading: loadingProducts,
+  } = useQuery({
+    queryKey: ["products"],
+    queryFn: fetchProducts,
+    enabled: activeTab === "statistics",
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const {
+    data: categories = [],
+    isLoading: loadingCategories,
+  } = useQuery({
+    queryKey: ["product-categories", "onlyActive"],
+    queryFn: fetchProductCategories,
+    enabled: activeTab === "statistics",
+    staleTime: 1000 * 60 * 10,
+  });
+
+  // Query para estadísticas
+  const {
+    data: statistics = [],
+    isLoading: loadingStats,
+  } = useQuery({
+    queryKey: ["order-statistics", statsFromDate, statsToDate, selectedProductId, selectedCategoryId],
+    queryFn: async () => {
+      return ordersService.getStatistics({
+        fromDate: statsFromDate || undefined,
+        toDate: statsToDate || undefined,
+        productId: selectedProductId !== "all" ? selectedProductId : undefined,
+        categoryId: selectedCategoryId !== "all" ? selectedCategoryId : undefined,
+      });
+    },
+    enabled: activeTab === "statistics",
+    staleTime: 1000 * 30, // 30 segundos
   });
 
   // Query para transacciones (solo cuando estamos en el tab de ventas)
@@ -234,7 +299,10 @@ export default function OrdersPage() {
 
   const filteredOrders = activeTab === "open-accounts" 
     ? getFilteredOrders(statusFilterOpenAccounts, false)
-    : getFilteredOrders(statusFilterSales, true);
+    : activeTab === "sales"
+    ? getFilteredOrders(statusFilterSales, true)
+    : [];
+
 
   // Calcular resumen para el tab de ventas
   const salesSummary = (() => {
@@ -559,7 +627,7 @@ export default function OrdersPage() {
     createPlayerMutation,
   ]);
 
-  const globalLoading = loadingOrders || loadingPlayers;
+  const globalLoading = loadingOrders || loadingPlayers || (activeTab === "statistics" && (loadingProducts || loadingCategories));
 
   if (globalLoading) {
     return (
@@ -571,7 +639,7 @@ export default function OrdersPage() {
 
   return (
     <>
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "open-accounts" | "sales")}>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "open-accounts" | "sales" | "statistics")}>
         <TabsList className="mb-4">
           <TabsTrigger value="open-accounts">
             <FilePenIcon className="w-4 h-4 mr-2" />
@@ -580,6 +648,10 @@ export default function OrdersPage() {
           <TabsTrigger value="sales">
             <ReceiptIcon className="w-4 h-4 mr-2" />
             Ver ventas
+          </TabsTrigger>
+          <TabsTrigger value="statistics">
+            <BarChart3Icon className="w-4 h-4 mr-2" />
+            Estadísticas de ventas
           </TabsTrigger>
         </TabsList>
 
@@ -874,6 +946,143 @@ export default function OrdersPage() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="statistics">
+          <Card className="flex flex-col gap-6 p-6">
+            <CardHeader className="p-0 flex flex-col gap-4">
+              <CardTitle className="text-xl font-semibold">
+                Estadísticas de ventas
+              </CardTitle>
+
+              <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                <div className="flex flex-wrap items-end gap-3">
+                  <Select
+                    value={selectedCategoryId === "all" ? "all" : String(selectedCategoryId)}
+                    onValueChange={(value) =>
+                      setSelectedCategoryId(value === "all" ? "all" : Number(value))
+                    }
+                  >
+                    <SelectTrigger className="w-[200px]">
+                      <SelectValue placeholder="Todas las categorías" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas las categorías</SelectItem>
+                      {categories.map((cat) => (
+                        <SelectItem key={cat.id} value={String(cat.id)}>
+                          {cat.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Select
+                    value={selectedProductId === "all" ? "all" : String(selectedProductId)}
+                    onValueChange={(value) =>
+                      setSelectedProductId(value === "all" ? "all" : Number(value))
+                    }
+                  >
+                    <SelectTrigger className="w-[200px]">
+                      <SelectValue placeholder="Todos los productos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los productos</SelectItem>
+                      {products
+                        .filter(p => 
+                          selectedCategoryId === "all" || p.category?.id === selectedCategoryId
+                        )
+                        .map((p) => (
+                          <SelectItem key={p.id} value={String(p.id)}>
+                            {p.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Rango de fechas */}
+                <div className="flex flex-wrap gap-3 items-end">
+                  <div className="space-y-1">
+                    <Label className="flex items-center gap-1 text-xs">
+                      <CalendarIcon className="w-3 h-3" />
+                      Desde
+                    </Label>
+                    <Input
+                      type="date"
+                      value={statsFromDate}
+                      onChange={(e) => setStatsFromDate(e.target.value)}
+                      className="w-40"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="flex items-center gap-1 text-xs">
+                      <CalendarIcon className="w-3 h-3" />
+                      Hasta
+                    </Label>
+                    <Input
+                      type="date"
+                      value={statsToDate}
+                      onChange={(e) => setStatsToDate(e.target.value)}
+                      className="w-40"
+                    />
+                  </div>
+                </div>
+              </div>
+            </CardHeader>
+
+            <CardContent className="p-0">
+              {loadingStats ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2Icon className="h-8 w-8 animate-spin" />
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Producto</TableHead>
+                        <TableHead>Categoría</TableHead>
+                        <TableHead className="text-right">Cantidad vendida</TableHead>
+                        <TableHead className="text-right">Monto facturado</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {statistics.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center py-6">
+                            No hay datos para mostrar con los filtros seleccionados.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        statistics.map((stat) => (
+                          <TableRow key={stat.productId}>
+                            <TableCell className="font-medium">{stat.productName}</TableCell>
+                            <TableCell>{stat.categoryName ?? "-"}</TableCell>
+                            <TableCell className="text-right">{stat.totalQuantity}</TableCell>
+                            <TableCell className="text-right">
+                              ${stat.totalAmount.toFixed(2)}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+
+            {statistics.length > 0 && (
+              <CardFooter className="flex justify-between text-sm text-muted-foreground">
+                <span>{statistics.length} productos encontrados</span>
+                <span>
+                  Total facturado:{" "}
+                  <span className="font-semibold">
+                    ${statistics.reduce((sum, stat) => sum + stat.totalAmount, 0).toFixed(2)}
+                  </span>
+                </span>
+              </CardFooter>
+            )}
+          </Card>
         </TabsContent>
       </Tabs>
 
