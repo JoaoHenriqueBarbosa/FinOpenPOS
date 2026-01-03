@@ -80,7 +80,7 @@ export async function POST(request: Request) {
   const body = await request.json();
   const productId = Number(body.productId);
   const quantity = Number(body.quantity);
-  const reason = body.reason as string;
+  const movementType = body.movement_type || body.reason; // Soporta ambos por compatibilidad
 
   if (!productId || Number.isNaN(productId)) {
     return NextResponse.json({ error: 'productId is required' }, { status: 400 });
@@ -90,8 +90,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'quantity is required and must be a number' }, { status: 400 });
   }
 
-  if (!['purchase', 'adjustment', 'sale', 'return'].includes(reason)) {
-    return NextResponse.json({ error: 'Invalid reason' }, { status: 400 });
+  if (!['purchase', 'adjustment', 'sale'].includes(movementType)) {
+    return NextResponse.json({ error: 'Invalid movement_type. Must be purchase, sale, or adjustment' }, { status: 400 });
   }
 
   // 1) Insertar movimiento de stock
@@ -99,8 +99,8 @@ export async function POST(request: Request) {
     user_uid: user.id,
     product_id: productId,
     quantity,
-    reason,
-    order_id: body.orderId ?? null,
+    movement_type: movementType,
+    unit_cost: body.unit_cost ?? null,
     notes: body.notes ?? null,
   };
 

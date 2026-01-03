@@ -11,6 +11,12 @@ export interface StockStatisticsItem {
   currentStock: number;
 }
 
+export interface CreateStockAdjustmentInput {
+  productId: number;
+  quantity: number; // Puede ser positivo o negativo
+  notes?: string;
+}
+
 class StockMovementsService {
   private baseUrl = "/api/stock-movements";
 
@@ -27,6 +33,25 @@ class StockMovementsService {
       throw new Error("Error al cargar las estadísticas de stock");
     }
     return response.json();
+  }
+
+  async createAdjustment(input: CreateStockAdjustmentInput): Promise<void> {
+    const response = await fetch(this.baseUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        productId: input.productId,
+        quantity: input.quantity,
+        movement_type: "adjustment",
+        notes: input.notes || null,
+      }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || "Error al crear el ajuste de stock");
+    }
   }
 }
 
