@@ -11,6 +11,7 @@ import {
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useDebounce } from "@/hooks/useDebounce";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -25,6 +26,7 @@ import {
   CardContent,
   CardFooter,
   CardHeader,
+  CardTitle,
 } from "@/components/ui/card";
 import {
   SearchIcon,
@@ -36,6 +38,8 @@ import {
   TagIcon,
   PackageIcon,
   Share2Icon,
+  WarehouseIcon,
+  CalendarIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -65,6 +69,8 @@ import {
 import type { ProductDTO } from "@/models/dto/product";
 import type { ProductCategoryDTO } from "@/models/dto/product";
 import { productsService, productCategoriesService } from "@/services/products.service";
+import { stockMovementsService } from "@/services/stock-movements.service";
+import type { StockStatisticsItem } from "@/services/stock-movements.service";
 import { ProductCategoriesTab } from "@/components/product-categories/ProductCategoriesTab";
 import { ProductFliersTab } from "@/components/products/ProductFliersTab";
 
@@ -72,7 +78,18 @@ type Product = ProductDTO;
 
 export default function Products() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"products" | "categories" | "share">("products");
+  const [activeTab, setActiveTab] = useState<"products" | "categories" | "share" | "stock">("products");
+  
+  // Filtros para control de stock
+  const [stockFromDate, setStockFromDate] = useState<string>("");
+  const [stockToDate, setStockToDate] = useState<string>("");
+  
+  // Dialog para ajuste de stock
+  const [isAdjustmentDialogOpen, setIsAdjustmentDialogOpen] = useState(false);
+  const [adjustmentProductId, setAdjustmentProductId] = useState<number | "none">("none");
+  const [adjustmentQuantity, setAdjustmentQuantity] = useState<number | "">("");
+  const [adjustmentNotes, setAdjustmentNotes] = useState<string>("");
+  const [creatingAdjustment, setCreatingAdjustment] = useState(false);
   const [products, setProducts] = useState<ProductDTO[]>([]);
   const [categories, setCategories] = useState<ProductCategoryDTO[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -136,6 +153,66 @@ export default function Products() {
     queryFn: fetchCategories,
     staleTime: 1000 * 60 * 10, // 10 minutos - las categorías cambian raramente
   });
+
+  // Query para estadísticas de stock
+  const {
+    data: stockStatistics = [],
+    isLoading: loadingStockStats,
+    refetch: refetchStockStats,
+  } = useQuery({
+    queryKey: ["stock-statistics", stockFromDate, stockToDate],
+    queryFn: async () => {
+      return stockMovementsService.getStatistics({
+        fromDate: stockFromDate || undefined,
+        toDate: stockToDate || undefined,
+      });
+    },
+    enabled: activeTab === "stock",
+    staleTime: 1000 * 30, // 30 segundos
+  });
+
+  // Mutation para crear ajuste de stock
+  const createAdjustmentMutation = useMutation({
+    mutationFn: async (input: { productId: number; quantity: number; notes?: string }) => {
+      return stockMovementsService.createAdjustment(input);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["stock-statistics"] });
+      setIsAdjustmentDialogOpen(false);
+      setAdjustmentProductId("none");
+      setAdjustmentQuantity("");
+      setAdjustmentNotes("");
+      toast.success("Ajuste de stock creado correctamente");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Error al crear el ajuste de stock");
+    },
+  });
+
+  const handleCreateAdjustment = useCallback(async () => {
+    if (adjustmentProductId === "none") {
+      toast.error("Debe seleccionar un producto");
+      return;
+    }
+
+    if (adjustmentQuantity === "" || Number(adjustmentQuantity) === 0) {
+      toast.error("La cantidad debe ser diferente de cero");
+      return;
+    }
+
+    setCreatingAdjustment(true);
+    try {
+      await createAdjustmentMutation.mutateAsync({
+        productId: Number(adjustmentProductId),
+        quantity: Number(adjustmentQuantity),
+        notes: adjustmentNotes || undefined,
+      });
+    } catch (error) {
+      // El error ya se maneja en onError
+    } finally {
+      setCreatingAdjustment(false);
+    }
+  }, [adjustmentProductId, adjustmentQuantity, adjustmentNotes, createAdjustmentMutation]);
 
   // Sincronizar con estado local para compatibilidad
   useEffect(() => {
@@ -321,7 +398,7 @@ export default function Products() {
 
   return (
     <>
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "products" | "categories" | "share")}>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "products" | "categories" | "share" | "stock")}>
         <TabsList className="mb-4">
           <TabsTrigger value="products">
             <PackageIcon className="w-4 h-4 mr-2" />
@@ -330,6 +407,10 @@ export default function Products() {
           <TabsTrigger value="categories">
             <TagIcon className="w-4 h-4 mr-2" />
             Categorías
+          </TabsTrigger>
+          <TabsTrigger value="stock">
+            <WarehouseIcon className="w-4 h-4 mr-2" />
+            Control de stock
           </TabsTrigger>
           <TabsTrigger value="share">
             <Share2Icon className="w-4 h-4 mr-2" />
@@ -497,10 +578,222 @@ export default function Products() {
           <ProductCategoriesTab />
         </TabsContent>
 
+        <TabsContent value="stock">
+          <Card className="flex flex-col gap-6 p-6">
+            <CardHeader className="p-0 flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-xl font-semibold">
+                  Control de stock
+                </CardTitle>
+                <Button 
+                  size="sm" 
+                  onClick={() => setIsAdjustmentDialogOpen(true)}
+                >
+                  <PlusIcon className="w-4 h-4 mr-2" />
+                  Ajustar stock
+                </Button>
+              </div>
+
+              <div className="flex flex-wrap gap-3 items-end">
+                <div className="space-y-1">
+                  <Label className="flex items-center gap-1 text-xs">
+                    <CalendarIcon className="w-3 h-3" />
+                    Desde
+                  </Label>
+                  <Input
+                    type="date"
+                    value={stockFromDate}
+                    onChange={(e) => setStockFromDate(e.target.value)}
+                    className="w-40"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="flex items-center gap-1 text-xs">
+                    <CalendarIcon className="w-3 h-3" />
+                    Hasta
+                  </Label>
+                  <Input
+                    type="date"
+                    value={stockToDate}
+                    onChange={(e) => setStockToDate(e.target.value)}
+                    className="w-40"
+                  />
+                </div>
+              </div>
+            </CardHeader>
+
+            <CardContent className="p-0">
+              {loadingStockStats ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2Icon className="h-8 w-8 animate-spin" />
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Producto</TableHead>
+                        <TableHead>Categoría</TableHead>
+                        <TableHead className="text-right">Compras</TableHead>
+                        <TableHead className="text-right">Ventas</TableHead>
+                        <TableHead className="text-right">Ajustes</TableHead>
+                        <TableHead className="text-right font-semibold">Stock actual</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {stockStatistics.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center py-6">
+                            {stockFromDate || stockToDate 
+                              ? "No hay movimientos de stock en el rango de fechas seleccionado."
+                              : "Seleccioná un rango de fechas para ver los movimientos de stock."}
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        stockStatistics.map((stat: StockStatisticsItem) => (
+                          <TableRow key={stat.productId}>
+                            <TableCell className="font-medium">{stat.productName}</TableCell>
+                            <TableCell>{stat.categoryName ?? "-"}</TableCell>
+                            <TableCell className="text-right text-green-600">
+                              +{stat.totalPurchases}
+                            </TableCell>
+                            <TableCell className="text-right text-red-600">
+                              -{stat.totalSales}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {stat.totalAdjustments > 0 ? "+" : ""}{stat.totalAdjustments}
+                            </TableCell>
+                            <TableCell className="text-right font-semibold">
+                              {stat.currentStock}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+
+            {stockStatistics.length > 0 && (
+              <CardFooter className="flex justify-between text-sm text-muted-foreground">
+                <span>{stockStatistics.length} productos con movimientos</span>
+              </CardFooter>
+            )}
+          </Card>
+        </TabsContent>
+
         <TabsContent value="share">
           <ProductFliersTab />
         </TabsContent>
       </Tabs>
+
+      {/* Dialog para ajuste de stock */}
+      <Dialog
+        open={isAdjustmentDialogOpen}
+        onOpenChange={(open) => {
+          setIsAdjustmentDialogOpen(open);
+          if (!open) {
+            setAdjustmentProductId("none");
+            setAdjustmentQuantity("");
+            setAdjustmentNotes("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ajustar stock</DialogTitle>
+            <DialogDescription>
+              Agregá o restá unidades de stock de un producto. Usá valores positivos para agregar y negativos para restar.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="adjustment-product" className="text-right">
+                Producto
+              </Label>
+              <div className="col-span-3">
+                <Select
+                  value={adjustmentProductId === "none" ? "none" : String(adjustmentProductId)}
+                  onValueChange={(value) =>
+                    setAdjustmentProductId(value === "none" ? "none" : Number(value))
+                  }
+                >
+                  <SelectTrigger id="adjustment-product">
+                    <SelectValue placeholder="Seleccionar producto" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Seleccionar...</SelectItem>
+                    {products.map((p) => (
+                      <SelectItem key={p.id} value={String(p.id)}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="adjustment-quantity" className="text-right">
+                Cantidad
+              </Label>
+              <div className="col-span-3">
+                <Input
+                  id="adjustment-quantity"
+                  type="number"
+                  placeholder="Ej: +10 o -5"
+                  value={adjustmentQuantity}
+                  onChange={(e) =>
+                    setAdjustmentQuantity(
+                      e.target.value === "" ? "" : Number(e.target.value)
+                    )
+                  }
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Usá valores positivos para agregar stock, negativos para restar
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="adjustment-notes" className="text-right">
+                Motivo
+              </Label>
+              <div className="col-span-3">
+                <Input
+                  id="adjustment-notes"
+                  placeholder="Ej: Inventario físico, producto dañado, etc."
+                  value={adjustmentNotes}
+                  onChange={(e) => setAdjustmentNotes(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsAdjustmentDialogOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleCreateAdjustment}
+              disabled={
+                creatingAdjustment ||
+                adjustmentProductId === "none" ||
+                adjustmentQuantity === "" ||
+                Number(adjustmentQuantity) === 0
+              }
+            >
+              {creatingAdjustment && (
+                <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Guardar ajuste
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add / Edit dialog */}
       <Dialog
