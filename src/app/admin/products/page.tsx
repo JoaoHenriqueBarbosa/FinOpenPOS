@@ -25,6 +25,7 @@ import {
   CardContent,
   CardFooter,
   CardHeader,
+  CardTitle,
 } from "@/components/ui/card";
 import {
   SearchIcon,
@@ -36,6 +37,8 @@ import {
   TagIcon,
   PackageIcon,
   Share2Icon,
+  WarehouseIcon,
+  CalendarIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -65,6 +68,8 @@ import {
 import type { ProductDTO } from "@/models/dto/product";
 import type { ProductCategoryDTO } from "@/models/dto/product";
 import { productsService, productCategoriesService } from "@/services/products.service";
+import { stockMovementsService } from "@/services/stock-movements.service";
+import type { StockStatisticsItem } from "@/services/stock-movements.service";
 import { ProductCategoriesTab } from "@/components/product-categories/ProductCategoriesTab";
 import { ProductFliersTab } from "@/components/products/ProductFliersTab";
 
@@ -72,7 +77,11 @@ type Product = ProductDTO;
 
 export default function Products() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"products" | "categories" | "share">("products");
+  const [activeTab, setActiveTab] = useState<"products" | "categories" | "share" | "stock">("products");
+  
+  // Filtros para control de stock
+  const [stockFromDate, setStockFromDate] = useState<string>("");
+  const [stockToDate, setStockToDate] = useState<string>("");
   const [products, setProducts] = useState<ProductDTO[]>([]);
   const [categories, setCategories] = useState<ProductCategoryDTO[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -135,6 +144,22 @@ export default function Products() {
     queryKey: ["product-categories", "onlyActive"],
     queryFn: fetchCategories,
     staleTime: 1000 * 60 * 10, // 10 minutos - las categorías cambian raramente
+  });
+
+  // Query para estadísticas de stock
+  const {
+    data: stockStatistics = [],
+    isLoading: loadingStockStats,
+  } = useQuery({
+    queryKey: ["stock-statistics", stockFromDate, stockToDate],
+    queryFn: async () => {
+      return stockMovementsService.getStatistics({
+        fromDate: stockFromDate || undefined,
+        toDate: stockToDate || undefined,
+      });
+    },
+    enabled: activeTab === "stock",
+    staleTime: 1000 * 30, // 30 segundos
   });
 
   // Sincronizar con estado local para compatibilidad
@@ -321,7 +346,7 @@ export default function Products() {
 
   return (
     <>
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "products" | "categories" | "share")}>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "products" | "categories" | "share" | "stock")}>
         <TabsList className="mb-4">
           <TabsTrigger value="products">
             <PackageIcon className="w-4 h-4 mr-2" />
@@ -330,6 +355,10 @@ export default function Products() {
           <TabsTrigger value="categories">
             <TagIcon className="w-4 h-4 mr-2" />
             Categorías
+          </TabsTrigger>
+          <TabsTrigger value="stock">
+            <WarehouseIcon className="w-4 h-4 mr-2" />
+            Control de stock
           </TabsTrigger>
           <TabsTrigger value="share">
             <Share2Icon className="w-4 h-4 mr-2" />
@@ -495,6 +524,102 @@ export default function Products() {
 
         <TabsContent value="categories">
           <ProductCategoriesTab />
+        </TabsContent>
+
+        <TabsContent value="stock">
+          <Card className="flex flex-col gap-6 p-6">
+            <CardHeader className="p-0 flex flex-col gap-4">
+              <CardTitle className="text-xl font-semibold">
+                Control de stock
+              </CardTitle>
+
+              <div className="flex flex-wrap gap-3 items-end">
+                <div className="space-y-1">
+                  <Label className="flex items-center gap-1 text-xs">
+                    <CalendarIcon className="w-3 h-3" />
+                    Desde
+                  </Label>
+                  <Input
+                    type="date"
+                    value={stockFromDate}
+                    onChange={(e) => setStockFromDate(e.target.value)}
+                    className="w-40"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="flex items-center gap-1 text-xs">
+                    <CalendarIcon className="w-3 h-3" />
+                    Hasta
+                  </Label>
+                  <Input
+                    type="date"
+                    value={stockToDate}
+                    onChange={(e) => setStockToDate(e.target.value)}
+                    className="w-40"
+                  />
+                </div>
+              </div>
+            </CardHeader>
+
+            <CardContent className="p-0">
+              {loadingStockStats ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2Icon className="h-8 w-8 animate-spin" />
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Producto</TableHead>
+                        <TableHead>Categoría</TableHead>
+                        <TableHead className="text-right">Compras</TableHead>
+                        <TableHead className="text-right">Ventas</TableHead>
+                        <TableHead className="text-right">Ajustes</TableHead>
+                        <TableHead className="text-right font-semibold">Stock actual</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {stockStatistics.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center py-6">
+                            {stockFromDate || stockToDate 
+                              ? "No hay movimientos de stock en el rango de fechas seleccionado."
+                              : "Seleccioná un rango de fechas para ver los movimientos de stock."}
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        stockStatistics.map((stat: StockStatisticsItem) => (
+                          <TableRow key={stat.productId}>
+                            <TableCell className="font-medium">{stat.productName}</TableCell>
+                            <TableCell>{stat.categoryName ?? "-"}</TableCell>
+                            <TableCell className="text-right text-green-600">
+                              +{stat.totalPurchases}
+                            </TableCell>
+                            <TableCell className="text-right text-red-600">
+                              -{stat.totalSales}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {stat.totalAdjustments > 0 ? "+" : ""}{stat.totalAdjustments}
+                            </TableCell>
+                            <TableCell className="text-right font-semibold">
+                              {stat.currentStock}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+
+            {stockStatistics.length > 0 && (
+              <CardFooter className="flex justify-between text-sm text-muted-foreground">
+                <span>{stockStatistics.length} productos con movimientos</span>
+              </CardFooter>
+            )}
+          </Card>
         </TabsContent>
 
         <TabsContent value="share">
