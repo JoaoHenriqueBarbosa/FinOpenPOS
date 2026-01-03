@@ -1,5 +1,5 @@
 import { Skeleton } from "@/components/ui/skeleton";
-import { PAYMENT_COLORS, courtPillClasses } from "@/lib/court-slots-utils";
+import { PAYMENT_COLORS, getCourtColorClass } from "@/lib/court-slots-utils";
 import type { PaymentMethodDTO } from "@/models/dto/payment-method";
 
 interface Court {
@@ -11,16 +11,6 @@ interface ColorLegendProps {
   paymentMethods: PaymentMethodDTO[];
   isLoadingPayments: boolean;
   courts?: Court[];
-}
-
-function getCourtColorClass(courtName: string): string {
-  if (courtName.toUpperCase().includes("INDOOR")) {
-    return "bg-emerald-500";
-  }
-  if (courtName.toUpperCase().includes("OUTDOOR")) {
-    return "bg-sky-500";
-  }
-  return "bg-amber-500";
 }
 
 export function ColorLegend({
@@ -35,7 +25,7 @@ export function ColorLegend({
           <span className="font-semibold text-foreground">Canchas:</span>
           {courts.map((court) => (
             <span key={court.id} className="inline-flex items-center gap-1">
-              <span className={`h-3 w-3 rounded-full ${getCourtColorClass(court.name)}`} />
+              <span className={`h-3 w-3 rounded-full ${getCourtColorClass(court.id)}`} />
               {court.name}
             </span>
           ))}
