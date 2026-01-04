@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generatePlayoffs } from "@/lib/tournament-playoffs";
