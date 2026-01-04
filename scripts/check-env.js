@@ -45,10 +45,23 @@ const requiredVars = exampleContent
 const envContent = fs.readFileSync(envPath, 'utf-8');
 const envVars = {};
 envContent.split('\n').forEach(line => {
-  const match = line.match(/^([^#=]+)=(.*)$/);
-  if (match) {
-    const key = match[1].trim();
-    const value = match[2].trim();
+  // Limpiar la línea: remover espacios al inicio y final, y saltos de línea
+  const cleanLine = line.trim();
+  
+  // Ignorar líneas vacías, comentarios, o que no tengan =
+  if (!cleanLine || cleanLine.startsWith('#') || !cleanLine.includes('=')) {
+    return;
+  }
+  
+  // Separar por el primer = (por si el valor contiene =)
+  const equalIndex = cleanLine.indexOf('=');
+  if (equalIndex === -1) return;
+  
+  const key = cleanLine.substring(0, equalIndex).trim();
+  const value = cleanLine.substring(equalIndex + 1).trim();
+  
+  // Solo agregar si la clave no está vacía
+  if (key) {
     envVars[key] = value;
   }
 });
@@ -57,14 +70,32 @@ envContent.split('\n').forEach(line => {
 let allValid = true;
 const missingVars = [];
 const emptyVars = [];
+const placeholderVars = [];
+
+// Valores de ejemplo/placeholder que deben ser reemplazados
+const placeholderPatterns = [
+  /^tu[-_]proyecto/i,
+  /^tu[-_]clave/i,
+  /^your[-_]supabase/i,
+  /^your[-_]key/i,
+  /^example/i,
+  /^placeholder/i,
+  /^replace/i,
+];
 
 requiredVars.forEach(varName => {
-  if (!envVars[varName]) {
+  if (!(varName in envVars)) {
     missingVars.push(varName);
     allValid = false;
-  } else if (!envVars[varName] || envVars[varName] === '') {
-    emptyVars.push(varName);
-    allValid = false;
+  } else {
+    const value = envVars[varName];
+    if (!value || value === '') {
+      emptyVars.push(varName);
+      allValid = false;
+    } else if (placeholderPatterns.some(pattern => pattern.test(value))) {
+      placeholderVars.push(varName);
+      allValid = false;
+    }
   }
 });
 
@@ -78,6 +109,15 @@ if (missingVars.length > 0) {
 if (emptyVars.length > 0) {
   console.log(`⚠️  Variables vacías:`);
   emptyVars.forEach(varName => console.log(`   - ${varName}`));
+  console.log();
+}
+
+if (placeholderVars.length > 0) {
+  console.log(`⚠️  Variables con valores de ejemplo (debes reemplazarlos):`);
+  placeholderVars.forEach(varName => {
+    const value = envVars[varName];
+    console.log(`   - ${varName}=${value.substring(0, 30)}${value.length > 30 ? '...' : ''}`);
+  });
   console.log();
 }
 
