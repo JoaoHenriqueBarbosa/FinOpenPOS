@@ -7,7 +7,10 @@
     "dev:turbo": "next dev --turbo",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "check-env": "node scripts/check-env.js",
+    "check-env:local": "node scripts/check-env.js local",
+    "check-env:prod": "node scripts/check-env.js production"
   },
   "dependencies": {
     "@oliverlooney/react-brackets": "^0.4.11",

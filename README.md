@@ -25,24 +25,46 @@ This particular iteration embraces the spirit of open-source development, making
 
 ## Getting Started
 
+### Local Development
+
 1. Clone the repository
 2. Install dependencies:
-   ```
+   ```bash
    npm install
    ```
-3. Set up your Supabase project and add the necessary environment variables:
-   - Create a `.env.local` file in the root of your project
-   - Add the following lines to the file:
+3. Set up your Supabase project for development:
+   - Create a project in [Supabase Dashboard](https://supabase.com/dashboard)
+   - Copy `env.local.template` to `.env.local`:
+     ```bash
+     cp env.local.template .env.local
      ```
+   - Edit `.env.local` and add your Supabase credentials:
+     ```env
      NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=your_supabase_publishable_key
      ```
-   - Replace `your_supabase_project_url` and `your_supabase_publishable_key` with your actual Supabase project URL and publishable key
-4. Run the development server:
+4. Verify your environment configuration:
+   ```bash
+   npm run check-env:local
    ```
+5. Run the development server:
+   ```bash
    npm run dev
    ```
-5. Open [http://localhost:3000](http://localhost:3000) in your browser
+6. Open [http://localhost:3000](http://localhost:3000) in your browser
+
+### Production Deployment
+
+For detailed deployment instructions, see [DEPLOYMENT.md](./DEPLOYMENT.md).
+
+**Quick Setup:**
+- **Frontend + API**: Deploy to [Vercel](https://vercel.com) (recommended)
+- **Database**: Use Supabase (separate project for production)
+- **Authentication**: Supabase Auth
+
+The application supports multiple environments:
+- **Local**: Development with local Next.js + Supabase cloud
+- **Production**: Everything in the cloud (Vercel + Supabase)
 
 ## Project Structure
 
@@ -79,6 +101,31 @@ User authentication is handled through Supabase. The login page is available at 
 ## Error Handling
 
 A basic error page is implemented at `/error` to handle and display any errors that occur during runtime.
+
+## Environment Configuration
+
+The project supports multiple environments:
+
+- **Local Development**: Uses `.env.local` (see `.env.local.example`)
+- **Production**: Uses environment variables configured in Vercel (see `.env.production.example`)
+
+### Available Scripts
+
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run start` - Start production server
+- `npm run check-env` - Check environment variables (defaults to local)
+- `npm run check-env:local` - Check local environment variables
+- `npm run check-env:prod` - Check production environment variables
+
+## Deployment
+
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed deployment instructions.
+
+**Architecture:**
+- Frontend + API Routes: Vercel (Next.js)
+- Database: Supabase
+- Authentication: Supabase Auth
 
 ## Contributing
 
