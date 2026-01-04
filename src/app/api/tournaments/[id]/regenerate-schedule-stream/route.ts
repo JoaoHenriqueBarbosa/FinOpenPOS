@@ -366,7 +366,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           sendLog(`📊 Match indices con assignment: ${Array.from(assignmentsByMatchIdx.keys()).sort((a, b) => a - b).join(", ")}`);
           
           // Mostrar detalles de los assignments
-          for (const [matchIdx, assignment] of assignmentsByMatchIdx.entries()) {
+          for (const [matchIdx, assignment] of Array.from(assignmentsByMatchIdx.entries())) {
             sendLog(`  Assignment matchIdx ${matchIdx}: ${assignment.date} ${assignment.startTime}-${assignment.endTime} (Cancha ${assignment.courtId})`);
           }
 
@@ -379,7 +379,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
               
               // Intentar matching alternativo por características del match
               // Buscar en todos los assignments disponibles
-              for (const [assignedMatchIdx, fallbackAssignment] of assignmentsByMatchIdx.entries()) {
+              for (const [assignedMatchIdx, fallbackAssignment] of Array.from(assignmentsByMatchIdx.entries())) {
                 const p = matchesPayload[assignedMatchIdx];
                 
                 // Verificar si este assignment corresponde a este match
@@ -485,8 +485,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
               .from("tournament_matches")
               .update(updatePayload)
               .eq("id", update.id)
-              .eq("user_uid", user.id)
-              .select(undefined, { count: 'exact', head: true });
+              .eq("user_uid", user.id);
             
             if (updateError) {
               console.error(`Error updating match ${update.id}:`, updateError);

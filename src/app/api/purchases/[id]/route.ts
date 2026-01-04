@@ -251,7 +251,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       return NextResponse.json(finalPurchase);
     } else {
       // Partial update (existing PUT logic)
-      return handlePartialUpdate(request, params);
+      return handlePartialUpdate(request, { params });
     }
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {

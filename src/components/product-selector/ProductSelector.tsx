@@ -203,7 +203,7 @@ export function ProductSelector({
         filteredProductsByCategory.length === 0 &&
         searchResults.length === 0 && (
           <div className="text-center text-muted-foreground py-8">
-            No se encontraron productos que coincidan con "{searchTerm}"
+            No se encontraron productos que coincidan con &quot;{searchTerm}&quot;
           </div>
         )}
 

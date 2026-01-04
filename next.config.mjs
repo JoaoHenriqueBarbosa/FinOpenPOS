@@ -9,6 +9,13 @@ const nextConfig = {
         aggregateTimeout: 300,
       };
     }
+    
+    // Asegurar resolución correcta de módulos (importante para case sensitivity en Linux)
+    config.resolve = {
+      ...config.resolve,
+      extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
+    };
+    
     return config;
   },
 };

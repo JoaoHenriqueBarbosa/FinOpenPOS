@@ -126,7 +126,6 @@ export default function ShareGroupStandingsTab({ tournament }: { tournament: Pic
         quality: 1.0,
         width: elementWidth + 20,
         height: elementHeight,
-        useCORS: true,
         style: {
           transform: 'scale(1)',
           transformOrigin: 'top left',

@@ -20,6 +20,7 @@ export class ProductsRepository extends BaseRepository {
         is_active, 
         created_at, 
         updated_at,
+        user_uid,
         category:category_id (
           id,
           name,

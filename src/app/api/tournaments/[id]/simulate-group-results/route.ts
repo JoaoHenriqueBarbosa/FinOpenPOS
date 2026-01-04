@@ -59,7 +59,7 @@ export async function POST(req: Request, { params }: RouteParams) {
 
     // Función para generar un resultado de set normal válido
     // Scores válidos: 6-0, 6-1, 6-2, 6-3, 6-4, 7-5, 7-6
-    function generateNormalSetScore(): { team1: number; team2: number } {
+    const generateNormalSetScore = (): { team1: number; team2: number } => {
       const validScores = [
         [6, 0], [6, 1], [6, 2], [6, 3], [6, 4],
         [7, 5], [7, 6]
@@ -70,7 +70,7 @@ export async function POST(req: Request, { params }: RouteParams) {
 
     // Función para generar un resultado de super tiebreak válido
     // Scores válidos: 11-0 a 11-9, 12-10, 13-11, 14-12, etc.
-    function generateSuperTiebreakScore(): { team1: number; team2: number } {
+    const generateSuperTiebreakScore = (): { team1: number; team2: number } => {
       // Probabilidad de 70% para scores simples (11-0 a 11-9)
       if (Math.random() < 0.7) {
         const loserGames = Math.floor(Math.random() * 10); // 0-9

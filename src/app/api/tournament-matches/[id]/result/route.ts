@@ -156,24 +156,30 @@ export async function POST(req: Request, { params }: RouteParams) {
     // Validación 1: Verificar rondas anteriores (solo si hay rondas anteriores)
     if (previousRounds.length > 0) {
       validationQueries.push(
-        supabase
-          .from("tournament_playoffs")
-          .select("match_id, round")
-          .eq("tournament_id", match.tournament_id)
-          .eq("user_uid", user.id)
-          .in("round", previousRounds)
+        (async () => {
+          const result = await supabase
+            .from("tournament_playoffs")
+            .select("match_id, round")
+            .eq("tournament_id", match.tournament_id)
+            .eq("user_uid", user.id)
+            .in("round", previousRounds);
+          return result;
+        })()
       );
     }
 
     // Validación 2: Verificar rondas posteriores (solo si es modificación y hay rondas posteriores)
     if (isModification && nextRounds.length > 0) {
       validationQueries.push(
-        supabase
-          .from("tournament_playoffs")
-          .select("match_id, round")
-          .eq("tournament_id", match.tournament_id)
-          .eq("user_uid", user.id)
-          .in("round", nextRounds)
+        (async () => {
+          const result = await supabase
+            .from("tournament_playoffs")
+            .select("match_id, round")
+            .eq("tournament_id", match.tournament_id)
+            .eq("user_uid", user.id)
+            .in("round", nextRounds);
+          return result;
+        })()
       );
     }
 
@@ -189,7 +195,7 @@ export async function POST(req: Request, { params }: RouteParams) {
         // Si falta algún equipo, entonces hay matches anteriores incompletos
         if (!match.team1_id || !match.team2_id) {
           // El match actual no tiene ambos equipos, verificar qué matches anteriores faltan
-          const previousMatchIds = previousRoundMatches.map(p => p.match_id);
+          const previousMatchIds = previousRoundMatches.map((p: any) => p.match_id);
           const { data: previousMatches, error: prevMatchesError } = await supabase
             .from("tournament_matches")
             .select("id, status")
@@ -202,7 +208,7 @@ export async function POST(req: Request, { params }: RouteParams) {
               const incompleteRounds = new Set(
                 incompleteMatches
                   .map(m => {
-                    const playoff = previousRoundMatches.find(p => p.match_id === m.id);
+                    const playoff = previousRoundMatches.find((p: any) => p.match_id === m.id);
                     return playoff?.round;
                   })
                   .filter(Boolean)
@@ -227,7 +233,7 @@ export async function POST(req: Request, { params }: RouteParams) {
       const { data: nextRoundPlayoffs, error: nextRoundsError } = validationResults[resultIndex] || { data: null, error: null };
       
       if (!nextRoundsError && nextRoundPlayoffs && nextRoundPlayoffs.length > 0) {
-        const nextMatchIds = nextRoundPlayoffs.map(p => p.match_id);
+        const nextMatchIds = nextRoundPlayoffs.map((p: any) => p.match_id);
         const { data: nextMatches, error: nextMatchesError } = await supabase
           .from("tournament_matches")
           .select("id, status")
@@ -239,7 +245,7 @@ export async function POST(req: Request, { params }: RouteParams) {
           if (completedNextMatches.length > 0) {
             const completedRounds = new Set<string>();
             completedNextMatches.forEach(m => {
-              const playoff = nextRoundPlayoffs.find(p => p.match_id === m.id);
+              const playoff = nextRoundPlayoffs.find((p: any) => p.match_id === m.id);
               if (playoff?.round) {
                 completedRounds.add(playoff.round);
               }
@@ -674,12 +680,15 @@ export async function DELETE(req: Request, { params }: RouteParams) {
   // Si es grupo, verificar playoffs
   if (match.phase === "group") {
     parallelQueries.push(
-      supabase
-        .from("tournament_playoffs")
-        .select("id")
-        .eq("tournament_id", match.tournament_id)
-        .eq("user_uid", user.id)
-        .limit(1)
+      (async () => {
+        const result = await supabase
+          .from("tournament_playoffs")
+          .select("id")
+          .eq("tournament_id", match.tournament_id)
+          .eq("user_uid", user.id)
+          .limit(1);
+        return result;
+      })()
     );
   }
 
@@ -687,12 +696,15 @@ export async function DELETE(req: Request, { params }: RouteParams) {
   let playoffInfo: { round: string; bracket_pos: number } | null = null;
   if (match.phase === "playoff") {
     parallelQueries.push(
-      supabase
-        .from("tournament_playoffs")
-        .select("round, bracket_pos")
-        .eq("match_id", matchId)
-        .eq("user_uid", user.id)
-        .single()
+      (async () => {
+        const result = await supabase
+          .from("tournament_playoffs")
+          .select("round, bracket_pos")
+          .eq("match_id", matchId)
+          .eq("user_uid", user.id)
+          .single();
+        return result;
+      })()
     );
   }
 
@@ -719,6 +731,9 @@ export async function DELETE(req: Request, { params }: RouteParams) {
     }
 
     playoffInfo = playoffData;
+    if (!playoffInfo) {
+      return NextResponse.json({ error: "Playoff info not found" }, { status: 404 });
+    }
     const currentRound = playoffInfo.round;
     const nextRounds = getNextRounds(currentRound);
     
@@ -732,7 +747,7 @@ export async function DELETE(req: Request, { params }: RouteParams) {
         .in("round", nextRounds);
 
       if (!nextRoundsError && nextRoundPlayoffs && nextRoundPlayoffs.length > 0) {
-        const nextMatchIds = nextRoundPlayoffs.map(p => p.match_id);
+        const nextMatchIds = nextRoundPlayoffs.map((p: any) => p.match_id);
         const { data: nextMatches, error: nextMatchesError } = await supabase
           .from("tournament_matches")
           .select("id, status")
@@ -744,7 +759,7 @@ export async function DELETE(req: Request, { params }: RouteParams) {
           if (completedNextMatches.length > 0) {
             const completedRounds = new Set<string>();
             completedNextMatches.forEach(m => {
-              const playoff = nextRoundPlayoffs.find(p => p.match_id === m.id);
+              const playoff = nextRoundPlayoffs.find((p: any) => p.match_id === m.id);
               if (playoff?.round) {
                 completedRounds.add(playoff.round);
               }
