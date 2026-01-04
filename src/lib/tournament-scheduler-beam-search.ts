@@ -65,9 +65,7 @@ type BeamSearchOptions = {
 function timeSlotToSlot(timeSlot: TimeSlot, index: number): Slot {
   const dateStr = typeof timeSlot.date === 'string' 
     ? timeSlot.date 
-    : timeSlot.date instanceof Date 
-      ? timeSlot.date.toISOString().split('T')[0]
-      : String(timeSlot.date);
+    : String(timeSlot.date);
   
   const datetime = new Date(`${dateStr}T${timeSlot.startTime}:00`);
   
@@ -393,7 +391,7 @@ export async function scheduleGroupMatchesBeamSearch(
 
   // 2. Identificar grupos de 3 y 4
   const groups: Group[] = [];
-  for (const [groupId, matches] of matchesByGroup.entries()) {
+  for (const [groupId, matches] of Array.from(matchesByGroup.entries())) {
     // Extraer equipos únicos del grupo
     const teams = new Set<number>();
     for (const match of matches) {
@@ -533,7 +531,7 @@ export async function scheduleGroupMatchesBeamSearch(
   const assignments: Assignment[] = [];
 
   // Aplicar asignaciones
-  for (const [groupIdStr, slotIds] of result.assignments.entries()) {
+  for (const [groupIdStr, slotIds] of Array.from(result.assignments.entries())) {
     const groupId = Number(groupIdStr);
     const group = groups.find(g => g.groupId === groupId);
     if (!group) continue;

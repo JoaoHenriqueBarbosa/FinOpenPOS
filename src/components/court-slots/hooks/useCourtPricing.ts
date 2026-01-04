@@ -62,7 +62,7 @@ export function useCourtPricing() {
     const normalizedTime = time.slice(0, 5);
     
     // Buscar la regla que coincida con el tiempo
-    for (const [key, price] of pricing.entries()) {
+    for (const [key, price] of Array.from(pricing.entries())) {
       const [id, startTime, endTime] = key.split("|");
       if (parseInt(id, 10) === courtId) {
         // Comparar tiempos (formato HH:MM)

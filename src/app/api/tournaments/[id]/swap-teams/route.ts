@@ -123,14 +123,17 @@ export async function POST(req: Request, { params }: RouteParams) {
       // Solo actualizar si hay cambios
       if (newTeam1Id !== match.team1_id || newTeam2Id !== match.team2_id) {
         updates.push(
-          supabase
-            .from("tournament_matches")
-            .update({
-              team1_id: newTeam1Id,
-              team2_id: newTeam2Id,
-            })
-            .eq("id", match.id)
-            .eq("user_uid", user.id)
+          (async () => {
+            const result = await supabase
+              .from("tournament_matches")
+              .update({
+                team1_id: newTeam1Id,
+                team2_id: newTeam2Id,
+              })
+              .eq("id", match.id)
+              .eq("user_uid", user.id);
+            return result;
+          })()
         );
       }
     }
@@ -141,39 +144,51 @@ export async function POST(req: Request, { params }: RouteParams) {
       // Remover team1 de group1 y agregarlo a group2
       // Remover team2 de group2 y agregarlo a group1
       updates.push(
-        supabase
-          .from("tournament_group_teams")
-          .delete()
-          .eq("team_id", team1Id)
-          .eq("tournament_group_id", group1Id)
+        (async () => {
+          const result = await supabase
+            .from("tournament_group_teams")
+            .delete()
+            .eq("team_id", team1Id)
+            .eq("tournament_group_id", group1Id);
+          return result;
+        })()
       );
 
       updates.push(
-        supabase
-          .from("tournament_group_teams")
-          .delete()
-          .eq("team_id", team2Id)
-          .eq("tournament_group_id", group2Id)
+        (async () => {
+          const result = await supabase
+            .from("tournament_group_teams")
+            .delete()
+            .eq("team_id", team2Id)
+            .eq("tournament_group_id", group2Id);
+          return result;
+        })()
       );
 
       updates.push(
-        supabase
-          .from("tournament_group_teams")
-          .insert({
-            team_id: team1Id,
-            tournament_group_id: group2Id,
-            user_uid: user.id,
-          })
+        (async () => {
+          const result = await supabase
+            .from("tournament_group_teams")
+            .insert({
+              team_id: team1Id,
+              tournament_group_id: group2Id,
+              user_uid: user.id,
+            });
+          return result;
+        })()
       );
 
       updates.push(
-        supabase
-          .from("tournament_group_teams")
-          .insert({
-            team_id: team2Id,
-            tournament_group_id: group1Id,
-            user_uid: user.id,
-          })
+        (async () => {
+          const result = await supabase
+            .from("tournament_group_teams")
+            .insert({
+              team_id: team2Id,
+              tournament_group_id: group1Id,
+              user_uid: user.id,
+            });
+          return result;
+        })()
       );
     }
     // Si ambos equipos están en el mismo grupo, no necesitamos cambiar tournament_group_teams

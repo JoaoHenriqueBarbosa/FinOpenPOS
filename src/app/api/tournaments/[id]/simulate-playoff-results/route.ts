@@ -86,7 +86,7 @@ export async function POST(req: Request, { params }: RouteParams) {
     const baseUrl = `${url.protocol}//${url.host}`;
 
     // Función para generar un resultado de set normal válido
-    function generateNormalSetScore(): { team1: number; team2: number } {
+    const generateNormalSetScore = (): { team1: number; team2: number } => {
       const validScores = [
         [6, 0], [6, 1], [6, 2], [6, 3], [6, 4],
         [7, 5], [7, 6]
@@ -96,7 +96,7 @@ export async function POST(req: Request, { params }: RouteParams) {
     }
 
     // Función para generar un resultado de super tiebreak válido
-    function generateSuperTiebreakScore(): { team1: number; team2: number } {
+    const generateSuperTiebreakScore = (): { team1: number; team2: number } => {
       if (Math.random() < 0.7) {
         const loserGames = Math.floor(Math.random() * 10);
         return { team1: 11, team2: loserGames };
@@ -106,7 +106,7 @@ export async function POST(req: Request, { params }: RouteParams) {
     }
 
     // Función para verificar si un match está completado
-    async function isMatchCompleted(matchId: number): Promise<boolean> {
+    const isMatchCompleted = async (matchId: number): Promise<boolean> => {
       const { data: match } = await supabase
         .from("tournament_matches")
         .select("status")
@@ -117,7 +117,7 @@ export async function POST(req: Request, { params }: RouteParams) {
 
     // Función para obtener el match ID desde source_team1 o source_team2
     // source_team1/source_team2 tienen formato: "Ganador Cuartos1", "Ganador Semifinal2", etc.
-    async function getMatchIdFromSource(source: string | null, round: string, tournamentId: number): Promise<number | null> {
+    const getMatchIdFromSource = async (source: string | null, round: string, tournamentId: number): Promise<number | null> => {
       if (!source) return null;
       
       // Extraer el número del bracket_pos del source (ej: "Ganador Cuartos1" -> 1)
@@ -138,7 +138,7 @@ export async function POST(req: Request, { params }: RouteParams) {
         .single();
 
       return playoff?.match_id || null;
-    }
+    };
 
     // Simular resultados para cada match en orden
     const results = [];
@@ -146,7 +146,8 @@ export async function POST(req: Request, { params }: RouteParams) {
     const skipped = [];
 
     for (const row of sortedRows) {
-      const match = row.match;
+      // match puede ser un array o un objeto único dependiendo de la query de Supabase
+      const match = Array.isArray(row.match) ? row.match[0] : row.match;
       if (!match) continue;
 
       try {

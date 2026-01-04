@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -97,11 +97,15 @@ export default function QuickSalePage() {
     queryKey: ["quick-sale-player"],
     queryFn: getOrCreateQuickSalePlayer,
     staleTime: 1000 * 60 * 60, // 1 hora - el cliente genérico no cambia
-    onError: (error) => {
-      console.error("Error loading quick sale player:", error);
-      toast.error("Error al cargar el cliente genérico. Por favor, recargá la página.");
-    },
   });
+
+  // Manejar errores de carga del cliente genérico
+  useEffect(() => {
+    if (playerError) {
+      console.error("Error loading quick sale player:", playerErrorDetails);
+      toast.error("Error al cargar el cliente genérico. Por favor, recargá la página.");
+    }
+  }, [playerError, playerErrorDetails]);
 
   // Cargar productos
   const {

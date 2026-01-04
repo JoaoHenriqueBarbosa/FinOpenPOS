@@ -198,12 +198,11 @@ export default function ShareGroupScheduleTab({
       const elementWidth = dayRef.offsetWidth;
       const elementHeight = dayRef.scrollHeight;
       
-      // Generar la imagen usando dom-to-image con un ancho ligeramente mayor para evitar cortes
+      // Generar la imagen usando html-to-image con un ancho ligeramente mayor para evitar cortes
       const dataUrl = await toPng(dayRef, {
         quality: 1.0,
         width: elementWidth + 20, // Agregar un poco de margen para evitar cortes
         height: elementHeight,
-        useCORS: true,
         style: {
           transform: 'scale(1)',
           transformOrigin: 'top left',

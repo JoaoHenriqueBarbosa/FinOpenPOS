@@ -1,5 +1,5 @@
 import { TournamentPlayoff, TournamentTeam } from "@/models/db";
-import type { ApiResponseStandings, GroupsApiResponse, PlayoffRow, TeamDTO, TournamentDTO, AvailableSchedule } from "@/models/dto/tournament";
+import type { ApiResponseStandings, GroupsApiResponse, PlayoffRow, TeamDTO, TournamentDTO, AvailableSchedule, ScheduleConfig } from "@/models/dto/tournament";
 
 export interface CreateTournamentInput {
   name: string;
