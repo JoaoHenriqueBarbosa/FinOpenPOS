@@ -28,6 +28,7 @@
     "@supabase/ssr": "^0.4.0",
     "@supabase/supabase-js": "^2.44.4",
     "@tanstack/react-query": "^5.90.11",
+    "autoprefixer": "^10.4.23",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
@@ -38,23 +39,22 @@
     "jspdf": "^3.0.4",
     "lucide-react": "^0.414.0",
     "next": "14.2.5",
+    "postcss": "^8.5.6",
     "react": "^18.3.1",
     "react-dom": "^18",
     "recharts": "^2.12.7",
     "sonner": "^2.0.7",
     "tailwind-merge": "^2.4.0",
-    "tailwindcss-animate": "^1.0.7",
-    "postcss": "^8.5.6",
     "tailwindcss": "^3.4.19",
-    "autoprefixer": "^10.4.23"
+    "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
     "@types/dom-to-image": "^2.6.7",
-    "@types/node": "^20",
-    "@types/react": "^18",
+    "@types/node": "^20.19.27",
+    "@types/react": "^18.3.27",
     "@types/react-dom": "^18",
     "eslint": "^8",
     "eslint-config-next": "14.2.5",
-    "typescript": "^5"
+    "typescript": "^5.9.3"
   }
 }
