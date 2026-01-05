@@ -307,9 +307,13 @@ export default function QuickSalePage() {
             isLoading={isLoading}
             isEditable={!isProcessing}
             onUpdateQuantity={(item, newQuantity) => {
+              if (!item.product) return;
               handleUpdateQuantity(item.product.id, newQuantity - item.quantity);
             }}
-            onRemoveItem={(item) => handleRemoveProduct(item.product.id)}
+            onRemoveItem={(item) => {
+              if (!item.product) return;
+              handleRemoveProduct(item.product.id);
+            }}
             products={products}
             onProductSelect={handleAddProduct}
             loadingProducts={loadingProducts}
