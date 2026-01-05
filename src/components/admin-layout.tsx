@@ -24,6 +24,7 @@ import {
   CalendarIcon,
   TrophyIcon,
 } from "lucide-react";
+import { logout } from "@/app/login/actions";
 
 const pageNames: { [key: string]: string } = {
   "/admin": "Dashboard",
@@ -107,7 +108,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
               <DropdownMenuItem>Settings</DropdownMenuItem>
               <DropdownMenuItem>Support</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>Logout</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => logout()}>Logout</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
