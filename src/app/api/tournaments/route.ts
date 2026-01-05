@@ -29,12 +29,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
     }
 
+    // Convertir cadenas vacías a null para fechas opcionales
+    const normalizeDate = (date: string | null | undefined): string | null => {
+      if (!date || date.trim() === "") return null;
+      return date;
+    };
+
     const tournament = await repos.tournaments.create({
       name: name.trim(),
       description: description ?? null,
       category: category ?? null,
-      start_date: start_date ?? null,
-      end_date: end_date ?? null,
+      start_date: normalizeDate(start_date),
+      end_date: normalizeDate(end_date),
       has_super_tiebreak: has_super_tiebreak ?? false,
       match_duration: match_duration ?? 60,
     });

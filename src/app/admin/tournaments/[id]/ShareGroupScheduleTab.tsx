@@ -22,8 +22,19 @@ async function fetchTournamentGroups(tournamentId: number): Promise<GroupsApiRes
   return tournamentsService.getGroups(tournamentId);
 }
 
-function teamLabel(team: MatchDTO["team1"]): string {
-  if (!team) return "TBD";
+function teamLabel(team: MatchDTO["team1"], matchOrder?: number | null, isTeam1?: boolean): string {
+  if (!team) {
+    // Para grupos de 4, mostrar labels descriptivos según el match_order
+    // Verificar que matchOrder sea exactamente 3 o 4 (no undefined ni null)
+    if (matchOrder === 3) {
+      // Partido 3: GANADOR partido 1 vs GANADOR partido 2
+      return isTeam1 ? "GANADOR 1" : "GANADOR 2";
+    } else if (matchOrder === 4) {
+      // Partido 4: PERDEDOR partido 1 vs PERDEDOR partido 2
+      return isTeam1 ? "PERDEDOR 1" : "PERDEDOR 2";
+    }
+    return "TBD";
+  }
   if (team.display_name) return team.display_name;
   const p1 = team.player1?.last_name || "";
   const p2 = team.player2?.last_name || "";
@@ -329,8 +340,8 @@ export default function ShareGroupScheduleTab({
               <div className="space-y-2">
                 {matches.map(({ match, groupName, courtName }) => {
                   const time = match.start_time ? formatTime(match.start_time) : "";
-                  const team1 = teamLabel(match.team1);
-                  const team2 = teamLabel(match.team2);
+                  const team1 = teamLabel(match.team1, match.match_order, true);
+                  const team2 = teamLabel(match.team2, match.match_order, false);
                   const groupColor = data?.groups ? getGroupColor(groupName, data.groups) : {
                     bg: "bg-gray-50",
                     border: "border-gray-500",

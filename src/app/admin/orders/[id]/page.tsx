@@ -2,39 +2,11 @@
 
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  CardFooter,
-} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableHeader,
-  TableRow,
-  TableHead,
-  TableBody,
-  TableCell,
-} from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
 import {
   Loader2Icon,
   ArrowLeftIcon,
-  PlusIcon,
-  MinusIcon,
-  TrashIcon,
   SaveIcon,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -44,8 +16,7 @@ import type { OrderDTO, OrderItemDTO, OrderStatus } from "@/models/dto/order";
 import type { ProductDTO } from "@/models/dto/product";
 import type { PaymentMethodDTO } from "@/models/dto/payment-method";
 import { ordersService, productsService, paymentMethodsService } from "@/services";
-import { ProductSelector } from "@/components/product-selector/ProductSelector";
-import { PaymentMethodSelector } from "@/components/payment-method-selector/PaymentMethodSelector";
+import { OrderItemsLayout } from "@/components/order-items-layout/OrderItemsLayout";
 import { formatDateTime } from "@/lib/date-utils";
 
 async function fetchOrder(orderId: number): Promise<OrderDTO> {
@@ -726,299 +697,64 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-[4fr_1fr] lg:grid-cols-[5fr_1fr] items-start">
-        {/* Items de la cuenta */}
-        <Card className={!isOrderOpen ? "opacity-75" : ""}>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Consumos</CardTitle>
-                <CardDescription>
-                  {isOrderOpen 
-                    ? "Agregá productos y ajustá cantidades de esta cuenta."
-                    : "Esta cuenta está cerrada. No se pueden realizar modificaciones."}
-                </CardDescription>
-              </div>
-              {hasPendingChanges && isOrderOpen && (
-                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300">
-                  Cambios pendientes
-                </Badge>
-              )}
-              {!isOrderOpen && (
-                <Badge variant="outline" className="bg-gray-100 text-gray-600 border-gray-300">
-                  {displayOrder?.status === "closed" ? "Pagada" : "Cancelada"}
-                </Badge>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Producto</TableHead>
-                    <TableHead className="w-[120px]">Cantidad</TableHead>
-                    <TableHead>Precio</TableHead>
-                    <TableHead>Subtotal</TableHead>
-                    <TableHead className="w-[80px]" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loadingOrder && !displayOrder ? (
-                    // Skeleton rows mientras carga la order
-                    <>
-                      {[1, 2, 3].map((i) => (
-                        <TableRow key={i}>
-                          <TableCell>
-                            <Skeleton className="h-4 w-32" />
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Skeleton className="h-7 w-7" />
-                              <Skeleton className="h-4 w-8" />
-                              <Skeleton className="h-7 w-7" />
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-4 w-16" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-4 w-16" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-4 w-4" />
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </>
-                  ) : displayOrder && (!displayOrder.items || displayOrder.items.length === 0) ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center py-6">
-                        No hay productos en la cuenta.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    (displayOrder?.items ?? []).map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell>
-                          {item.product?.name ?? "Producto"}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-7 w-7"
-                              disabled={!isOrderOpen}
-                              onClick={() =>
-                                updateItemQuantity(item, item.quantity - 1)
-                              }
-                            >
-                              <MinusIcon className="w-3 h-3" />
-                            </Button>
-                            <span className="w-8 text-center">
-                              {item.quantity}
-                            </span>
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-7 w-7"
-                              disabled={!isOrderOpen}
-                              onClick={() =>
-                                updateItemQuantity(item, item.quantity + 1)
-                              }
-                            >
-                              <PlusIcon className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                        <TableCell>${item.unit_price.toFixed(2)}</TableCell>
-                        <TableCell>
-                          ${(item.unit_price * item.quantity).toFixed(2)}
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            disabled={!isOrderOpen}
-                            onClick={() => removeItem(item)}
-                          >
-                            <TrashIcon className="w-4 h-4" />
-                            <span className="sr-only">Eliminar</span>
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-          <CardFooter className="flex flex-col gap-4 border-t pt-4">
-            {/* Botón de guardar cambios - grande y visible */}
-            {hasPendingChanges && (
-              <Button
-                size="lg"
-                className="w-full h-12 text-base font-semibold"
-                onClick={handleSaveChanges}
-                disabled={savingChanges || !isOrderOpen}
-              >
-                {savingChanges ? (
-                  <>
-                    <Loader2Icon className="mr-2 h-5 w-5 animate-spin" />
-                    Guardando...
-                  </>
-                ) : (
-                  <>
-                    <SaveIcon className="mr-2 h-5 w-5" />
-                    Guardar cambios (Enter)
-                  </>
-                )}
-              </Button>
-            )}
-            <div className="space-y-6 w-full">
-              {/* Productos por categoría */}
-              <div>
-                <Label className="text-sm font-semibold mb-3 block">
-                  Productos por categoría
-                </Label>
-                <ProductSelector
-                  products={products}
-                  onProductSelect={(product) => handleProductSelect(product)}
-                  disabled={!isOrderOpen || loadingProducts}
-                  showSearch={false}
-                  compact={true}
-                />
-              </div>
-
-              {/* Más productos - Select dropdown */}
-              <div className="border-t pt-4">
-                <Label className="text-sm font-semibold mb-2 block">
-                  Más productos
-                </Label>
-                <Select
-                  value={moreProductsSelectValue}
-                  onValueChange={(value) => {
-                    if (value !== "none") {
-                      const product = products.find((p) => p.id === Number(value));
-                      if (product) {
-                        handleProductSelect(product, 1); // Siempre cantidad 1 desde "Más productos"
-                        // Resetear el select después de agregar
-                        setMoreProductsSelectValue("none");
-                      }
-                    } else {
-                      setMoreProductsSelectValue("none");
-                    }
-                  }}
-                  disabled={!isOrderOpen || loadingProducts}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar producto adicional..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Seleccionar producto...</SelectItem>
-                    {products
-                      .filter((p) => p.is_active)
-                      .map((p) => (
-                        <SelectItem key={p.id} value={String(p.id)}>
-                          {p.name} - ${p.price.toFixed(2)}
-                          {p.category && ` (${p.category.name})`}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Los productos seleccionados aquí se agregan con cantidad 1. Podés ajustar la cantidad desde la lista de consumos.
-                </p>
-              </div>
-            </div>
-          </CardFooter>
-        </Card>
-
-        {/* Resumen y pago */}
-        <Card className={!isOrderOpen ? "opacity-75" : ""}>
-          <CardHeader>
-            <CardTitle>Resumen</CardTitle>
-            <CardDescription>
-              {isOrderOpen 
-                ? "Revisá el total y registrá el pago para cerrar la cuenta."
-                : "Esta cuenta está cerrada. No se pueden realizar modificaciones."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {loadingOrder && !displayOrder ? (
-              <>
-                <div className="flex justify-between text-sm">
-                  <span>Subtotal</span>
-                  <Skeleton className="h-4 w-16" />
-                </div>
-                <div className="flex justify-between text-base font-semibold">
-                  <span>Total</span>
-                  <Skeleton className="h-5 w-20" />
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="flex justify-between text-sm">
-                  <span>Subtotal</span>
-                  <span>${computedTotal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-base font-semibold">
-                  <span>Total</span>
-                  <span>${computedTotal.toFixed(2)}</span>
-                </div>
-              </>
-            )}
-
-            <div className="h-px bg-border my-2" />
-
-            <PaymentMethodSelector
-              paymentMethods={paymentMethods}
-              selectedPaymentMethodId={selectedPaymentMethodId === "none" ? "none" : selectedPaymentMethodId}
-              onSelect={(id) => setSelectedPaymentMethodId(id)}
-              disabled={!isOrderOpen}
-              isLoading={loadingPM}
-            />
-          </CardContent>
-          <CardFooter className="flex flex-col gap-2">
-            <Button
-              className="w-full"
-              disabled={
-                paying ||
-                !isOrderOpen ||
-                !displayOrder ||
-                !displayOrder.items || displayOrder.items.length === 0 ||
-                selectedPaymentMethodId === "none"
-              }
-              onClick={handlePay}
-            >
-              {paying && (
-                <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              Cobrar y cerrar cuenta
-            </Button>
-
-            <Button
-              className="w-full"
-              variant="outline"
-              disabled={cancelling || paying || !isOrderOpen}
-              onClick={handleCancel}
-            >
-              {cancelling && (
-                <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              Cancelar cuenta
-            </Button>
-
-            {displayOrder && displayOrder.status !== "open" && (
-              <p className="text-xs text-muted-foreground text-center">
-                Esta cuenta ya está{" "}
-                {displayOrder.status === "closed" ? "pagada" : "cancelada"}.
-              </p>
-            )}
-          </CardFooter>
-        </Card>
-      </div>
+      <OrderItemsLayout
+        items={(displayOrder?.items ?? []).map((item) => ({
+          id: item.id,
+          product: item.product ? { id: item.product.id, name: item.product.name } : null,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+        }))}
+        isLoading={loadingOrder && !displayOrder}
+        isEditable={isOrderOpen}
+        onUpdateQuantity={(item, newQuantity) => {
+          const orderItem = displayOrder?.items?.find((i) => i.id === item.id);
+          if (orderItem) {
+            updateItemQuantity(orderItem, newQuantity);
+          }
+        }}
+        onRemoveItem={(item) => {
+          const orderItem = displayOrder?.items?.find((i) => i.id === item.id);
+          if (orderItem) {
+            removeItem(orderItem);
+          }
+        }}
+        products={products}
+        onProductSelect={handleProductSelect}
+        loadingProducts={loadingProducts}
+        total={computedTotal}
+        paymentMethods={paymentMethods}
+        selectedPaymentMethodId={selectedPaymentMethodId}
+        onPaymentMethodSelect={(id) => setSelectedPaymentMethodId(id)}
+        loadingPaymentMethods={loadingPM}
+        onProcess={handlePay}
+        onCancel={handleCancel}
+        processing={paying}
+        cancelling={cancelling}
+        hasPendingChanges={hasPendingChanges}
+        onSaveChanges={handleSaveChanges}
+        savingChanges={savingChanges}
+        title="Consumos"
+        description={
+          isOrderOpen
+            ? "Agregá productos y ajustá cantidades de esta cuenta."
+            : "Esta cuenta está cerrada. No se pueden realizar modificaciones."
+        }
+        processButtonLabel="Cobrar y cerrar cuenta"
+        cancelButtonLabel="Cancelar cuenta"
+        emptyMessage="No hay productos en la cuenta."
+        showMoreProductsSelect={true}
+        moreProductsSelectValue={moreProductsSelectValue}
+        onMoreProductsSelectChange={(value) => {
+          setMoreProductsSelectValue(value);
+          if (value !== "none") {
+            const product = products.find((p) => p.id === Number(value));
+            if (product) {
+              handleProductSelect(product, 1);
+              setMoreProductsSelectValue("none");
+            }
+          }
+        }}
+      />
     </div>
   );
 }
