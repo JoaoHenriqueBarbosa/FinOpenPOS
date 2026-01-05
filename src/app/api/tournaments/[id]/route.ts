@@ -41,7 +41,21 @@ export async function PATCH(req: Request, { params }: RouteParams) {
     }
 
     const body = await req.json();
-    const tournament = await repos.tournaments.update(id, body);
+    
+    // Convertir cadenas vacías a null para fechas opcionales
+    const normalizeDate = (date: string | null | undefined): string | null => {
+      if (!date || date.trim() === "") return null;
+      return date;
+    };
+
+    const normalizedBody = {
+      ...body,
+      start_date: body.start_date !== undefined ? normalizeDate(body.start_date) : undefined,
+      end_date: body.end_date !== undefined ? normalizeDate(body.end_date) : undefined,
+      registration_deadline: body.registration_deadline !== undefined ? normalizeDate(body.registration_deadline) : undefined,
+    };
+
+    const tournament = await repos.tournaments.update(id, normalizedBody);
 
     return NextResponse.json(tournament);
   } catch (error) {
