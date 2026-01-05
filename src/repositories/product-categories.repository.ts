@@ -9,8 +9,7 @@ export class ProductCategoriesRepository extends BaseRepository {
   async findAll(options: FindProductCategoriesOptions = {}): Promise<ProductCategoryDB[]> {
     let query = this.supabase
       .from("product_categories")
-      .select("id, name, description, color, is_active, created_at")
-      .eq("user_uid", this.userId);
+      .select("id, name, description, color, is_active, created_at");
 
     if (options.onlyActive) {
       query = query.eq("is_active", true);
@@ -37,7 +36,6 @@ export class ProductCategoriesRepository extends BaseRepository {
       .from("product_categories")
       .select("id, name, description, color, is_active, created_at")
       .eq("id", categoryId)
-      .eq("user_uid", this.userId)
       .single();
 
     if (error) {
@@ -84,7 +82,6 @@ export class ProductCategoriesRepository extends BaseRepository {
       .from("product_categories")
       .update(updates)
       .eq("id", categoryId)
-      .eq("user_uid", this.userId)
       .select("id, name, description, color, is_active, created_at")
       .single();
 
@@ -102,8 +99,7 @@ export class ProductCategoriesRepository extends BaseRepository {
     const { error } = await this.supabase
       .from("product_categories")
       .update({ is_active: false })
-      .eq("id", categoryId)
-      .eq("user_uid", this.userId);
+      .eq("id", categoryId);
 
     if (error) {
       throw new Error(`Failed to delete product category: ${error.message}`);

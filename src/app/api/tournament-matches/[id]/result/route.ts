@@ -79,7 +79,7 @@ export async function POST(req: Request, { params }: RouteParams) {
     .eq("id", matchId)
     .single();
 
-  if (matchError || !match || match.user_uid !== user.id) {
+  if (matchError || !match) {
     return NextResponse.json({ error: "Match not found" }, { status: 404 });
   }
 
@@ -95,14 +95,12 @@ export async function POST(req: Request, { params }: RouteParams) {
       .from("tournaments")
       .select("has_super_tiebreak")
       .eq("id", match.tournament_id)
-      .eq("user_uid", user.id)
       .single(),
     match.phase === "group" 
       ? supabase
           .from("tournament_playoffs")
           .select("id")
           .eq("tournament_id", match.tournament_id)
-          .eq("user_uid", user.id)
           .limit(1)
       : Promise.resolve({ data: null, error: null })
   ]);
@@ -134,7 +132,6 @@ export async function POST(req: Request, { params }: RouteParams) {
       .from("tournament_playoffs")
       .select("round, bracket_pos")
       .eq("match_id", matchId)
-      .eq("user_uid", user.id)
       .single();
 
     if (playoffInfoError || !playoffData) {
@@ -162,7 +159,6 @@ export async function POST(req: Request, { params }: RouteParams) {
             .from("tournament_playoffs")
             .select("match_id, round")
             .eq("tournament_id", match.tournament_id)
-            .eq("user_uid", user.id)
             .in("round", previousRounds);
           return result;
         })()
@@ -177,7 +173,6 @@ export async function POST(req: Request, { params }: RouteParams) {
             .from("tournament_playoffs")
             .select("match_id, round")
             .eq("tournament_id", match.tournament_id)
-            .eq("user_uid", user.id)
             .in("round", nextRounds);
           return result;
         })()
@@ -200,8 +195,7 @@ export async function POST(req: Request, { params }: RouteParams) {
           const { data: previousMatches, error: prevMatchesError } = await supabase
             .from("tournament_matches")
             .select("id, status")
-            .in("id", previousMatchIds)
-            .eq("user_uid", user.id);
+            .in("id", previousMatchIds);
 
           if (!prevMatchesError && previousMatches) {
             const incompleteMatches = previousMatches.filter(m => m.status !== "finished");
@@ -238,8 +232,7 @@ export async function POST(req: Request, { params }: RouteParams) {
         const { data: nextMatches, error: nextMatchesError } = await supabase
           .from("tournament_matches")
           .select("id, status")
-          .in("id", nextMatchIds)
-          .eq("user_uid", user.id);
+          .in("id", nextMatchIds);
 
         if (!nextMatchesError && nextMatches) {
           const completedNextMatches = nextMatches.filter(m => m.status === "finished");
@@ -305,8 +298,7 @@ export async function POST(req: Request, { params }: RouteParams) {
       team2_games_total: team2GamesTotal,
       status: "finished",
     })
-    .eq("id", matchId)
-    .eq("user_uid", user.id);
+    .eq("id", matchId);
 
   if (updateError) {
     console.error("Error updating match result:", updateError);
@@ -327,7 +319,6 @@ export async function POST(req: Request, { params }: RouteParams) {
       .eq("tournament_id", match.tournament_id)
       .eq("phase", "group")
       .eq("tournament_group_id", match.tournament_group_id)
-      .eq("user_uid", user.id)
       .order("id", { ascending: true });
 
     if (!groupMatchesError && groupMatches) {
@@ -373,8 +364,7 @@ export async function POST(req: Request, { params }: RouteParams) {
                   team2_id: winner2,
                   status: "scheduled", // Asegurar que esté en scheduled si estaba en otro estado
                 })
-                .eq("id", winnersMatch.id)
-                .eq("user_uid", user.id);
+                .eq("id", winnersMatch.id);
             }
             
             if (losersMatch) {
@@ -385,8 +375,7 @@ export async function POST(req: Request, { params }: RouteParams) {
                   team2_id: loser2,
                   status: "scheduled", // Asegurar que esté en scheduled si estaba en otro estado
                 })
-                .eq("id", losersMatch.id)
-                .eq("user_uid", user.id);
+                .eq("id", losersMatch.id);
             }
           }
         }
@@ -497,8 +486,7 @@ export async function POST(req: Request, { params }: RouteParams) {
       const { data: groupTeams, error: groupTeamsError } = await supabase
         .from("tournament_group_teams")
         .select("team_id")
-        .eq("tournament_group_id", match.tournament_group_id)
-        .eq("user_uid", user.id);
+        .eq("tournament_group_id", match.tournament_group_id);
 
       if (!groupTeamsError && groupTeams) {
         // Asegurar que todos los equipos tengan standings (incluso si no han jugado)
@@ -528,8 +516,7 @@ export async function POST(req: Request, { params }: RouteParams) {
         await supabase
           .from("tournament_group_standings")
           .delete()
-          .eq("tournament_group_id", match.tournament_group_id)
-          .eq("user_uid", user.id);
+          .eq("tournament_group_id", match.tournament_group_id);
 
         // Insertar nuevos standings con posición
         const standingsInsert = sortedStats.map((s, index) => ({
@@ -590,7 +577,6 @@ export async function POST(req: Request, { params }: RouteParams) {
         .select("match_id, bracket_pos, source_team1, source_team2")
         .eq("tournament_id", match.tournament_id)
         .eq("round", nextRound)
-        .eq("user_uid", user.id)
         .or(`source_team1.eq.${sourcePattern},source_team2.eq.${sourcePattern}`)
         .limit(1)
         .maybeSingle();
@@ -601,7 +587,6 @@ export async function POST(req: Request, { params }: RouteParams) {
           .from("tournament_matches")
           .select("team1_id, team2_id, status")
           .eq("id", nextRoundPlayoffs.match_id)
-          .eq("user_uid", user.id)
           .single();
 
         if (!nextMatchError && nextMatch) {
@@ -637,8 +622,7 @@ export async function POST(req: Request, { params }: RouteParams) {
           const { error: advanceError } = await supabase
             .from("tournament_matches")
             .update(updateData)
-            .eq("id", nextRoundPlayoffs.match_id)
-            .eq("user_uid", user.id);
+            .eq("id", nextRoundPlayoffs.match_id);
 
           if (advanceError) {
             console.error("Error advancing winner to next round:", advanceError);
@@ -671,7 +655,7 @@ export async function DELETE(req: Request, { params }: RouteParams) {
     .eq("id", matchId)
     .single();
 
-  if (matchError || !match || match.user_uid !== user.id) {
+  if (matchError || !match) {
     return NextResponse.json({ error: "Match not found" }, { status: 404 });
   }
 
@@ -686,7 +670,6 @@ export async function DELETE(req: Request, { params }: RouteParams) {
           .from("tournament_playoffs")
           .select("id")
           .eq("tournament_id", match.tournament_id)
-          .eq("user_uid", user.id)
           .limit(1);
         return result;
       })()
@@ -702,7 +685,6 @@ export async function DELETE(req: Request, { params }: RouteParams) {
           .from("tournament_playoffs")
           .select("round, bracket_pos")
           .eq("match_id", matchId)
-          .eq("user_uid", user.id)
           .single();
         return result;
       })()
@@ -744,7 +726,6 @@ export async function DELETE(req: Request, { params }: RouteParams) {
         .from("tournament_playoffs")
         .select("match_id, round")
         .eq("tournament_id", match.tournament_id)
-        .eq("user_uid", user.id)
         .in("round", nextRounds);
 
       if (!nextRoundsError && nextRoundPlayoffs && nextRoundPlayoffs.length > 0) {
@@ -752,8 +733,7 @@ export async function DELETE(req: Request, { params }: RouteParams) {
         const { data: nextMatches, error: nextMatchesError } = await supabase
           .from("tournament_matches")
           .select("id, status")
-          .in("id", nextMatchIds)
-          .eq("user_uid", user.id);
+          .in("id", nextMatchIds);
 
         if (!nextMatchesError && nextMatches) {
           const completedNextMatches = nextMatches.filter(m => m.status === "finished");
@@ -820,7 +800,6 @@ export async function DELETE(req: Request, { params }: RouteParams) {
           .select("match_id, bracket_pos, source_team1, source_team2")
           .eq("tournament_id", match.tournament_id)
           .eq("round", nextRound)
-          .eq("user_uid", user.id)
           .or(`source_team1.eq.${sourcePattern},source_team2.eq.${sourcePattern}`)
           .limit(1)
           .maybeSingle();
@@ -831,7 +810,6 @@ export async function DELETE(req: Request, { params }: RouteParams) {
             .from("tournament_matches")
             .select("team1_id, team2_id, status")
             .eq("id", nextRoundPlayoff.match_id)
-            .eq("user_uid", user.id)
             .single();
 
           if (!nextMatchError && nextMatch) {
@@ -862,8 +840,7 @@ export async function DELETE(req: Request, { params }: RouteParams) {
                 const { error: revertError } = await supabase
                   .from("tournament_matches")
                   .update(updateData)
-                  .eq("id", nextRoundPlayoff.match_id)
-                  .eq("user_uid", user.id);
+                  .eq("id", nextRoundPlayoff.match_id);
 
                 if (revertError) {
                   console.error("Error reverting winner advance:", revertError);
@@ -893,8 +870,7 @@ export async function DELETE(req: Request, { params }: RouteParams) {
       team2_games_total: 0,
       status: "scheduled",
     })
-    .eq("id", matchId)
-    .eq("user_uid", user.id);
+    .eq("id", matchId);
 
   if (updateError) {
     console.error("Error clearing match result:", updateError);
@@ -914,8 +890,7 @@ export async function DELETE(req: Request, { params }: RouteParams) {
       )
       .eq("tournament_id", match.tournament_id)
       .eq("phase", "group")
-      .eq("tournament_group_id", match.tournament_group_id)
-      .eq("user_uid", user.id);
+      .eq("tournament_group_id", match.tournament_group_id);
 
     if (!groupMatchesError && groupMatches) {
       // Recalcular standings (mismo código que en POST)
@@ -986,8 +961,7 @@ export async function DELETE(req: Request, { params }: RouteParams) {
       const { data: groupTeams, error: groupTeamsError } = await supabase
         .from("tournament_group_teams")
         .select("team_id")
-        .eq("tournament_group_id", match.tournament_group_id)
-        .eq("user_uid", user.id);
+        .eq("tournament_group_id", match.tournament_group_id);
 
       if (!groupTeamsError && groupTeams) {
         for (const gt of groupTeams) {
@@ -1009,8 +983,7 @@ export async function DELETE(req: Request, { params }: RouteParams) {
         await supabase
           .from("tournament_group_standings")
           .delete()
-          .eq("tournament_group_id", match.tournament_group_id)
-          .eq("user_uid", user.id);
+          .eq("tournament_group_id", match.tournament_group_id);
 
         const standingsInsert = sortedStats.map((s, index) => ({
           tournament_group_id: match.tournament_group_id,

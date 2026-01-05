@@ -28,7 +28,6 @@ export async function PATCH(req: Request, { params }: RouteParams) {
       .select("id, tournament_id, user_uid")
       .eq("id", teamId)
       .eq("tournament_id", tournamentId)
-      .eq("user_uid", user.id)
       .single();
 
     if (teamError || !team) {
@@ -40,7 +39,6 @@ export async function PATCH(req: Request, { params }: RouteParams) {
       .from("tournament_groups")
       .select("id")
       .eq("tournament_id", tournamentId)
-      .eq("user_uid", user.id)
       .limit(1);
 
     if (groupsError) {
@@ -89,8 +87,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
     const { error: deleteError } = await supabase
       .from("tournament_team_schedule_restrictions")
       .delete()
-      .eq("tournament_team_id", teamId)
-      .eq("user_uid", user.id);
+      .eq("tournament_team_id", teamId);
 
     if (deleteError) {
       console.error("Error deleting existing restrictions:", deleteError);

@@ -33,8 +33,7 @@ export async function GET(request: Request) {
       status,
       created_at
     `
-    )
-    .eq('user_uid', user.id);
+    );
 
   if (type) {
     query = query.eq('type', type);

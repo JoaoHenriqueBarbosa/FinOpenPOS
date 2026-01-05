@@ -6,12 +6,5 @@ import { SupabaseClient } from "@supabase/supabase-js";
  */
 export abstract class BaseRepository {
   constructor(protected supabase: SupabaseClient, protected userId: string) {}
-
-  /**
-   * Helper to ensure user_uid is always included in queries
-   */
-  protected withUserFilter<T>(query: any) {
-    return query.eq("user_uid", this.userId);
-  }
 }
 

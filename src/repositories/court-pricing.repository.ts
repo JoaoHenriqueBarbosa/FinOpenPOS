@@ -16,7 +16,6 @@ export class CourtPricingRepository {
     const { data, error } = await this.supabase
       .from("court_pricing")
       .select("*")
-      .eq("user_uid", user.id)
       .order("court_id", { ascending: true })
       .order("start_time", { ascending: true });
 
@@ -65,7 +64,6 @@ export class CourtPricingRepository {
     const { data, error } = await this.supabase
       .from("court_pricing")
       .select("*")
-      .eq("user_uid", user.id)
       .eq("court_id", courtId)
       .order("start_time", { ascending: true });
 
@@ -123,7 +121,6 @@ export class CourtPricingRepository {
       .from("court_pricing")
       .update(updateData)
       .eq("id", id)
-      .eq("user_uid", user.id)
       .select()
       .single();
 
@@ -143,8 +140,7 @@ export class CourtPricingRepository {
     const { error } = await this.supabase
       .from("court_pricing")
       .delete()
-      .eq("id", id)
-      .eq("user_uid", user.id);
+      .eq("id", id);
 
     if (error) throw error;
   }
@@ -161,7 +157,6 @@ export class CourtPricingRepository {
     const { error } = await this.supabase
       .from("court_pricing")
       .delete()
-      .eq("user_uid", user.id)
       .eq("court_id", courtId);
 
     if (error) throw error;

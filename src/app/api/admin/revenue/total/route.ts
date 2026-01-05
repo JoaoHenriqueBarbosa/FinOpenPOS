@@ -14,7 +14,6 @@ export async function GET(request: Request) {
     .from('transactions')
     .select('amount')
     .eq('type', 'income')
-    .eq('user_uid', user.id)
     .eq('status', 'completed');
 
   if (revenueError) {

@@ -21,7 +21,6 @@ export async function GET(_req: Request, { params }: RouteParams) {
     .from("tournament_groups")
     .select("id, name, group_order")
     .eq("tournament_id", tournamentId)
-    .eq("user_uid", user.id)
     .order("group_order", { ascending: true });
 
   if (gError) {
@@ -62,7 +61,6 @@ export async function GET(_req: Request, { params }: RouteParams) {
     `
     )
     .in("tournament_group_id", groupIds)
-    .eq("user_uid", user.id)
     .order("position", { ascending: true });
 
   if (sError) {
@@ -110,7 +108,6 @@ export async function GET(_req: Request, { params }: RouteParams) {
     .eq("tournament_id", tournamentId)
     .eq("phase", "group")
     .in("tournament_group_id", groupIds)
-    .eq("user_uid", user.id)
     .order("match_date", { ascending: true })
     .order("start_time", { ascending: true });
 
@@ -139,7 +136,6 @@ export async function GET(_req: Request, { params }: RouteParams) {
     `
     )
     .in("tournament_group_id", groupIds)
-    .eq("user_uid", user.id);
 
   if (gtError) {
     console.error("GET standings groupTeams error:", gtError);

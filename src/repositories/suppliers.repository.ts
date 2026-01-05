@@ -9,8 +9,7 @@ export class SuppliersRepository extends BaseRepository {
   async findAll(options: FindSuppliersOptions = {}): Promise<SupplierDB[]> {
     let query = this.supabase
       .from("suppliers")
-      .select("id, name, contact_email, phone, notes, status, created_at")
-      .eq("user_uid", this.userId);
+      .select("id, name, contact_email, phone, notes, status, created_at");
 
     if (options.onlyActive) {
       query = query.eq("status", "active");
@@ -37,7 +36,6 @@ export class SuppliersRepository extends BaseRepository {
       .from("suppliers")
       .select("id, name, contact_email, phone, notes, status, created_at")
       .eq("id", supplierId)
-      .eq("user_uid", this.userId)
       .single();
 
     if (error) {
@@ -85,7 +83,6 @@ export class SuppliersRepository extends BaseRepository {
       .from("suppliers")
       .update(updates)
       .eq("id", supplierId)
-      .eq("user_uid", this.userId)
       .select("id, name, contact_email, phone, notes, status, created_at")
       .single();
 
@@ -103,8 +100,7 @@ export class SuppliersRepository extends BaseRepository {
     const { error } = await this.supabase
       .from("suppliers")
       .update({ status: "inactive" })
-      .eq("id", supplierId)
-      .eq("user_uid", this.userId);
+      .eq("id", supplierId);
 
     if (error) {
       throw new Error(`Failed to delete supplier: ${error.message}`);

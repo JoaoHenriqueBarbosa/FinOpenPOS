@@ -9,8 +9,7 @@ export class PaymentMethodsRepository extends BaseRepository {
   async findAll(options: FindPaymentMethodsOptions = {}): Promise<PaymentMethodDB[]> {
     let query = this.supabase
       .from("payment_methods")
-      .select("id, name, scope, is_active, created_at")
-      .eq("user_uid", this.userId);
+      .select("id, name, scope, is_active, created_at");
 
     if (options.scope) {
       query = query.or(`scope.eq.${options.scope},scope.eq.BOTH`);
@@ -37,7 +36,6 @@ export class PaymentMethodsRepository extends BaseRepository {
       .from("payment_methods")
       .select("id, name, scope, is_active, created_at")
       .eq("id", paymentMethodId)
-      .eq("user_uid", this.userId)
       .single();
 
     if (error) {
@@ -83,7 +81,6 @@ export class PaymentMethodsRepository extends BaseRepository {
       .from("payment_methods")
       .update(updates)
       .eq("id", paymentMethodId)
-      .eq("user_uid", this.userId)
       .select("id, name, scope, is_active, created_at")
       .single();
 
@@ -101,8 +98,7 @@ export class PaymentMethodsRepository extends BaseRepository {
     const { error } = await this.supabase
       .from("payment_methods")
       .update({ is_active: false })
-      .eq("id", paymentMethodId)
-      .eq("user_uid", this.userId);
+      .eq("id", paymentMethodId);
 
     if (error) {
       throw new Error(`Failed to delete payment method: ${error.message}`);

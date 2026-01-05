@@ -26,7 +26,6 @@ export class TournamentsRepository extends BaseRepository {
     const { data, error } = await this.supabase
       .from("tournaments")
       .select("*")
-      .eq("user_uid", this.userId)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -44,7 +43,6 @@ export class TournamentsRepository extends BaseRepository {
       .from("tournaments")
       .select("*")
       .eq("id", tournamentId)
-      .eq("user_uid", this.userId)
       .single();
 
     if (error) {
@@ -95,7 +93,6 @@ export class TournamentsRepository extends BaseRepository {
       .from("tournaments")
       .update(updates)
       .eq("id", tournamentId)
-      .eq("user_uid", this.userId)
       .select("*")
       .single();
 
@@ -138,7 +135,6 @@ export class TournamentTeamsRepository extends BaseRepository {
       `
       )
       .eq("tournament_id", tournamentId)
-      .eq("user_uid", this.userId)
       .order("id", { ascending: true });
 
     if (error) {
@@ -153,8 +149,7 @@ export class TournamentTeamsRepository extends BaseRepository {
       const { data: restrictions, error: restrictionsError } = await this.supabase
         .from("tournament_team_schedule_restrictions")
         .select("tournament_team_id, date, start_time, end_time")
-        .in("tournament_team_id", teamIds)
-        .eq("user_uid", this.userId);
+        .in("tournament_team_id", teamIds);
 
       if (!restrictionsError && restrictions) {
         restrictions.forEach((r: any) => {
@@ -216,8 +211,7 @@ export class TournamentTeamsRepository extends BaseRepository {
     const { error } = await this.supabase
       .from("tournament_teams")
       .delete()
-      .eq("id", teamId)
-      .eq("user_uid", this.userId);
+      .eq("id", teamId);
 
     if (error) {
       throw new Error(`Failed to delete tournament team: ${error.message}`);
@@ -232,7 +226,6 @@ export class TournamentTeamsRepository extends BaseRepository {
       .from("tournament_teams")
       .select("id")
       .eq("tournament_id", tournamentId)
-      .eq("user_uid", this.userId)
       .or(`player1_id.eq.${playerId},player2_id.eq.${playerId}`)
       .limit(1);
 
@@ -254,7 +247,6 @@ export class TournamentGroupsRepository extends BaseRepository {
       .from("tournament_groups")
       .select("id, name, group_order")
       .eq("tournament_id", tournamentId)
-      .eq("user_uid", this.userId)
       .order("group_order", { ascending: true });
 
     if (gError) {
@@ -285,8 +277,7 @@ export class TournamentGroupsRepository extends BaseRepository {
           )
         `
         )
-        .in("tournament_group_id", groupIds)
-        .eq("user_uid", this.userId),
+        .in("tournament_group_id", groupIds),
 
       // Matches
       this.supabase
@@ -325,7 +316,6 @@ export class TournamentGroupsRepository extends BaseRepository {
         .eq("tournament_id", tournamentId)
         .eq("phase", "group")
         .in("tournament_group_id", groupIds)
-        .eq("user_uid", this.userId)
         .order("id", { ascending: true }),
 
       // Standings
@@ -347,7 +337,6 @@ export class TournamentGroupsRepository extends BaseRepository {
         `
         )
         .in("tournament_group_id", groupIds)
-        .eq("user_uid", this.userId)
         .order("tournament_group_id", { ascending: true })
         .order("position", { ascending: true }),
     ]);
@@ -393,8 +382,7 @@ export class TournamentGroupsRepository extends BaseRepository {
     const { data: groups, error: groupsError } = await this.supabase
       .from("tournament_groups")
       .select("id")
-      .eq("tournament_id", tournamentId)
-      .eq("user_uid", this.userId);
+      .eq("tournament_id", tournamentId);
 
     if (groupsError) {
       throw new Error(`Failed to fetch groups: ${groupsError.message}`);
@@ -416,8 +404,7 @@ export class TournamentGroupsRepository extends BaseRepository {
     const standingsResult = await this.supabase
       .from("tournament_group_standings")
       .delete()
-      .in("tournament_group_id", groupIds)
-      .eq("user_uid", this.userId);
+      .in("tournament_group_id", groupIds);
 
     if (standingsResult.error) {
       throw new Error(`Failed to delete standings: ${standingsResult.error.message}`);
@@ -430,8 +417,7 @@ export class TournamentGroupsRepository extends BaseRepository {
       .from("tournament_matches")
       .delete()
       .eq("tournament_id", tournamentId)
-      .eq("phase", "group")
-      .eq("user_uid", this.userId);
+      .eq("phase", "group");
 
     if (matchesResult.error) {
       throw new Error(`Failed to delete matches: ${matchesResult.error.message}`);
@@ -441,8 +427,7 @@ export class TournamentGroupsRepository extends BaseRepository {
     const groupTeamsResult = await this.supabase
       .from("tournament_group_teams")
       .delete()
-      .in("tournament_group_id", groupIds)
-      .eq("user_uid", this.userId);
+      .in("tournament_group_id", groupIds);
 
     if (groupTeamsResult.error) {
       throw new Error(`Failed to delete group teams: ${groupTeamsResult.error.message}`);
@@ -452,8 +437,7 @@ export class TournamentGroupsRepository extends BaseRepository {
     const groupsResult = await this.supabase
       .from("tournament_groups")
       .delete()
-      .eq("tournament_id", tournamentId)
-      .eq("user_uid", this.userId);
+      .eq("tournament_id", tournamentId);
 
     if (groupsResult.error) {
       throw new Error(`Failed to delete groups: ${groupsResult.error.message}`);
@@ -521,7 +505,6 @@ export class TournamentMatchesRepository extends BaseRepository {
       )
       .eq("tournament_id", tournamentId)
       .eq("phase", phase)
-      .eq("user_uid", this.userId)
       .order("id", { ascending: true });
 
     if (error) {
@@ -558,7 +541,6 @@ export class TournamentMatchesRepository extends BaseRepository {
       .select("id, tournament_group_id, team1_id, team2_id, match_order, status, set1_team1_games, court_id")
       .eq("tournament_id", tournamentId)
       .eq("phase", phase)
-      .eq("user_uid", this.userId)
       .is("set1_team1_games", null);
 
     if (error) {
@@ -648,7 +630,6 @@ export class TournamentMatchesRepository extends BaseRepository {
       .from("tournament_matches")
       .update(updates)
       .eq("id", matchId)
-      .eq("user_uid", this.userId)
       .select("*")
       .single();
 
@@ -675,7 +656,6 @@ export class TournamentMatchesRepository extends BaseRepository {
           .from("tournament_matches")
           .update(matchUpdates)
           .eq("id", id)
-          .eq("user_uid", this.userId)
       )
     );
   }
@@ -688,7 +668,6 @@ export class TournamentMatchesRepository extends BaseRepository {
       .from("tournament_matches")
       .select("*")
       .eq("id", matchId)
-      .eq("user_uid", this.userId)
       .single();
 
     if (error) {
@@ -771,7 +750,6 @@ export class TournamentPlayoffsRepository extends BaseRepository {
       `
       )
       .eq("tournament_id", tournamentId)
-      .eq("user_uid", this.userId)
       .order("round", { ascending: true })
       .order("bracket_pos", { ascending: true });
 
@@ -843,7 +821,6 @@ export class TournamentPlayoffsRepository extends BaseRepository {
       .from("tournament_playoffs")
       .select("id")
       .eq("tournament_id", tournamentId)
-      .eq("user_uid", this.userId)
       .limit(1);
 
     if (error) {
@@ -862,7 +839,6 @@ export class TournamentPlayoffsRepository extends BaseRepository {
       .from("tournament_playoffs")
       .select("match_id")
       .eq("tournament_id", tournamentId)
-      .eq("user_uid", this.userId);
 
     if (playoffsError) {
       throw new Error(`Failed to fetch playoffs: ${playoffsError.message}`);
@@ -883,13 +859,11 @@ export class TournamentPlayoffsRepository extends BaseRepository {
             .in("id", matchIds)
             .eq("tournament_id", tournamentId)
             .eq("phase", "playoff")
-            .eq("user_uid", this.userId)
         : Promise.resolve({ error: null }),
       this.supabase
         .from("tournament_playoffs")
         .delete()
-        .eq("tournament_id", tournamentId)
-        .eq("user_uid", this.userId),
+        .eq("tournament_id", tournamentId),
     ]);
 
     if (matchesResult.error) {

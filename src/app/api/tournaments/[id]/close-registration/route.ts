@@ -38,7 +38,7 @@ export async function POST(req: Request, { params }: RouteParams) {
     .eq("id", tournamentId)
     .single();
 
-  if (terr || !t || t.user_uid !== user.id) {
+  if (terr || !t) {
     return NextResponse.json({ error: "Tournament not found" }, { status: 404 });
   }
 
@@ -54,7 +54,6 @@ export async function POST(req: Request, { params }: RouteParams) {
     .from("tournament_groups")
     .select("id")
     .eq("tournament_id", tournamentId)
-    .eq("user_uid", user.id)
     .limit(1);
 
   if (existingGroupsError) {
@@ -80,7 +79,6 @@ export async function POST(req: Request, { params }: RouteParams) {
     .from("tournament_teams")
     .select("id")
     .eq("tournament_id", tournamentId)
-    .eq("user_uid", user.id)
     .order("id", { ascending: true });
 
   if (teamsError) {
@@ -290,8 +288,7 @@ export async function POST(req: Request, { params }: RouteParams) {
   const { error: upError } = await supabase
     .from("tournaments")
     .update({ status: "schedule_review" })
-    .eq("id", tournamentId)
-    .eq("user_uid", user.id);
+    .eq("id", tournamentId);
 
   if (upError) {
     console.error("Error updating tournament status:", upError);

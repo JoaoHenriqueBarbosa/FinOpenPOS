@@ -47,7 +47,6 @@ export async function GET(request: Request) {
           )
         )
       `)
-      .eq('user_uid', user.id)
       .eq('order.status', 'closed');
 
     // Filtrar por fecha del item (created_at)

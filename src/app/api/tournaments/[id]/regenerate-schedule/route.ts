@@ -44,7 +44,7 @@ export async function POST(req: Request, { params }: RouteParams) {
     .eq("id", tournamentId)
     .single();
 
-  if (terr || !t || t.user_uid !== user.id) {
+  if (terr || !t) {
     return NextResponse.json({ error: "Tournament not found" }, { status: 404 });
   }
 
@@ -55,7 +55,6 @@ export async function POST(req: Request, { params }: RouteParams) {
     .select("id, tournament_group_id, team1_id, team2_id, match_order, status, set1_team1_games, court_id")
     .eq("tournament_id", tournamentId)
     .eq("phase", "group")
-    .eq("user_uid", user.id)
     .is("set1_team1_games", null); // Solo partidos sin resultados
 
   if (matchesError) {
@@ -72,8 +71,7 @@ export async function POST(req: Request, { params }: RouteParams) {
       .from("tournament_matches")
       .select("id")
       .eq("tournament_id", tournamentId)
-      .eq("phase", "group")
-      .eq("user_uid", user.id);
+      .eq("phase", "group");
     
     if (allMatches && allMatches.length > 0) {
       return NextResponse.json(
@@ -99,7 +97,6 @@ export async function POST(req: Request, { params }: RouteParams) {
     })
     .eq("tournament_id", tournamentId)
     .eq("phase", "group")
-    .eq("user_uid", user.id)
     .is("set1_team1_games", null); // Solo partidos sin resultados
 
   if (clearError) {
@@ -114,7 +111,6 @@ export async function POST(req: Request, { params }: RouteParams) {
   const { data: courts, error: courtsError } = await supabase
     .from("courts")
     .select("id")
-    .eq("user_uid", user.id)
     .in("id", scheduleConfig.courtIds)
     .eq("is_active", true);
 
@@ -177,8 +173,7 @@ export async function POST(req: Request, { params }: RouteParams) {
     const { data: restrictions, error: restrictionsError } = await supabase
       .from("tournament_team_schedule_restrictions")
       .select("tournament_team_id, date, start_time, end_time")
-      .in("tournament_team_id", Array.from(teamIds))
-      .eq("user_uid", user.id);
+      .in("tournament_team_id", Array.from(teamIds));
 
     if (!restrictionsError && restrictions) {
       restrictions.forEach((r: any) => {
@@ -261,8 +256,7 @@ export async function POST(req: Request, { params }: RouteParams) {
         end_time: update.end_time,
         court_id: update.court_id,
       })
-      .eq("id", update.id)
-      .eq("user_uid", user.id);
+      .eq("id", update.id);
 
     if (updateError) {
       console.error(`Error updating match ${update.id}:`, updateError);

@@ -154,7 +154,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
             .eq("id", tournamentId)
             .single();
 
-          if (terr || !t || t.user_uid !== user.id) {
+          if (terr || !t) {
             sendError("Torneo no encontrado");
             return;
           }
@@ -170,7 +170,6 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
             )
             .eq("tournament_id", tournamentId)
             .eq("phase", "group")
-            .eq("user_uid", user.id)
             .is("set1_team1_games", null); // Solo partidos sin resultados
 
           if (matchesError) {
@@ -184,8 +183,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
               .from("tournament_matches")
               .select("id")
               .eq("tournament_id", tournamentId)
-              .eq("phase", "group")
-              .eq("user_uid", user.id);
+              .eq("phase", "group");
             
             if (allMatches && allMatches.length > 0) {
               sendError("Todos los partidos de fase de grupos ya tienen resultados cargados. Solo se pueden regenerar horarios de partidos sin resultados.");
@@ -209,8 +207,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
               court_id: null,
             })
             .eq("tournament_id", tournamentId)
-            .eq("phase", "group")
-            .eq("user_uid", user.id);
+            .eq("phase", "group");
             // Nota: Limpiamos TODOS los horarios, no solo los de partidos sin resultados
             // para empezar desde cero al regenerar
 
@@ -485,8 +482,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
             const { error: updateError, count } = await supabase
               .from("tournament_matches")
               .update(updatePayload)
-              .eq("id", update.id)
-              .eq("user_uid", user.id);
+              .eq("id", update.id);
             
             if (updateError) {
               console.error(`Error updating match ${update.id}:`, updateError);

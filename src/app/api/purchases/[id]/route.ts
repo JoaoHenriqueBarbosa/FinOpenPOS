@@ -147,7 +147,6 @@ export async function PATCH(request: Request, { params }: RouteParams) {
           .from("payment_methods")
           .select("id, name")
           .eq("id", finalPaymentMethodId)
-          .eq("user_uid", user.id)
           .single();
 
         if (pmError || !paymentMethod) {
@@ -185,8 +184,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
         const { error: txDeleteError } = await supabase
           .from("transactions")
           .delete()
-          .eq("id", currentPurchase.transaction_id)
-          .eq("user_uid", user.id);
+          .eq("id", currentPurchase.transaction_id);
 
         if (txDeleteError) {
           console.error("Error deleting transaction:", txDeleteError);
@@ -206,8 +204,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
         const { error: txUpdateError } = await supabase
           .from("transactions")
           .update({ amount: newTotal })
-          .eq("id", currentPurchase.transaction_id)
-          .eq("user_uid", user.id);
+          .eq("id", currentPurchase.transaction_id);
 
         if (txUpdateError) {
           console.error("Error updating transaction:", txUpdateError);
@@ -328,8 +325,7 @@ async function handlePartialUpdate(request: Request, { params }: RouteParams) {
       const { error: txDeleteError } = await supabase
         .from("transactions")
         .delete()
-        .eq("id", currentPurchase.transaction_id)
-        .eq("user_uid", user.id);
+        .eq("id", currentPurchase.transaction_id);
 
       if (txDeleteError) {
         console.error("Error deleting transaction:", txDeleteError);
@@ -360,7 +356,6 @@ async function handlePartialUpdate(request: Request, { params }: RouteParams) {
         .from("payment_methods")
         .select("id, name")
         .eq("id", paymentMethodId)
-        .eq("user_uid", user.id)
         .single();
 
       if (pmError || !paymentMethod) {
@@ -400,8 +395,7 @@ async function handlePartialUpdate(request: Request, { params }: RouteParams) {
       const { error: txDeleteError } = await supabase
         .from("transactions")
         .delete()
-        .eq("id", currentPurchase.transaction_id)
-        .eq("user_uid", user.id);
+        .eq("id", currentPurchase.transaction_id);
 
       if (txDeleteError) {
         console.error("Error deleting transaction:", txDeleteError);
@@ -489,8 +483,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
       const { error: txDeleteError } = await supabase
         .from("transactions")
         .delete()
-        .eq("id", currentPurchase.transaction_id)
-        .eq("user_uid", user.id);
+        .eq("id", currentPurchase.transaction_id);
 
       if (txDeleteError) {
         console.error("Error deleting transaction:", txDeleteError);
@@ -521,7 +514,6 @@ export async function PUT(request: Request, { params }: RouteParams) {
         .from("payment_methods")
         .select("id, name")
         .eq("id", paymentMethodId)
-        .eq("user_uid", user.id)
         .single();
 
       if (pmError || !paymentMethod) {
@@ -561,8 +553,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
       const { error: txDeleteError } = await supabase
         .from("transactions")
         .delete()
-        .eq("id", currentPurchase.transaction_id)
-        .eq("user_uid", user.id);
+        .eq("id", currentPurchase.transaction_id);
 
       if (txDeleteError) {
         console.error("Error deleting transaction:", txDeleteError);

@@ -9,8 +9,7 @@ export class PlayersRepository extends BaseRepository {
   async findAll(options: FindPlayersOptions = {}): Promise<Player[]> {
     let query = this.supabase
       .from("players")
-      .select("id, first_name, last_name, phone, status, created_at")
-      .eq("user_uid", this.userId);
+      .select("id, first_name, last_name, phone, status, created_at");
 
     if (options.onlyActive) {
       query = query.eq("status", "active");
@@ -40,7 +39,6 @@ export class PlayersRepository extends BaseRepository {
       .from("players")
       .select("id, first_name, last_name, phone, status, created_at")
       .eq("id", playerId)
-      .eq("user_uid", this.userId)
       .single();
 
     if (error) {
@@ -84,7 +82,6 @@ export class PlayersRepository extends BaseRepository {
       .from("players")
       .update(updates)
       .eq("id", playerId)
-      .eq("user_uid", this.userId)
       .select("id, first_name, last_name, phone, status, created_at")
       .single();
 
@@ -102,8 +99,7 @@ export class PlayersRepository extends BaseRepository {
     const { error } = await this.supabase
       .from("players")
       .update({ status: "inactive" })
-      .eq("id", playerId)
-      .eq("user_uid", this.userId);
+      .eq("id", playerId);
 
     if (error) {
       throw new Error(`Failed to delete player: ${error.message}`);

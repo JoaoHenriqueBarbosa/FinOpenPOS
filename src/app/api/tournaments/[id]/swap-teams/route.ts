@@ -44,7 +44,6 @@ export async function POST(req: Request, { params }: RouteParams) {
       .from("tournaments")
       .select("id")
       .eq("id", tournamentId)
-      .eq("user_uid", user.id)
       .single();
 
     if (tournamentError || !tournament) {
@@ -101,7 +100,6 @@ export async function POST(req: Request, { params }: RouteParams) {
       .from("tournament_matches")
       .select("id, team1_id, team2_id")
       .eq("phase", "group")
-      .eq("user_uid", user.id)
       .or(`team1_id.eq.${team1Id},team2_id.eq.${team1Id},team1_id.eq.${team2Id},team2_id.eq.${team2Id}`);
 
     if (matchesError) {
@@ -131,8 +129,7 @@ export async function POST(req: Request, { params }: RouteParams) {
                 team1_id: newTeam1Id,
                 team2_id: newTeam2Id,
               })
-              .eq("id", match.id)
-              .eq("user_uid", user.id);
+              .eq("id", match.id);
             return result;
           })()
         );

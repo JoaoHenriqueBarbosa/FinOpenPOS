@@ -79,7 +79,7 @@ export async function POST(req: Request, { params }: RouteParams) {
     .eq("id", tournamentId)
     .single();
 
-  if (terr || !t || t.user_uid !== user.id) {
+  if (terr || !t) {
     return NextResponse.json({ error: "Tournament not found" }, { status: 404 });
   }
 
@@ -95,7 +95,6 @@ export async function POST(req: Request, { params }: RouteParams) {
     .from("tournament_playoffs")
     .select("id")
     .eq("tournament_id", tournamentId)
-    .eq("user_uid", user.id)
     .limit(1);
 
   if (existingPlayoffsError) {
@@ -118,7 +117,6 @@ export async function POST(req: Request, { params }: RouteParams) {
     .from("tournament_groups")
     .select("id, name")
     .eq("tournament_id", tournamentId)
-    .eq("user_uid", user.id)
     .order("group_order", { ascending: true });
 
   if (gError || !groups || groups.length === 0) {
@@ -131,8 +129,7 @@ export async function POST(req: Request, { params }: RouteParams) {
   const { data: groupTeams, error: gtError } = await supabase
     .from("tournament_group_teams")
     .select("tournament_group_id, team_id")
-    .in("tournament_group_id", groupIds)
-    .eq("user_uid", user.id);
+    .in("tournament_group_id", groupIds);
 
   if (gtError || !groupTeams) {
     console.error("Error fetching group_teams:", gtError);
@@ -149,8 +146,7 @@ export async function POST(req: Request, { params }: RouteParams) {
       "id, tournament_group_id, team1_id, team2_id, team1_sets, team2_sets, team1_games_total, team2_games_total, status, court_id"
     )
     .eq("tournament_id", tournamentId)
-    .eq("phase", "group")
-    .eq("user_uid", user.id);
+    .eq("phase", "group");
 
   if (mError || !matches) {
     console.error("Error fetching matches:", mError);
@@ -247,8 +243,7 @@ export async function POST(req: Request, { params }: RouteParams) {
   await supabase
     .from("tournament_group_standings")
     .delete()
-    .in("tournament_group_id", groupIds)
-    .eq("user_uid", user.id);
+    .in("tournament_group_id", groupIds);
 
   const standingsInsert: any[] = [];
   const qualifiedTeams: { team_id: number; from_group_id: number; pos: number }[] =
@@ -336,7 +331,6 @@ export async function POST(req: Request, { params }: RouteParams) {
     .from("tournament_groups")
     .select("id, group_order")
     .eq("tournament_id", tournamentId)
-    .eq("user_uid", user.id)
     .order("group_order", { ascending: true });
 
   if (groupsOrderError || !groupsOrdered) {
@@ -515,8 +509,7 @@ export async function POST(req: Request, { params }: RouteParams) {
   const { error: upError } = await supabase
     .from("tournaments")
     .update({ status: "in_progress" }) // sigue en progreso pero grupos cerrados
-    .eq("id", tournamentId)
-    .eq("user_uid", user.id);
+    .eq("id", tournamentId);
 
   if (upError) {
     console.error("Error updating tournament:", upError);

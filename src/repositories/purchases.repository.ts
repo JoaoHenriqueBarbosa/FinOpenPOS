@@ -30,7 +30,6 @@ export class PurchasesRepository extends BaseRepository {
         )
       `
       )
-      .eq("user_uid", this.userId)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -73,7 +72,6 @@ export class PurchasesRepository extends BaseRepository {
       `
       )
       .eq("id", purchaseId)
-      .eq("user_uid", this.userId)
       .single();
 
     if (purchaseError) {
@@ -179,7 +177,6 @@ export class PurchasesRepository extends BaseRepository {
       .from("purchases")
       .update(updates)
       .eq("id", purchaseId)
-      .eq("user_uid", this.userId)
       .select(
         `
         id,
@@ -258,7 +255,6 @@ export class PurchasesRepository extends BaseRepository {
       .from("suppliers")
       .select("name")
       .eq("id", input.supplier_id)
-      .eq("user_uid", this.userId)
       .single()
       .then(({ data, error }) => {
         if (error) throw new Error(`Failed to fetch supplier: ${error.message}`);
@@ -290,7 +286,6 @@ export class PurchasesRepository extends BaseRepository {
         .from("payment_methods")
         .select("id, name")
         .eq("id", input.payment_method_id)
-        .eq("user_uid", this.userId)
         .single()
         .then(({ data, error }) => {
           if (error) throw new Error(`Failed to fetch payment method: ${error.message}`);

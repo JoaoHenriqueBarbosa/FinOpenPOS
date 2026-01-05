@@ -25,7 +25,6 @@ export class OrderItemsRepository extends BaseRepository {
       `
       )
       .eq("order_id", orderId)
-      .eq("user_uid", this.userId)
       .order("id", { ascending: true });
 
     if (error) {
@@ -61,7 +60,6 @@ export class OrderItemsRepository extends BaseRepository {
       `
       )
       .eq("id", itemId)
-      .eq("user_uid", this.userId)
       .single();
 
     if (error) {
@@ -129,7 +127,6 @@ export class OrderItemsRepository extends BaseRepository {
       .from("order_items")
       .update(updates)
       .eq("id", itemId)
-      .eq("user_uid", this.userId)
       .select(
         `
         id,
@@ -166,8 +163,7 @@ export class OrderItemsRepository extends BaseRepository {
     const { error } = await this.supabase
       .from("order_items")
       .delete()
-      .eq("id", itemId)
-      .eq("user_uid", this.userId);
+      .eq("id", itemId);
 
     if (error) {
       throw new Error(`Failed to delete order item: ${error.message}`);
@@ -181,8 +177,7 @@ export class OrderItemsRepository extends BaseRepository {
     const { error } = await this.supabase
       .from("order_items")
       .delete()
-      .eq("order_id", orderId)
-      .eq("user_uid", this.userId);
+      .eq("order_id", orderId);
 
     if (error) {
       throw new Error(`Failed to delete order items: ${error.message}`);
@@ -196,8 +191,7 @@ export class OrderItemsRepository extends BaseRepository {
     const { data, error } = await this.supabase
       .from("order_items")
       .select("quantity, unit_price")
-      .eq("order_id", orderId)
-      .eq("user_uid", this.userId);
+      .eq("order_id", orderId);
 
     if (error) {
       throw new Error(`Failed to calculate order total: ${error.message}`);

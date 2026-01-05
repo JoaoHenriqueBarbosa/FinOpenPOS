@@ -41,7 +41,6 @@ export async function POST(req: Request, { params }: RouteParams) {
         )
       `)
       .eq("tournament_id", tournamentId)
-      .eq("user_uid", user.id)
       .order("round", { ascending: true })
       .order("bracket_pos", { ascending: true });
 
@@ -135,7 +134,6 @@ export async function POST(req: Request, { params }: RouteParams) {
         .eq("tournament_id", tournamentId)
         .eq("round", round)
         .eq("bracket_pos", bracketPos)
-        .eq("user_uid", user.id)
         .single();
 
       return playoff?.match_id || null;

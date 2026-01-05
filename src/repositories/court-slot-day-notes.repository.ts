@@ -27,7 +27,6 @@ export class CourtSlotDayNotesRepository extends BaseRepository {
     const { data, error } = await this.supabase
       .from("court_slot_day_notes")
       .select("*")
-      .eq("user_uid", this.userId)
       .eq("slot_date", date)
       .single();
 
@@ -81,7 +80,6 @@ export class CourtSlotDayNotesRepository extends BaseRepository {
         notes: updates.notes,
         updated_at: new Date().toISOString(),
       })
-      .eq("user_uid", this.userId)
       .eq("slot_date", date)
       .select()
       .single();

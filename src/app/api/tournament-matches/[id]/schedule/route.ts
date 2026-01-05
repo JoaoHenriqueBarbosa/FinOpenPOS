@@ -31,7 +31,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
     .eq("id", matchId)
     .single();
 
-  if (matchError || !match || match.user_uid !== user.id) {
+  if (matchError || !match) {
     return NextResponse.json({ error: "Match not found" }, { status: 404 });
   }
 
@@ -43,7 +43,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
       .eq("id", court_id)
       .single();
 
-    if (courtError || !court || court.user_uid !== user.id) {
+    if (courtError || !court) {
       return NextResponse.json({ error: "Invalid court" }, { status: 400 });
     }
   }
@@ -64,8 +64,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
   const { error: updateError } = await supabase
     .from("tournament_matches")
     .update(updateData)
-    .eq("id", matchId)
-    .eq("user_uid", user.id);
+    .eq("id", matchId);
 
   if (updateError) {
     console.error("Error updating match schedule:", updateError);

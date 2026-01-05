@@ -26,7 +26,6 @@ export async function POST(req: Request, { params }: RouteParams) {
       .from("tournaments")
       .select("id, status")
       .eq("id", tournamentId)
-      .eq("user_uid", user.id)
       .single();
 
     if (tournamentError || !tournament) {
@@ -61,8 +60,7 @@ export async function POST(req: Request, { params }: RouteParams) {
       .from("tournament_matches")
       .select("id, match_date, start_time")
       .eq("tournament_id", tournamentId)
-      .eq("phase", "group")
-      .eq("user_uid", user.id);
+      .eq("phase", "group");
 
     if (matchesError) {
       return NextResponse.json({ error: "Error checking matches" }, { status: 500 });
@@ -81,8 +79,7 @@ export async function POST(req: Request, { params }: RouteParams) {
     const { error: updateError } = await supabase
       .from("tournaments")
       .update({ status: "in_progress" })
-      .eq("id", tournamentId)
-      .eq("user_uid", user.id);
+      .eq("id", tournamentId);
 
     if (updateError) {
       console.error("Error updating tournament status:", updateError);

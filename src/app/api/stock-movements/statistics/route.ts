@@ -42,8 +42,7 @@ export async function GET(request: Request) {
             name
           )
         )
-      `)
-      .eq('user_uid', user.id);
+      `);
 
     // Filtrar por rango de fechas
     if (fromDate) {
