@@ -14,8 +14,7 @@ export async function GET(request: Request) {
     .from('transactions')
     .select('amount, category, status, user_uid')
     .eq('status', 'completed')
-    .eq('type', 'expense')
-    .eq('user_uid', user.id);
+    .eq('type', 'expense');
 
   if (expensesError) {
     console.error('Error fetching expenses by category:', expensesError);

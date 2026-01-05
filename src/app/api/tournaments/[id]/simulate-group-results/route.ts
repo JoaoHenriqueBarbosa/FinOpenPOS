@@ -28,7 +28,6 @@ export async function POST(req: Request, { params }: RouteParams) {
       .select("id, team1_id, team2_id, has_super_tiebreak")
       .eq("tournament_id", tournamentId)
       .eq("phase", "group")
-      .eq("user_uid", user.id)
       .neq("status", "finished")
       .not("team1_id", "is", null)
       .not("team2_id", "is", null);

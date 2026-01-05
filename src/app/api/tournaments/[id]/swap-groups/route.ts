@@ -82,15 +82,13 @@ export async function POST(req: Request, { params }: RouteParams) {
       .from("tournament_matches")
       .select("id, match_date, start_time, end_time, court_id, match_order")
       .eq("tournament_group_id", group1Id)
-      .eq("phase", "group")
-      .eq("user_uid", user.id);
+      .eq("phase", "group");
 
     const { data: matches2, error: matches2Error } = await supabase
       .from("tournament_matches")
       .select("id, match_date, start_time, end_time, court_id, match_order")
       .eq("tournament_group_id", group2Id)
-      .eq("phase", "group")
-      .eq("user_uid", user.id);
+      .eq("phase", "group");
 
     if (matches1Error || matches2Error) {
       return NextResponse.json({ error: "Error fetching matches" }, { status: 500 });
@@ -138,8 +136,7 @@ export async function POST(req: Request, { params }: RouteParams) {
               end_time: match2.end_time,
               court_id: match2.court_id,
             })
-            .eq("id", match1.id)
-            .eq("user_uid", user.id);
+            .eq("id", match1.id);
           return result;
         })()
       );
@@ -154,8 +151,7 @@ export async function POST(req: Request, { params }: RouteParams) {
               end_time: match1.end_time,
               court_id: match1.court_id,
             })
-            .eq("id", match2.id)
-            .eq("user_uid", user.id);
+            .eq("id", match2.id);
           return result;
         })()
       );

@@ -34,8 +34,7 @@ export async function GET(request: Request) {
         id,
         name
       )
-    `)
-    .eq('user_uid', user.id);
+    `);
 
   if (type) {
     query = query.eq('type', type);

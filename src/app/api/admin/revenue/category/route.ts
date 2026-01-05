@@ -15,8 +15,7 @@ export async function GET(request: Request) {
     .from('transactions')
     .select('amount, category, status, user_uid')
     .eq('status', 'completed')
-    .eq('type', 'income')
-    .eq('user_uid', userData.user.id);
+    .eq('type', 'income');
 
   if (revenueError) {
     console.error('Error fetching revenue by category:', revenueError);

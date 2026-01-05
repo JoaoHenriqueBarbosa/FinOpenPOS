@@ -133,7 +133,6 @@ export async function POST(request: Request) {
       .from("payment_methods")
       .select("id, name")
       .eq("id", paymentMethodId)
-      .eq("user_uid", user.id)
       .single();
 
     if (pmError || !paymentMethod) {
@@ -199,8 +198,7 @@ export async function POST(request: Request) {
         status: "closed",
         closed_at: new Date().toISOString(),
       })
-      .eq("id", orderId)
-      .eq("user_uid", user.id);
+      .eq("id", orderId);
 
     if (updateOrderError) {
       console.error("Error updating order status:", updateOrderError);

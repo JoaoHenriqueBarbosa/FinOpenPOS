@@ -9,8 +9,7 @@ export class CourtsRepository extends BaseRepository {
   async findAll(onlyActive?: boolean): Promise<CourtDB[]> {
     let query = this.supabase
       .from("courts")
-      .select("id, name, is_active")
-      .eq("user_uid", this.userId);
+      .select("id, name, is_active");
 
     if (onlyActive) {
       query = query.eq("is_active", true);
@@ -33,7 +32,6 @@ export class CourtsRepository extends BaseRepository {
       .from("courts")
       .select("id, name, is_active")
       .eq("id", courtId)
-      .eq("user_uid", this.userId)
       .single();
 
     if (error) {
@@ -75,7 +73,6 @@ export class CourtsRepository extends BaseRepository {
       .from("courts")
       .update(updates)
       .eq("id", courtId)
-      .eq("user_uid", this.userId)
       .select("id, name, is_active")
       .single();
 

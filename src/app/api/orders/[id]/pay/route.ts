@@ -24,7 +24,6 @@ async function getOrderWithItems(
       `
     )
     .eq("id", orderId)
-    .eq("user_uid", userId)
     .single();
 
   if (orderError || !order) {
@@ -76,8 +75,7 @@ async function recalcOrderTotal(
   const { error: updateError } = await supabase
     .from("orders")
     .update({ total_amount: total })
-    .eq("id", orderId)
-    .eq("user_uid", userId);
+    .eq("id", orderId);
 
   if (updateError) {
     throw new Error("Error updating order total");
@@ -124,7 +122,6 @@ export async function POST(request: Request, { params }: RouteParams) {
       .from("orders")
       .select("id, status, total_amount")
       .eq("id", orderId)
-      .eq("user_uid", user.id)
       .single();
 
     if (orderError || !order) {
@@ -248,8 +245,7 @@ export async function POST(request: Request, { params }: RouteParams) {
         status: "closed",
         closed_at: new Date().toISOString()
       })
-      .eq("id", orderId)
-      .eq("user_uid", user.id);
+      .eq("id", orderId);
 
     if (updateOrderError) {
       console.error("Error updating order status:", updateOrderError);

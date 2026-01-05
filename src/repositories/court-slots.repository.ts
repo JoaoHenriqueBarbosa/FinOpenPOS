@@ -50,7 +50,6 @@ export class CourtSlotsRepository extends BaseRepository {
         )
       `
       )
-      .eq("user_uid", this.userId)
       .eq("slot_date", date)
       .order("start_time", { ascending: true })
       .order("court_id", { ascending: true });
@@ -118,7 +117,6 @@ export class CourtSlotsRepository extends BaseRepository {
       `
       )
       .eq("id", slotId)
-      .eq("user_uid", this.userId)
       .single();
 
     if (error) {
@@ -315,7 +313,6 @@ export class CourtSlotsRepository extends BaseRepository {
       .from("court_slots")
       .update(updates)
       .eq("id", slotId)
-      .eq("user_uid", this.userId)
       .select(
         `
         id,
@@ -382,7 +379,6 @@ export class CourtSlotsRepository extends BaseRepository {
     const { count, error } = await this.supabase
       .from("court_slots")
       .select("*", { count: "exact", head: true })
-      .eq("user_uid", this.userId)
       .eq("slot_date", date);
 
     if (error) {
@@ -399,8 +395,7 @@ export class CourtSlotsRepository extends BaseRepository {
     const { error } = await this.supabase
       .from("court_slots")
       .delete()
-      .eq("id", slotId)
-      .eq("user_uid", this.userId);
+      .eq("id", slotId);
 
     if (error) {
       throw new Error(`Failed to delete court slot: ${error.message}`);

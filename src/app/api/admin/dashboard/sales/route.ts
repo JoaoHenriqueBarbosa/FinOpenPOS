@@ -36,7 +36,6 @@ export async function GET() {
           name
         )
       `)
-      .eq("user_uid", userId)
       .eq("type", "income")
       .eq("status", "completed")
       .gte("created_at", todayStart.toISOString())

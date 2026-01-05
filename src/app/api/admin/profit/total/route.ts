@@ -13,7 +13,6 @@ export async function GET(request: Request) {
     .from('transactions')
     .select('amount, type, category, created_at')
     .eq('status', 'completed')
-    .eq('user_uid', user.id)
     .order('created_at', { ascending: true });
 
   if (transactionsError) {

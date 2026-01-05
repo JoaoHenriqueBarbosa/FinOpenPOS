@@ -84,8 +84,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           const { data: teams, error: teamsError } = await supabase
             .from("tournament_teams")
             .select("id")
-            .eq("tournament_id", tournamentId)
-            .eq("user_uid", user.id);
+            .eq("tournament_id", tournamentId);
 
           if (teamsError || !teams || teams.length === 0) {
             sendError("No hay equipos en el torneo");
@@ -100,8 +99,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           const { data: existingGroups, error: checkError } = await supabase
             .from("tournament_groups")
             .select("id")
-            .eq("tournament_id", tournamentId)
-            .eq("user_uid", user.id);
+            .eq("tournament_id", tournamentId);
 
           if (checkError) {
             sendLog(`⚠️ Error al verificar grupos existentes: ${checkError.message}`);
@@ -113,8 +111,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
             const { error: deleteError } = await supabase
               .from("tournament_groups")
               .delete()
-              .eq("tournament_id", tournamentId)
-              .eq("user_uid", user.id);
+              .eq("tournament_id", tournamentId);
             
             if (deleteError) {
               sendError(`Error al eliminar grupos existentes: ${deleteError.message}`);
@@ -354,8 +351,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           const { error: upError } = await supabase
             .from("tournaments")
             .update({ status: "schedule_review" })
-            .eq("id", tournamentId)
-            .eq("user_uid", user.id);
+            .eq("id", tournamentId);
 
           if (upError) {
             sendError("Error al actualizar estado del torneo");

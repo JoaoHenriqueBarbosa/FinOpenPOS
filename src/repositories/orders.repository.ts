@@ -23,8 +23,7 @@ export class OrdersRepository extends BaseRepository {
           last_name
         )
       `
-      )
-      .eq("user_uid", this.userId);
+      );
 
     if (status) {
       query = query.eq("status", status);
@@ -61,7 +60,6 @@ export class OrdersRepository extends BaseRepository {
       `
       )
       .eq("id", orderId)
-      .eq("user_uid", this.userId)
       .single();
 
     if (error) {
@@ -81,7 +79,6 @@ export class OrdersRepository extends BaseRepository {
     const { data, error } = await this.supabase
       .from("orders")
       .select("id")
-      .eq("user_uid", this.userId)
       .eq("player_id", playerId)
       .eq("status", "open")
       .limit(1);
@@ -144,7 +141,6 @@ export class OrdersRepository extends BaseRepository {
       .from("orders")
       .update(updates)
       .eq("id", orderId)
-      .eq("user_uid", this.userId)
       .select(
         `
         id,
@@ -176,7 +172,6 @@ export class OrdersRepository extends BaseRepository {
     const { count, error } = await this.supabase
       .from("orders")
       .select("*", { count: "exact", head: true })
-      .eq("user_uid", this.userId)
       .eq("status", "open");
 
     if (error) {
@@ -215,7 +210,6 @@ export class OrdersRepository extends BaseRepository {
       `
       )
       .eq("order_id", orderId)
-      .eq("user_uid", this.userId)
       .order("id", { ascending: true });
 
     if (itemsError) {
@@ -251,8 +245,7 @@ export class OrdersRepository extends BaseRepository {
     const { data: currentItems, error: currentItemsError } = await this.supabase
       .from("order_items")
       .select("id, product_id, quantity, unit_price")
-      .eq("order_id", orderId)
-      .eq("user_uid", this.userId);
+      .eq("order_id", orderId);
 
     if (currentItemsError) {
       throw new Error(`Failed to fetch current items: ${currentItemsError.message}`);
@@ -286,7 +279,6 @@ export class OrdersRepository extends BaseRepository {
           .from("products")
           .select("id, price")
           .eq("id", item.product_id)
-          .eq("user_uid", this.userId)
           .single();
 
         if (productError || !product) {
@@ -329,8 +321,7 @@ export class OrdersRepository extends BaseRepository {
         .from("order_items")
         .delete()
         .eq("order_id", orderId)
-        .in("id", itemsToDelete)
-        .eq("user_uid", this.userId);
+        .in("id", itemsToDelete);
 
       if (deleteError) {
         throw new Error(`Failed to delete items: ${deleteError.message}`);
@@ -342,8 +333,7 @@ export class OrdersRepository extends BaseRepository {
         .from("order_items")
         .update({ quantity: update.quantity })
         .eq("id", update.id)
-        .eq("order_id", orderId)
-        .eq("user_uid", this.userId);
+        .eq("order_id", orderId);
 
       if (updateError) {
         throw new Error(`Failed to update item: ${updateError.message}`);
@@ -365,7 +355,6 @@ export class OrdersRepository extends BaseRepository {
       .from("order_items")
       .select("quantity, unit_price")
       .eq("order_id", orderId)
-      .eq("user_uid", this.userId)
       .then(({ data, error }) => {
         if (error) throw new Error(`Failed to calculate total: ${error.message}`);
         return (data ?? []).reduce((sum, item) => sum + item.quantity * item.unit_price, 0);

@@ -22,7 +22,6 @@ async function getOrderWithItems(
       `
     )
     .eq("id", orderId)
-    .eq("user_uid", userId)
     .single();
 
   if (orderError || !order) {
@@ -73,7 +72,6 @@ export async function POST(request: Request, { params }: RouteParams) {
       .from("orders")
       .select("id, status")
       .eq("id", orderId)
-      .eq("user_uid", user.id)
       .single();
 
     if (orderError || !order) {
@@ -105,8 +103,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     const { error: updateError } = await supabase
       .from("orders")
       .update({ status: "cancelled", total_amount: 0 })
-      .eq("id", orderId)
-      .eq("user_uid", user.id);
+      .eq("id", orderId);
 
     if (updateError) {
       console.error("Error cancelling order:", updateError);

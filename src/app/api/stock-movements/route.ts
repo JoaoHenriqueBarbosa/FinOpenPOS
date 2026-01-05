@@ -29,8 +29,7 @@ export async function GET(request: Request) {
       notes,
       created_at
     `
-    )
-    .eq('user_uid', user.id);
+    );
 
   if (productId) {
     query = query.eq('product_id', Number(productId));

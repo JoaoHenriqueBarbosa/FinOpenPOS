@@ -29,8 +29,7 @@ export class ProductsRepository extends BaseRepository {
           is_active,
           created_at
         )
-      `)
-      .eq("user_uid", this.userId);
+      `);
 
     if (options.onlyActive) {
       query = query.eq("is_active", true);
@@ -61,7 +60,6 @@ export class ProductsRepository extends BaseRepository {
       .from("products")
       .select("id, name, description, price, uses_stock, min_stock, category_id, is_active, created_at, updated_at")
       .eq("id", productId)
-      .eq("user_uid", this.userId)
       .single();
 
     if (error) {
@@ -108,7 +106,6 @@ export class ProductsRepository extends BaseRepository {
       .from("products")
       .update(updates)
       .eq("id", productId)
-      .eq("user_uid", this.userId)
       .select("id, name, description, price, uses_stock, min_stock, category_id, is_active, created_at, updated_at")
       .single();
 
@@ -126,8 +123,7 @@ export class ProductsRepository extends BaseRepository {
     const { error } = await this.supabase
       .from("products")
       .update({ is_active: false })
-      .eq("id", productId)
-      .eq("user_uid", this.userId);
+      .eq("id", productId);
 
     if (error) {
       throw new Error(`Failed to delete product: ${error.message}`);
