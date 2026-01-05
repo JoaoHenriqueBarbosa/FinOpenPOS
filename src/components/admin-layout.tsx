@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import {
-  Package2Icon,
   LayoutDashboardIcon,
   ShoppingCartIcon,
   CalendarIcon,
@@ -84,7 +83,15 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
             href="/admin"
             className="flex items-center gap-2 text-lg font-semibold"
           >
-            <Package2Icon className="h-6 w-6" />
+            <div className="relative h-10 w-10 flex-shrink-0">
+              <Image
+                src="/PCP-logo.png"
+                alt="PCP Logo"
+                fill
+                className="object-contain"
+                priority
+              />
+            </div>
             <span className="sr-only">Admin Panel</span>
           </Link>
           <h1 className="text-xl font-bold">{title}</h1>
