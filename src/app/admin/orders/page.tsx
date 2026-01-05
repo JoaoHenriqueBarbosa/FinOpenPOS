@@ -374,6 +374,17 @@ export default function OrdersPage() {
     };
   })();
 
+  // Mapa de order_id -> payment_method.name para mostrar en la tabla de ventas
+  const orderPaymentMethodMap = useMemo(() => {
+    const map = new Map<number, string>();
+    transactions.forEach((tx: TransactionDTO) => {
+      if (tx.order_id && tx.payment_method?.name) {
+        map.set(tx.order_id, tx.payment_method.name);
+      }
+    });
+    return map;
+  }, [transactions]);
+
   const getStatusBadge = (status: OrderStatus) => {
     switch (status) {
       case "open":
@@ -845,6 +856,7 @@ export default function OrdersPage() {
                         <TableHead>#</TableHead>
                         <TableHead>Cliente</TableHead>
                         <TableHead>Estado</TableHead>
+                        <TableHead>Método de pago</TableHead>
                         <TableHead>Total</TableHead>
                         <TableHead>Fecha</TableHead>
                       </TableRow>
@@ -863,6 +875,9 @@ export default function OrdersPage() {
                             {(order.player?.first_name ?? "") + " " + (order.player?.last_name ?? "") || "Sin nombre"}
                           </TableCell>
                           <TableCell>{getStatusBadge(order.status)}</TableCell>
+                          <TableCell>
+                            {orderPaymentMethodMap.get(order.id) || "-"}
+                          </TableCell>
                           <TableCell>${order.total_amount.toFixed(2)}</TableCell>
                           <TableCell>
                             {order.closed_at 
@@ -873,7 +888,7 @@ export default function OrdersPage() {
                       ))}
                       {filteredOrders.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={5} className="text-center py-6">
+                          <TableCell colSpan={6} className="text-center py-6">
                             No hay ventas para mostrar.
                           </TableCell>
                         </TableRow>
