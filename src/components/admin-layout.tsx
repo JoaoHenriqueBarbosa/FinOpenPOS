@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import Image from "next/image";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -16,13 +15,13 @@ import {
 
 import {
   Package2Icon,
-  SearchIcon,
   LayoutDashboardIcon,
   ShoppingCartIcon,
   CalendarIcon,
   TrophyIcon,
 } from "lucide-react";
 import { logout } from "@/app/login/actions";
+import { createClient } from "@/lib/supabase/client";
 
 const pageNames: { [key: string]: string } = {
   "/admin": "Dashboard",
@@ -43,6 +42,7 @@ const pageNames: { [key: string]: string } = {
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
   const [pathname, setPathname] = useState<string>("");
+  const [userName, setUserName] = useState<string>("");
   
   // Usar usePathname normalmente - Next.js debería manejarlo
   const currentPathname = usePathname();
@@ -50,6 +50,20 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setMounted(true);
     setPathname(currentPathname);
+    
+    // Obtener el usuario logueado
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        // Usar el email como nombre si no hay nombre completo
+        const name = user.user_metadata?.full_name || 
+                     user.user_metadata?.name || 
+                     user.email?.split('@')[0] || 
+                     user.email || 
+                     'Usuario';
+        setUserName(name);
+      }
+    });
   }, [currentPathname]);
 
   // elegir el key más específico que matchee el pathname
@@ -75,13 +89,10 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           </Link>
           <h1 className="text-xl font-bold">{title}</h1>
 
-          <div className="relative ml-auto flex-1 md:grow-0">
-            <SearchIcon className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Search..."
-              className="w-full rounded-lg bg-background pl-8 md:w-[200px] lg:w-[336px]"
-            />
+          <div className="ml-auto flex items-center">
+            <span className="text-sm font-medium text-muted-foreground">
+              {mounted && userName ? userName : 'Cargando...'}
+            </span>
           </div>
 
           <DropdownMenu>
