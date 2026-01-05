@@ -1,4 +1,5 @@
 // app/api/payment-methods/route.ts
+export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server';
 import { createRepositories } from '@/lib/repository-factory';
 import type { PaymentScope } from '@/models/db/payment-method';

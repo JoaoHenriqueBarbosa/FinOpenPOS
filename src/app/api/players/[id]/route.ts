@@ -1,4 +1,5 @@
 // app/api/players/[id]/route.ts
+export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server';
 import { createRepositories } from '@/lib/repository-factory';
 
