@@ -20,18 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import {
-  Table,
-  TableHeader,
-  TableRow,
-  TableHead,
-  TableBody,
-  TableCell,
-} from "@/components/ui/table";
-import {
   Loader2Icon,
-  PlusIcon,
-  MinusIcon,
-  TrashIcon,
   ArrowLeftIcon,
   ShoppingCartIcon,
 } from "lucide-react";
@@ -41,8 +30,7 @@ import type { ProductDTO } from "@/models/dto/product";
 import type { PaymentMethodDTO } from "@/models/dto/payment-method";
 import { productsService, paymentMethodsService, playersService, ordersService } from "@/services";
 import type { PlayerDTO } from "@/models/dto/player";
-import { ProductSelector } from "@/components/product-selector/ProductSelector";
-import { PaymentMethodSelector } from "@/components/payment-method-selector/PaymentMethodSelector";
+import { OrderItemsLayout } from "@/components/order-items-layout/OrderItemsLayout";
 
 // Función para obtener o crear el cliente genérico de venta rápida
 async function getOrCreateQuickSalePlayer(): Promise<PlayerDTO> {
@@ -281,6 +269,14 @@ export default function QuickSalePage() {
   }
 
 
+  // Convertir cart a formato OrderItem
+  const orderItems = cart.map((item) => ({
+    id: item.product.id,
+    product: { id: item.product.id, name: item.product.name },
+    quantity: item.quantity,
+    unit_price: item.product.price,
+  }));
+
   return (
     <div className="space-y-6">
       <Card>
@@ -305,136 +301,35 @@ export default function QuickSalePage() {
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-6">
-          {/* Productos disponibles */}
-          <div>
-            <Label className="text-base font-semibold mb-3 block">
-              Productos disponibles
-            </Label>
-            <ProductSelector
-              products={products}
-              onProductSelect={handleAddProduct}
-              disabled={isProcessing}
-            />
-          </div>
-
-          {/* Carrito */}
-          <div>
-            <Label className="text-base font-semibold mb-3 block">
-              Carrito ({cart.length} {cart.length === 1 ? "producto" : "productos"})
-            </Label>
-            {cart.length === 0 ? (
-              <div className="text-center text-muted-foreground py-8 border rounded-lg">
-                El carrito está vacío. Agregá productos para continuar.
-              </div>
-            ) : (
-              <div className="border rounded-lg overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Producto</TableHead>
-                      <TableHead className="text-center">Cantidad</TableHead>
-                      <TableHead className="text-right">Precio unit.</TableHead>
-                      <TableHead className="text-right">Subtotal</TableHead>
-                      <TableHead className="w-[50px]"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {cart.map((item) => (
-                      <TableRow key={item.product.id}>
-                        <TableCell className="font-medium">
-                          {item.product.name}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center justify-center gap-2">
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-7 w-7"
-                              onClick={() => handleUpdateQuantity(item.product.id, -1)}
-                            >
-                              <MinusIcon className="h-3 w-3" />
-                            </Button>
-                            <span className="w-8 text-center">{item.quantity}</span>
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-7 w-7"
-                              onClick={() => handleUpdateQuantity(item.product.id, 1)}
-                            >
-                              <PlusIcon className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          ${item.product.price.toFixed(2)}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          ${(item.product.price * item.quantity).toFixed(2)}
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7 text-destructive"
-                            onClick={() => handleRemoveProduct(item.product.id)}
-                          >
-                            <TrashIcon className="h-3 w-3" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </div>
-
-          {/* Método de pago y total */}
-          <div className="flex flex-col gap-4">
-            <PaymentMethodSelector
-              paymentMethods={paymentMethods}
-              selectedPaymentMethodId={selectedPaymentMethodId === "none" ? "none" : selectedPaymentMethodId}
-              onSelect={(id) => setSelectedPaymentMethodId(id)}
-              disabled={isProcessing}
-              isLoading={loadingPaymentMethods}
-            />
-            <div className="text-right border-t pt-4">
-              <div className="text-sm text-muted-foreground mb-1">Total</div>
-              <div className="text-2xl font-bold">${total.toFixed(2)}</div>
-            </div>
-          </div>
-        </CardContent>
-
-        <CardFooter className="flex justify-end gap-2">
-          <Button
-            variant="outline"
-            onClick={() => {
+        <CardContent>
+          <OrderItemsLayout
+            items={orderItems}
+            isLoading={isLoading}
+            isEditable={!isProcessing}
+            onUpdateQuantity={(item, newQuantity) => {
+              handleUpdateQuantity(item.product.id, newQuantity - item.quantity);
+            }}
+            onRemoveItem={(item) => handleRemoveProduct(item.product.id)}
+            products={products}
+            onProductSelect={handleAddProduct}
+            loadingProducts={loadingProducts}
+            total={total}
+            paymentMethods={paymentMethods}
+            selectedPaymentMethodId={selectedPaymentMethodId}
+            onPaymentMethodSelect={(id) => setSelectedPaymentMethodId(id)}
+            loadingPaymentMethods={loadingPaymentMethods}
+            onProcess={handleProcessSale}
+            processing={isProcessing}
+            onClear={() => {
               setCart([]);
               setSelectedPaymentMethodId("none");
             }}
-            disabled={isProcessing || cart.length === 0}
-          >
-            Limpiar
-          </Button>
-          <Button
-            onClick={handleProcessSale}
-            disabled={isProcessing || !quickSalePlayer || cart.length === 0 || selectedPaymentMethodId === "none"}
-            className="min-w-[150px]"
-          >
-            {isProcessing ? (
-              <>
-                <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
-                Procesando...
-              </>
-            ) : (
-              <>
-                <ShoppingCartIcon className="mr-2 h-4 w-4" />
-                Procesar venta
-              </>
-            )}
-          </Button>
-        </CardFooter>
+            processButtonLabel={isProcessing ? "Procesando..." : "Procesar venta"}
+            clearButtonLabel="Limpiar"
+            emptyMessage="El carrito está vacío. Agregá productos para continuar."
+            showMoreProductsSelect={true}
+          />
+        </CardContent>
       </Card>
     </div>
   );
