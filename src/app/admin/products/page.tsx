@@ -139,6 +139,8 @@ export default function Products() {
   const {
     data: productsData = [],
     isLoading: loadingProducts,
+    isError: productsError,
+    error: productsErrorData,
   } = useQuery({
     queryKey: ["products"], // Mismo key que PurchasesPage y OrderDetailPage
     queryFn: fetchProducts,
@@ -148,11 +150,32 @@ export default function Products() {
   const {
     data: categoriesData = [],
     isLoading: loadingCategories,
+    isError: categoriesError,
+    error: categoriesErrorData,
   } = useQuery({
     queryKey: ["product-categories", "onlyActive"],
     queryFn: fetchCategories,
     staleTime: 1000 * 60 * 10, // 10 minutos - las categorías cambian raramente
   });
+
+  // Mostrar errores de carga
+  useEffect(() => {
+    if (productsError) {
+      const errorMessage = productsErrorData instanceof Error 
+        ? productsErrorData.message 
+        : "Error al cargar los productos";
+      toast.error(errorMessage);
+    }
+  }, [productsError, productsErrorData]);
+
+  useEffect(() => {
+    if (categoriesError) {
+      const errorMessage = categoriesErrorData instanceof Error 
+        ? categoriesErrorData.message 
+        : "Error al cargar las categorías";
+      toast.error(errorMessage);
+    }
+  }, [categoriesError, categoriesErrorData]);
 
   // Query para estadísticas de stock
   const {
@@ -295,12 +318,12 @@ export default function Products() {
       const price = typeof productPrice === "string" ? Number(productPrice) : productPrice;
       
       if (!productName.trim()) {
-        console.error("Product name is required");
+        toast.error("El nombre del producto es obligatorio");
         return;
       }
 
       if (Number.isNaN(price) || price <= 0) {
-        console.error("Price must be a positive number");
+        toast.error("El precio debe ser un número positivo");
         return;
       }
 
@@ -320,8 +343,10 @@ export default function Products() {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       setIsAddProductDialogOpen(false);
       resetSelectedProduct();
+      toast.success("Producto creado correctamente");
     } catch (error) {
-      console.error("Error adding product:", error);
+      const errorMessage = error instanceof Error ? error.message : "Error al crear el producto";
+      toast.error(errorMessage);
     }
   }, [
     productName,
@@ -336,6 +361,16 @@ export default function Products() {
     try {
       const price = typeof productPrice === "string" ? Number(productPrice) : productPrice;
       
+      if (!productName.trim()) {
+        toast.error("El nombre del producto es obligatorio");
+        return;
+      }
+
+      if (Number.isNaN(price) || price <= 0) {
+        toast.error("El precio debe ser un número positivo");
+        return;
+      }
+
       const updatedProductPayload: Partial<Product> & {
         category_id?: number | null;
       } = {
@@ -351,8 +386,10 @@ export default function Products() {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       setIsEditProductDialogOpen(false);
       resetSelectedProduct();
+      toast.success("Producto actualizado correctamente");
     } catch (error) {
-      console.error("Error updating product:", error);
+      const errorMessage = error instanceof Error ? error.message : "Error al actualizar el producto";
+      toast.error(errorMessage);
     }
   }, [
     selectedProductId,
@@ -371,8 +408,10 @@ export default function Products() {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       setIsDeleteConfirmationOpen(false);
       setProductToDelete(null);
+      toast.success("Producto eliminado correctamente");
     } catch (error) {
-      console.error("Error deleting product:", error);
+      const errorMessage = error instanceof Error ? error.message : "Error al eliminar el producto";
+      toast.error(errorMessage);
     }
   }, [productToDelete]);
 
@@ -809,44 +848,48 @@ export default function Products() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {isAddProductDialogOpen ? "Add New Product" : "Edit Product"}
+              {isAddProductDialogOpen ? "Crear nuevo producto" : "Editar producto"}
             </DialogTitle>
             <DialogDescription>
               {isAddProductDialogOpen
-                ? "Enter the details of the new product."
-                : "Edit the details of the product."}
+                ? "Ingresá los detalles del nuevo producto."
+                : "Editá los detalles del producto."}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="name" className="text-right">
-                Name
+                Nombre
               </Label>
               <Input
                 id="name"
                 value={productName}
                 onChange={(e) => setProductName(e.target.value)}
                 className="col-span-3"
+                placeholder="Nombre del producto"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="description" className="text-right">
-                Description
+                Descripción
               </Label>
               <Input
                 id="description"
                 value={productDescription}
                 onChange={(e) => setProductDescription(e.target.value)}
                 className="col-span-3"
+                placeholder="Descripción del producto (opcional)"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="price" className="text-right">
-                Price
+                Precio
               </Label>
               <Input
                 id="price"
                 type="number"
+                step="0.01"
+                min="0"
                 value={productPrice}
                 onChange={(e) =>
                   setProductPrice(
@@ -854,11 +897,12 @@ export default function Products() {
                   )
                 }
                 className="col-span-3"
+                placeholder="0.00"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="category" className="text-right">
-                Category
+                Categoría
               </Label>
               <Select
                 value={
@@ -875,10 +919,10 @@ export default function Products() {
                 }}
               >
                 <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Select a category" />
+                  <SelectValue placeholder="Seleccionar categoría" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">No Category</SelectItem>
+                  <SelectItem value="none">Sin categoría</SelectItem>
                   {categories.map((cat) => (
                     <SelectItem key={cat.id} value={String(cat.id)}>
                       {cat.name}
@@ -907,9 +951,9 @@ export default function Products() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Confirm Deletion</DialogTitle>
+            <DialogTitle>Confirmar eliminación</DialogTitle>
             <DialogDescription>
-              Estas seguro de que quieres eliminar este producto? Esta accion no se 
+              ¿Estás seguro de que querés eliminar este producto? Esta acción no se 
               puede revertir.
             </DialogDescription>
           </DialogHeader>
@@ -918,10 +962,10 @@ export default function Products() {
               variant="outline"
               onClick={() => setIsDeleteConfirmationOpen(false)}
             >
-              Cancel
+              Cancelar
             </Button>
             <Button variant="destructive" onClick={handleDeleteProduct}>
-              Delete
+              Eliminar
             </Button>
           </DialogFooter>
         </DialogContent>

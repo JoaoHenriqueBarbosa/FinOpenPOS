@@ -26,11 +26,17 @@ export async function GET(request: Request) {
     return NextResponse.json(productsWithCategory);
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
     console.error('GET /products error:', error);
+    
+    let errorMessage = 'Error al cargar los productos';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { error: errorMessage },
       { status: 500 }
     );
   }
@@ -57,8 +63,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     console.error('POST /products error:', error);
+    
+    // Manejar errores específicos de PostgreSQL
+    let errorMessage = 'Error al crear el producto';
+    if (error instanceof Error) {
+      if (error.message.includes('duplicate key value violates unique constraint')) {
+        errorMessage = 'Error: Ya existe un producto con ese ID. Por favor, contactá al administrador del sistema.';
+      } else {
+        errorMessage = error.message;
+      }
+    }
+    
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { error: errorMessage },
       { status: 500 }
     );
   }
