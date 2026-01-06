@@ -507,7 +507,7 @@ export default function Products() {
                           <TableCell className="font-medium">
                             {product.name}
                           </TableCell>
-                          <TableCell>{product.description}</TableCell>
+                          <TableCell>{product.description ?? "-"}</TableCell>
                           <TableCell>{getCategoryName(product.category?.id ?? null)}</TableCell>
                           <TableCell>${product.price.toFixed(2)}</TableCell>
                           <TableCell>
