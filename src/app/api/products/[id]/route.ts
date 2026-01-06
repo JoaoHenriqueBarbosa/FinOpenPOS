@@ -11,22 +11,28 @@ export async function GET(_request: Request, { params }: Params) {
     const id = Number(params.id);
 
     if (Number.isNaN(id)) {
-      return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+      return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
     }
 
     const product = await repos.products.findById(id);
     if (!product) {
-      return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Producto no encontrado' }, { status: 404 });
     }
 
     return NextResponse.json(product);
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
     console.error('GET /products/[id] error:', error);
+    
+    let errorMessage = 'Error al cargar el producto';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { error: errorMessage },
       { status: 500 }
     );
   }
@@ -39,7 +45,7 @@ export async function PATCH(request: Request, { params }: Params) {
     const body = await request.json();
 
     if (Number.isNaN(id)) {
-      return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+      return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
     }
 
     const updateFields: Record<string, any> = {};
@@ -66,11 +72,17 @@ export async function PATCH(request: Request, { params }: Params) {
     return NextResponse.json(product);
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
     console.error('PATCH /products/[id] error:', error);
+    
+    let errorMessage = 'Error al actualizar el producto';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { error: errorMessage },
       { status: 500 }
     );
   }
@@ -82,18 +94,24 @@ export async function DELETE(_request: Request, { params }: Params) {
     const id = Number(params.id);
 
     if (Number.isNaN(id)) {
-      return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+      return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
     }
 
     await repos.products.delete(id);
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
     console.error('DELETE /products/[id] error:', error);
+    
+    let errorMessage = 'Error al eliminar el producto';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { error: errorMessage },
       { status: 500 }
     );
   }

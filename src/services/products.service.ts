@@ -25,55 +25,100 @@ class ProductsService {
   private baseUrl = "/api/products";
 
   async getAll(): Promise<ProductDTO[]> {
-    const response = await fetch(this.baseUrl);
-    if (!response.ok) {
-      throw new Error("Failed to fetch products");
+    try {
+      const response = await fetch(this.baseUrl);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData?.error || "Error al cargar los productos";
+        throw new Error(errorMessage);
+      }
+      return response.json();
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error("Error desconocido al cargar los productos");
     }
-    return response.json();
   }
 
   async getById(id: number): Promise<ProductDTO> {
-    const response = await fetch(`${this.baseUrl}/${id}`);
-    if (!response.ok) {
-      throw new Error("Failed to fetch product");
+    try {
+      const response = await fetch(`${this.baseUrl}/${id}`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData?.error || "Error al cargar el producto";
+        throw new Error(errorMessage);
+      }
+      return response.json();
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error("Error desconocido al cargar el producto");
     }
-    return response.json();
   }
 
   async create(input: CreateProductInput): Promise<ProductDTO> {
-    const response = await fetch(this.baseUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(input),
-    });
-    if (!response.ok) {
-      throw new Error("Error creating product");
+    try {
+      const response = await fetch(this.baseUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(input),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData?.error || "Error al crear el producto";
+        throw new Error(errorMessage);
+      }
+      return response.json();
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error("Error desconocido al crear el producto");
     }
-    return response.json();
   }
 
   async update(id: number, input: UpdateProductInput): Promise<ProductDTO> {
-    const response = await fetch(`${this.baseUrl}/${id}`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(input),
-    });
-    if (!response.ok) {
-      throw new Error("Error updating product");
+    try {
+      const response = await fetch(`${this.baseUrl}/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(input),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData?.error || "Error al actualizar el producto";
+        throw new Error(errorMessage);
+      }
+      return response.json();
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error("Error desconocido al actualizar el producto");
     }
-    return response.json();
   }
 
   async delete(id: number): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/${id}`, {
-      method: "DELETE",
-    });
-    if (!response.ok) {
-      throw new Error("Error deleting product");
+    try {
+      const response = await fetch(`${this.baseUrl}/${id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData?.error || "Error al eliminar el producto";
+        throw new Error(errorMessage);
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error("Error desconocido al eliminar el producto");
     }
   }
 }
