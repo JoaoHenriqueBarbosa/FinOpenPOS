@@ -291,7 +291,7 @@ export default function ProductCategoriesPage() {
                 {filteredCategories.map((cat) => (
                   <TableRow key={cat.id}>
                     <TableCell className="font-medium">{cat.name}</TableCell>
-                    <TableCell>{cat.description}</TableCell>
+                    <TableCell>{cat.description ?? "-"}</TableCell>
                     <TableCell>
                       {cat.color ? (
                         <div className="flex items-center gap-2">
