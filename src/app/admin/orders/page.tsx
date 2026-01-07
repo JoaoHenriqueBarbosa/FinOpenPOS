@@ -231,15 +231,18 @@ export default function OrdersPage() {
       // Convertir fechas con hora del navegador (zona horaria local) a ISO strings
       // para compararlas correctamente con los timestamps UTC de la DB
       const getLocalDateTimeISO = (dateTimeStr: string): string => {
-        // dateTimeStr viene como "2025-12-25T14:30" (datetime-local format)
-        // Crear fecha en zona horaria local
+        // dateTimeStr viene como "2026-01-07T00:00" (datetime-local format, sin zona horaria)
+        // JavaScript interpreta esto como hora local
         const localDate = new Date(dateTimeStr);
         // Convertir a ISO string (UTC) para comparar con la DB
         return localDate.toISOString();
       };
       
+      // Convertir las fechas del input a UTC para el filtro de transacciones
       const fromISO = getLocalDateTimeISO(fromDate);
-      const toISO = getLocalDateTimeISO(toDate);
+      // Para el "hasta", agregar 59 segundos para incluir hasta el último segundo del minuto
+      const toDateWithSeconds = toDate.slice(0, -3) + ":59";
+      const toISO = getLocalDateTimeISO(toDateWithSeconds);
       
       return transactionsService.getAll({
         type: "income",
@@ -262,31 +265,28 @@ export default function OrdersPage() {
   }, [playersError]);
 
   // ---- Filtro en memoria ----
+  // Para el tab de ventas, solo mostrar órdenes que tienen transacciones en el rango de fechas
+  const orderIdsFromTransactions = useMemo(() => {
+    if (activeTab !== "sales" || !transactions.length) return new Set<number>();
+    // Extraer los order_id únicos de las transacciones filtradas
+    const orderIds = new Set<number>();
+    transactions.forEach((tx: TransactionDTO) => {
+      if (tx.order_id) {
+        orderIds.add(tx.order_id);
+      }
+    });
+    return orderIds;
+  }, [activeTab, transactions]);
+
   const getFilteredOrders = (statusFilter: "all" | OrderStatus, includeDateFilter: boolean = false) => {
     return orders.filter((order) => {
       if (statusFilter !== "all" && order.status !== statusFilter) return false;
 
       // Filtro por fecha y hora (solo en el tab de ventas)
-      // Usar closed_at para filtrar por fecha de cierre de la venta
+      // En el tab de ventas, solo mostrar órdenes que tienen transacciones en el rango de fechas
       if (includeDateFilter) {
-        // Si la orden no tiene closed_at, no se muestra en el filtro de ventas
-        if (!order.closed_at) return false;
-
-        // Comparar timestamps directamente
-        const closedAt = new Date(order.closed_at).getTime();
-        
-        if (fromDate && toDate) {
-          const fromTime = new Date(fromDate).getTime();
-          const toTime = new Date(toDate).getTime();
-          // Solo mostrar órdenes donde el timestamp esté dentro del rango
-          if (closedAt < fromTime || closedAt > toTime) return false;
-        } else if (fromDate) {
-          const fromTime = new Date(fromDate).getTime();
-          if (closedAt < fromTime) return false;
-        } else if (toDate) {
-          const toTime = new Date(toDate).getTime();
-          if (closedAt > toTime) return false;
-        }
+        // Solo mostrar órdenes cuyo id está en las transacciones filtradas
+        if (!orderIdsFromTransactions.has(order.id)) return false;
       }
 
       const term = searchTerm.toLowerCase();
@@ -312,8 +312,16 @@ export default function OrdersPage() {
   const orderPaymentMethodMap = useMemo(() => {
     const map = new Map<number, string>();
     transactions.forEach((tx: TransactionDTO) => {
-      if (tx.order_id && tx.payment_method?.name) {
-        map.set(tx.order_id, tx.payment_method.name);
+      if (tx.order_id) {
+        // Si tiene payment_method con name, usarlo
+        // Si no tiene payment_method pero tiene payment_method_id, mostrar "Sin método"
+        // Si no tiene ninguno, no agregar al mapa (se mostrará "-")
+        if (tx.payment_method?.name) {
+          map.set(tx.order_id, tx.payment_method.name);
+        } else if (tx.payment_method_id) {
+          // Tiene payment_method_id pero el join no trajo el nombre (puede ser un problema de join)
+          map.set(tx.order_id, "Sin método");
+        }
       }
     });
     return map;
