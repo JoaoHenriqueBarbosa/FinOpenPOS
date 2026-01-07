@@ -31,7 +31,11 @@ export async function GET(request: Request) {
       amount,
       type,
       status,
-      created_at
+      created_at,
+      payment_method:payment_methods!payment_method_id (
+        id,
+        name
+      )
     `
     );
 
@@ -90,10 +94,20 @@ export async function POST(request: Request) {
     ? body.status
     : 'completed';
 
+  // Validar que no se tenga tanto order_id como player_id
+  // Si tiene order_id, no debería tener player_id (las transacciones de órdenes no necesitan player_id)
+  if (body.orderId && body.playerId) {
+    return NextResponse.json(
+      { error: 'No se puede tener order_id y player_id al mismo tiempo. Si tiene order_id, no debe incluir player_id.' },
+      { status: 400 }
+    );
+  }
+
   const newTx = {
     user_uid: user.id,
     order_id: body.orderId ?? null,
-    player_id: body.playerId ?? null,
+    // Si tiene order_id, no incluir player_id (las transacciones de órdenes no deben tener player_id)
+    player_id: body.orderId ? null : (body.playerId ?? null),
     payment_method_id: body.paymentMethodId ?? null,
     description: body.description ?? null,
     amount,

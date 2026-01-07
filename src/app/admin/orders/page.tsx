@@ -41,7 +41,7 @@ import {
   TabsTrigger,
   TabsContent,
 } from "@/components/ui/tabs";
-import { Loader2Icon, PlusIcon, SearchIcon, FilePenIcon, ShoppingCartIcon, ReceiptIcon, CalendarIcon, BarChart3Icon } from "lucide-react";
+import { Loader2Icon, PlusIcon, SearchIcon, FilePenIcon, ShoppingCartIcon, ReceiptIcon, CalendarIcon, BarChart3Icon, ArrowUpDownIcon, ArrowUpIcon, ArrowDownIcon } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { PlayerSearchSelect } from "@/components/player-search-select/PlayerSearchSelect";
 import Link from "next/link";
@@ -97,8 +97,25 @@ export default function OrdersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilterOpenAccounts, setStatusFilterOpenAccounts] = useState<"all" | OrderStatus>("open");
   const [statusFilterSales, setStatusFilterSales] = useState<"all" | OrderStatus>("all");
-  const [fromDate, setFromDate] = useState<string>(initialTab === "sales" ? getTodayDate() : "");
-  const [toDate, setToDate] = useState<string>(initialTab === "sales" ? getTodayDate() : "");
+  // Funciones para fechas con hora (para el tab de ventas)
+  const getTodayDateStart = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}T00:00`;
+  };
+
+  const getTodayDateEnd = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}T23:59`;
+  };
+
+  const [fromDate, setFromDate] = useState<string>(initialTab === "sales" ? getTodayDateStart() : "");
+  const [toDate, setToDate] = useState<string>(initialTab === "sales" ? getTodayDateEnd() : "");
   
   // Filtros para estadísticas
   const [statsFromDate, setStatsFromDate] = useState<string>(getTodayDate());
@@ -109,9 +126,8 @@ export default function OrdersPage() {
   // Cuando cambia el tab a "sales", establecer fechas de hoy si no están configuradas
   useEffect(() => {
     if (activeTab === "sales" && !fromDate && !toDate) {
-      const today = getTodayDate();
-      setFromDate(today);
-      setToDate(today);
+      setFromDate(getTodayDateStart());
+      setToDate(getTodayDateEnd());
     }
   }, [activeTab, fromDate, toDate]);
 
@@ -127,6 +143,12 @@ export default function OrdersPage() {
   const [isNewOrderDialogOpen, setIsNewOrderDialogOpen] = useState(false);
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
   const [orderError, setOrderError] = useState<string | null>(null);
+
+  // Estado para ordenamiento de la tabla de ventas
+  type SortColumn = "id" | "client" | "status" | "payment_method" | "total" | "date";
+  type SortDirection = "asc" | "desc";
+  const [salesSortColumn, setSalesSortColumn] = useState<SortColumn>("date");
+  const [salesSortDirection, setSalesSortDirection] = useState<SortDirection>("desc");
 
   // Popup rápido para nuevo cliente
   const [isNewPlayerDialogOpen, setIsNewPlayerDialogOpen] = useState(false);
@@ -206,26 +228,18 @@ export default function OrdersPage() {
     queryFn: async () => {
       if (!fromDate || !toDate) return [];
       
-      // Convertir fechas del navegador (zona horaria local) a ISO strings
+      // Convertir fechas con hora del navegador (zona horaria local) a ISO strings
       // para compararlas correctamente con los timestamps UTC de la DB
-      const getLocalDateStartISO = (dateStr: string): string => {
-        // Crear fecha en zona horaria local: "2025-12-25" -> "2025-12-25T00:00:00" en local
-        const [year, month, day] = dateStr.split('-').map(Number);
-        const localDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+      const getLocalDateTimeISO = (dateTimeStr: string): string => {
+        // dateTimeStr viene como "2025-12-25T14:30" (datetime-local format)
+        // Crear fecha en zona horaria local
+        const localDate = new Date(dateTimeStr);
         // Convertir a ISO string (UTC) para comparar con la DB
         return localDate.toISOString();
       };
       
-      const getLocalDateEndISO = (dateStr: string): string => {
-        // Crear fecha en zona horaria local: "2025-12-25" -> "2025-12-25T23:59:59.999" en local
-        const [year, month, day] = dateStr.split('-').map(Number);
-        const localDate = new Date(year, month - 1, day, 23, 59, 59, 999);
-        // Convertir a ISO string (UTC) para comparar con la DB
-        return localDate.toISOString();
-      };
-      
-      const fromISO = getLocalDateStartISO(fromDate);
-      const toISO = getLocalDateEndISO(toDate);
+      const fromISO = getLocalDateTimeISO(fromDate);
+      const toISO = getLocalDateTimeISO(toDate);
       
       return transactionsService.getAll({
         type: "income",
@@ -252,35 +266,26 @@ export default function OrdersPage() {
     return orders.filter((order) => {
       if (statusFilter !== "all" && order.status !== statusFilter) return false;
 
-      // Filtro por fecha (solo en el tab de ventas)
+      // Filtro por fecha y hora (solo en el tab de ventas)
       // Usar closed_at para filtrar por fecha de cierre de la venta
       if (includeDateFilter) {
         // Si la orden no tiene closed_at, no se muestra en el filtro de ventas
         if (!order.closed_at) return false;
 
-        // Normalizar fecha de closed_at usando la zona horaria local del usuario
-        // Usar la misma lógica que en el resumen para mantener consistencia
-        const normalizeDate = (dateStr: string | Date): string => {
-          const date = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
-          // Usar la fecha en la zona horaria local del usuario (no UTC)
-          // Esto asegura que si una venta se cerró el día 25 en hora local, se muestre cuando filtre por el día 25
-          const year = date.getFullYear();
-          const month = String(date.getMonth() + 1).padStart(2, '0');
-          const day = String(date.getDate()).padStart(2, '0');
-          return `${year}-${month}-${day}`;
-        };
-
-        const closedDateStr = normalizeDate(order.closed_at);
-
-        // Debug: verificar que la normalización esté funcionando correctamente
-        // Si fromDate es "2025-12-25" y closedDateStr es "2025-12-24", no debería pasar el filtro
+        // Comparar timestamps directamente
+        const closedAt = new Date(order.closed_at).getTime();
+        
         if (fromDate && toDate) {
-          // Solo mostrar órdenes donde la fecha normalizada esté dentro del rango
-          if (closedDateStr < fromDate || closedDateStr > toDate) return false;
+          const fromTime = new Date(fromDate).getTime();
+          const toTime = new Date(toDate).getTime();
+          // Solo mostrar órdenes donde el timestamp esté dentro del rango
+          if (closedAt < fromTime || closedAt > toTime) return false;
         } else if (fromDate) {
-          if (closedDateStr < fromDate) return false;
+          const fromTime = new Date(fromDate).getTime();
+          if (closedAt < fromTime) return false;
         } else if (toDate) {
-          if (closedDateStr > toDate) return false;
+          const toTime = new Date(toDate).getTime();
+          if (closedAt > toTime) return false;
         }
       }
 
@@ -303,6 +308,75 @@ export default function OrdersPage() {
     ? getFilteredOrders(statusFilterSales, true)
     : [];
 
+  // Mapa de order_id -> payment_method.name para mostrar en la tabla de ventas
+  const orderPaymentMethodMap = useMemo(() => {
+    const map = new Map<number, string>();
+    transactions.forEach((tx: TransactionDTO) => {
+      if (tx.order_id && tx.payment_method?.name) {
+        map.set(tx.order_id, tx.payment_method.name);
+      }
+    });
+    return map;
+  }, [transactions]);
+
+  // Función para ordenar las órdenes de ventas
+  const sortedSalesOrders = useMemo(() => {
+    if (activeTab !== "sales") return filteredOrders;
+    
+    const sorted = [...filteredOrders];
+    sorted.sort((a, b) => {
+      let aValue: any;
+      let bValue: any;
+      
+      switch (salesSortColumn) {
+        case "id":
+          aValue = a.id;
+          bValue = b.id;
+          break;
+        case "client":
+          aValue = `${a.player?.first_name ?? ""} ${a.player?.last_name ?? ""}`.trim().toLowerCase();
+          bValue = `${b.player?.first_name ?? ""} ${b.player?.last_name ?? ""}`.trim().toLowerCase();
+          break;
+        case "status":
+          aValue = a.status;
+          bValue = b.status;
+          break;
+        case "payment_method":
+          aValue = orderPaymentMethodMap.get(a.id) || "";
+          bValue = orderPaymentMethodMap.get(b.id) || "";
+          break;
+        case "total":
+          aValue = a.total_amount;
+          bValue = b.total_amount;
+          break;
+        case "date":
+          aValue = a.closed_at ? new Date(a.closed_at).getTime() : new Date(a.created_at).getTime();
+          bValue = b.closed_at ? new Date(b.closed_at).getTime() : new Date(b.created_at).getTime();
+          break;
+        default:
+          return 0;
+      }
+      
+      if (aValue < bValue) return salesSortDirection === "asc" ? -1 : 1;
+      if (aValue > bValue) return salesSortDirection === "asc" ? 1 : -1;
+      return 0;
+    });
+    
+    return sorted;
+  }, [filteredOrders, activeTab, salesSortColumn, salesSortDirection, orderPaymentMethodMap]);
+
+  // Handler para cambiar el ordenamiento
+  const handleSort = useCallback((column: SortColumn) => {
+    if (salesSortColumn === column) {
+      // Si es la misma columna, cambiar la dirección
+      setSalesSortDirection(salesSortDirection === "asc" ? "desc" : "asc");
+    } else {
+      // Si es una columna diferente, establecerla y empezar con asc
+      setSalesSortColumn(column);
+      setSalesSortDirection("asc");
+    }
+  }, [salesSortColumn, salesSortDirection]);
+
 
   // Calcular resumen para el tab de ventas
   const salesSummary = (() => {
@@ -310,38 +384,28 @@ export default function OrdersPage() {
       return null;
     }
 
-    // Normalizar fechas usando la zona horaria local del usuario
-    const normalizeDate = (dateStr: string | Date): string => {
-      const date = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
-      // Usar la fecha en la zona horaria local del usuario
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    };
+    // Comparar timestamps directamente
+    const fromTime = new Date(fromDate).getTime();
+    const toTime = new Date(toDate).getTime();
 
-    // fromDate y toDate ya vienen como "YYYY-MM-DD" desde el input
-    const fromDateStr = fromDate;
-    const toDateStr = toDate;
-
-    // 1. Cuentas abiertas en el día (created_at dentro del rango)
+    // 1. Cuentas abiertas en el rango (created_at dentro del rango)
     const openedToday = orders.filter((order) => {
-      const createdDateStr = normalizeDate(order.created_at);
-      return createdDateStr >= fromDateStr && createdDateStr <= toDateStr;
+      const createdTime = new Date(order.created_at).getTime();
+      return createdTime >= fromTime && createdTime <= toTime;
     }).length;
 
-    // 2. Cuentas cerradas en el día (closed_at dentro del rango)
+    // 2. Cuentas cerradas en el rango (closed_at dentro del rango)
     const closedToday = orders.filter((order) => {
       if (!order.closed_at) return false;
-      const closedDateStr = normalizeDate(order.closed_at);
-      return closedDateStr >= fromDateStr && closedDateStr <= toDateStr;
+      const closedTime = new Date(order.closed_at).getTime();
+      return closedTime >= fromTime && closedTime <= toTime;
     }).length;
 
     // 3. Ventas rápidas (cliente "Venta rápida")
     const quickSales = orders.filter((order) => {
       if (!order.closed_at) return false;
-      const closedDateStr = normalizeDate(order.closed_at);
-      if (closedDateStr < fromDateStr || closedDateStr > toDateStr) return false;
+      const closedTime = new Date(order.closed_at).getTime();
+      if (closedTime < fromTime || closedTime > toTime) return false;
       return (
         order.player?.first_name === "Venta rápida" &&
         order.player?.last_name === "Cliente ocasional"
@@ -373,17 +437,6 @@ export default function OrdersPage() {
       totalSales,
     };
   })();
-
-  // Mapa de order_id -> payment_method.name para mostrar en la tabla de ventas
-  const orderPaymentMethodMap = useMemo(() => {
-    const map = new Map<number, string>();
-    transactions.forEach((tx: TransactionDTO) => {
-      if (tx.order_id && tx.payment_method?.name) {
-        map.set(tx.order_id, tx.payment_method.name);
-      }
-    });
-    return map;
-  }, [transactions]);
 
   const getStatusBadge = (status: OrderStatus) => {
     switch (status) {
@@ -818,7 +871,7 @@ export default function OrdersPage() {
                     </Select>
                   </div>
 
-                  {/* Rango de fechas */}
+                  {/* Rango de fechas y horas */}
                   <div className="flex flex-wrap gap-3 items-end">
                     <div className="space-y-1">
                       <Label className="flex items-center gap-1 text-xs">
@@ -826,10 +879,10 @@ export default function OrdersPage() {
                         Desde
                       </Label>
                       <Input
-                        type="date"
+                        type="datetime-local"
                         value={fromDate}
                         onChange={(e) => setFromDate(e.target.value)}
-                        className="w-40"
+                        className="w-48"
                       />
                     </div>
                     <div className="space-y-1">
@@ -838,10 +891,10 @@ export default function OrdersPage() {
                         Hasta
                       </Label>
                       <Input
-                        type="date"
+                        type="datetime-local"
                         value={toDate}
                         onChange={(e) => setToDate(e.target.value)}
-                        className="w-40"
+                        className="w-48"
                       />
                     </div>
                   </div>
@@ -853,16 +906,112 @@ export default function OrdersPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>#</TableHead>
-                        <TableHead>Cliente</TableHead>
-                        <TableHead>Estado</TableHead>
-                        <TableHead>Método de pago</TableHead>
-                        <TableHead>Total</TableHead>
-                        <TableHead>Fecha</TableHead>
+                        <TableHead>
+                          <button
+                            onClick={() => handleSort("id")}
+                            className="flex items-center gap-1 hover:text-foreground transition-colors"
+                          >
+                            #
+                            {salesSortColumn === "id" ? (
+                              salesSortDirection === "asc" ? (
+                                <ArrowUpIcon className="w-3 h-3" />
+                              ) : (
+                                <ArrowDownIcon className="w-3 h-3" />
+                              )
+                            ) : (
+                              <ArrowUpDownIcon className="w-3 h-3 opacity-50" />
+                            )}
+                          </button>
+                        </TableHead>
+                        <TableHead>
+                          <button
+                            onClick={() => handleSort("client")}
+                            className="flex items-center gap-1 hover:text-foreground transition-colors"
+                          >
+                            Cliente
+                            {salesSortColumn === "client" ? (
+                              salesSortDirection === "asc" ? (
+                                <ArrowUpIcon className="w-3 h-3" />
+                              ) : (
+                                <ArrowDownIcon className="w-3 h-3" />
+                              )
+                            ) : (
+                              <ArrowUpDownIcon className="w-3 h-3 opacity-50" />
+                            )}
+                          </button>
+                        </TableHead>
+                        <TableHead>
+                          <button
+                            onClick={() => handleSort("status")}
+                            className="flex items-center gap-1 hover:text-foreground transition-colors"
+                          >
+                            Estado
+                            {salesSortColumn === "status" ? (
+                              salesSortDirection === "asc" ? (
+                                <ArrowUpIcon className="w-3 h-3" />
+                              ) : (
+                                <ArrowDownIcon className="w-3 h-3" />
+                              )
+                            ) : (
+                              <ArrowUpDownIcon className="w-3 h-3 opacity-50" />
+                            )}
+                          </button>
+                        </TableHead>
+                        <TableHead>
+                          <button
+                            onClick={() => handleSort("payment_method")}
+                            className="flex items-center gap-1 hover:text-foreground transition-colors"
+                          >
+                            Método de pago
+                            {salesSortColumn === "payment_method" ? (
+                              salesSortDirection === "asc" ? (
+                                <ArrowUpIcon className="w-3 h-3" />
+                              ) : (
+                                <ArrowDownIcon className="w-3 h-3" />
+                              )
+                            ) : (
+                              <ArrowUpDownIcon className="w-3 h-3 opacity-50" />
+                            )}
+                          </button>
+                        </TableHead>
+                        <TableHead>
+                          <button
+                            onClick={() => handleSort("total")}
+                            className="flex items-center gap-1 hover:text-foreground transition-colors"
+                          >
+                            Total
+                            {salesSortColumn === "total" ? (
+                              salesSortDirection === "asc" ? (
+                                <ArrowUpIcon className="w-3 h-3" />
+                              ) : (
+                                <ArrowDownIcon className="w-3 h-3" />
+                              )
+                            ) : (
+                              <ArrowUpDownIcon className="w-3 h-3 opacity-50" />
+                            )}
+                          </button>
+                        </TableHead>
+                        <TableHead>
+                          <button
+                            onClick={() => handleSort("date")}
+                            className="flex items-center gap-1 hover:text-foreground transition-colors"
+                          >
+                            Fecha
+                            {salesSortColumn === "date" ? (
+                              salesSortDirection === "asc" ? (
+                                <ArrowUpIcon className="w-3 h-3" />
+                              ) : (
+                                <ArrowDownIcon className="w-3 h-3" />
+                              )
+                            ) : (
+                              <ArrowUpDownIcon className="w-3 h-3 opacity-50" />
+                            )}
+                          </button>
+                        </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredOrders.map((order) => (
+                      {sortedSalesOrders.map((order) => (
                         <TableRow 
                           key={order.id}
                           onClick={() => router.push(`/admin/orders/${order.id}`)}
@@ -886,7 +1035,7 @@ export default function OrdersPage() {
                           </TableCell>
                         </TableRow>
                       ))}
-                      {filteredOrders.length === 0 && (
+                      {sortedSalesOrders.length === 0 && (
                         <TableRow>
                           <TableCell colSpan={6} className="text-center py-6">
                             No hay ventas para mostrar.
@@ -899,7 +1048,7 @@ export default function OrdersPage() {
               </CardContent>
 
               <CardFooter className="flex justify-between text-sm text-muted-foreground">
-                <span>Total ventas: {filteredOrders.length}</span>
+                <span>Total ventas: {sortedSalesOrders.length}</span>
               </CardFooter>
             </Card>
 
