@@ -30,7 +30,7 @@ export async function GET(request: Request) {
       type,
       status,
       created_at,
-      payment_method:payment_method_id (
+      payment_method:payment_methods!payment_method_id (
         id,
         name
       )
