@@ -24,6 +24,7 @@ import PlayoffsTab from "./PlayoffsTab";
 import PlayoffsViewTab from "./PlayoffsViewTab";
 import ShareGroupScheduleTab from "./ShareGroupScheduleTab";
 import ShareGroupStandingsTab from "./ShareGroupStandingsTab";
+import ShareTournamentFlyerTab from "./ShareTournamentFlyerTab";
 import type { TournamentDTO } from "@/models/dto/tournament";
 import { tournamentsService } from "@/services";
 
@@ -133,6 +134,7 @@ export default function TournamentDetailPage() {
                 <span>Compartir</span>
               </div>
               <TabsList className="w-full justify-start">
+                <TabsTrigger value="share-flyer">Flier Promoción</TabsTrigger>
                 <TabsTrigger value="share-schedule">Horarios Grupos</TabsTrigger>
                 <TabsTrigger value="share-standings-results">Resultados Grupos</TabsTrigger>
                 <TabsTrigger value="share-playoffs">Playoffs</TabsTrigger>
@@ -174,6 +176,12 @@ export default function TournamentDetailPage() {
           {activeTab === "playoffs-view" && (
             <TabsContent value="playoffs-view" className="pt-4">
               <PlayoffsViewTab tournament={tournament} />
+            </TabsContent>
+          )}
+
+          {activeTab === "share-flyer" && (
+            <TabsContent value="share-flyer" className="pt-4">
+              <ShareTournamentFlyerTab tournament={tournament} />
             </TabsContent>
           )}
 
