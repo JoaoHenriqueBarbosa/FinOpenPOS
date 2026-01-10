@@ -123,13 +123,20 @@ class TournamentsService {
   async updateTeamOrder(
     tournamentId: number,
     teamOrders: Array<{ teamId: number; display_order: number }>
-  ): Promise<void> {
-    // Actualizar el orden de múltiples equipos
-    await Promise.all(
-      teamOrders.map(({ teamId, display_order }) =>
-        this.updateTeam(tournamentId, teamId, { display_order })
-      )
-    );
+  ): Promise<TeamDTO[]> {
+    const response = await fetch(`${this.baseUrl}/${tournamentId}/teams`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ team_orders: teamOrders }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const errorMessage = errorData.error || "Error al actualizar el orden de los equipos";
+      throw new Error(errorMessage);
+    }
+    return response.json();
   }
 
   async deleteTeam(tournamentId: number, teamId: number): Promise<void> {
