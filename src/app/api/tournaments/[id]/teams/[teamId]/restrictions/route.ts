@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createRepositories } from "@/lib/repository-factory";
 
 type RouteParams = { params: { id: string; teamId: string } };
 
@@ -20,7 +21,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
     }
 
     const body = await req.json();
-    const { restricted_schedules } = body; // Array de { date, start_time, end_time }
+    const { restricted_schedules, schedule_notes } = body; // Array de { date, start_time, end_time } y notas opcionales
 
     // Validar que el equipo existe y pertenece al usuario y torneo
     const { data: team, error: teamError } = await supabase
@@ -118,6 +119,12 @@ export async function PATCH(req: Request, { params }: RouteParams) {
           { status: 500 }
         );
       }
+    }
+
+    // Actualizar schedule_notes si se proporcionó
+    if (schedule_notes !== undefined) {
+      const repos = await createRepositories();
+      await repos.tournamentTeams.update(teamId, { schedule_notes: schedule_notes || null });
     }
 
     return NextResponse.json({ ok: true });

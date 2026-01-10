@@ -74,11 +74,13 @@ export async function POST(req: Request, { params }: RouteParams) {
   // No se asignan horarios al cerrar la inscripción
   // Los horarios se asignarán después desde la pestaña de grupos
 
-  // 2) traer equipos (las restricciones horarias se obtienen después desde tournament_team_schedule_restrictions)
+  // 2) traer equipos (excluyendo suplentes - las restricciones horarias se obtienen después desde tournament_team_schedule_restrictions)
   const { data: teams, error: teamsError } = await supabase
     .from("tournament_teams")
     .select("id")
     .eq("tournament_id", tournamentId)
+    .eq("is_substitute", false)  // Excluir suplentes de la generación del torneo
+    .order("display_order", { ascending: true })
     .order("id", { ascending: true });
 
   if (teamsError) {

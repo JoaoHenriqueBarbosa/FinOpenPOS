@@ -113,6 +113,8 @@ export class TournamentTeamsRepository extends BaseRepository {
     player2?: { first_name: string; last_name: string };
     restricted_schedule_ids?: number[];
   }>> {
+    // Query con todos los campos (Supabase ignorará los campos que no existan)
+    // Intentamos incluir los nuevos campos pero manejamos el caso donde no existen
     const { data, error } = await this.supabase
       .from("tournament_teams")
       .select(
@@ -124,20 +126,92 @@ export class TournamentTeamsRepository extends BaseRepository {
         display_name,
         seed_number,
         notes,
+        display_order,
+        is_substitute,
+        schedule_notes,
         player1:player1_id (
+          id,
           first_name,
           last_name
         ),
         player2:player2_id (
+          id,
           first_name,
           last_name
         )
       `
       )
       .eq("tournament_id", tournamentId)
-      .order("id", { ascending: true });
+      .order("id", { ascending: true }); // Ordenar solo por id por ahora, luego ordenamos por display_order en memoria
 
     if (error) {
+      // Si el error es por columnas faltantes, intentar query sin campos nuevos
+      if (error.message.includes('column') && (error.message.includes('display_order') || error.message.includes('is_substitute') || error.message.includes('schedule_notes'))) {
+        // Query fallback sin los campos nuevos
+        const { data: fallbackData, error: fallbackError } = await this.supabase
+          .from("tournament_teams")
+          .select(
+            `
+            id,
+            tournament_id,
+            player1_id,
+            player2_id,
+            display_name,
+            seed_number,
+            notes,
+            player1:player1_id (
+              id,
+              first_name,
+              last_name
+            ),
+            player2:player2_id (
+              id,
+              first_name,
+              last_name
+            )
+          `
+          )
+          .eq("tournament_id", tournamentId)
+          .order("id", { ascending: true });
+        
+        if (fallbackError) {
+          throw new Error(`Failed to fetch tournament teams: ${fallbackError.message}`);
+        }
+        
+        // Procesar datos fallback con valores por defecto
+        const teamIds = (fallbackData ?? []).map((t: any) => t.id);
+        const restrictedSchedulesMap = new Map<number, Array<{ date: string; start_time: string; end_time: string }>>();
+        
+        if (teamIds.length > 0) {
+          const { data: restrictions } = await this.supabase
+            .from("tournament_team_schedule_restrictions")
+            .select("tournament_team_id, date, start_time, end_time")
+            .in("tournament_team_id", teamIds);
+          
+          if (restrictions) {
+            restrictions.forEach((r: any) => {
+              const teamId = r.tournament_team_id;
+              if (!restrictedSchedulesMap.has(teamId)) {
+                restrictedSchedulesMap.set(teamId, []);
+              }
+              restrictedSchedulesMap.get(teamId)!.push({
+                date: r.date,
+                start_time: r.start_time,
+                end_time: r.end_time,
+              });
+            });
+          }
+        }
+        
+        const normalized = this.normalizeTeamData(fallbackData ?? [], restrictedSchedulesMap, true);
+        // Ordenar por display_order (que será el index) y luego por id
+        return normalized.sort((a, b) => {
+          const orderA = a.display_order ?? 0;
+          const orderB = b.display_order ?? 0;
+          if (orderA !== orderB) return orderA - orderB;
+          return a.id - b.id;
+        });
+      }
       throw new Error(`Failed to fetch tournament teams: ${error.message}`);
     }
 
@@ -166,13 +240,73 @@ export class TournamentTeamsRepository extends BaseRepository {
       }
     }
 
-    // Normalize player relations (Supabase returns arrays for relations)
-    return (data ?? []).map((item: any) => ({
-      ...item,
-      player1: Array.isArray(item.player1) ? (item.player1[0] || undefined) : item.player1,
-      player2: Array.isArray(item.player2) ? (item.player2[0] || undefined) : item.player2,
-      restricted_schedules: restrictedSchedulesMap.get(item.id) || [],
-    })) as unknown as Array<TournamentTeam & {
+    const normalized = this.normalizeTeamData(data ?? [], restrictedSchedulesMap, false);
+    // Ordenar por display_order si está disponible, luego por id
+    return normalized.sort((a, b) => {
+      const orderA = a.display_order ?? 0;
+      const orderB = b.display_order ?? 0;
+      if (orderA !== orderB) return orderA - orderB;
+      return a.id - b.id;
+    });
+  }
+
+  /**
+   * Normaliza los datos de equipos (helper method)
+   */
+  private normalizeTeamData(
+    data: any[],
+    restrictedSchedulesMap: Map<number, Array<{ date: string; start_time: string; end_time: string }>>,
+    useDefaults: boolean
+  ): Array<TournamentTeam & {
+    player1?: { first_name: string; last_name: string };
+    player2?: { first_name: string; last_name: string };
+    restricted_schedule_ids?: number[];
+  }> {
+    return data.map((item: any, index: number) => {
+      // Normalizar player1
+      let player1 = undefined;
+      if (item.player1) {
+        if (Array.isArray(item.player1)) {
+          const p = item.player1[0];
+          if (p && p.first_name && p.last_name) {
+            player1 = { first_name: p.first_name, last_name: p.last_name, id: p.id };
+          }
+        } else if (item.player1.first_name && item.player1.last_name) {
+          player1 = { 
+            first_name: item.player1.first_name, 
+            last_name: item.player1.last_name,
+            id: item.player1.id 
+          };
+        }
+      }
+      
+      // Normalizar player2
+      let player2 = undefined;
+      if (item.player2) {
+        if (Array.isArray(item.player2)) {
+          const p = item.player2[0];
+          if (p && p.first_name && p.last_name) {
+            player2 = { first_name: p.first_name, last_name: p.last_name, id: p.id };
+          }
+        } else if (item.player2.first_name && item.player2.last_name) {
+          player2 = { 
+            first_name: item.player2.first_name, 
+            last_name: item.player2.last_name,
+            id: item.player2.id 
+          };
+        }
+      }
+      
+      return {
+        ...item,
+        display_order: useDefaults ? index : (item.display_order ?? index),
+        is_substitute: useDefaults ? false : (item.is_substitute ?? false),
+        schedule_notes: useDefaults ? null : (item.schedule_notes ?? null),
+        player1,
+        player2,
+        restricted_schedules: restrictedSchedulesMap.get(item.id) || [],
+      };
+    }) as unknown as Array<TournamentTeam & {
       player1?: { first_name: string; last_name: string };
       player2?: { first_name: string; last_name: string };
       restricted_schedule_ids?: number[];
@@ -183,6 +317,20 @@ export class TournamentTeamsRepository extends BaseRepository {
    * Create a new tournament team
    */
   async create(input: CreateTournamentTeamInput): Promise<TournamentTeam> {
+    // Si no se especifica display_order, obtener el máximo y sumar 1
+    let displayOrder = input.display_order;
+    if (displayOrder === undefined) {
+      const { data: maxOrderData } = await this.supabase
+        .from("tournament_teams")
+        .select("display_order")
+        .eq("tournament_id", input.tournament_id)
+        .order("display_order", { ascending: false })
+        .limit(1)
+        .single();
+      
+      displayOrder = maxOrderData?.display_order !== undefined ? (maxOrderData.display_order + 1) : 0;
+    }
+
     const { data, error } = await this.supabase
       .from("tournament_teams")
       .insert({
@@ -192,6 +340,9 @@ export class TournamentTeamsRepository extends BaseRepository {
         display_name: input.display_name ?? null,
         seed_number: input.seed_number ?? null,
         notes: input.notes ?? null,
+        display_order: displayOrder,
+        is_substitute: input.is_substitute ?? false,
+        schedule_notes: input.schedule_notes ?? null,
         user_uid: this.userId,
       })
       .select("*")
@@ -199,6 +350,27 @@ export class TournamentTeamsRepository extends BaseRepository {
 
     if (error) {
       throw new Error(`Failed to create tournament team: ${error.message}`);
+    }
+
+    return data as TournamentTeam;
+  }
+
+  /**
+   * Update a tournament team
+   */
+  async update(
+    teamId: number,
+    updates: Partial<Omit<TournamentTeam, "id" | "tournament_id" | "user_uid" | "created_at">>
+  ): Promise<TournamentTeam> {
+    const { data, error } = await this.supabase
+      .from("tournament_teams")
+      .update(updates)
+      .eq("id", teamId)
+      .select("*")
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to update tournament team: ${error.message}`);
     }
 
     return data as TournamentTeam;
@@ -219,15 +391,20 @@ export class TournamentTeamsRepository extends BaseRepository {
   }
 
   /**
-   * Check if a player is already in a team for a tournament
+   * Check if a player is already in a team for a tournament (excluding a specific team if provided)
    */
-  async isPlayerInTournament(tournamentId: number, playerId: number): Promise<boolean> {
-    const { data, error } = await this.supabase
+  async isPlayerInTournament(tournamentId: number, playerId: number, excludeTeamId?: number): Promise<boolean> {
+    let query = this.supabase
       .from("tournament_teams")
       .select("id")
       .eq("tournament_id", tournamentId)
-      .or(`player1_id.eq.${playerId},player2_id.eq.${playerId}`)
-      .limit(1);
+      .or(`player1_id.eq.${playerId},player2_id.eq.${playerId}`);
+    
+    if (excludeTeamId !== undefined) {
+      query = query.neq("id", excludeTeamId);
+    }
+    
+    const { data, error } = await query.limit(1);
 
     if (error) {
       throw new Error(`Failed to check player in tournament: ${error.message}`);

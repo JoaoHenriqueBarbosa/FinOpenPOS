@@ -329,7 +329,10 @@ CREATE TABLE tournament_teams (
 
     display_name        VARCHAR(120),      -- "Gómez / Pérez" opcional
     seed_number         INTEGER,
-    notes               TEXT
+    notes               TEXT,
+    display_order       INTEGER DEFAULT 0,  -- Orden de visualización de las parejas
+    is_substitute       BOOLEAN NOT NULL DEFAULT FALSE,  -- Si es suplente, no se incluye en la generación del torneo
+    schedule_notes      TEXT               -- Notas sobre disponibilidad horaria
 );
 
 -- =========================================================

@@ -28,6 +28,9 @@ export interface TournamentTeam {
   display_name: string | null;
   seed_number: number | null;
   notes: string | null;
+  display_order: number;
+  is_substitute: boolean;
+  schedule_notes: string | null;
 }
 
 export interface TournamentGroup {
@@ -113,6 +116,9 @@ export interface CreateTournamentTeamInput {
   display_name?: string | null;
   seed_number?: number | null;
   notes?: string | null;
+  display_order?: number;
+  is_substitute?: boolean;
+  schedule_notes?: string | null;
 }
 
 export interface CreateTournamentGroupInput {
