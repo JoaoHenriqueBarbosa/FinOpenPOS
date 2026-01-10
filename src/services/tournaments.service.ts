@@ -91,6 +91,47 @@ class TournamentsService {
     return response.json();
   }
 
+  async updateTeam(
+    tournamentId: number,
+    teamId: number,
+    updates: {
+      player1_id?: number;
+      player2_id?: number;
+      display_name?: string | null;
+      seed_number?: number | null;
+      notes?: string | null;
+      display_order?: number;
+      is_substitute?: boolean;
+      schedule_notes?: string | null;
+    }
+  ): Promise<TeamDTO> {
+    const response = await fetch(`${this.baseUrl}/${tournamentId}/teams/${teamId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(updates),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const errorMessage = errorData.error || "Error al actualizar el equipo";
+      throw new Error(errorMessage);
+    }
+    return response.json();
+  }
+
+  async updateTeamOrder(
+    tournamentId: number,
+    teamOrders: Array<{ teamId: number; display_order: number }>
+  ): Promise<void> {
+    // Actualizar el orden de múltiples equipos
+    await Promise.all(
+      teamOrders.map(({ teamId, display_order }) =>
+        this.updateTeam(tournamentId, teamId, { display_order })
+      )
+    );
+  }
+
   async deleteTeam(tournamentId: number, teamId: number): Promise<void> {
     const response = await fetch(`${this.baseUrl}/${tournamentId}/teams`, {
       method: "DELETE",
@@ -107,14 +148,20 @@ class TournamentsService {
   async updateTeamRestrictions(
     tournamentId: number,
     teamId: number,
-    restrictedSchedules: Array<{ date: string; start_time: string; end_time: string }>
+    restrictedSchedules: Array<{ date: string; start_time: string; end_time: string }>,
+    scheduleNotes?: string | null
   ): Promise<void> {
+    const body: any = { restricted_schedules: restrictedSchedules };
+    if (scheduleNotes !== undefined) {
+      body.schedule_notes = scheduleNotes;
+    }
+    
     const response = await fetch(`${this.baseUrl}/${tournamentId}/teams/${teamId}/restrictions`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ restricted_schedules: restrictedSchedules }),
+      body: JSON.stringify(body),
     });
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));

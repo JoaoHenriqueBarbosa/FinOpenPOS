@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Loader2Icon } from "lucide-react";
 import type { TeamDTO, AvailableSchedule } from "@/models/dto/tournament";
 
@@ -20,7 +21,7 @@ interface TeamScheduleRestrictionsDialogProps {
   onOpenChange: (open: boolean) => void;
   team: TeamDTO | null;
   availableSchedules: AvailableSchedule[]; // Horarios disponibles para mostrar (generados on the fly)
-  onSave: (restrictedSchedules: Array<{ date: string; start_time: string; end_time: string }>) => Promise<void>;
+  onSave: (restrictedSchedules: Array<{ date: string; start_time: string; end_time: string }>, scheduleNotes?: string | null) => Promise<void>;
 }
 
 const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
@@ -34,6 +35,7 @@ export function TeamScheduleRestrictionsDialog({
 }: TeamScheduleRestrictionsDialogProps) {
   // Usar un Set con claves de string para identificar restricciones por fecha/hora
   const [restrictedKeys, setRestrictedKeys] = useState<Set<string>>(new Set());
+  const [scheduleNotes, setScheduleNotes] = useState<string>("");
   const [saving, setSaving] = useState(false);
 
   // Función auxiliar para crear una clave única de un horario
@@ -46,15 +48,20 @@ export function TeamScheduleRestrictionsDialog({
   const teamRestrictedSchedules = (team as any)?.restricted_schedules as Array<{ date: string; start_time: string; end_time: string }> | undefined;
   
   useEffect(() => {
-    if (open && team && teamRestrictedSchedules) {
+    if (open && team) {
       // Cargar restricciones del equipo (rangos de fecha/hora que NO puede jugar)
-      const keys = new Set(teamRestrictedSchedules.map(s => getScheduleKey(s)));
-      setRestrictedKeys(keys);
+      if (teamRestrictedSchedules) {
+        const keys = new Set(teamRestrictedSchedules.map(s => getScheduleKey(s)));
+        setRestrictedKeys(keys);
+      }
+      // Cargar notas de disponibilidad horaria
+      setScheduleNotes(team.schedule_notes || "");
     } else if (!open) {
       setRestrictedKeys(new Set());
+      setScheduleNotes("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, teamId, teamRestrictedSchedules?.map(s => getScheduleKey(s)).join(',')]);
+  }, [open, teamId, teamRestrictedSchedules?.map(s => getScheduleKey(s)).join(','), team?.schedule_notes]);
 
   const handleToggleRestriction = (schedule: { date: string; start_time: string; end_time: string }) => {
     const newRestricted = new Set(restrictedKeys);
@@ -96,7 +103,7 @@ export function TeamScheduleRestrictionsDialog({
           const [date, start_time, end_time] = key.split('|');
           return { date, start_time, end_time };
         });
-      await onSave(restrictedSchedules);
+      await onSave(restrictedSchedules, scheduleNotes.trim() || null);
       onOpenChange(false);
     } catch (err: any) {
       console.error(err);
@@ -216,6 +223,24 @@ export function TeamScheduleRestrictionsDialog({
                 })}
             </div>
           )}
+          
+          {/* Campo de notas sobre disponibilidad horaria */}
+          <div className="space-y-2 pt-4 border-t">
+            <Label htmlFor="schedule-notes" className="text-sm font-medium">
+              Notas sobre disponibilidad horaria (opcional)
+            </Label>
+            <Textarea
+              id="schedule-notes"
+              placeholder="Ej: Solo disponible después de las 18:00 los días de semana..."
+              value={scheduleNotes}
+              onChange={(e) => setScheduleNotes(e.target.value)}
+              rows={3}
+              className="resize-none"
+            />
+            <p className="text-xs text-muted-foreground">
+              Información adicional sobre la disponibilidad horaria de esta pareja.
+            </p>
+          </div>
         </div>
 
         <DialogFooter>

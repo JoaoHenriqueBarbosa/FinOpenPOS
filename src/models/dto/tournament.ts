@@ -50,7 +50,11 @@ export interface TeamDTO {
   seed_number: number | null;
   player1: TeamPlayer;
   player2: TeamPlayer;
+  display_order: number;
+  is_substitute: boolean;
+  schedule_notes: string | null;
   restricted_schedule_ids?: number[]; // IDs de horarios disponibles que el equipo NO puede jugar
+  restricted_schedules?: Array<{ date: string; start_time: string; end_time: string }>; // Restricciones horarias del equipo
   standings?: Array<{
     position: number;
     group?: {

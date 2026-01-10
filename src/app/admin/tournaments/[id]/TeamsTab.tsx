@@ -19,7 +19,9 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Loader2Icon, PlusIcon, TrashIcon, LockIcon, ChevronsUpDown, CheckIcon, CalendarIcon } from "lucide-react";
+import { Loader2Icon, PlusIcon, TrashIcon, LockIcon, ChevronsUpDown, CheckIcon, CalendarIcon, EditIcon, ArrowUpIcon, ArrowDownIcon, UsersIcon } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { toast } from "sonner";
 import {
   Command,
   CommandEmpty,
@@ -72,6 +74,24 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
   const [selectedTeamForRestrictions, setSelectedTeamForRestrictions] = useState<TeamDTO | null>(null);
   const [closingStatus, setClosingStatus] = useState<string | null>(null);
   
+  // Estado para edición de parejas
+  const [editingTeam, setEditingTeam] = useState<TeamDTO | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editPlayer1Id, setEditPlayer1Id] = useState<string>("none");
+  const [editPlayer2Id, setEditPlayer2Id] = useState<string>("none");
+  const [editPlayer1Open, setEditPlayer1Open] = useState(false);
+  const [editPlayer2Open, setEditPlayer2Open] = useState(false);
+  const [editPlayer1Search, setEditPlayer1Search] = useState("");
+  const [editPlayer2Search, setEditPlayer2Search] = useState("");
+  const [editPlayer1PopoverWidth, setEditPlayer1PopoverWidth] = useState(0);
+  const [editPlayer2PopoverWidth, setEditPlayer2PopoverWidth] = useState(0);
+  const [updating, setUpdating] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  
+  // Debounce search terms para edición
+  const debouncedEditPlayer1Search = useDebounce(editPlayer1Search, 300);
+  const debouncedEditPlayer2Search = useDebounce(editPlayer2Search, 300);
+  
   // Debounce search terms para evitar filtros costosos en cada keystroke
   const debouncedPlayer1Search = useDebounce(player1Search, 300);
   const debouncedPlayer2Search = useDebounce(player2Search, 300);
@@ -110,7 +130,10 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
   const hasGroups = groupsData?.groups && groupsData.groups.length > 0;
   const loading = loadingTeams || loadingPlayers || loadingGroups;
 
-  const fullName = (p: PlayerDTO) => `${p.first_name} ${p.last_name}`;
+  const fullName = (p: PlayerDTO | undefined | null) => {
+    if (!p || !p.first_name || !p.last_name) return "Jugador desconocido";
+    return `${p.first_name} ${p.last_name}`;
+  };
 
   // Filtrar jugadores por búsqueda (subcadena en nombre o apellido)
   // Usa useMemo para memoizar los resultados filtrados
@@ -135,6 +158,29 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
         fullName(p).toLowerCase().includes(searchLower)
     );
   }, [players, debouncedPlayer2Search]);
+
+  // Filtrar jugadores para edición
+  const filteredEditPlayers1 = useMemo(() => {
+    if (!debouncedEditPlayer1Search.trim()) return players;
+    const searchLower = debouncedEditPlayer1Search.toLowerCase().trim();
+    return players.filter(
+      (p) =>
+        p.first_name.toLowerCase().includes(searchLower) ||
+        p.last_name.toLowerCase().includes(searchLower) ||
+        fullName(p).toLowerCase().includes(searchLower)
+    );
+  }, [players, debouncedEditPlayer1Search]);
+
+  const filteredEditPlayers2 = useMemo(() => {
+    if (!debouncedEditPlayer2Search.trim()) return players;
+    const searchLower = debouncedEditPlayer2Search.toLowerCase().trim();
+    return players.filter(
+      (p) =>
+        p.first_name.toLowerCase().includes(searchLower) ||
+        p.last_name.toLowerCase().includes(searchLower) ||
+        fullName(p).toLowerCase().includes(searchLower)
+    );
+  }, [players, debouncedEditPlayer2Search]);
 
   const handleCreate = useCallback(async () => {
     if (player1Id === "none" || player2Id === "none") return;
@@ -172,14 +218,18 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
     }
   };
 
-  const handleSaveRestrictions = async (restrictedSchedules: Array<{ date: string; start_time: string; end_time: string }>) => {
+  const handleSaveRestrictions = async (
+    restrictedSchedules: Array<{ date: string; start_time: string; end_time: string }>,
+    scheduleNotes?: string | null
+  ) => {
     if (!selectedTeamForRestrictions) return;
     
     try {
       await tournamentsService.updateTeamRestrictions(
         tournament.id,
         selectedTeamForRestrictions.id,
-        restrictedSchedules
+        restrictedSchedules,
+        scheduleNotes
       );
       // Invalidar cache para refrescar teams
       queryClient.invalidateQueries({ queryKey: ["tournament-teams", tournament.id] });
@@ -190,11 +240,113 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
     }
   };
 
+  // Filtrar equipos para cálculos (excluir suplentes)
+  const activeTeams = useMemo(() => teams.filter(t => !t.is_substitute), [teams]);
+
+  // Abrir diálogo de edición
+  const handleEdit = (team: TeamDTO) => {
+    if (!team.player1 || !team.player2) {
+      toast.error("No se puede editar un equipo con jugadores faltantes");
+      return;
+    }
+    setEditingTeam(team);
+    setEditPlayer1Id(String(team.player1.id));
+    setEditPlayer2Id(String(team.player2.id));
+    setEditPlayer1Search("");
+    setEditPlayer2Search("");
+    setEditError(null);
+    setEditDialogOpen(true);
+  };
+
+  // Guardar edición
+  const handleUpdate = useCallback(async () => {
+    if (!editingTeam) return;
+    if (editPlayer1Id === "none" || editPlayer2Id === "none") return;
+    if (editPlayer1Id === editPlayer2Id) {
+      setEditError("Los jugadores deben ser diferentes");
+      return;
+    }
+
+    try {
+      setUpdating(true);
+      setEditError(null);
+      await tournamentsService.updateTeam(tournament.id, editingTeam.id, {
+        player1_id: Number(editPlayer1Id),
+        player2_id: Number(editPlayer2Id),
+      });
+      queryClient.invalidateQueries({ queryKey: ["tournament-teams", tournament.id] });
+      setEditDialogOpen(false);
+      setEditingTeam(null);
+      setEditPlayer1Id("none");
+      setEditPlayer2Id("none");
+      setEditError(null);
+      toast.success("Equipo actualizado correctamente");
+    } catch (err: any) {
+      console.error(err);
+      setEditError(err.message || "Error al actualizar el equipo");
+    } finally {
+      setUpdating(false);
+    }
+  }, [editPlayer1Id, editPlayer2Id, editingTeam, tournament.id, queryClient]);
+
+  // Reordenar equipo (mover arriba)
+  const handleMoveUp = async (teamId: number, currentOrder: number) => {
+    if (currentOrder <= 0) return;
+    
+    const previousTeam = teams.find(t => t.display_order === currentOrder - 1);
+    if (!previousTeam) return;
+
+    try {
+      await tournamentsService.updateTeamOrder(tournament.id, [
+        { teamId, display_order: currentOrder - 1 },
+        { teamId: previousTeam.id, display_order: currentOrder },
+      ]);
+      queryClient.invalidateQueries({ queryKey: ["tournament-teams", tournament.id] });
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Error al reordenar equipos");
+    }
+  };
+
+  // Reordenar equipo (mover abajo)
+  const handleMoveDown = async (teamId: number, currentOrder: number) => {
+    const maxOrder = Math.max(...teams.map(t => t.display_order), 0);
+    if (currentOrder >= maxOrder) return;
+    
+    const nextTeam = teams.find(t => t.display_order === currentOrder + 1);
+    if (!nextTeam) return;
+
+    try {
+      await tournamentsService.updateTeamOrder(tournament.id, [
+        { teamId, display_order: currentOrder + 1 },
+        { teamId: nextTeam.id, display_order: currentOrder },
+      ]);
+      queryClient.invalidateQueries({ queryKey: ["tournament-teams", tournament.id] });
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Error al reordenar equipos");
+    }
+  };
+
+  // Marcar como suplente
+  const handleToggleSubstitute = async (team: TeamDTO) => {
+    try {
+      await tournamentsService.updateTeam(tournament.id, team.id, {
+        is_substitute: !team.is_substitute,
+      });
+      queryClient.invalidateQueries({ queryKey: ["tournament-teams", tournament.id] });
+      toast.success(team.is_substitute ? "Equipo marcado como activo" : "Equipo marcado como suplente");
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Error al actualizar el equipo");
+    }
+  };
+
   // Calcular cantidad exacta de partidos según el formato
   const calculateMatchCount = () => {
-    if (teams.length < 3) return 0;
+    if (activeTeams.length < 3) return 0;
     
-    const N = teams.length;
+    const N = activeTeams.length;
     
     // Calcular tamaños de grupos (misma lógica que en close-registration)
     let baseGroups = Math.floor(N / 3);
@@ -236,11 +388,11 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
 
   // Calcular información de grupos que se generarán
   const calculateGroupsInfo = useMemo(() => {
-    if (teams.length < 3) {
+    if (activeTeams.length < 3) {
       return { totalGroups: 0, groupsOf3: 0, groupsOf4: 0, groupNames: [] };
     }
     
-    const N = teams.length;
+    const N = activeTeams.length;
     let baseGroups = Math.floor(N / 3);
     const remainder = N % 3;
     
@@ -267,7 +419,7 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
     const groupNames = groupSizes.map((_, i) => `Zona ${letters[i] ?? String(i + 1)}`);
     
     return { totalGroups: groupSizes.length, groupsOf3, groupsOf4, groupNames };
-  }, [teams.length]);
+  }, [activeTeams.length]);
 
   // Los slots de horario se calculan on the fly durante la revisión de horarios
 
@@ -316,9 +468,17 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
           {/* Resumen */}
           {teams.length > 0 && (
             <div className="mt-3 p-3 bg-muted/50 rounded-md space-y-3 text-sm">
-              <div>
-                <span className="text-muted-foreground">Equipos:</span>{" "}
-                <span className="font-medium">{teams.length}</span>
+              <div className="flex gap-4">
+                <div>
+                  <span className="text-muted-foreground">Equipos activos:</span>{" "}
+                  <span className="font-medium">{activeTeams.length}</span>
+                </div>
+                {teams.filter(t => t.is_substitute).length > 0 && (
+                  <div>
+                    <span className="text-muted-foreground">Suplentes:</span>{" "}
+                    <span className="font-medium">{teams.filter(t => t.is_substitute).length}</span>
+                  </div>
+                )}
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                 <div>
@@ -356,7 +516,7 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
           <Button
             size="sm"
             onClick={handleCloseRegistration}
-            disabled={tournament.status !== "draft" || teams.length < 3 || closing}
+            disabled={tournament.status !== "draft" || activeTeams.length < 3 || closing}
           >
             {closing && (
               <Loader2Icon className="mr-1 h-4 w-4 animate-spin" />
@@ -381,56 +541,150 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
           </p>
         ) : (
           <div className="space-y-2">
-            {teams.map((team) => (
-              <div
-                key={team.id}
-                className="flex items-center justify-between border rounded-md px-3 py-2"
-              >
-                <div className="flex flex-col text-sm">
-                  <span className="font-medium">
-                    {team.display_name ??
-                      `${team.player1.first_name} ${team.player1.last_name} / ${team.player2.first_name} ${team.player2.last_name}`}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {team.player1.first_name} {team.player1.last_name} &middot;{" "}
-                    {team.player2.first_name} {team.player2.last_name}
-                  </span>
-                </div>
-                {tournament.status === "draft" && !hasGroups && (
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        setSelectedTeamForRestrictions(team);
-                        setRestrictionsDialogOpen(true);
-                      }}
-                      title="Editar restricciones horarias"
-                    >
-                      <CalendarIcon className="w-4 h-4" />
-                    </Button>
+            {[...teams].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0)).map((team, index) => {
+              // Validar que el equipo tenga jugadores válidos
+              if (!team.player1 || !team.player2) {
+                return (
+                  <div
+                    key={team.id}
+                    className="flex items-center justify-between border rounded-md px-3 py-2 bg-red-50 border-red-200"
+                  >
+                    <div className="flex flex-col text-sm">
+                      <span className="font-medium text-red-700">Equipo inválido (ID: {team.id})</span>
+                      <span className="text-xs text-red-600">
+                        Faltan datos de jugadores. Por favor, elimina y recrea este equipo.
+                      </span>
+                    </div>
+                    {tournament.status === "draft" && !hasGroups && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDelete(team.id)}
+                        title="Eliminar equipo inválido"
+                      >
+                        <TrashIcon className="w-4 h-4 text-red-600" />
+                      </Button>
+                    )}
+                  </div>
+                );
+              }
+              
+              const sortedTeams = [...teams].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
+              const currentIndex = sortedTeams.findIndex(t => t.id === team.id);
+              const canMoveUp = currentIndex > 0;
+              const canMoveDown = currentIndex < sortedTeams.length - 1;
+              
+              return (
+                <div
+                  key={team.id}
+                  className={`flex items-center justify-between border rounded-md px-3 py-2 ${team.is_substitute ? 'bg-muted/30 opacity-75' : ''}`}
+                >
+                  <div className="flex items-center gap-3 flex-1">
+                    {tournament.status === "draft" && !hasGroups && (
+                      <div className="flex flex-col gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => handleMoveUp(team.id, team.display_order ?? 0)}
+                          disabled={!canMoveUp}
+                          title="Mover arriba"
+                        >
+                          <ArrowUpIcon className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => handleMoveDown(team.id, team.display_order ?? 0)}
+                          disabled={!canMoveDown}
+                          title="Mover abajo"
+                        >
+                          <ArrowDownIcon className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    )}
+                    <div className="flex flex-col text-sm flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">
+                          {team.display_name ??
+                            `${fullName(team.player1)} / ${fullName(team.player2)}`}
+                        </span>
+                        {team.is_substitute && (
+                          <span className="text-xs px-2 py-0.5 bg-orange-100 text-orange-800 rounded-full font-medium">
+                            Suplente
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {fullName(team.player1)} &middot; {fullName(team.player2)}
+                      </span>
+                      {team.schedule_notes && (
+                        <span className="text-xs text-muted-foreground mt-1 italic">
+                          📅 {team.schedule_notes}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {tournament.status === "draft" && !hasGroups && (
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleEdit(team)}
+                        title="Editar pareja"
+                      >
+                        <EditIcon className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setSelectedTeamForRestrictions(team);
+                          setRestrictionsDialogOpen(true);
+                        }}
+                        title="Editar restricciones horarias"
+                      >
+                        <CalendarIcon className="w-4 h-4" />
+                      </Button>
+                      <div className="flex items-center gap-1 px-2">
+                        <Checkbox
+                          id={`substitute-${team.id}`}
+                          checked={team.is_substitute}
+                          onCheckedChange={() => handleToggleSubstitute(team)}
+                        />
+                        <Label
+                          htmlFor={`substitute-${team.id}`}
+                          className="text-xs cursor-pointer"
+                          title="Marcar como suplente (no se incluirá en la generación del torneo)"
+                        >
+                          Suplente
+                        </Label>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDelete(team.id)}
+                        title="Eliminar equipo"
+                      >
+                        <TrashIcon className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  )}
+                  {tournament.status === "draft" && hasGroups && (
                     <Button
                       variant="ghost"
                       size="icon"
                       onClick={() => handleDelete(team.id)}
+                      disabled
+                      title="No se pueden editar equipos después de generar grupos"
                     >
-                      <TrashIcon className="w-4 h-4" />
+                      <LockIcon className="w-4 h-4" />
                     </Button>
-                  </div>
-                )}
-                {tournament.status === "draft" && hasGroups && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDelete(team.id)}
-                    disabled
-                    title="No se pueden editar equipos después de generar grupos"
-                  >
-                    <LockIcon className="w-4 h-4" />
-                  </Button>
-                )}
-              </div>
-            ))}
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </CardContent>
@@ -469,7 +723,7 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
                     }}
                   >
                     {player1Id !== "none"
-                      ? fullName(players.find((p) => String(p.id) === player1Id)!)
+                      ? fullName(players.find((p) => String(p.id) === player1Id))
                       : "Elegí un jugador..."}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
@@ -535,7 +789,7 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
                     }}
                   >
                     {player2Id !== "none"
-                      ? fullName(players.find((p) => String(p.id) === player2Id)!)
+                      ? fullName(players.find((p) => String(p.id) === player2Id))
                       : "Elegí un jugador..."}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
@@ -609,6 +863,183 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Diálogo de edición de pareja */}
+      <Dialog 
+        open={editDialogOpen} 
+        onOpenChange={(open) => {
+          setEditDialogOpen(open);
+          if (!open) {
+            setEditError(null);
+            setEditingTeam(null);
+            setEditPlayer1Id("none");
+            setEditPlayer2Id("none");
+            setEditPlayer1Search("");
+            setEditPlayer2Search("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar equipo</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label>Jugador 1</Label>
+              <Popover open={editPlayer1Open} onOpenChange={setEditPlayer1Open}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={editPlayer1Open}
+                    className="w-full justify-between"
+                    ref={(element) => {
+                      if (element) {
+                        setEditPlayer1PopoverWidth(element.offsetWidth);
+                      }
+                    }}
+                  >
+                    {editPlayer1Id !== "none"
+                      ? fullName(players.find((p) => String(p.id) === editPlayer1Id))
+                      : "Elegí un jugador..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent 
+                  className="p-0" 
+                  align="start"
+                  style={{ width: editPlayer1PopoverWidth || "var(--radix-popover-trigger-width)" }}
+                >
+                  <Command shouldFilter={false}>
+                    <CommandInput 
+                      placeholder="Buscar por nombre o apellido..." 
+                      value={editPlayer1Search}
+                      onValueChange={setEditPlayer1Search}
+                    />
+                    <CommandList>
+                      {filteredEditPlayers1.length === 0 ? (
+                        <CommandEmpty>No se encontró ningún jugador.</CommandEmpty>
+                      ) : (
+                        <CommandGroup>
+                          {filteredEditPlayers1.map((player) => (
+                            <CommandItem
+                              key={player.id}
+                              value={`${player.first_name} ${player.last_name}`}
+                              onSelect={() => {
+                                setEditPlayer1Id(String(player.id));
+                                setEditPlayer1Open(false);
+                                setEditPlayer1Search("");
+                                setEditError(null);
+                              }}
+                            >
+                              <CheckIcon
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  editPlayer1Id === String(player.id)
+                                    ? "opacity-100"
+                                    : "opacity-0"
+                                )}
+                              />
+                              {fullName(player)}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      )}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div className="space-y-1">
+              <Label>Jugador 2</Label>
+              <Popover open={editPlayer2Open} onOpenChange={setEditPlayer2Open}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={editPlayer2Open}
+                    className="w-full justify-between"
+                    ref={(element) => {
+                      if (element) {
+                        setEditPlayer2PopoverWidth(element.offsetWidth);
+                      }
+                    }}
+                  >
+                    {editPlayer2Id !== "none"
+                      ? fullName(players.find((p) => String(p.id) === editPlayer2Id))
+                      : "Elegí un jugador..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent 
+                  className="p-0" 
+                  align="start"
+                  style={{ width: editPlayer2PopoverWidth || "var(--radix-popover-trigger-width)" }}
+                >
+                  <Command shouldFilter={false}>
+                    <CommandInput 
+                      placeholder="Buscar por nombre o apellido..." 
+                      value={editPlayer2Search}
+                      onValueChange={setEditPlayer2Search}
+                    />
+                    <CommandList>
+                      {filteredEditPlayers2.length === 0 ? (
+                        <CommandEmpty>No se encontró ningún jugador.</CommandEmpty>
+                      ) : (
+                        <CommandGroup>
+                          {filteredEditPlayers2.map((player) => (
+                            <CommandItem
+                              key={player.id}
+                              value={`${player.first_name} ${player.last_name}`}
+                              onSelect={() => {
+                                setEditPlayer2Id(String(player.id));
+                                setEditPlayer2Open(false);
+                                setEditPlayer2Search("");
+                                setEditError(null);
+                              }}
+                            >
+                              <CheckIcon
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  editPlayer2Id === String(player.id)
+                                    ? "opacity-100"
+                                    : "opacity-0"
+                                )}
+                              />
+                              {fullName(player)}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      )}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+            {editError && (
+              <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-sm text-red-700 font-medium">{editError}</p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={handleUpdate}
+              disabled={
+                updating ||
+                editPlayer1Id === "none" ||
+                editPlayer2Id === "none" ||
+                editPlayer1Id === editPlayer2Id
+              }
+            >
+              {updating && (
+                <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Guardar cambios
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
       <TeamScheduleRestrictionsDialog
         open={restrictionsDialogOpen}
         onOpenChange={(open) => {
