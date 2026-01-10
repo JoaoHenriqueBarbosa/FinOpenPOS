@@ -19,7 +19,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Loader2Icon, PlusIcon, TrashIcon, LockIcon, ChevronsUpDown, CheckIcon, CalendarIcon, EditIcon, ArrowUpIcon, ArrowDownIcon, UsersIcon } from "lucide-react";
+import { Loader2Icon, PlusIcon, TrashIcon, LockIcon, ChevronsUpDown, CheckIcon, CalendarIcon, EditIcon, ArrowUpIcon, ArrowDownIcon, UsersIcon, GripVerticalIcon, SaveIcon } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import {
@@ -88,6 +88,11 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
   const [updating, setUpdating] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   
+  // Estado local para el orden de equipos (no se guarda hasta que se presione "Guardar orden")
+  const [localTeamsOrder, setLocalTeamsOrder] = useState<TeamDTO[]>([]);
+  const [hasOrderChanges, setHasOrderChanges] = useState(false);
+  const [savingOrder, setSavingOrder] = useState(false);
+  
   // Debounce search terms para edición
   const debouncedEditPlayer1Search = useDebounce(editPlayer1Search, 300);
   const debouncedEditPlayer2Search = useDebounce(editPlayer2Search, 300);
@@ -129,6 +134,63 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
 
   const hasGroups = groupsData?.groups && groupsData.groups.length > 0;
   const loading = loadingTeams || loadingPlayers || loadingGroups;
+
+  // Calcular clave de sincronización basada en IDs de equipos
+  const teamsIdsKey = useMemo(() => teams.map(t => t.id).sort().join(','), [teams]);
+
+  // Sincronizar orden local con equipos del servidor
+  useEffect(() => {
+    if (teams.length === 0) {
+      setLocalTeamsOrder([]);
+      setHasOrderChanges(false);
+      return;
+    }
+
+    // Inicializar orden local solo la primera vez
+    if (localTeamsOrder.length === 0) {
+      const sorted = [...teams].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
+      setLocalTeamsOrder(sorted.map((team, index) => ({ ...team, display_order: index })));
+      return;
+    }
+
+    // Solo sincronizar si cambió la lista de IDs (agregado/eliminado equipo)
+    const localTeamIds = localTeamsOrder.map(t => t.id).sort().join(',');
+    
+    if (localTeamIds !== teamsIdsKey) {
+      if (hasOrderChanges) {
+        // Si hay cambios locales pendientes, mantener el orden pero actualizar equipos
+        const serverTeamMap = new Map(teams.map(t => [t.id, t]));
+        
+        // Mantener equipos existentes en su orden actual
+        const updated = localTeamsOrder
+          .filter(localTeam => serverTeamMap.has(localTeam.id))
+          .map(localTeam => {
+            const serverTeam = serverTeamMap.get(localTeam.id);
+            return serverTeam ? { ...serverTeam, display_order: localTeam.display_order } : localTeam;
+          });
+        
+        // Agregar nuevos equipos al final
+        const localIds = new Set(updated.map(t => t.id));
+        teams
+          .filter(t => !localIds.has(t.id))
+          .forEach(team => {
+            updated.push({ ...team, display_order: updated.length });
+          });
+        
+        // Reasignar display_order secuencialmente
+        updated.forEach((team, index) => {
+          team.display_order = index;
+        });
+        
+        setLocalTeamsOrder(updated);
+      } else {
+        // Si no hay cambios locales, sincronizar completamente
+        const sorted = [...teams].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
+        setLocalTeamsOrder(sorted.map((team, index) => ({ ...team, display_order: index })));
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teamsIdsKey, hasOrderChanges]);
 
   const fullName = (p: PlayerDTO | TeamPlayer | { first_name?: string; last_name?: string } | undefined | null) => {
     if (!p || !p.first_name || !p.last_name) return "Jugador desconocido";
@@ -193,12 +255,14 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
         player1_id: Number(player1Id),
         player2_id: Number(player2Id),
       });
-      // Invalidar cache para refrescar teams
+      // Invalidar cache para refrescar teams (el useEffect se encargará de sincronizar el orden local)
       queryClient.invalidateQueries({ queryKey: ["tournament-teams", tournament.id] });
       setDialogOpen(false);
       setPlayer1Id("none");
       setPlayer2Id("none");
       setError(null);
+      // Resetear cambios de orden pendientes cuando se agrega un nuevo equipo
+      setHasOrderChanges(false);
     } catch (err: any) {
       console.error(err);
       // El service ya extrae el mensaje de error de la API
@@ -211,10 +275,19 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
   const handleDelete = async (teamId: number) => {
     try {
       await tournamentsService.deleteTeam(tournament.id, teamId);
+      // Actualizar orden local removiendo el equipo eliminado
+      const updated = localTeamsOrder.filter(t => t.id !== teamId);
+      updated.forEach((team, index) => {
+        team.display_order = index;
+      });
+      setLocalTeamsOrder(updated);
+      setHasOrderChanges(updated.length > 0);
       // Invalidar cache para refrescar teams
       queryClient.invalidateQueries({ queryKey: ["tournament-teams", tournament.id] });
-    } catch (err) {
+      toast.success("Equipo eliminado correctamente");
+    } catch (err: any) {
       console.error(err);
+      toast.error(err.message || "Error al eliminar el equipo");
     }
   };
 
@@ -240,8 +313,9 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
     }
   };
 
-  // Filtrar equipos para cálculos (excluir suplentes)
-  const activeTeams = useMemo(() => teams.filter(t => !t.is_substitute), [teams]);
+  // Filtrar equipos para cálculos (excluir suplentes) - usar orden local si hay cambios
+  const teamsToUse = hasOrderChanges && localTeamsOrder.length > 0 ? localTeamsOrder : teams;
+  const activeTeams = useMemo(() => teamsToUse.filter(t => !t.is_substitute), [teamsToUse]);
 
   // Abrir diálogo de edición
   const handleEdit = (team: TeamDTO) => {
@@ -289,42 +363,66 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
     }
   }, [editPlayer1Id, editPlayer2Id, editingTeam, tournament.id, queryClient]);
 
-  // Reordenar equipo (mover arriba)
-  const handleMoveUp = async (teamId: number, currentOrder: number) => {
-    if (currentOrder <= 0) return;
+  // Reordenar equipo localmente (mover arriba)
+  const handleMoveUp = (teamId: number) => {
+    const currentIndex = localTeamsOrder.findIndex(t => t.id === teamId);
+    if (currentIndex <= 0) return;
     
-    const previousTeam = teams.find(t => t.display_order === currentOrder - 1);
-    if (!previousTeam) return;
-
-    try {
-      await tournamentsService.updateTeamOrder(tournament.id, [
-        { teamId, display_order: currentOrder - 1 },
-        { teamId: previousTeam.id, display_order: currentOrder },
-      ]);
-      queryClient.invalidateQueries({ queryKey: ["tournament-teams", tournament.id] });
-    } catch (err: any) {
-      console.error(err);
-      toast.error(err.message || "Error al reordenar equipos");
-    }
+    const newOrder = [...localTeamsOrder];
+    [newOrder[currentIndex - 1], newOrder[currentIndex]] = [newOrder[currentIndex], newOrder[currentIndex - 1]];
+    
+    // Actualizar display_order en el nuevo orden
+    newOrder.forEach((team, index) => {
+      team.display_order = index;
+    });
+    
+    setLocalTeamsOrder(newOrder);
+    setHasOrderChanges(true);
   };
 
-  // Reordenar equipo (mover abajo)
-  const handleMoveDown = async (teamId: number, currentOrder: number) => {
-    const maxOrder = Math.max(...teams.map(t => t.display_order), 0);
-    if (currentOrder >= maxOrder) return;
+  // Reordenar equipo localmente (mover abajo)
+  const handleMoveDown = (teamId: number) => {
+    const currentIndex = localTeamsOrder.findIndex(t => t.id === teamId);
+    if (currentIndex < 0 || currentIndex >= localTeamsOrder.length - 1) return;
     
-    const nextTeam = teams.find(t => t.display_order === currentOrder + 1);
-    if (!nextTeam) return;
+    const newOrder = [...localTeamsOrder];
+    [newOrder[currentIndex], newOrder[currentIndex + 1]] = [newOrder[currentIndex + 1], newOrder[currentIndex]];
+    
+    // Actualizar display_order en el nuevo orden
+    newOrder.forEach((team, index) => {
+      team.display_order = index;
+    });
+    
+    setLocalTeamsOrder(newOrder);
+    setHasOrderChanges(true);
+  };
+
+  // Guardar orden de todos los equipos
+  const handleSaveOrder = async () => {
+    if (!hasOrderChanges || localTeamsOrder.length === 0) return;
 
     try {
-      await tournamentsService.updateTeamOrder(tournament.id, [
-        { teamId, display_order: currentOrder + 1 },
-        { teamId: nextTeam.id, display_order: currentOrder },
-      ]);
+      setSavingOrder(true);
+      const teamOrders = localTeamsOrder.map((team, index) => ({
+        teamId: team.id,
+        display_order: index,
+      }));
+      
+      const updatedTeams = await tournamentsService.updateTeamOrder(tournament.id, teamOrders);
+      // Actualizar el estado local con los equipos actualizados del servidor
+      if (updatedTeams && updatedTeams.length > 0) {
+        const sorted = [...updatedTeams].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
+        setLocalTeamsOrder(sorted.map((team, index) => ({ ...team, display_order: index })));
+      }
+      setHasOrderChanges(false);
+      // Invalidar cache para refrescar en otros componentes
       queryClient.invalidateQueries({ queryKey: ["tournament-teams", tournament.id] });
+      toast.success("Orden de equipos guardado correctamente");
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || "Error al reordenar equipos");
+      toast.error(err.message || "Error al guardar el orden de los equipos");
+    } finally {
+      setSavingOrder(false);
     }
   };
 
@@ -468,7 +566,7 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
           {/* Resumen */}
           {teams.length > 0 && (
             <div className="mt-3 p-3 bg-muted/50 rounded-md space-y-3 text-sm">
-              <div className="flex gap-4">
+              <div className="flex gap-4 items-center">
                 <div>
                   <span className="text-muted-foreground">Equipos activos:</span>{" "}
                   <span className="font-medium">{activeTeams.length}</span>
@@ -477,6 +575,13 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
                   <div>
                     <span className="text-muted-foreground">Suplentes:</span>{" "}
                     <span className="font-medium">{teams.filter(t => t.is_substitute).length}</span>
+                  </div>
+                )}
+                {tournament.status === "draft" && !hasGroups && hasOrderChanges && (
+                  <div className="ml-auto">
+                    <span className="text-xs text-blue-600 font-medium">
+                      * Hay cambios en el orden sin guardar
+                    </span>
                   </div>
                 )}
               </div>
@@ -524,6 +629,27 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
             <LockIcon className="w-4 h-4 mr-1" />
             Cerrar inscripción
           </Button>
+          {tournament.status === "draft" && !hasGroups && teams.length > 1 && (
+            <Button
+              size="sm"
+              variant={hasOrderChanges ? "default" : "outline"}
+              onClick={handleSaveOrder}
+              disabled={!hasOrderChanges || savingOrder}
+              className={hasOrderChanges ? "bg-blue-600 hover:bg-blue-700" : ""}
+            >
+              {savingOrder ? (
+                <>
+                  <Loader2Icon className="mr-1 h-4 w-4 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                <>
+                  <SaveIcon className="w-4 h-4 mr-1" />
+                  Guardar orden{hasOrderChanges && " *"}
+                </>
+              )}
+            </Button>
+          )}
           <Button
             size="sm"
             onClick={() => setDialogOpen(true)}
@@ -541,7 +667,7 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
           </p>
         ) : (
           <div className="space-y-2">
-            {[...teams].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0)).map((team, index) => {
+            {teamsToUse.map((team, index) => {
               // Validar que el equipo tenga jugadores válidos
               if (!team.player1 || !team.player2) {
                 return (
@@ -569,10 +695,8 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
                 );
               }
               
-              const sortedTeams = [...teams].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
-              const currentIndex = sortedTeams.findIndex(t => t.id === team.id);
-              const canMoveUp = currentIndex > 0;
-              const canMoveDown = currentIndex < sortedTeams.length - 1;
+              const canMoveUp = index > 0;
+              const canMoveDown = index < teamsToUse.length - 1;
               
               return (
                 <div
@@ -581,27 +705,30 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
                 >
                   <div className="flex items-center gap-3 flex-1">
                     {tournament.status === "draft" && !hasGroups && (
-                      <div className="flex flex-col gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => handleMoveUp(team.id, team.display_order ?? 0)}
-                          disabled={!canMoveUp}
-                          title="Mover arriba"
-                        >
-                          <ArrowUpIcon className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => handleMoveDown(team.id, team.display_order ?? 0)}
-                          disabled={!canMoveDown}
-                          title="Mover abajo"
-                        >
-                          <ArrowDownIcon className="h-3 w-3" />
-                        </Button>
+                      <div className="flex items-center gap-1">
+                        <GripVerticalIcon className="h-4 w-4 text-muted-foreground" />
+                        <div className="flex flex-col gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => handleMoveUp(team.id)}
+                            disabled={!canMoveUp}
+                            title="Mover arriba"
+                          >
+                            <ArrowUpIcon className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => handleMoveDown(team.id)}
+                            disabled={!canMoveDown}
+                            title="Mover abajo"
+                          >
+                            <ArrowDownIcon className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
                     )}
                     <div className="flex flex-col text-sm flex-1">
