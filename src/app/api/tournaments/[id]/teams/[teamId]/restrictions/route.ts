@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createRepositories } from "@/lib/repository-factory";
 
 type RouteParams = { params: { id: string; teamId: string } };
 
