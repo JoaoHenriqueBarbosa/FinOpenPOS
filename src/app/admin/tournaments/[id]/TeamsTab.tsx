@@ -39,7 +39,7 @@ import { cn } from "@/lib/utils";
 import { TeamScheduleRestrictionsDialog } from "@/components/team-schedule-restrictions-dialog";
 
 import type { PlayerDTO } from "@/models/dto/player";
-import type { TeamDTO, TournamentDTO, GroupsApiResponse } from "@/models/dto/tournament";
+import type { TeamDTO, TournamentDTO, GroupsApiResponse, TeamPlayer } from "@/models/dto/tournament";
 import { tournamentsService, playersService } from "@/services";
 
 // Fetch functions para React Query
@@ -130,7 +130,7 @@ export default function TeamsTab({ tournament }: { tournament: Pick<TournamentDT
   const hasGroups = groupsData?.groups && groupsData.groups.length > 0;
   const loading = loadingTeams || loadingPlayers || loadingGroups;
 
-  const fullName = (p: PlayerDTO | undefined | null) => {
+  const fullName = (p: PlayerDTO | TeamPlayer | { first_name?: string; last_name?: string } | undefined | null) => {
     if (!p || !p.first_name || !p.last_name) return "Jugador desconocido";
     return `${p.first_name} ${p.last_name}`;
   };
