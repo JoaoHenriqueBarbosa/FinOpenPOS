@@ -179,8 +179,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           sendLog(`Creados ${createdGroups.length} grupos`);
           sendProgress(40, "Asignando equipos a grupos...");
 
-          // Asignar equipos a grupos y crear matches
-          let index = 0;
+          // Asignar equipos usando patrón zig-zag para balancear niveles
           const groupTeamsPayload: {
             tournament_group_id: number;
             team_id: number;
@@ -188,10 +187,88 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           }[] = [];
           const matchesPayload: GroupMatchPayload[] = [];
 
+          // Crear arrays para almacenar los equipos asignados a cada zona
+          const teamsPerGroup: number[][] = createdGroups.map(() => []);
+          
+          const numGroups = createdGroups.length;
+          let teamIndex = 0;
+          let pass = 0; // Número de pasada (0 = ida, 1 = vuelta, 2 = ida, etc.)
+          
+          // Función para verificar si todas las zonas tienen su tamaño mínimo (3)
+          const allAtMinSize = () => {
+            return teamsPerGroup.every((teams, idx) => {
+              const minSize = Math.min(3, groupSizes[idx] ?? 3);
+              return teams.length >= minSize;
+            });
+          };
+          
+          // Función para verificar si hay zonas de 4 que aún no están completas
+          const hasIncompleteFourGroups = () => {
+            return groupSizes.some((size, idx) => size === 4 && teamsPerGroup[idx].length < 4);
+          };
+          
+          // Asignar equipos en zig-zag
+          while (teamIndex < teamIds.length) {
+            // Si todas las zonas tienen tamaño mínimo (3) y hay zonas de 4 incompletas,
+            // completar las zonas de 4 en orden A → B → C → ...
+            if (allAtMinSize() && hasIncompleteFourGroups()) {
+              let assignedAny = false;
+              for (let gIdx = 0; gIdx < numGroups && teamIndex < teamIds.length; gIdx++) {
+                const currentSize = groupSizes[gIdx] ?? 3;
+                // Solo asignar a zonas de 4 que aún no están completas
+                if (currentSize === 4 && teamsPerGroup[gIdx].length < 4) {
+                  teamsPerGroup[gIdx].push(teamIds[teamIndex]);
+                  teamIndex++;
+                  assignedAny = true;
+                }
+              }
+              // Si no se asignó ningún equipo en esta iteración, salir
+              if (!assignedAny) {
+                break;
+              }
+              continue; // Continuar con la siguiente iteración para completar más zonas de 4 si es necesario
+            }
+            
+            // Patrón zig-zag normal para las primeras posiciones
+            const isForwardPass = pass % 2 === 0; // ida (A→B→C) o vuelta (C→B→A)
+            let assignedInThisPass = false; // Para detectar si se asignó algún equipo en esta pasada
+            
+            if (isForwardPass) {
+              // Pasada hacia adelante: A → B → C → ...
+              for (let gIdx = 0; gIdx < numGroups && teamIndex < teamIds.length; gIdx++) {
+                const currentSize = groupSizes[gIdx] ?? 3;
+                // Solo asignar si la zona aún no está llena
+                if (teamsPerGroup[gIdx].length < currentSize) {
+                  teamsPerGroup[gIdx].push(teamIds[teamIndex]);
+                  teamIndex++;
+                  assignedInThisPass = true;
+                }
+              }
+            } else {
+              // Pasada hacia atrás: ... → C → B → A
+              for (let gIdx = numGroups - 1; gIdx >= 0 && teamIndex < teamIds.length; gIdx--) {
+                const currentSize = groupSizes[gIdx] ?? 3;
+                // Solo asignar si la zona aún no está llena
+                if (teamsPerGroup[gIdx].length < currentSize) {
+                  teamsPerGroup[gIdx].push(teamIds[teamIndex]);
+                  teamIndex++;
+                  assignedInThisPass = true;
+                }
+              }
+            }
+            
+            // Si no se asignó ningún equipo en esta pasada (todas las zonas están llenas), salir
+            if (!assignedInThisPass) {
+              break;
+            }
+            
+            pass++;
+          }
+
+          // Ahora asignar los equipos a los grupos en el orden final
           createdGroups.forEach((g, idx) => {
+            const idsForGroup = teamsPerGroup[idx] ?? [];
             const size = groupSizes[idx] ?? 3;
-            const idsForGroup = teamIds.slice(index, index + size);
-            index += size;
 
             idsForGroup.forEach((teamId) => {
               groupTeamsPayload.push({
