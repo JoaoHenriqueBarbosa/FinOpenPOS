@@ -1,5 +1,5 @@
 import { TournamentPlayoff, TournamentTeam } from "@/models/db";
-import type { ApiResponseStandings, GroupsApiResponse, PlayoffRow, TeamDTO, TournamentDTO, AvailableSchedule, ScheduleConfig } from "@/models/dto/tournament";
+import type { ApiResponseStandings, GroupsApiResponse, PlayoffRow, TeamDTO, TournamentDTO, AvailableSchedule, ScheduleConfig, TournamentPaymentsApiResponse, TournamentRegistrationPaymentDTO } from "@/models/dto/tournament";
 
 export interface CreateTournamentInput {
   name: string;
@@ -228,6 +228,47 @@ class TournamentsService {
       const errorMessage = errorData.error || errorData.message || "Error closing registration";
       throw new Error(errorMessage);
     }
+  }
+
+  async getRegistrationPayments(tournamentId: number): Promise<TournamentPaymentsApiResponse> {
+    const response = await fetch(`${this.baseUrl}/${tournamentId}/payments`);
+    if (!response.ok) {
+      throw new Error("Failed to fetch registration payments");
+    }
+    return response.json();
+  }
+
+  async createRegistrationPayment(
+    tournamentId: number,
+    teamId: number,
+    playerId: number,
+    payment: { has_paid?: boolean; payment_method_id?: number | null; notes?: string | null }
+  ): Promise<TournamentRegistrationPaymentDTO> {
+    const response = await fetch(`${this.baseUrl}/${tournamentId}/payments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tournament_team_id: teamId, player_id: playerId, ...payment }),
+    });
+    if (!response.ok) {
+      throw new Error("Failed to create registration payment");
+    }
+    return response.json();
+  }
+
+  async updateRegistrationPayment(
+    tournamentId: number,
+    paymentId: number,
+    updates: { has_paid?: boolean; payment_method_id?: number | null; notes?: string | null }
+  ): Promise<TournamentRegistrationPaymentDTO> {
+    const response = await fetch(`${this.baseUrl}/${tournamentId}/payments`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ payment_id: paymentId, ...updates }),
+    });
+    if (!response.ok) {
+      throw new Error("Failed to update registration payment");
+    }
+    return response.json();
   }
 }
 

@@ -16,6 +16,7 @@ export interface Tournament {
   status: TournamentStatus;
   has_super_tiebreak: boolean;
   match_duration: number;
+  registration_fee: number;
   created_at: string; // TIMESTAMP
 }
 
@@ -107,6 +108,7 @@ export interface CreateTournamentInput {
   end_date?: string | null;
   has_super_tiebreak?: boolean;
   match_duration?: number;
+  registration_fee?: number;
 }
 
 export interface CreateTournamentTeamInput {

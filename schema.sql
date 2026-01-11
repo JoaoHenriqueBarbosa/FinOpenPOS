@@ -2,6 +2,7 @@
 -- RESET (para desarrollo)
 -- =========================================================
 
+DROP TABLE IF EXISTS tournament_registration_payments;
 DROP TABLE IF EXISTS tournament_group_standings;
 DROP TABLE IF EXISTS tournament_playoffs;
 DROP TABLE IF EXISTS tournament_matches;
@@ -312,6 +313,8 @@ CREATE TABLE tournaments (
     has_super_tiebreak  BOOLEAN NOT NULL DEFAULT FALSE,
     -- 🔹 Duración estimada de un partido en minutos (por defecto 60 minutos = 1 hora)
     match_duration      INTEGER NOT NULL DEFAULT 60,
+    -- 🔹 Precio de inscripción por jugador
+    registration_fee    NUMERIC(10, 2) DEFAULT 0,
     created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -338,6 +341,50 @@ CREATE TABLE tournament_teams (
 -- =========================================================
 -- TOURNAMENT_TEAM_SCHEDULE_RESTRICTIONS (restricciones de equipos)
 -- =========================================================
+
+-- =========================================================
+-- TOURNAMENT_REGISTRATION_PAYMENTS (pagos de inscripciones por jugador)
+-- =========================================================
+
+CREATE TABLE tournament_registration_payments (
+    id                      BIGSERIAL PRIMARY KEY,
+    tournament_id           BIGINT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+    tournament_team_id      BIGINT NOT NULL REFERENCES tournament_teams(id) ON DELETE CASCADE,
+    player_id               BIGINT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+    user_uid                UUID NOT NULL,
+    
+    has_paid                BOOLEAN NOT NULL DEFAULT FALSE,
+    payment_method_id       BIGINT REFERENCES payment_methods(id),
+    
+    notes                   TEXT,
+    created_at              TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at              TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Un jugador solo puede tener un registro de pago por equipo/torneo
+    CONSTRAINT unique_player_payment_per_team UNIQUE (tournament_team_id, player_id)
+);
+
+-- Índices para búsquedas rápidas
+CREATE INDEX idx_tournament_registration_payments_tournament_id 
+    ON tournament_registration_payments(tournament_id);
+CREATE INDEX idx_tournament_registration_payments_team_id 
+    ON tournament_registration_payments(tournament_team_id);
+CREATE INDEX idx_tournament_registration_payments_player_id 
+    ON tournament_registration_payments(player_id);
+
+-- Trigger para actualizar updated_at automáticamente
+CREATE OR REPLACE FUNCTION update_tournament_registration_payments_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_update_tournament_registration_payments_updated_at
+    BEFORE UPDATE ON tournament_registration_payments
+    FOR EACH ROW
+    EXECUTE FUNCTION update_tournament_registration_payments_updated_at();
 
 CREATE TABLE tournament_team_schedule_restrictions (
     id                          BIGSERIAL PRIMARY KEY,

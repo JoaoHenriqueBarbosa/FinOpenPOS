@@ -13,6 +13,7 @@ export interface TournamentDTO {
   status: TournamentStatus;
   has_super_tiebreak: boolean;
   match_duration: number;
+  registration_fee: number;
   start_date?: string | null;
   end_date?: string | null;
 }
@@ -187,3 +188,34 @@ export interface ScheduleConfig {
   courtIds: number[];
 }
 
+// Tournament Registration Payment DTOs
+export interface TournamentRegistrationPaymentDTO {
+  id: number | null;
+  tournament_id: number;
+  tournament_team_id: number;
+  player_id: number;
+  has_paid: boolean;
+  payment_method_id: number | null;
+  payment_method?: {
+    id: number;
+    name: string;
+  } | null;
+  notes: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  player?: {
+    id: number;
+    first_name: string;
+    last_name: string;
+  };
+  team?: {
+    id: number;
+    display_name: string | null;
+    display_order: number;
+  };
+}
+
+export interface TournamentPaymentsApiResponse {
+  payments: TournamentRegistrationPaymentDTO[];
+  registration_fee: number;
+}
