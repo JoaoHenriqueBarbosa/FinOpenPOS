@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     const slots = await repos.courtSlots.generateSlotsForDate(
       slotDate,
       {
-        startHour: "13:00",
+        startHour: "10:00",
         endHour: "23:30",
         durationMinutes: 90,
       },
