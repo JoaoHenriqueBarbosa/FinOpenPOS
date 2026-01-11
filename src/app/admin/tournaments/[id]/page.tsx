@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/tabs";
 import { Loader2Icon, EditIcon, EyeIcon, Share2Icon } from "lucide-react";
 import TeamsTab from "./TeamsTab";
+import PaymentsTab from "./PaymentsTab";
 import ScheduleReviewTab from "./ScheduleReviewTab";
 import GroupsTab from "./GroupsTab";
 import StandingsTab from "./StandingsTab";
@@ -95,6 +96,12 @@ export default function TournamentDetailPage() {
                   Inscripción
                 </TabsTrigger>
                 <TabsTrigger 
+                  value="payments"
+                  disabled={tournament.status === "cancelled" || tournament.status === "finished"}
+                >
+                  Pagos
+                </TabsTrigger>
+                <TabsTrigger 
                   value="schedule-review" 
                   disabled={tournament.status !== "schedule_review"}
                 >
@@ -146,6 +153,12 @@ export default function TournamentDetailPage() {
           {activeTab === "teams" && (
             <TabsContent value="teams" className="pt-4">
               <TeamsTab tournament={tournament} />
+            </TabsContent>
+          )}
+
+          {activeTab === "payments" && (
+            <TabsContent value="payments" className="pt-4">
+              <PaymentsTab tournament={tournament} />
             </TabsContent>
           )}
 

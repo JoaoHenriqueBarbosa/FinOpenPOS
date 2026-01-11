@@ -21,6 +21,7 @@ import {
   TournamentMatchesRepository,
   TournamentPlayoffsRepository,
 } from "@/repositories/tournaments.repository";
+import { TournamentPaymentsRepository } from "@/repositories/tournament-payments.repository";
 
 /**
  * Factory function to create repositories with authenticated user context
@@ -90,6 +91,7 @@ export async function createRepositories() {
     tournamentGroups: new TournamentGroupsRepository(supabase, user.id),
     tournamentMatches: new TournamentMatchesRepository(supabase, user.id),
     tournamentPlayoffs: new TournamentPlayoffsRepository(supabase, user.id),
+    tournamentPayments: new TournamentPaymentsRepository(supabase, user.id),
   };
 }
 
