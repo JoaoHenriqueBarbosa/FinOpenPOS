@@ -41,7 +41,7 @@ import {
   TabsTrigger,
   TabsContent,
 } from "@/components/ui/tabs";
-import { Loader2Icon, PlusIcon, SearchIcon, FilePenIcon, ShoppingCartIcon, ReceiptIcon, CalendarIcon, BarChart3Icon, ArrowUpDownIcon, ArrowUpIcon, ArrowDownIcon } from "lucide-react";
+import { Loader2Icon, PlusIcon, SearchIcon, FilePenIcon, ShoppingCartIcon, ReceiptIcon, CalendarIcon, BarChart3Icon, ArrowUpDownIcon, ArrowUpIcon, ArrowDownIcon, UsersIcon } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { PlayerSearchSelect } from "@/components/player-search-select/PlayerSearchSelect";
 import Link from "next/link";
@@ -85,7 +85,12 @@ export default function OrdersPage() {
 
   // Leer el tab desde query params
   const tabFromQuery = searchParams.get("tab");
-  const initialTab = (tabFromQuery === "sales" ? "sales" : tabFromQuery === "statistics" ? "statistics" : "open-accounts") as "open-accounts" | "sales" | "statistics";
+  const initialTab = (
+    tabFromQuery === "sales" ? "sales" 
+    : tabFromQuery === "statistics" ? "statistics"
+    : tabFromQuery === "client-ranking" ? "client-ranking"
+    : "open-accounts"
+  ) as "open-accounts" | "sales" | "statistics" | "client-ranking";
   
   // Obtener fecha de hoy en formato YYYY-MM-DD
   const getTodayDate = () => {
@@ -93,7 +98,7 @@ export default function OrdersPage() {
     return today.toISOString().split('T')[0];
   };
 
-  const [activeTab, setActiveTab] = useState<"open-accounts" | "sales" | "statistics">(initialTab);
+  const [activeTab, setActiveTab] = useState<"open-accounts" | "sales" | "statistics" | "client-ranking">(initialTab);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilterOpenAccounts, setStatusFilterOpenAccounts] = useState<"all" | OrderStatus>("open");
   const [statusFilterSales, setStatusFilterSales] = useState<"all" | OrderStatus>("all");
@@ -123,6 +128,10 @@ export default function OrdersPage() {
   const [selectedProductId, setSelectedProductId] = useState<number | "all">("all");
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | "all">("all");
 
+  // Filtros para ranking de clientes
+  const [rankingFromDate, setRankingFromDate] = useState<string>(getTodayDate());
+  const [rankingToDate, setRankingToDate] = useState<string>(getTodayDate());
+
   // Cuando cambia el tab a "sales", establecer fechas de hoy si no están configuradas
   useEffect(() => {
     if (activeTab === "sales" && !fromDate && !toDate) {
@@ -139,6 +148,15 @@ export default function OrdersPage() {
       setStatsToDate(today);
     }
   }, [activeTab, statsFromDate, statsToDate]);
+
+  // Cuando cambia el tab a "client-ranking", establecer fechas de hoy si no están configuradas
+  useEffect(() => {
+    if (activeTab === "client-ranking" && !rankingFromDate && !rankingToDate) {
+      const today = getTodayDate();
+      setRankingFromDate(today);
+      setRankingToDate(today);
+    }
+  }, [activeTab, rankingFromDate, rankingToDate]);
 
   const [isNewOrderDialogOpen, setIsNewOrderDialogOpen] = useState(false);
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
@@ -216,6 +234,22 @@ export default function OrdersPage() {
       });
     },
     enabled: activeTab === "statistics",
+    staleTime: 1000 * 30, // 30 segundos
+  });
+
+  // Query para ranking de clientes
+  const {
+    data: clientRanking = [],
+    isLoading: loadingRanking,
+  } = useQuery({
+    queryKey: ["client-ranking", rankingFromDate, rankingToDate],
+    queryFn: async () => {
+      return ordersService.getClientRanking({
+        fromDate: rankingFromDate || undefined,
+        toDate: rankingToDate || undefined,
+      });
+    },
+    enabled: activeTab === "client-ranking",
     staleTime: 1000 * 30, // 30 segundos
   });
 
@@ -711,7 +745,7 @@ export default function OrdersPage() {
 
   return (
     <>
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "open-accounts" | "sales" | "statistics")}>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "open-accounts" | "sales" | "statistics" | "client-ranking")}>
         <TabsList className="mb-4">
           <TabsTrigger value="open-accounts">
             <FilePenIcon className="w-4 h-4 mr-2" />
@@ -724,6 +758,10 @@ export default function OrdersPage() {
           <TabsTrigger value="statistics">
             <BarChart3Icon className="w-4 h-4 mr-2" />
             Estadísticas de ventas
+          </TabsTrigger>
+          <TabsTrigger value="client-ranking">
+            <UsersIcon className="w-4 h-4 mr-2" />
+            Ranking de clientes
           </TabsTrigger>
         </TabsList>
 
@@ -1250,6 +1288,105 @@ export default function OrdersPage() {
                   Total facturado:{" "}
                   <span className="font-semibold">
                     ${statistics.reduce((sum, stat) => sum + stat.totalAmount, 0).toFixed(2)}
+                  </span>
+                </span>
+              </CardFooter>
+            )}
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="client-ranking">
+          <Card className="flex flex-col gap-6 p-6">
+            <CardHeader className="p-0 flex flex-col gap-4">
+              <CardTitle className="text-xl font-semibold">
+                Ranking de clientes
+              </CardTitle>
+
+              {/* Rango de fechas */}
+              <div className="flex flex-wrap gap-3 items-end">
+                <div className="space-y-1">
+                  <Label className="flex items-center gap-1 text-xs">
+                    <CalendarIcon className="w-3 h-3" />
+                    Desde
+                  </Label>
+                  <Input
+                    type="date"
+                    value={rankingFromDate}
+                    onChange={(e) => setRankingFromDate(e.target.value)}
+                    className="w-40"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="flex items-center gap-1 text-xs">
+                    <CalendarIcon className="w-3 h-3" />
+                    Hasta
+                  </Label>
+                  <Input
+                    type="date"
+                    value={rankingToDate}
+                    onChange={(e) => setRankingToDate(e.target.value)}
+                    className="w-40"
+                  />
+                </div>
+              </div>
+            </CardHeader>
+
+            <CardContent className="p-0">
+              {loadingRanking ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2Icon className="h-8 w-8 animate-spin" />
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-16">#</TableHead>
+                        <TableHead>Cliente</TableHead>
+                        <TableHead className="text-right">Cuentas</TableHead>
+                        <TableHead className="text-right font-semibold">Monto consumido</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {clientRanking.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center py-6">
+                            {rankingFromDate && rankingToDate
+                              ? "No hay ventas para mostrar en el rango de fechas seleccionado."
+                              : "Seleccioná un rango de fechas para ver el ranking."}
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        clientRanking.map((client, index) => (
+                          <TableRow key={client.playerId}>
+                            <TableCell className="font-mono text-xs text-muted-foreground">
+                              {index + 1}
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              {client.playerName}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {client.orderCount}
+                            </TableCell>
+                            <TableCell className="text-right font-semibold">
+                              ${client.totalAmount.toFixed(2)}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+
+            {!loadingRanking && clientRanking.length > 0 && (
+              <CardFooter className="flex justify-between text-sm text-muted-foreground">
+                <span>{clientRanking.length} clientes encontrados</span>
+                <span>
+                  Total facturado:{" "}
+                  <span className="font-semibold">
+                    ${clientRanking.reduce((sum, client) => sum + client.totalAmount, 0).toFixed(2)}
                   </span>
                 </span>
               </CardFooter>
