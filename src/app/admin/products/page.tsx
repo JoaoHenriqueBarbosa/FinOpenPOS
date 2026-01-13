@@ -661,60 +661,134 @@ export default function Products() {
               </div>
             </CardHeader>
 
-            <CardContent className="p-0">
-              {loadingStockStats ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2Icon className="h-8 w-8 animate-spin" />
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Producto</TableHead>
-                        <TableHead>Categoría</TableHead>
-                        <TableHead className="text-right">Compras</TableHead>
-                        <TableHead className="text-right">Ventas</TableHead>
-                        <TableHead className="text-right">Ajustes</TableHead>
-                        <TableHead className="text-right font-semibold">Stock actual</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {stockStatistics.length === 0 ? (
+            <div className="flex gap-6 items-start">
+              <div className="flex-1">
+                {loadingStockStats ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2Icon className="h-8 w-8 animate-spin" />
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
                         <TableRow>
-                          <TableCell colSpan={6} className="text-center py-6">
-                            {stockFromDate || stockToDate 
-                              ? "No hay movimientos de stock en el rango de fechas seleccionado."
-                              : "Seleccioná un rango de fechas para ver los movimientos de stock."}
-                          </TableCell>
+                          <TableHead>Producto</TableHead>
+                          <TableHead>Categoría</TableHead>
+                          <TableHead className="text-right">Compras</TableHead>
+                          <TableHead className="text-right">Ventas</TableHead>
+                          <TableHead className="text-right">Ajustes</TableHead>
+                          <TableHead className="text-right font-semibold">Stock actual</TableHead>
+                          <TableHead className="text-right">Precio unitario</TableHead>
+                          <TableHead className="text-right font-semibold">Valor de venta</TableHead>
                         </TableRow>
-                      ) : (
-                        stockStatistics.map((stat: StockStatisticsItem) => (
-                          <TableRow key={stat.productId}>
-                            <TableCell className="font-medium">{stat.productName}</TableCell>
-                            <TableCell>{stat.categoryName ?? "-"}</TableCell>
-                            <TableCell className="text-right text-green-600">
-                              +{stat.totalPurchases}
-                            </TableCell>
-                            <TableCell className="text-right text-red-600">
-                              -{stat.totalSales}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {stat.totalAdjustments > 0 ? "+" : ""}{stat.totalAdjustments}
-                            </TableCell>
-                            <TableCell className="text-right font-semibold">
-                              {stat.currentStock}
+                      </TableHeader>
+                      <TableBody>
+                        {stockStatistics.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={8} className="text-center py-6">
+                              {stockFromDate || stockToDate 
+                                ? "No hay movimientos de stock en el rango de fechas seleccionado."
+                                : "Seleccioná un rango de fechas para ver los movimientos de stock."}
                             </TableCell>
                           </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
+                        ) : (
+                          stockStatistics.map((stat: StockStatisticsItem) => {
+                            const product = products.find(p => p.id === stat.productId);
+                            const productPrice = product?.price ?? 0;
+                            const saleValue = productPrice * stat.currentStock;
+                            
+                            return (
+                              <TableRow key={stat.productId}>
+                                <TableCell className="font-medium">{stat.productName}</TableCell>
+                                <TableCell>{stat.categoryName ?? "-"}</TableCell>
+                                <TableCell className="text-right text-green-600">
+                                  +{stat.totalPurchases}
+                                </TableCell>
+                                <TableCell className="text-right text-red-600">
+                                  -{stat.totalSales}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {stat.totalAdjustments > 0 ? "+" : ""}{stat.totalAdjustments}
+                                </TableCell>
+                                <TableCell className="text-right font-semibold">
+                                  {stat.currentStock}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  ${productPrice.toFixed(2)}
+                                </TableCell>
+                                <TableCell className="text-right font-semibold">
+                                  ${saleValue.toFixed(2)}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
 
-            {stockStatistics.length > 0 && (
+              {/* Resumen */}
+              {!loadingStockStats && stockStatistics.length > 0 && (
+                <Card className="h-fit w-80 flex-shrink-0">
+                  <CardHeader>
+                    <CardTitle className="text-lg font-semibold">Resumen de stock</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {(() => {
+                      // Calcular valor de venta por categoría
+                      const valueByCategory = new Map<string | null, number>();
+                      let totalValue = 0;
+
+                      stockStatistics.forEach((stat: StockStatisticsItem) => {
+                        const product = products.find(p => p.id === stat.productId);
+                        const productPrice = product?.price ?? 0;
+                        const saleValue = productPrice * stat.currentStock;
+                        totalValue += saleValue;
+
+                        const categoryName = stat.categoryName ?? "Sin categoría";
+                        const currentValue = valueByCategory.get(categoryName) ?? 0;
+                        valueByCategory.set(categoryName, currentValue + saleValue);
+                      });
+
+                      // Ordenar categorías por valor (mayor a menor)
+                      const sortedCategories = Array.from(valueByCategory.entries())
+                        .sort((a, b) => b[1] - a[1]);
+
+                      return (
+                        <>
+                          <div className="space-y-3">
+                            <div className="text-sm font-semibold">Valor por categoría</div>
+                            {sortedCategories.length > 0 ? (
+                              <div className="space-y-2">
+                                {sortedCategories.map(([categoryName, value]) => (
+                                  <div key={categoryName} className="flex items-center justify-between text-sm">
+                                    <span className="text-muted-foreground">{categoryName}</span>
+                                    <span className="font-medium">${value.toFixed(2)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="text-xs text-muted-foreground">No hay productos con stock</div>
+                            )}
+                          </div>
+
+                          <div className="border-t pt-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-semibold">Total general</span>
+                              <span className="text-xl font-bold">${totalValue.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+
+            {!loadingStockStats && stockStatistics.length > 0 && (
               <CardFooter className="flex justify-between text-sm text-muted-foreground">
                 <span>{stockStatistics.length} productos con movimientos</span>
               </CardFooter>
