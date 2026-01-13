@@ -193,6 +193,26 @@ class OrdersService {
     }
     return response.json();
   }
+
+  async getClientRanking(params: {
+    fromDate?: string;
+    toDate?: string;
+  }): Promise<Array<{
+    playerId: number;
+    playerName: string;
+    totalAmount: number;
+    orderCount: number;
+  }>> {
+    const searchParams = new URLSearchParams();
+    if (params.fromDate) searchParams.set('fromDate', params.fromDate);
+    if (params.toDate) searchParams.set('toDate', params.toDate);
+
+    const response = await fetch(`${this.baseUrl}/client-ranking?${searchParams.toString()}`);
+    if (!response.ok) {
+      throw new Error("Error al cargar el ranking de clientes");
+    }
+    return response.json();
+  }
 }
 
 export const ordersService = new OrdersService();
