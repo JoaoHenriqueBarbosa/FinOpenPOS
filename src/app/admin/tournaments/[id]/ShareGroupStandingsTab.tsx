@@ -198,6 +198,30 @@ export default function ShareGroupStandingsTab({ tournament }: { tournament: Pic
                     return bGameDiff - aGameDiff;
                   });
 
+                // Obtener equipos del grupo para mostrar cuando no hay standings
+                const groupTeams = (data.groupTeams || [])
+                  .filter((gt) => gt.tournament_group_id === group.id)
+                  .map((gt) => gt.team)
+                  .filter((team): team is NonNullable<typeof team> => team !== null);
+
+                // Si no hay standings pero hay equipos, crear standings vacíos
+                const displayStandings = groupStandings.length > 0 
+                  ? groupStandings 
+                  : groupTeams.map((team, index) => ({
+                      id: team.id,
+                      tournament_group_id: group.id,
+                      team_id: team.id,
+                      position: index + 1,
+                      matches_played: 0,
+                      wins: 0,
+                      losses: 0,
+                      sets_won: 0,
+                      sets_lost: 0,
+                      games_won: 0,
+                      games_lost: 0,
+                      team: team,
+                    }));
+
                 const groupMatches = data.matches
                   .filter((m) => m.tournament_group_id === group.id)
                   .sort((a, b) => {
@@ -291,8 +315,8 @@ export default function ShareGroupStandingsTab({ tournament }: { tournament: Pic
                             </tr>
                           </thead>
                           <tbody>
-                            {groupStandings.length > 0 ? (
-                              groupStandings.map((standing) => (
+                            {displayStandings.length > 0 ? (
+                              displayStandings.map((standing) => (
                                 <tr key={standing.id} className="border-b">
                                   <td className="px-2 py-1.5 text-center font-semibold">
                                     {standing.position ?? "—"}
