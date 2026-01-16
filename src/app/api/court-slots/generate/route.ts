@@ -33,12 +33,12 @@ export async function POST(request: Request) {
       );
     }
 
-    // Generate slots
+    // Generate slots (incluye el slot adicional de 23:30 a 01:00 si endHour es 01:00)
     const slots = await repos.courtSlots.generateSlotsForDate(
       slotDate,
       {
         startHour: "10:00",
-        endHour: "23:30",
+        endHour: "01:00",
         durationMinutes: 90,
       },
       courts.map((c) => c.id)

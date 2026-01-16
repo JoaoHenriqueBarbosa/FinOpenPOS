@@ -426,8 +426,17 @@ export class CourtSlotsRepository extends BaseRepository {
     const [startH, startM] = config.startHour.split(':').map(Number);
     const [endH, endM] = config.endHour.split(':').map(Number);
 
+    // Detectar si endHour cruza la medianoche (endHour < startHour, ej: 01:00 < 10:00)
+    const startMinutes = startH * 60 + startM;
+    const endMinutes = endH * 60 + endM;
+    const crossesMidnight = endMinutes < startMinutes;
+
+    // Si cruza la medianoche, generar slots hasta 23:30 y luego agregar el slot adicional
+    const effectiveEndHour = crossesMidnight ? "23:30" : config.endHour;
+
     let current = new Date(year, month - 1, day, startH, startM, 0);
-    const dayEnd = new Date(year, month - 1, day, endH, endM, 0);
+    const [effectiveEndH, effectiveEndM] = effectiveEndHour.split(':').map(Number);
+    const dayEnd = new Date(year, month - 1, day, effectiveEndH, effectiveEndM, 0);
 
     const toTimeString = (d: Date) => {
       const hours = String(d.getHours()).padStart(2, '0');
@@ -450,6 +459,14 @@ export class CourtSlotsRepository extends BaseRepository {
 
       if (next >= dayEnd) break;
       current = next;
+    }
+
+    // Si cruza la medianoche, agregar el slot adicional de 23:30 a 01:00
+    if (crossesMidnight) {
+      timeSlots.push({
+        start: "23:30",
+        end: config.endHour, // Será "01:00"
+      });
     }
 
     if (timeSlots.length === 0) {
