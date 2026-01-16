@@ -374,6 +374,13 @@ export default function StandingsTab({ tournament }: { tournament: Pick<Tourname
                                           {match.set3_team1_games}-
                                           {match.set3_team2_games}
                                         </span>
+                                        {match.super_tiebreak_team1_points !== null &&
+                                          match.super_tiebreak_team2_points !== null && (
+                                            <span className="text-muted-foreground text-[10px] ml-1">
+                                              ({match.super_tiebreak_team1_points}-
+                                              {match.super_tiebreak_team2_points})
+                                            </span>
+                                          )}
                                       </>
                                     )}
                                 </div>

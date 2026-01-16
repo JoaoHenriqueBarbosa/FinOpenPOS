@@ -89,6 +89,8 @@ export async function GET(_req: Request, { params }: RouteParams) {
       set2_team2_games,
       set3_team1_games,
       set3_team2_games,
+      super_tiebreak_team1_points,
+      super_tiebreak_team2_points,
       team1_sets,
       team2_sets,
       team1:team1_id (

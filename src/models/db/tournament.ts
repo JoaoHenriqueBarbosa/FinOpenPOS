@@ -69,6 +69,8 @@ export interface TournamentMatch {
   set2_team2_games: number | null;
   set3_team1_games: number | null;
   set3_team2_games: number | null;
+  super_tiebreak_team1_points: number | null;
+  super_tiebreak_team2_points: number | null;
   team1_sets: number;
   team2_sets: number;
   team1_games_total: number;

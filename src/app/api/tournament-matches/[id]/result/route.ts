@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { validateMatchSets } from "@/lib/match-validation";
+import { validateMatchSets, validateSuperTiebreak } from "@/lib/match-validation";
 
 type RouteParams = { params: { id: string } };
 
@@ -43,8 +43,9 @@ export async function POST(req: Request, { params }: RouteParams) {
   }
 
   const body = await req.json();
-  const { sets } = body as {
+  const { sets, superTiebreak } = body as {
     sets: { team1: number | null; team2: number | null }[];
+    superTiebreak?: { team1: number | null; team2: number | null };
   };
 
   const [s1, s2, s3] = sets ?? [];
@@ -54,23 +55,6 @@ export async function POST(req: Request, { params }: RouteParams) {
   const set2_team2_games = s2?.team2 ?? null;
   const set3_team1_games = s3?.team1 ?? null;
   const set3_team2_games = s3?.team2 ?? null;
-
-  let team1Sets = 0;
-  let team2Sets = 0;
-  let team1GamesTotal = 0;
-  let team2GamesTotal = 0;
-
-  const addSet = (a?: number | null, b?: number | null) => {
-    if (a == null || b == null) return;
-    team1GamesTotal += a;
-    team2GamesTotal += b;
-    if (a > b) team1Sets += 1;
-    else if (b > a) team2Sets += 1;
-  };
-
-  addSet(set1_team1_games, set1_team2_games);
-  addSet(set2_team1_games, set2_team2_games);
-  addSet(set3_team1_games, set3_team2_games);
 
   // Obtener el match completo con información del torneo y fase
   const { data: match, error: matchError } = await supabase
@@ -264,11 +248,90 @@ export async function POST(req: Request, { params }: RouteParams) {
     }
   }
 
+  const thirdSetPlayed = set3_team1_games !== null && set3_team2_games !== null;
+  const providedSuperTiebreak =
+    superTiebreak &&
+    superTiebreak.team1 !== null &&
+    superTiebreak.team2 !== null
+      ? {
+          team1: superTiebreak.team1,
+          team2: superTiebreak.team2,
+        }
+      : null;
+
+  if (providedSuperTiebreak && !hasSuperTiebreak) {
+    return NextResponse.json(
+      { error: "No corresponde registrar un super tie-break para este torneo" },
+      { status: 400 }
+    );
+  }
+
+  if (providedSuperTiebreak) {
+    const superValidation = validateSuperTiebreak(
+      providedSuperTiebreak.team1,
+      providedSuperTiebreak.team2
+    );
+    if (!superValidation.valid) {
+      return NextResponse.json(
+        { error: superValidation.error || "Puntuación inválida del super tie-break" },
+        { status: 400 }
+      );
+    }
+
+    if (!thirdSetPlayed) {
+      return NextResponse.json(
+        { error: "Debe completar el tercer set cuando se registra un super tie-break" },
+        { status: 400 }
+      );
+    }
+  }
+
+  let finalSet3Team1Games = set3_team1_games;
+  let finalSet3Team2Games = set3_team2_games;
+  let thirdSetWinner: "team1" | "team2" | null = null;
+
+  if (thirdSetPlayed) {
+    if (set3_team1_games === set3_team2_games) {
+      return NextResponse.json(
+        { error: "El tercer set no puede terminar empatado" },
+        { status: 400 }
+      );
+    }
+    thirdSetWinner = set3_team1_games > set3_team2_games ? "team1" : "team2";
+  }
+
+  if (providedSuperTiebreak) {
+    const superWinner =
+      providedSuperTiebreak.team1 > providedSuperTiebreak.team2 ? "team1" : "team2";
+    if (thirdSetWinner && thirdSetWinner !== superWinner) {
+      return NextResponse.json(
+        { error: "El ganador del super tie-break debe coincidir con el tercer set" },
+        { status: 400 }
+      );
+    }
+    thirdSetWinner = superWinner;
+  }
+
+  if (hasSuperTiebreak && thirdSetWinner) {
+    if (thirdSetWinner === "team1") {
+      finalSet3Team1Games = 7;
+      finalSet3Team2Games = 6;
+    } else {
+      finalSet3Team1Games = 6;
+      finalSet3Team2Games = 7;
+    }
+  }
+
+  const superTiebreakPointsToStore =
+    hasSuperTiebreak && thirdSetWinner && providedSuperTiebreak
+      ? providedSuperTiebreak
+      : null;
+
   // Validar los sets antes de guardar
   const validation = validateMatchSets(
     { team1: set1_team1_games, team2: set1_team2_games },
     { team1: set2_team1_games, team2: set2_team2_games },
-    { team1: set3_team1_games, team2: set3_team2_games },
+    { team1: finalSet3Team1Games, team2: finalSet3Team2Games },
     hasSuperTiebreak
   );
 
@@ -278,6 +341,31 @@ export async function POST(req: Request, { params }: RouteParams) {
       { status: 400 }
     );
   }
+
+  const computedSets = [
+    { team1: set1_team1_games, team2: set1_team2_games },
+    { team1: set2_team1_games, team2: set2_team2_games },
+  ];
+
+  if (finalSet3Team1Games !== null && finalSet3Team2Games !== null) {
+    computedSets.push({
+      team1: finalSet3Team1Games,
+      team2: finalSet3Team2Games,
+    });
+  }
+
+  let team1Sets = 0;
+  let team2Sets = 0;
+  let team1GamesTotal = 0;
+  let team2GamesTotal = 0;
+
+  computedSets.forEach(({ team1, team2 }) => {
+    if (team1 === null || team2 === null) return;
+    team1GamesTotal += team1;
+    team2GamesTotal += team2;
+    if (team1 > team2) team1Sets += 1;
+    else if (team2 > team1) team2Sets += 1;
+  });
 
   // Determinar el ganador
   const winnerTeamId = team1Sets > team2Sets ? match.team1_id : match.team2_id;
@@ -290,8 +378,10 @@ export async function POST(req: Request, { params }: RouteParams) {
       set1_team2_games,
       set2_team1_games,
       set2_team2_games,
-      set3_team1_games,
-      set3_team2_games,
+      set3_team1_games: finalSet3Team1Games,
+      set3_team2_games: finalSet3Team2Games,
+      super_tiebreak_team1_points: superTiebreakPointsToStore?.team1 ?? null,
+      super_tiebreak_team2_points: superTiebreakPointsToStore?.team2 ?? null,
       team1_sets: team1Sets,
       team2_sets: team2Sets,
       team1_games_total: team1GamesTotal,
@@ -864,6 +954,8 @@ export async function DELETE(req: Request, { params }: RouteParams) {
       set2_team2_games: null,
       set3_team1_games: null,
       set3_team2_games: null,
+      super_tiebreak_team1_points: null,
+      super_tiebreak_team2_points: null,
       team1_sets: 0,
       team2_sets: 0,
       team1_games_total: 0,
