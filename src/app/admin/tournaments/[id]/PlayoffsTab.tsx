@@ -261,7 +261,8 @@ export default function PlayoffsTab({ tournament }: { tournament: Pick<Tournamen
                 variant="outline"
                 size="sm"
                 onClick={handleSimulateResults}
-                disabled={simulatingResults}
+                disabled={true}
+                hidden={true}
               >
                 {simulatingResults ? (
                   <>
