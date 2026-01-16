@@ -196,7 +196,7 @@ export function useDayReport(
     [localSlots]
   );
 
-  const notPlayedByCourtType = useMemo(() => {
+  const playedByCourtType = useMemo(() => {
     const groups: Record<string, string[]> = {
       INDOOR: [],
       OUTDOOR: [],
@@ -204,7 +204,7 @@ export function useDayReport(
     };
 
     for (const slot of localSlots) {
-      if (slot.was_played) continue;
+      if (!slot.was_played) continue;
 
       const courtType = getCourtType(slot.court?.name);
       const timeRange = `${formatTime(slot.start_time)} - ${formatTime(
@@ -240,7 +240,7 @@ export function useDayReport(
     dayReport,
     totalRevenue,
     notPlayedSlots,
-    notPlayedByCourtType,
+    playedByCourtType,
     unpaidByCourtType,
   };
 }

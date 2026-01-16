@@ -150,7 +150,7 @@ export default function CourtSlotsPage() {
   }, [slots, pendingChanges, paymentMethods]);
 
   // Hook de reporte
-  const { dayReport, totalRevenue, notPlayedByCourtType, unpaidByCourtType } = useDayReport(
+  const { dayReport, totalRevenue, playedByCourtType, unpaidByCourtType } = useDayReport(
     localSlots,
     paymentMethods
   );
@@ -274,7 +274,7 @@ export default function CourtSlotsPage() {
       localSlots,
       dayReport,
       totalRevenue,
-      notPlayedByCourtType as Record<string, string[]>,
+      playedByCourtType as Record<string, string[]>,
       unpaidByCourtType as Record<string, Array<{ courtName: string; timeRange: string; unpaidCount: number }>>,
       dayNoteData || null,
       dayNotes
@@ -348,7 +348,7 @@ export default function CourtSlotsPage() {
             selectedDate={selectedDate}
             dayReport={dayReport}
             totalRevenue={totalRevenue}
-            notPlayedByCourtType={notPlayedByCourtType}
+            playedByCourtType={playedByCourtType}
             unpaidByCourtType={unpaidByCourtType}
             onDownloadPdf={handleDownloadPdfClick}
             hasSlots={localSlots.length > 0}
