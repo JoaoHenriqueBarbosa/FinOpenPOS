@@ -225,11 +225,21 @@ export function validateMatchSets(
 
   // Validate set 3 (solo si tiene valores)
   if (set3.team1 !== null || set3.team2 !== null) {
-    const set3Validation = hasSuperTiebreak
-      ? validateSuperTiebreak(set3.team1, set3.team2)
-      : validateNormalSet(set3.team1, set3.team2);
-    if (!set3Validation.valid) {
-      return { valid: false, error: `Set 3: ${set3Validation.error}` };
+    if (hasSuperTiebreak) {
+      const isValidSuperGames =
+        (set3.team1 === 7 && set3.team2 === 6) ||
+        (set3.team2 === 7 && set3.team1 === 6);
+      if (!isValidSuperGames) {
+        return {
+          valid: false,
+          error: "Set 3 de super tie-break debe registrarse como 7-6 para el ganador",
+        };
+      }
+    } else {
+      const set3Validation = validateNormalSet(set3.team1, set3.team2);
+      if (!set3Validation.valid) {
+        return { valid: false, error: `Set 3: ${set3Validation.error}` };
+      }
     }
   }
 

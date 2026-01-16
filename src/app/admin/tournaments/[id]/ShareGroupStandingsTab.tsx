@@ -422,6 +422,13 @@ export default function ShareGroupStandingsTab({ tournament }: { tournament: Pic
                                             <span>
                                               {match.set3_team1_games}-{match.set3_team2_games}
                                             </span>
+                                        {match.super_tiebreak_team1_points !== null &&
+                                          match.super_tiebreak_team2_points !== null && (
+                                            <span className="text-gray-500 text-[10px] ml-1">
+                                              ({match.super_tiebreak_team1_points}-
+                                              {match.super_tiebreak_team2_points})
+                                            </span>
+                                          )}
                                           </>
                                         )}
                                     </div>

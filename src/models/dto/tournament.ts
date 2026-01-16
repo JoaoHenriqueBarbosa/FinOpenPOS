@@ -94,6 +94,8 @@ export interface MatchDTO {
   set2_team2_games: number | null;
   set3_team1_games: number | null;
   set3_team2_games: number | null;
+  super_tiebreak_team1_points: number | null;
+  super_tiebreak_team2_points: number | null;
   team1: TeamDTO | null;
   team2: TeamDTO | null;
 }
@@ -137,6 +139,8 @@ export interface PlayoffRow {
     set2_team2_games: number | null;
     set3_team1_games: number | null;
     set3_team2_games: number | null;
+    super_tiebreak_team1_points: number | null;
+    super_tiebreak_team2_points: number | null;
     team1: (TeamDTO & {
       standings?: Array<{
         position: number;

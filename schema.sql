@@ -463,6 +463,9 @@ CREATE TABLE tournament_matches (
     set3_team1_games    INTEGER,
     set3_team2_games    INTEGER,
 
+    super_tiebreak_team1_points INTEGER,
+    super_tiebreak_team2_points INTEGER,
+
     -- 🔹 Totales (podés recalcularlos desde los sets)
     team1_sets          INTEGER DEFAULT 0,
     team2_sets          INTEGER DEFAULT 0,
