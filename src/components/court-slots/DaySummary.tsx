@@ -24,7 +24,7 @@ interface DaySummaryProps {
     }>;
   };
   totalRevenue: number;
-  notPlayedByCourtType: Record<string, string[]>;
+  playedByCourtType: Record<string, string[]>;
   unpaidByCourtType: Record<string, Array<{ courtName: string; timeRange: string; unpaidCount: number }>>;
   onDownloadPdf: () => void;
   hasSlots: boolean;
@@ -34,7 +34,7 @@ export function DaySummary({
   selectedDate,
   dayReport,
   totalRevenue,
-  notPlayedByCourtType,
+  playedByCourtType,
   unpaidByCourtType,
   onDownloadPdf,
   hasSlots,
@@ -174,40 +174,40 @@ export function DaySummary({
         {/* Separador */}
         <div className="border-t border-border"></div>
 
-        {/* 3. TURNOS NO JUGADOS */}
+        {/* 3. TURNOS JUGADOS */}
         <div className="space-y-2">
-          <h2 className="text-sm font-semibold">3. Turnos no jugados</h2>
+          <h2 className="text-sm font-semibold">3. Turnos jugados</h2>
 
-          {dayReport.notPlayedSlots === 0 ? (
+          {dayReport.playedSlots === 0 ? (
             <p className="text-xs text-muted-foreground">
-              Todos los turnos se jugaron.
+              No se jugaron turnos.
             </p>
           ) : (
             <>
               <div className="space-y-2 text-xs">
-                {notPlayedByCourtType.INDOOR.length > 0 && (
+                {playedByCourtType.INDOOR.length > 0 && (
                   <div>
                     <h3 className="text-xs font-semibold mb-1">INDOOR</h3>
                     <p className="text-[11px] text-muted-foreground pl-2">
-                      {notPlayedByCourtType.INDOOR.join(", ")}
+                      {playedByCourtType.INDOOR.join(", ")}
                     </p>
                   </div>
                 )}
 
-                {notPlayedByCourtType.OUTDOOR.length > 0 && (
+                {playedByCourtType.OUTDOOR.length > 0 && (
                   <div>
                     <h3 className="text-xs font-semibold mb-1">OUTDOOR</h3>
                     <p className="text-[11px] text-muted-foreground pl-2">
-                      {notPlayedByCourtType.OUTDOOR.join(", ")}
+                      {playedByCourtType.OUTDOOR.join(", ")}
                     </p>
                   </div>
                 )}
 
-                {notPlayedByCourtType.OTRAS.length > 0 && (
+                {playedByCourtType.OTRAS.length > 0 && (
                   <div>
                     <h3 className="text-xs font-semibold mb-1">OTRAS</h3>
                     <p className="text-[11px] text-muted-foreground pl-2">
-                      {notPlayedByCourtType.OTRAS.join(", ")}
+                      {playedByCourtType.OTRAS.join(", ")}
                     </p>
                   </div>
                 )}
@@ -216,7 +216,7 @@ export function DaySummary({
               {/* Resumen */}
               <div className="pt-2 border-t border-border/50">
                 <p className="text-xs font-semibold">
-                  Resumen: {dayReport.notPlayedSlots} turno(s) sin jugar
+                  Resumen: {dayReport.playedSlots} turno(s) jugados
                 </p>
               </div>
             </>

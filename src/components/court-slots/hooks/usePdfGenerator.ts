@@ -25,7 +25,7 @@ type DayReport = {
   }>;
 };
 
-type NotPlayedByCourtType = Record<string, string[]>;
+type PlayedByCourtType = Record<string, string[]>;
 type UnpaidByCourtType = Record<string, Array<{ courtName: string; timeRange: string; unpaidCount: number }>>;
 
 export function usePdfGenerator() {
@@ -34,7 +34,7 @@ export function usePdfGenerator() {
     localSlots: CourtSlotDTO[],
     dayReport: DayReport,
     totalRevenue: number,
-    notPlayedByCourtType: NotPlayedByCourtType,
+    playedByCourtType: PlayedByCourtType,
     unpaidByCourtType: UnpaidByCourtType,
     dayNoteData: CourtSlotDayNoteDTO | null,
     dayNotes: string
@@ -190,17 +190,17 @@ export function usePdfGenerator() {
     doc.line(14, y, 196, y);
     y += 8;
 
-    // 3. TURNOS NO JUGADOS
+    // 3. TURNOS JUGADOS
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
-    doc.text("3. Turnos no jugados", 14, y);
+    doc.text("3. Turnos jugados", 14, y);
     y += 8;
 
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
 
-    if (dayReport.notPlayedSlots === 0) {
-      doc.text("Todos los turnos se jugaron.", 14, y);
+    if (dayReport.playedSlots === 0) {
+      doc.text("No se jugaron turnos.", 14, y);
       y += 8;
     } else {
       const printGroup = (label: string, items: string[]) => {
@@ -219,9 +219,9 @@ export function usePdfGenerator() {
         y += 7;
       };
 
-      printGroup("INDOOR", notPlayedByCourtType.INDOOR);
-      printGroup("OUTDOOR", notPlayedByCourtType.OUTDOOR);
-      printGroup("OTRAS", notPlayedByCourtType.OTRAS);
+      printGroup("INDOOR", playedByCourtType.INDOOR);
+      printGroup("OUTDOOR", playedByCourtType.OUTDOOR);
+      printGroup("OTRAS", playedByCourtType.OTRAS);
 
       // Resumen
       if (y > 280) {
@@ -234,7 +234,7 @@ export function usePdfGenerator() {
       doc.setFontSize(10);
       doc.setFont("helvetica", "bold");
       doc.text(
-        `Resumen: ${dayReport.notPlayedSlots} turno(s) sin jugar`,
+        `Resumen: ${dayReport.playedSlots} turno(s) jugados`,
         14,
         y
       );
