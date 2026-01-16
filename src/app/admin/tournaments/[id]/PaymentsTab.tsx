@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -156,6 +156,35 @@ export default function PaymentsTab({
   const totalExpected = totalPlayers * registrationFee;
   const totalPaid = paidPlayers * registrationFee;
 
+  // Calcular recaudación por medio de pago
+  const revenueByPaymentMethod = useMemo(() => {
+    const revenueMap = new Map<number, { name: string; amount: number; count: number }>();
+
+    payments.forEach(payment => {
+      const key = getPaymentKey(payment.tournament_team_id, payment.player_id);
+      const local = localPayments.get(key);
+      const hasPaid = local ? local.has_paid : payment.has_paid;
+      const methodId = local?.payment_method_id ?? payment.payment_method_id;
+
+      if (hasPaid && methodId) {
+        const method = paymentMethodsList.find(m => m.id === methodId);
+        const methodName = method?.name || `Método #${methodId}`;
+        
+        const existing = revenueMap.get(methodId) || {
+          name: methodName,
+          amount: 0,
+          count: 0,
+        };
+        
+        existing.amount += registrationFee;
+        existing.count += 1;
+        revenueMap.set(methodId, existing);
+      }
+    });
+
+    return Array.from(revenueMap.values()).sort((a, b) => b.amount - a.amount);
+  }, [payments, localPayments, paymentMethodsList, registrationFee]);
+
   if (isLoading) {
     return (
       <Card>
@@ -177,23 +206,49 @@ export default function PaymentsTab({
       <CardContent>
         <div className="space-y-4">
           {/* Resumen de pagos */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-muted rounded-lg">
-            <div>
-              <div className="text-sm text-muted-foreground">Precio por jugador</div>
-              <div className="text-2xl font-bold">${registrationFee.toFixed(2)}</div>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4 bg-muted rounded-lg">
+              <div>
+                <div className="text-sm text-muted-foreground">Precio por jugador</div>
+                <div className="text-2xl font-bold">${registrationFee.toFixed(2)}</div>
+              </div>
+              <div>
+                <div className="text-sm text-muted-foreground">Total jugadores</div>
+                <div className="text-2xl font-bold">{totalPlayers}</div>
+              </div>
+              <div>
+                <div className="text-sm text-muted-foreground">Jugadores pagados</div>
+                <div className="text-2xl font-bold text-green-600">{paidPlayers}</div>
+              </div>
+              <div>
+                <div className="text-sm text-muted-foreground">Total recaudado</div>
+                <div className="text-2xl font-bold text-green-600">${totalPaid.toFixed(2)}</div>
+              </div>
+              <div>
+                <div className="text-sm text-muted-foreground">Faltante recaudado</div>
+                <div className="text-2xl font-bold text-red-600">${(totalExpected - totalPaid).toFixed(2)}</div>
+              </div>
             </div>
-            <div>
-              <div className="text-sm text-muted-foreground">Total jugadores</div>
-              <div className="text-2xl font-bold">{totalPlayers}</div>
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground">Jugadores pagados</div>
-              <div className="text-2xl font-bold text-green-600">{paidPlayers}</div>
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground">Total recaudado</div>
-              <div className="text-2xl font-bold text-green-600">${totalPaid.toFixed(2)}</div>
-            </div>
+
+            {/* Recaudación por medio de pago */}
+            {revenueByPaymentMethod.length > 0 && (
+              <div className="p-4 bg-muted rounded-lg border">
+                <h3 className="text-sm font-semibold mb-3">Recaudación por medio de pago</h3>
+                <div className="space-y-2">
+                  {revenueByPaymentMethod.map((method) => (
+                    <div key={method.name} className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        {method.name}
+                        <span className="ml-2 text-xs">({method.count} jug.)</span>
+                      </span>
+                      <span className="font-semibold">
+                        ${method.amount.toFixed(2)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end">
