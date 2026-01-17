@@ -156,17 +156,6 @@ export async function POST(req: Request, { params }: RouteParams) {
     );
   }
 
-  // chequear que todos los partidos estén finished
-  const unplayed = (matches as MatchRow[]).filter(
-    (m) => m.status !== "finished"
-  );
-  if (unplayed.length > 0) {
-    return NextResponse.json(
-      { error: "Hay partidos de zona que aún no están finalizados. Completá todos los resultados antes de generar los playoffs." },
-      { status: 400 }
-    );
-  }
-
   // 5) calcular standings por grupo
   type Stand = {
     team_id: number;
@@ -194,6 +183,9 @@ export async function POST(req: Request, { params }: RouteParams) {
   });
 
   for (const m of matches as MatchRow[]) {
+    if (m.status !== "finished") {
+      continue;
+    }
     const gid = m.tournament_group_id;
     if (!gid) continue;
 
