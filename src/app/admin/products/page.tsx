@@ -83,6 +83,7 @@ export default function Products() {
   // Filtros para control de stock
   const [stockFromDate, setStockFromDate] = useState<string>("");
   const [stockToDate, setStockToDate] = useState<string>("");
+  const [stockCategoryFilter, setStockCategoryFilter] = useState<"all" | number>("all");
   
   // Dialog para ajuste de stock
   const [isAdjustmentDialogOpen, setIsAdjustmentDialogOpen] = useState(false);
@@ -183,11 +184,12 @@ export default function Products() {
     isLoading: loadingStockStats,
     refetch: refetchStockStats,
   } = useQuery({
-    queryKey: ["stock-statistics", stockFromDate, stockToDate],
+    queryKey: ["stock-statistics", stockFromDate, stockToDate, stockCategoryFilter],
     queryFn: async () => {
       return stockMovementsService.getStatistics({
         fromDate: stockFromDate || undefined,
         toDate: stockToDate || undefined,
+        categoryId: stockCategoryFilter === "all" ? undefined : Number(stockCategoryFilter),
       });
     },
     enabled: activeTab === "stock",
@@ -657,6 +659,34 @@ export default function Products() {
                     onChange={(e) => setStockToDate(e.target.value)}
                     className="w-40"
                   />
+                </div>
+                <div className="space-y-1">
+                  <Label className="flex items-center gap-1 text-xs">
+                    <WarehouseIcon className="w-3 h-3" />
+                    Categoría
+                  </Label>
+                  <Select
+                    value={stockCategoryFilter === "all" ? "all" : String(stockCategoryFilter)}
+                    onValueChange={(value) => {
+                      if (value === "all") {
+                        setStockCategoryFilter("all");
+                      } else {
+                        setStockCategoryFilter(Number(value));
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="Todas" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas</SelectItem>
+                      {categories.map((cat) => (
+                        <SelectItem key={cat.id} value={String(cat.id)}>
+                          {cat.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </CardHeader>
