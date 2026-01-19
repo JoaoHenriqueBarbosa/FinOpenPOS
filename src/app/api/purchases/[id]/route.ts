@@ -94,8 +94,19 @@ export async function PATCH(request: Request, { params }: RouteParams) {
         0
       );
 
-      // Delete all existing items
+      // Fetch current items (for reference) and delete them
+      const existingItems = await repos.purchaseItems.findByPurchaseId(purchaseId);
       await repos.purchaseItems.deleteByPurchaseId(purchaseId);
+
+      // Remove previous stock movements asociados a esta compra
+      {
+        const { createClient } = await import("@/lib/supabase/server");
+        const supabase = createClient();
+        await supabase
+          .from("stock_movements")
+          .delete()
+          .ilike("notes", `Purchase #${purchaseId}%`);
+      }
 
       // Create new items
       for (const item of body.items) {
