@@ -23,10 +23,14 @@ class StockMovementsService {
   async getStatistics(params: {
     fromDate?: string;
     toDate?: string;
+    categoryId?: number | null;
   }): Promise<StockStatisticsItem[]> {
     const searchParams = new URLSearchParams();
     if (params.fromDate) searchParams.set('fromDate', params.fromDate);
     if (params.toDate) searchParams.set('toDate', params.toDate);
+    if (params.categoryId !== undefined && params.categoryId !== null) {
+      searchParams.set('categoryId', params.categoryId.toString());
+    }
 
     const response = await fetch(`${this.baseUrl}/statistics?${searchParams.toString()}`);
     if (!response.ok) {

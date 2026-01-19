@@ -26,6 +26,8 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const fromDate = url.searchParams.get('fromDate');
     const toDate = url.searchParams.get('toDate');
+    const categoryIdParam = url.searchParams.get('categoryId');
+    const categoryId = categoryIdParam ? Number(categoryIdParam) : null;
 
     // Obtener movimientos de stock con información del producto
     let query = supabase
@@ -103,9 +105,11 @@ export async function GET(request: Request) {
     });
 
     // Convertir a array y ordenar por nombre de producto
-    const statistics = Array.from(productStats.values()).sort(
-      (a, b) => a.productName.localeCompare(b.productName)
-    );
+    const filteredStats = categoryId
+      ? Array.from(productStats.values()).filter((item) => item.categoryId === categoryId)
+      : Array.from(productStats.values());
+
+    const statistics = filteredStats.sort((a, b) => a.productName.localeCompare(b.productName));
 
     return NextResponse.json(statistics);
   } catch (error) {
