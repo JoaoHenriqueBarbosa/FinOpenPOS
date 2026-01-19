@@ -250,9 +250,12 @@ CREATE TABLE stock_movements (
   quantity      INTEGER NOT NULL,
   unit_cost     NUMERIC(10, 2),
   notes         TEXT,
+  purchase_id   BIGINT REFERENCES purchases(id),
   user_uid      UUID NOT NULL,
   created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX idx_stock_movements_purchase_id ON stock_movements(purchase_id);
 
 -- =========================================================
 -- SUPPLIERS (proveedores)

@@ -105,7 +105,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
         await supabase
           .from("stock_movements")
           .delete()
-          .ilike("notes", `Purchase #${purchaseId}%`);
+          .eq("purchase_id", purchaseId);
       }
 
       // Create new items
@@ -242,6 +242,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
         quantity: Number(item.quantity),
         unit_cost: Number(item.unitCost),
         notes: `Purchase #${purchaseId} from supplier: ${supplier.name}`,
+        purchase_id: purchaseId,
         user_uid: user.id,
       }));
 

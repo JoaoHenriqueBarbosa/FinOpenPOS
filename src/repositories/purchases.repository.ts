@@ -268,6 +268,7 @@ export class PurchasesRepository extends BaseRepository {
       quantity: item.quantity,
       unit_cost: item.unitCost,
       notes: `Purchase #${purchase.id} from supplier: ${supplier.name}`,
+      purchase_id: purchase.id,
       user_uid: this.userId,
     }));
 
