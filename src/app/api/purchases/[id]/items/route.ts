@@ -72,6 +72,7 @@ export async function POST(request: Request, { params }: RouteParams) {
         quantity: Number(quantity),
         unit_cost: Number(unitCost),
         notes: `Purchase #${purchaseId} from supplier: ${supplier?.name || "Unknown"}`,
+        purchase_id: purchaseId,
         user_uid: user.id,
       });
 
