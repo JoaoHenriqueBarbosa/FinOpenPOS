@@ -18,6 +18,7 @@ DROP TABLE IF EXISTS court_slots;
 DROP TABLE IF EXISTS courts;
 DROP TABLE IF EXISTS order_items;
 DROP TABLE IF EXISTS orders;
+DROP TABLE IF EXISTS partners;
 DROP TABLE IF EXISTS players;
 DROP TABLE IF EXISTS products;
 DROP TABLE IF EXISTS product_categories;
@@ -65,6 +66,30 @@ CREATE TABLE players (
 
     category         VARCHAR(50),   -- ej: "4ta", "5ta"
     female_category  VARCHAR(50),   -- ej: "7ma" femenina si aplica
+    notes            TEXT,
+
+    status           VARCHAR(20) NOT NULL DEFAULT 'active'
+                     CHECK (status IN ('active', 'inactive')),
+
+    created_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =========================================================
+-- PARTNERS (dueños/propietarios de la sociedad)
+-- =========================================================
+-- Tabla para gestionar los partners (dueños del negocio en una sociedad)
+-- Los partners se crean y editan directamente desde la base de datos
+-- La aplicación solo permite lectura
+
+CREATE TABLE partners (
+    id               BIGSERIAL PRIMARY KEY,
+    user_uid         UUID NOT NULL,
+
+    first_name       VARCHAR(255) NOT NULL,
+    last_name        VARCHAR(255) NOT NULL,
+    phone            VARCHAR(30)  NOT NULL,
+
+    email            VARCHAR(255),
     notes            TEXT,
 
     status           VARCHAR(20) NOT NULL DEFAULT 'active'
@@ -227,6 +252,7 @@ CREATE TABLE transactions (
 
     order_id          BIGINT REFERENCES orders(id),
     player_id         BIGINT REFERENCES players(id),
+    partner_id        BIGINT REFERENCES partners(id),
     payment_method_id BIGINT REFERENCES payment_methods(id),
 
     description       TEXT,

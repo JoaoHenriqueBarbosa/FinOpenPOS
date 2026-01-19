@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 type Body = {
   amount: number;
   description: string;
-  player_id: number;
+  player_id: number; // Usado para referenciar al socio
   payment_method_id?: number | null;
 };
 
@@ -22,6 +22,7 @@ export async function POST(req: Request) {
     } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    // player_id in the service refers to partner_id in the database
     const { data, error } = await supabase
       .from("transactions")
       .insert({
@@ -30,7 +31,7 @@ export async function POST(req: Request) {
         description,
         type: "withdrawal",
         status: "completed",
-        player_id,
+        partner_id: player_id, // Use partner_id instead of player_id
         payment_method_id: payment_method_id ?? null,
       })
       .select()

@@ -22,14 +22,27 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { transactionsService } from "@/services/transactions.service";
+import { partnersService, type PartnerDTO } from "@/services/partners.service";
+import { paymentMethodsService } from "@/services/purchases.service";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Label } from "@/components/ui/label";
 
 export default function BalancePage() {
   const queryClient = useQueryClient();
   const [adjustmentAmount, setAdjustmentAmount] = useState("");
   const [adjustmentDescription, setAdjustmentDescription] = useState("");
+  const [adjustmentPaymentMethodId, setAdjustmentPaymentMethodId] = useState<string>("");
   const [withdrawalAmount, setWithdrawalAmount] = useState("");
   const [withdrawalDescription, setWithdrawalDescription] = useState("");
-  const [withdrawalPlayerId, setWithdrawalPlayerId] = useState("");
+  const [withdrawalPlayerId, setWithdrawalPlayerId] = useState<string>("");
+  const [withdrawalPaymentMethodId, setWithdrawalPaymentMethodId] = useState<string>("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "income" | "expense" | "adjustment" | "withdrawal">("all");
@@ -47,16 +60,32 @@ export default function BalancePage() {
     staleTime: 1000 * 30,
   });
 
+  // Load active partners
+  const { data: partners = [], isLoading: isLoadingPartners } = useQuery({
+    queryKey: ["partners"],
+    queryFn: () => partnersService.getAll(true), // only active
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+
+  // Load payment methods (for BAR scope)
+  const { data: paymentMethods = [] } = useQuery({
+    queryKey: ["payment-methods", "BAR"],
+    queryFn: () => paymentMethodsService.getAll(true, "BAR"),
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+
   const adjustmentMutation = useMutation({
     mutationFn: () =>
       transactionsService.createAdjustment({
         amount: Number(adjustmentAmount),
         description: adjustmentDescription,
+        payment_method_id: adjustmentPaymentMethodId ? Number(adjustmentPaymentMethodId) : null,
       }),
     onSuccess: () => {
       toast.success("Ajuste registrado");
       setAdjustmentAmount("");
       setAdjustmentDescription("");
+      setAdjustmentPaymentMethodId("");
       queryClient.invalidateQueries({ queryKey: ["transactions-balance"] });
     },
   });
@@ -67,12 +96,14 @@ export default function BalancePage() {
         amount: Number(withdrawalAmount),
         description: withdrawalDescription,
         player_id: Number(withdrawalPlayerId),
+        payment_method_id: withdrawalPaymentMethodId ? Number(withdrawalPaymentMethodId) : null,
       }),
     onSuccess: () => {
       toast.success("Retiro registrado");
       setWithdrawalAmount("");
       setWithdrawalDescription("");
       setWithdrawalPlayerId("");
+      setWithdrawalPaymentMethodId("");
       queryClient.invalidateQueries({ queryKey: ["transactions-balance"] });
     },
   });
@@ -239,24 +270,101 @@ export default function BalancePage() {
         </Card>
       )}
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Partners</CardTitle>
+          <CardDescription>Lista de partners activos del sistema</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoadingPartners ? (
+            <div className="text-center py-6 text-muted-foreground">Cargando partners...</div>
+          ) : partners.length === 0 ? (
+            <div className="text-center py-6 text-muted-foreground">No hay partners registrados.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>ID</TableHead>
+                    <TableHead>Nombre</TableHead>
+                    <TableHead>Apellido</TableHead>
+                    <TableHead>Teléfono</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Estado</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {partners.map((partner: PartnerDTO) => (
+                    <TableRow key={partner.id}>
+                      <TableCell className="font-medium">{partner.id}</TableCell>
+                      <TableCell>{partner.first_name}</TableCell>
+                      <TableCell>{partner.last_name}</TableCell>
+                      <TableCell>{partner.phone}</TableCell>
+                      <TableCell>{partner.email || "-"}</TableCell>
+                      <TableCell>
+                        <span
+                          className={`px-2 py-1 rounded text-xs ${
+                            partner.status === "active"
+                              ? "bg-green-100 text-green-800"
+                              : "bg-gray-100 text-gray-800"
+                          }`}
+                        >
+                          {partner.status === "active" ? "Activo" : "Inactivo"}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <Dialog open={isAdjustmentDialogOpen} onOpenChange={setIsAdjustmentDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Registrar ajuste</DialogTitle>
-            <DialogDescription>Ingresá el monto y detalle del ajuste.</DialogDescription>
+            <DialogDescription>Ingresá el monto, método de pago y detalle del ajuste.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
-            <Input
-              type="number"
-              placeholder="Monto"
-              value={adjustmentAmount}
-              onChange={(e) => setAdjustmentAmount(e.target.value)}
-            />
-            <Input
-              placeholder="Descripción"
-              value={adjustmentDescription}
-              onChange={(e) => setAdjustmentDescription(e.target.value)}
-            />
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="adjustment-amount">Monto</Label>
+              <Input
+                id="adjustment-amount"
+                type="number"
+                placeholder="Monto"
+                value={adjustmentAmount}
+                onChange={(e) => setAdjustmentAmount(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="adjustment-payment-method">Método de Pago</Label>
+              <Select
+                value={adjustmentPaymentMethodId || undefined}
+                onValueChange={(value) => setAdjustmentPaymentMethodId(value)}
+              >
+                <SelectTrigger id="adjustment-payment-method">
+                  <SelectValue placeholder="Seleccionar método de pago (opcional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {paymentMethods.map((method) => (
+                    <SelectItem key={method.id} value={method.id.toString()}>
+                      {method.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="adjustment-description">Descripción</Label>
+              <Input
+                id="adjustment-description"
+                placeholder="Descripción del ajuste"
+                value={adjustmentDescription}
+                onChange={(e) => setAdjustmentDescription(e.target.value)}
+              />
+            </div>
           </div>
           <DialogFooter className="flex justify-end gap-2 mt-4">
             <Button variant="outline" onClick={() => setIsAdjustmentDialogOpen(false)}>
@@ -278,26 +386,64 @@ export default function BalancePage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Registrar retiro</DialogTitle>
-            <DialogDescription>Registrá el retiro de socio con descripción.</DialogDescription>
+            <DialogDescription>Seleccioná el partner y registrá el retiro con descripción.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
-            <Input
-              type="number"
-              placeholder="Monto"
-              value={withdrawalAmount}
-              onChange={(e) => setWithdrawalAmount(e.target.value)}
-            />
-            <Input
-              placeholder="Descripción"
-              value={withdrawalDescription}
-              onChange={(e) => setWithdrawalDescription(e.target.value)}
-            />
-            <Input
-              type="number"
-              placeholder="ID del socio"
-              value={withdrawalPlayerId}
-              onChange={(e) => setWithdrawalPlayerId(e.target.value)}
-            />
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="withdrawal-player">Partner</Label>
+              <Select
+                value={withdrawalPlayerId}
+                onValueChange={(value) => setWithdrawalPlayerId(value)}
+              >
+                <SelectTrigger id="withdrawal-player">
+                  <SelectValue placeholder="Seleccionar partner" />
+                </SelectTrigger>
+                <SelectContent>
+                  {partners.map((partner: PartnerDTO) => (
+                    <SelectItem key={partner.id} value={partner.id.toString()}>
+                      {partner.first_name} {partner.last_name} {partner.phone && `- ${partner.phone}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="withdrawal-amount">Monto</Label>
+              <Input
+                id="withdrawal-amount"
+                type="number"
+                placeholder="Monto"
+                value={withdrawalAmount}
+                onChange={(e) => setWithdrawalAmount(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="withdrawal-payment-method">Método de Pago</Label>
+              <Select
+                value={withdrawalPaymentMethodId || undefined}
+                onValueChange={(value) => setWithdrawalPaymentMethodId(value)}
+              >
+                <SelectTrigger id="withdrawal-payment-method">
+                  <SelectValue placeholder="Seleccionar método de pago (opcional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {paymentMethods.map((method) => (
+                    <SelectItem key={method.id} value={method.id.toString()}>
+                      {method.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="withdrawal-description">Descripción</Label>
+              <Input
+                id="withdrawal-description"
+                placeholder="Descripción del retiro"
+                value={withdrawalDescription}
+                onChange={(e) => setWithdrawalDescription(e.target.value)}
+              />
+            </div>
           </div>
           <DialogFooter className="flex justify-end gap-2 mt-4">
             <Button variant="outline" onClick={() => setIsWithdrawalDialogOpen(false)}>
