@@ -78,6 +78,7 @@ export default function BalancePage() {
   });
 
   const summary = data?.summary ?? {};
+  const balanceByPaymentMethod = data?.balanceByPaymentMethod ?? [];
 
   return (
     <div className="space-y-6">
@@ -143,6 +144,100 @@ export default function BalancePage() {
           </div>
         </CardContent>
       </Card>
+
+      {balanceByPaymentMethod.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Balance por Método de Pago</CardTitle>
+            <CardDescription>
+              Desglose de ingresos, gastos, retiros y ajustes por método de pago
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left p-2 font-semibold">Método de Pago</th>
+                    <th className="text-right p-2 font-semibold">Ingresos</th>
+                    <th className="text-right p-2 font-semibold">Gastos</th>
+                    <th className="text-right p-2 font-semibold">Retiros</th>
+                    <th className="text-right p-2 font-semibold">Ajustes</th>
+                    <th className="text-right p-2 font-semibold">Balance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {balanceByPaymentMethod.map((method, index) => (
+                    <tr key={index} className="border-b hover:bg-muted/50">
+                      <td className="p-2">
+                        {method.payment_method_name || "Sin método de pago"}
+                      </td>
+                      <td className="text-right p-2 text-green-600">
+                        ${method.incomes.toFixed(2)}
+                      </td>
+                      <td className="text-right p-2 text-red-600">
+                        ${method.expenses.toFixed(2)}
+                      </td>
+                      <td className="text-right p-2 text-red-600">
+                        ${method.withdrawals.toFixed(2)}
+                      </td>
+                      <td className="text-right p-2 text-blue-600">
+                        ${method.adjustments.toFixed(2)}
+                      </td>
+                      <td className="text-right p-2 font-bold">
+                        <span
+                          className={
+                            method.balance >= 0 ? "text-green-600" : "text-red-600"
+                          }
+                        >
+                          ${method.balance.toFixed(2)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 font-bold">
+                    <td className="p-2">TOTAL</td>
+                    <td className="text-right p-2 text-green-600">
+                      ${balanceByPaymentMethod.reduce((sum, m) => sum + m.incomes, 0).toFixed(2)}
+                    </td>
+                    <td className="text-right p-2 text-red-600">
+                      ${balanceByPaymentMethod.reduce((sum, m) => sum + m.expenses, 0).toFixed(2)}
+                    </td>
+                    <td className="text-right p-2 text-red-600">
+                      $
+                      {balanceByPaymentMethod
+                        .reduce((sum, m) => sum + m.withdrawals, 0)
+                        .toFixed(2)}
+                    </td>
+                    <td className="text-right p-2 text-blue-600">
+                      $
+                      {balanceByPaymentMethod
+                        .reduce((sum, m) => sum + m.adjustments, 0)
+                        .toFixed(2)}
+                    </td>
+                    <td className="text-right p-2">
+                      <span
+                        className={
+                          balanceByPaymentMethod.reduce((sum, m) => sum + m.balance, 0) >= 0
+                            ? "text-green-600"
+                            : "text-red-600"
+                        }
+                      >
+                        $
+                        {balanceByPaymentMethod
+                          .reduce((sum, m) => sum + m.balance, 0)
+                          .toFixed(2)}
+                      </span>
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Dialog open={isAdjustmentDialogOpen} onOpenChange={setIsAdjustmentDialogOpen}>
         <DialogContent>
