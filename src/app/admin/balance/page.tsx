@@ -70,18 +70,18 @@ export default function BalancePage() {
     staleTime: 1000 * 30,
   });
 
-  // Load active partners
+  // Cargar socios activos
   const { data: partners = [], isLoading: isLoadingPartners } = useQuery({
     queryKey: ["partners"],
-    queryFn: () => partnersService.getAll(true), // only active
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    queryFn: () => partnersService.getAll(true), // solo activos
+    staleTime: 1000 * 60 * 5, // 5 minutos
   });
 
-  // Load payment methods (for BAR scope)
+  // Cargar métodos de pago (para scope BAR)
   const { data: paymentMethods = [] } = useQuery({
     queryKey: ["payment-methods", "BAR"],
     queryFn: () => paymentMethodsService.getAll(true, "BAR"),
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 5, // 5 minutos
   });
 
   const adjustmentMutation = useMutation({
@@ -165,10 +165,10 @@ export default function BalancePage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="income">Income</SelectItem>
-                  <SelectItem value="expense">Expense</SelectItem>
-                  <SelectItem value="adjustment">Adjustment</SelectItem>
-                  <SelectItem value="withdrawal">Withdrawal</SelectItem>
+                  <SelectItem value="income">Ingresos</SelectItem>
+                  <SelectItem value="expense">Gastos</SelectItem>
+                  <SelectItem value="adjustment">Ajustes</SelectItem>
+                  <SelectItem value="withdrawal">Retiros</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -176,10 +176,15 @@ export default function BalancePage() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {["income", "expense", "adjustment", "withdrawal"].map((type) => (
-              <div key={type} className="border rounded-lg p-4 shadow-sm">
-                <div className="text-xs uppercase text-muted-foreground">{type}</div>
-                <div className="text-2xl font-bold">${(summary[type] ?? 0).toFixed(2)}</div>
+            {[
+              { key: "income", label: "Ingresos" },
+              { key: "expense", label: "Gastos" },
+              { key: "adjustment", label: "Ajustes" },
+              { key: "withdrawal", label: "Retiros" },
+            ].map(({ key, label }) => (
+              <div key={key} className="border rounded-lg p-4 shadow-sm">
+                <div className="text-xs uppercase text-muted-foreground">{label}</div>
+                <div className="text-2xl font-bold">${(summary[key] ?? 0).toFixed(2)}</div>
               </div>
             ))}
           </div>
@@ -282,14 +287,14 @@ export default function BalancePage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Partners</CardTitle>
-          <CardDescription>Lista de partners activos del sistema</CardDescription>
+          <CardTitle>Socios</CardTitle>
+          <CardDescription>Lista de socios activos del sistema</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoadingPartners ? (
-            <div className="text-center py-6 text-muted-foreground">Cargando partners...</div>
+            <div className="text-center py-6 text-muted-foreground">Cargando socios...</div>
           ) : partners.length === 0 ? (
-            <div className="text-center py-6 text-muted-foreground">No hay partners registrados.</div>
+            <div className="text-center py-6 text-muted-foreground">No hay socios registrados.</div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -396,17 +401,17 @@ export default function BalancePage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Registrar retiro</DialogTitle>
-            <DialogDescription>Seleccioná el partner y registrá el retiro con descripción.</DialogDescription>
+            <DialogDescription>Seleccioná el socio y registrá el retiro con descripción.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="withdrawal-player">Partner</Label>
+              <Label htmlFor="withdrawal-player">Socio</Label>
               <Select
                 value={withdrawalPlayerId}
                 onValueChange={(value) => setWithdrawalPlayerId(value)}
               >
                 <SelectTrigger id="withdrawal-player">
-                  <SelectValue placeholder="Seleccionar partner" />
+                  <SelectValue placeholder="Seleccionar socio" />
                 </SelectTrigger>
                 <SelectContent>
                   {partners.map((partner: PartnerDTO) => (
