@@ -34,6 +34,16 @@ import {
 } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
 
+type BalanceByPaymentMethod = {
+  payment_method_id: number | null;
+  payment_method_name: string | null;
+  incomes: number;
+  expenses: number;
+  withdrawals: number;
+  adjustments: number;
+  balance: number;
+};
+
 export default function BalancePage() {
   const queryClient = useQueryClient();
   const [adjustmentAmount, setAdjustmentAmount] = useState("");
@@ -198,7 +208,7 @@ export default function BalancePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {balanceByPaymentMethod.map((method, index) => (
+                  {balanceByPaymentMethod.map((method: BalanceByPaymentMethod, index: number) => (
                     <tr key={index} className="border-b hover:bg-muted/50">
                       <td className="p-2">
                         {method.payment_method_name || "Sin método de pago"}
@@ -231,34 +241,34 @@ export default function BalancePage() {
                   <tr className="border-t-2 font-bold">
                     <td className="p-2">TOTAL</td>
                     <td className="text-right p-2 text-green-600">
-                      ${balanceByPaymentMethod.reduce((sum, m) => sum + m.incomes, 0).toFixed(2)}
+                      ${balanceByPaymentMethod.reduce((sum, m: BalanceByPaymentMethod) => sum + m.incomes, 0).toFixed(2)}
                     </td>
                     <td className="text-right p-2 text-red-600">
-                      ${balanceByPaymentMethod.reduce((sum, m) => sum + m.expenses, 0).toFixed(2)}
+                      ${balanceByPaymentMethod.reduce((sum, m: BalanceByPaymentMethod) => sum + m.expenses, 0).toFixed(2)}
                     </td>
                     <td className="text-right p-2 text-red-600">
                       $
                       {balanceByPaymentMethod
-                        .reduce((sum, m) => sum + m.withdrawals, 0)
+                        .reduce((sum, m: BalanceByPaymentMethod) => sum + m.withdrawals, 0)
                         .toFixed(2)}
                     </td>
                     <td className="text-right p-2 text-blue-600">
                       $
                       {balanceByPaymentMethod
-                        .reduce((sum, m) => sum + m.adjustments, 0)
+                        .reduce((sum, m: BalanceByPaymentMethod) => sum + m.adjustments, 0)
                         .toFixed(2)}
                     </td>
                     <td className="text-right p-2">
                       <span
                         className={
-                          balanceByPaymentMethod.reduce((sum, m) => sum + m.balance, 0) >= 0
+                          balanceByPaymentMethod.reduce((sum, m: BalanceByPaymentMethod) => sum + m.balance, 0) >= 0
                             ? "text-green-600"
                             : "text-red-600"
                         }
                       >
                         $
                         {balanceByPaymentMethod
-                          .reduce((sum, m) => sum + m.balance, 0)
+                          .reduce((sum, m: BalanceByPaymentMethod) => sum + m.balance, 0)
                           .toFixed(2)}
                       </span>
                     </td>
