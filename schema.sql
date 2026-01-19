@@ -232,7 +232,7 @@ CREATE TABLE transactions (
     description       TEXT,
     amount            NUMERIC(10, 2) NOT NULL,
     type              VARCHAR(20) NOT NULL
-                       CHECK (type IN ('income', 'expense')),
+                       CHECK (type IN ('income', 'expense', 'adjustment', 'withdrawal')),
     status            VARCHAR(20) NOT NULL DEFAULT 'completed'
                        CHECK (status IN ('pending', 'completed', 'failed')),
     created_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
