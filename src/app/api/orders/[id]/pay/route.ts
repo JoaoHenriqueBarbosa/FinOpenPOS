@@ -18,8 +18,11 @@ async function getOrderWithItems(
         id,
         player_id,
         total_amount,
+        discount_percentage,
+        discount_amount,
         status,
         created_at,
+        closed_at,
         player:player_id ( first_name, last_name )
       `
     )
@@ -47,9 +50,41 @@ async function getOrderWithItems(
     throw new Error("Error fetching order items");
   }
 
+  // Si la orden está cerrada, obtener información de la transacción y método de pago
+  let paymentInfo = null;
+  if (order.status === "closed") {
+    const { data: transaction } = await supabase
+      .from("transactions")
+      .select(
+        `
+          id,
+          payment_method_id,
+          amount,
+          payment_method:payment_methods!payment_method_id (
+            id,
+            name
+          )
+        `
+      )
+      .eq("order_id", orderId)
+      .eq("type", "income")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (transaction) {
+      paymentInfo = {
+        payment_method_id: transaction.payment_method_id,
+        payment_method: transaction.payment_method,
+        amount: transaction.amount,
+      };
+    }
+  }
+
   return {
     ...order,
     items: items ?? [],
+    payment_info: paymentInfo,
   };
 }
 
@@ -108,6 +143,13 @@ export async function POST(request: Request, { params }: RouteParams) {
     body.amount !== undefined && body.amount !== null
       ? Number(body.amount)
       : null;
+  // Descuentos
+  const discountPercentage = body.discount_percentage !== undefined && body.discount_percentage !== null
+    ? Number(body.discount_percentage)
+    : null;
+  const discountAmount = body.discount_amount !== undefined && body.discount_amount !== null
+    ? Number(body.discount_amount)
+    : null;
 
   if (!paymentMethodId || Number.isNaN(paymentMethodId)) {
     return NextResponse.json(
@@ -157,19 +199,39 @@ export async function POST(request: Request, { params }: RouteParams) {
     }
 
     // 3) Recalcular total por seguridad
-    const total = await recalcOrderTotal(supabase, orderId, user.id);
+    const subtotal = await recalcOrderTotal(supabase, orderId, user.id);
 
-    if (total <= 0) {
+    if (subtotal <= 0) {
       return NextResponse.json(
         { error: "Order total is zero" },
         { status: 400 }
       );
     }
 
-    // 4) Determinar monto a cobrar
-    const amount = amountInput && !Number.isNaN(amountInput)
+    // 4) Calcular descuento y total final
+    let discountValue = 0;
+    let finalTotal = subtotal;
+
+    // Si hay descuento porcentual, calcularlo
+    if (discountPercentage !== null && !Number.isNaN(discountPercentage) && discountPercentage > 0) {
+      discountValue = (subtotal * discountPercentage) / 100;
+      finalTotal = subtotal - discountValue;
+    }
+    // Si hay descuento por monto fijo, usarlo (tiene prioridad sobre porcentual si ambos están presentes)
+    if (discountAmount !== null && !Number.isNaN(discountAmount) && discountAmount > 0) {
+      discountValue = discountAmount;
+      finalTotal = subtotal - discountValue;
+    }
+
+    // Asegurar que el total final no sea negativo
+    if (finalTotal < 0) {
+      finalTotal = 0;
+    }
+
+    // 5) Determinar monto a cobrar (si viene amountInput, usarlo; sino usar el total con descuento)
+    const amount = amountInput && !Number.isNaN(amountInput) && amountInput > 0
       ? amountInput
-      : total;
+      : finalTotal;
 
     if (amount <= 0) {
       return NextResponse.json(
@@ -195,7 +257,11 @@ export async function POST(request: Request, { params }: RouteParams) {
       );
     }
 
-    // 6) Crear transaction
+    // 6) Crear transaction con el monto final (ya con descuento aplicado)
+    const description = discountValue > 0
+      ? `Payment for order #${orderId} (${paymentMethod.name}) - Discount: $${discountValue.toFixed(2)}`
+      : `Payment for order #${orderId} (${paymentMethod.name})`;
+    
     const { error: txError } = await supabase.from("transactions").insert({
       order_id: orderId,
       payment_method_id: paymentMethodId,
@@ -203,7 +269,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       user_uid: user.id,
       type: "income",
       status: "completed",
-      description: `Payment for order #${orderId} (${paymentMethod.name})`,
+      description,
     });
 
     if (txError) {
@@ -238,13 +304,24 @@ export async function POST(request: Request, { params }: RouteParams) {
       );
     }
 
-    // 8) Marcar order como completed y setear closed_at
+    // 8) Marcar order como completed, setear closed_at, guardar descuentos y actualizar total_amount
+    const updateData: any = {
+      status: "closed",
+      closed_at: new Date().toISOString(),
+      total_amount: finalTotal, // Guardar el total final con descuento aplicado
+    };
+
+    // Guardar descuentos si fueron proporcionados
+    if (discountPercentage !== null && !Number.isNaN(discountPercentage)) {
+      updateData.discount_percentage = discountPercentage;
+    }
+    if (discountAmount !== null && !Number.isNaN(discountAmount)) {
+      updateData.discount_amount = discountAmount;
+    }
+
     const { error: updateOrderError } = await supabase
       .from("orders")
-      .update({ 
-        status: "closed",
-        closed_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq("id", orderId);
 
     if (updateOrderError) {

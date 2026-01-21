@@ -59,6 +59,10 @@ export default function OrderDetailPage() {
     number | "none"
   >("none");
 
+  // Descuentos
+  const [discountPercentage, setDiscountPercentage] = useState<number | null>(null);
+  const [discountAmount, setDiscountAmount] = useState<number | null>(null);
+
   // Ya no necesitamos estados separados - usamos isPending de las mutations
 
   // ---- Queries ----
@@ -123,6 +127,21 @@ export default function OrderDetailPage() {
   const displayOrder = order ?? orderData ?? null;
   const isOrderOpen = displayOrder?.status === "open";
 
+  // Cargar descuentos existentes cuando se carga la orden (solo si está abierta)
+  useEffect(() => {
+    if (orderData && isOrderOpen) {
+      setDiscountPercentage(orderData.discount_percentage ?? null);
+      setDiscountAmount(orderData.discount_amount ?? null);
+    }
+  }, [orderData, isOrderOpen]);
+
+  // Extraer información de pago de la orden (si está cerrada)
+  const paymentInfo = useMemo(() => {
+    if (!displayOrder || isOrderOpen) return null;
+    // La información de pago viene en payment_info desde el endpoint
+    return (displayOrder as any).payment_info ?? null;
+  }, [displayOrder, isOrderOpen]);
+
   const computedTotal = useMemo(() => {
     if (!displayOrder) return 0;
     if (!displayOrder.items || (displayOrder.items ?? []).length === 0) return 0;
@@ -131,6 +150,38 @@ export default function OrderDetailPage() {
       0
     );
   }, [displayOrder]);
+
+  // Calcular descuento y total final
+  // Para órdenes cerradas, usar los valores guardados en la orden
+  // Para órdenes abiertas, usar los valores del estado local
+  const discountValue = useMemo(() => {
+    if (!displayOrder) return 0;
+    
+    // Si la orden está cerrada, usar los valores guardados
+    if (!isOrderOpen) {
+      const savedDiscountAmount = displayOrder.discount_amount;
+      const savedDiscountPercentage = displayOrder.discount_percentage;
+      
+      if (savedDiscountAmount !== null && savedDiscountAmount !== undefined && savedDiscountAmount > 0) {
+        return savedDiscountAmount;
+      }
+      if (savedDiscountPercentage !== null && savedDiscountPercentage !== undefined && savedDiscountPercentage > 0) {
+        return (computedTotal * savedDiscountPercentage) / 100;
+      }
+      return 0;
+    }
+    
+    // Si la orden está abierta, usar los valores del estado local
+    if (discountAmount !== null && discountAmount > 0) {
+      return discountAmount;
+    }
+    if (discountPercentage !== null && discountPercentage > 0) {
+      return (computedTotal * discountPercentage) / 100;
+    }
+    return 0;
+  }, [computedTotal, discountPercentage, discountAmount, displayOrder, isOrderOpen]);
+
+  const finalTotal = Math.max(0, computedTotal - discountValue);
 
   // ---- Mutations con UI-first ----
 
@@ -284,17 +335,37 @@ export default function OrderDetailPage() {
 
   // Cobrar cuenta
   const payOrderMutation = useMutation({
-    mutationFn: async (params: { paymentMethodId: number; amount: number }) => {
-      return await ordersService.pay(orderId, params.paymentMethodId);
+    mutationFn: async (params: { 
+      paymentMethodId: number; 
+      amount: number;
+      discountPercentage?: number | null;
+      discountAmount?: number | null;
+    }) => {
+      // Llamar al endpoint directamente para pasar los descuentos
+      const res = await fetch(`/api/orders/${orderId}/pay`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paymentMethodId: params.paymentMethodId,
+          amount: params.amount,
+          discount_percentage: params.discountPercentage,
+          discount_amount: params.discountAmount,
+        }),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Error al cobrar la cuenta");
+      }
+      return (await res.json()) as OrderDTO;
     },
-    onMutate: ({ amount }) => {
+    onMutate: ({ amount: _amount }) => {
       if (!order && !orderData) return { previousOrder: null };
       const previousOrder = order ?? orderData!;
 
       setOrder({
         ...previousOrder,
         status: "closed",
-        total_amount: amount,
+        total_amount: finalTotal,
       });
 
       return { previousOrder };
@@ -621,7 +692,9 @@ export default function OrderDetailPage() {
 
     payOrderMutation.mutate({
       paymentMethodId: Number(selectedPaymentMethodId),
-      amount: computedTotal,
+      amount: finalTotal,
+      discountPercentage: discountPercentage,
+      discountAmount: discountAmount,
     });
   }, [
     displayOrder,
@@ -722,7 +795,12 @@ export default function OrderDetailPage() {
         onProductSelect={handleProductSelect}
         loadingProducts={loadingProducts}
         total={computedTotal}
+        discountPercentage={isOrderOpen ? discountPercentage : displayOrder?.discount_percentage ?? null}
+        discountAmount={isOrderOpen ? discountAmount : displayOrder?.discount_amount ?? null}
+        onDiscountPercentageChange={setDiscountPercentage}
+        onDiscountAmountChange={setDiscountAmount}
         paymentMethods={paymentMethods}
+        paymentInfo={paymentInfo}
         selectedPaymentMethodId={selectedPaymentMethodId}
         onPaymentMethodSelect={(id) => setSelectedPaymentMethodId(id)}
         loadingPaymentMethods={loadingPM}

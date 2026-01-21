@@ -542,6 +542,8 @@ export default function OrdersPage() {
         id: tempId,
         status: "open",
         total_amount: 0,
+        discount_percentage: 0,
+        discount_amount: 0,
         created_at: new Date().toISOString(),
         closed_at: null,
         items: [],

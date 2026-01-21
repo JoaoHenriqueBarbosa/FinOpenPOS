@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import {
   Card,
   CardHeader,
@@ -32,8 +33,13 @@ import {
   MinusIcon,
   TrashIcon,
   SaveIcon,
+  PercentIcon,
+  DollarSignIcon,
+  CreditCardIcon,
+  TagIcon,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
 import { ProductSelector } from "@/components/product-selector/ProductSelector";
 import { PaymentMethodSelector } from "@/components/payment-method-selector/PaymentMethodSelector";
 import type { ProductDTO } from "@/models/dto/product";
@@ -63,10 +69,20 @@ interface OrderItemsLayoutProps {
   
   // Resumen
   total: number;
+  discountPercentage?: number | null;
+  discountAmount?: number | null;
+  onDiscountPercentageChange?: (value: number | null) => void;
+  onDiscountAmountChange?: (value: number | null) => void;
   paymentMethods: PaymentMethodDTO[];
   selectedPaymentMethodId: number | "none";
   onPaymentMethodSelect: (id: number | "none") => void;
   loadingPaymentMethods?: boolean;
+  // Información de pago para órdenes cerradas
+  paymentInfo?: {
+    payment_method_id: number | null;
+    payment_method: { id: number; name: string } | null;
+    amount: number;
+  } | null;
   
   // Acciones
   onProcess?: () => void;
@@ -104,10 +120,15 @@ export function OrderItemsLayout({
   onProductSelect,
   loadingProducts = false,
   total,
+  discountPercentage = null,
+  discountAmount = null,
+  onDiscountPercentageChange,
+  onDiscountAmountChange,
   paymentMethods,
   selectedPaymentMethodId,
   onPaymentMethodSelect,
   loadingPaymentMethods = false,
+  paymentInfo = null,
   onProcess,
   onCancel,
   onClear,
@@ -126,6 +147,18 @@ export function OrderItemsLayout({
   moreProductsSelectValue = "none",
   onMoreProductsSelectChange,
 }: OrderItemsLayoutProps) {
+  // Calcular descuento y total final
+  const discountValue = useMemo(() => {
+    if (discountAmount !== null && discountAmount !== undefined && discountAmount > 0) {
+      return discountAmount;
+    }
+    if (discountPercentage !== null && discountPercentage !== undefined && discountPercentage > 0) {
+      return (total * discountPercentage) / 100;
+    }
+    return 0;
+  }, [total, discountPercentage, discountAmount]);
+
+  const finalTotal = Math.max(0, total - discountValue);
   return (
     <div className="grid gap-4 md:grid-cols-[4fr_1fr] lg:grid-cols-[5fr_1fr] items-start">
       {/* Items de la cuenta */}
@@ -348,6 +381,10 @@ export function OrderItemsLayout({
                 <span>Subtotal</span>
                 <Skeleton className="h-4 w-16" />
               </div>
+              <div className="flex justify-between text-sm">
+                <span>Descuento</span>
+                <Skeleton className="h-4 w-16" />
+              </div>
               <div className="flex justify-between text-base font-semibold">
                 <span>Total</span>
                 <Skeleton className="h-5 w-20" />
@@ -359,9 +396,141 @@ export function OrderItemsLayout({
                 <span>Subtotal</span>
                 <span>${total.toFixed(2)}</span>
               </div>
+              {discountValue > 0 && (
+                <div className="flex justify-between text-sm text-red-600">
+                  <span>Descuento</span>
+                  <span>-${discountValue.toFixed(2)}</span>
+                </div>
+              )}
               <div className="flex justify-between text-base font-semibold">
                 <span>Total</span>
-                <span>${total.toFixed(2)}</span>
+                <span>${finalTotal.toFixed(2)}</span>
+              </div>
+            </>
+          )}
+
+          {/* Campos de descuento - solo si la orden es editable */}
+          {isEditable && !isLoading && (
+            <>
+              <div className="h-px bg-border my-2" />
+              <div className="space-y-3 p-4 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/20 dark:to-orange-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                <div className="flex items-center gap-2">
+                  <TagIcon className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                  <Label className="text-sm font-semibold text-amber-900 dark:text-amber-100">
+                    Aplicar Descuento
+                  </Label>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+                      <PercentIcon className="w-3.5 h-3.5" />
+                      Porcentaje
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={discountPercentage !== null && discountPercentage !== undefined ? discountPercentage : ""}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (value === "") {
+                            onDiscountPercentageChange?.(null);
+                          } else {
+                            const num = Number(value);
+                            if (!Number.isNaN(num) && num >= 0 && num <= 100) {
+                              onDiscountPercentageChange?.(num);
+                              // Si se ingresa porcentaje, limpiar descuento por monto
+                              if (onDiscountAmountChange) {
+                                onDiscountAmountChange(null);
+                              }
+                            }
+                          }
+                        }}
+                        disabled={!isEditable}
+                        className="w-full bg-white dark:bg-gray-900 border-amber-300 dark:border-amber-700 focus:border-amber-500 focus:ring-amber-500"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-amber-600 dark:text-amber-400">
+                        %
+                      </span>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+                      <DollarSignIcon className="w-3.5 h-3.5" />
+                      Monto Fijo
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={discountAmount !== null && discountAmount !== undefined ? discountAmount : ""}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (value === "") {
+                            onDiscountAmountChange?.(null);
+                          } else {
+                            const num = Number(value);
+                            if (!Number.isNaN(num) && num >= 0) {
+                              onDiscountAmountChange?.(num);
+                              // Si se ingresa monto fijo, limpiar descuento porcentual
+                              if (onDiscountPercentageChange) {
+                                onDiscountPercentageChange(null);
+                              }
+                            }
+                          }
+                        }}
+                        disabled={!isEditable}
+                        className="w-full bg-white dark:bg-gray-900 border-amber-300 dark:border-amber-700 focus:border-amber-500 focus:ring-amber-500"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-amber-600 dark:text-amber-400">
+                        $
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <p className="text-xs text-amber-600 dark:text-amber-400 pt-1">
+                  💡 Ingresá un descuento porcentual o un monto fijo. Si ingresás ambos, se aplicará el monto fijo.
+                </p>
+              </div>
+            </>
+          )}
+
+          {/* Información de pago y descuento para órdenes cerradas */}
+          {!isEditable && !isLoading && (discountValue > 0 || paymentInfo) && (
+            <>
+              <div className="h-px bg-border my-2" />
+              <div className="space-y-3 p-4 bg-muted/50 rounded-lg border">
+                {discountValue > 0 && (
+                  <div className="flex items-center justify-between p-2 bg-amber-50 dark:bg-amber-950/20 rounded border border-amber-200 dark:border-amber-800">
+                    <div className="flex items-center gap-2">
+                      <TagIcon className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                      <span className="text-sm font-medium text-amber-900 dark:text-amber-100">
+                        Descuento Aplicado
+                      </span>
+                    </div>
+                    <span className="text-sm font-semibold text-amber-700 dark:text-amber-300">
+                      -${discountValue.toFixed(2)}
+                    </span>
+                  </div>
+                )}
+                {paymentInfo?.payment_method && (
+                  <div className="flex items-center justify-between p-2 bg-blue-50 dark:bg-blue-950/20 rounded border border-blue-200 dark:border-blue-800">
+                    <div className="flex items-center gap-2">
+                      <CreditCardIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                      <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                        Método de Pago
+                      </span>
+                    </div>
+                    <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">
+                      {paymentInfo.payment_method.name}
+                    </span>
+                  </div>
+                )}
               </div>
             </>
           )}

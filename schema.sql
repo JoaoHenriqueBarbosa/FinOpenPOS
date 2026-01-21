@@ -144,6 +144,8 @@ CREATE TABLE orders (
                  CHECK (status IN ('open', 'closed', 'cancelled')),
 
     total_amount NUMERIC(10, 2) NOT NULL DEFAULT 0,
+    discount_percentage NUMERIC(5, 2) DEFAULT 0 CHECK (discount_percentage >= 0 AND discount_percentage <= 100),
+    discount_amount NUMERIC(10, 2) DEFAULT 0 CHECK (discount_amount >= 0),
     created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     closed_at    TIMESTAMP
 );
