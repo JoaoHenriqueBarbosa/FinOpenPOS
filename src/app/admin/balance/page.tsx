@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -56,6 +56,7 @@ export default function BalancePage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "income" | "expense" | "adjustment" | "withdrawal">("all");
+  const [partnerFilter, setPartnerFilter] = useState<string>("all");
   const [isAdjustmentDialogOpen, setIsAdjustmentDialogOpen] = useState(false);
   const [isWithdrawalDialogOpen, setIsWithdrawalDialogOpen] = useState(false);
 
@@ -83,6 +84,42 @@ export default function BalancePage() {
     queryFn: () => paymentMethodsService.getAll(true, "BAR"),
     staleTime: 1000 * 60 * 5, // 5 minutos
   });
+
+  const buildTimestamp = (date: string, endOfDay = false) =>
+    date ? `${date}${endOfDay ? "T23:59:59" : "T00:00:00"}` : undefined;
+
+  const { data: partnerWithdrawals = [], isLoading: loadingWithdrawals } = useQuery({
+    queryKey: ["partner-withdrawals", dateFrom, dateTo, partnerFilter],
+    queryFn: () =>
+      transactionsService.getAll({
+        type: "withdrawal",
+        from: buildTimestamp(dateFrom),
+        to: buildTimestamp(dateTo, true),
+        partnerId: partnerFilter && partnerFilter !== "all" ? Number(partnerFilter) : undefined,
+      }),
+    staleTime: 1000 * 30,
+  });
+
+  const withdrawalsSummary = useMemo(() => {
+    const map = new Map<string, { label: string; amount: number }>();
+    partnerWithdrawals.forEach((withdrawal) => {
+      const key =
+        withdrawal.partner?.id?.toString() ||
+        (withdrawal.partner_id ? withdrawal.partner_id.toString() : "none");
+      const label = withdrawal.partner
+        ? `${withdrawal.partner.first_name} ${withdrawal.partner.last_name}`
+        : withdrawal.partner_id
+        ? `ID ${withdrawal.partner_id}`
+        : "Sin socio";
+      const current = map.get(key);
+      if (current) {
+        current.amount += withdrawal.amount;
+      } else {
+        map.set(key, { label, amount: withdrawal.amount });
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => b.amount - a.amount);
+  }, [partnerWithdrawals]);
 
   const adjustmentMutation = useMutation({
     mutationFn: () =>
@@ -169,6 +206,25 @@ export default function BalancePage() {
                   <SelectItem value="expense">Gastos</SelectItem>
                   <SelectItem value="adjustment">Ajustes</SelectItem>
                   <SelectItem value="withdrawal">Retiros</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <span className="text-xs text-muted-foreground">Socio</span>
+              <Select
+                value={partnerFilter}
+                onValueChange={(value) => setPartnerFilter(value)}
+              >
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {partners.map((partner) => (
+                    <SelectItem key={partner.id} value={partner.id.toString()}>
+                      {partner.first_name} {partner.last_name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -286,45 +342,63 @@ export default function BalancePage() {
       )}
 
       <Card>
-        <CardHeader>
-          <CardTitle>Socios</CardTitle>
-          <CardDescription>Lista de socios activos del sistema</CardDescription>
+        <CardHeader className="flex flex-col gap-1">
+          <CardTitle>Retiros de socios</CardTitle>
+          <CardDescription>
+            Historial de retiros filtrado por fecha y socio, con método de pago asociado.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoadingPartners ? (
-            <div className="text-center py-6 text-muted-foreground">Cargando socios...</div>
-          ) : partners.length === 0 ? (
-            <div className="text-center py-6 text-muted-foreground">No hay socios registrados.</div>
+          {loadingWithdrawals ? (
+            <div className="text-center py-6 text-muted-foreground">Cargando retiros...</div>
+          ) : partnerWithdrawals.length === 0 ? (
+            <div className="text-center py-6 text-muted-foreground">
+              No se encontraron retiros para los filtros seleccionados.
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>ID</TableHead>
-                    <TableHead>Nombre</TableHead>
-                    <TableHead>Apellido</TableHead>
-                    <TableHead>Teléfono</TableHead>
-                    <TableHead>Email</TableHead>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead>Socio</TableHead>
+                    <TableHead>Monto</TableHead>
+                    <TableHead>Método</TableHead>
+                    <TableHead className="hidden md:table-cell">Descripción</TableHead>
                     <TableHead>Estado</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {partners.map((partner: PartnerDTO) => (
-                    <TableRow key={partner.id}>
-                      <TableCell className="font-medium">{partner.id}</TableCell>
-                      <TableCell>{partner.first_name}</TableCell>
-                      <TableCell>{partner.last_name}</TableCell>
-                      <TableCell>{partner.phone}</TableCell>
-                      <TableCell>{partner.email || "-"}</TableCell>
+                  {partnerWithdrawals.map((withdrawal) => (
+                    <TableRow key={withdrawal.id}>
+                      <TableCell>
+                        {new Date(withdrawal.created_at).toLocaleString("es-AR")}
+                      </TableCell>
+                      <TableCell>
+                        {withdrawal.partner
+                          ? `${withdrawal.partner.first_name} ${withdrawal.partner.last_name}`
+                          : withdrawal.partner_id
+                          ? `ID ${withdrawal.partner_id}`
+                          : "Sin socio"}
+                      </TableCell>
+                      <TableCell className="font-semibold text-right">
+                        ${withdrawal.amount.toFixed(2)}
+                      </TableCell>
+                      <TableCell>
+                        {withdrawal.payment_method?.name || "Sin método"}
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        {withdrawal.description || "-"}
+                      </TableCell>
                       <TableCell>
                         <span
                           className={`px-2 py-1 rounded text-xs ${
-                            partner.status === "active"
+                            withdrawal.status === "completed"
                               ? "bg-green-100 text-green-800"
-                              : "bg-gray-100 text-gray-800"
+                              : "bg-amber-100 text-amber-800"
                           }`}
                         >
-                          {partner.status === "active" ? "Activo" : "Inactivo"}
+                          {withdrawal.status}
                         </span>
                       </TableCell>
                     </TableRow>
@@ -334,6 +408,22 @@ export default function BalancePage() {
             </div>
           )}
         </CardContent>
+        {withdrawalsSummary.length > 0 && (
+          <div className="p-4 border-t bg-muted/50 text-sm space-y-4">
+            <div className="font-semibold">Resumen de retiros por socio</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {withdrawalsSummary.map((entry) => (
+                <div
+                  key={entry.label}
+                  className="rounded-lg border border-border/60 p-3 flex items-center justify-between gap-2"
+                >
+                  <span className="text-xs text-muted-foreground">{entry.label}</span>
+                  <span className="font-semibold">${entry.amount.toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </Card>
 
       <Dialog open={isAdjustmentDialogOpen} onOpenChange={setIsAdjustmentDialogOpen}>

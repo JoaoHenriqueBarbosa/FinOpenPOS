@@ -24,6 +24,7 @@ export async function GET(request: Request) {
       id,
       order_id,
       player_id,
+      partner_id,
       payment_method_id,
       description,
       amount,
@@ -33,6 +34,11 @@ export async function GET(request: Request) {
       payment_method:payment_methods!payment_method_id (
         id,
         name
+      ),
+      partner:partners!partner_id (
+        id,
+        first_name,
+        last_name
       )
     `);
 
@@ -82,6 +88,11 @@ export async function GET(request: Request) {
 
   if (playerId) {
     query = query.eq('player_id', Number(playerId));
+  }
+
+  const partnerId = url.searchParams.get('partnerId');
+  if (partnerId) {
+    query = query.eq('partner_id', Number(partnerId));
   }
 
   const { data, error } = await query.order('created_at', { ascending: false });

@@ -10,6 +10,7 @@ export interface TransactionDTO {
   id: number;
   order_id: number | null;
   player_id: number | null;
+  partner_id: number | null;
   payment_method_id: number | null;
   description: string | null;
   amount: number;
@@ -21,6 +22,11 @@ export interface TransactionDTO {
     name: string;
   } | null;
   player?: {
+    id: number;
+    first_name: string;
+    last_name: string;
+  } | null;
+  partner?: {
     id: number;
     first_name: string;
     last_name: string;
@@ -73,6 +79,7 @@ class TransactionsService {
     to?: string;
     orderId?: number;
     playerId?: number;
+    partnerId?: number;
   }): Promise<TransactionDTO[]> {
     const params = new URLSearchParams();
     if (filters?.type) params.append("type", filters.type);
@@ -81,6 +88,7 @@ class TransactionsService {
     if (filters?.to) params.append("to", filters.to);
     if (filters?.orderId) params.append("orderId", String(filters.orderId));
     if (filters?.playerId) params.append("playerId", String(filters.playerId));
+    if (filters?.partnerId) params.append("partnerId", String(filters.partnerId));
 
     const url = params.toString() ? `${this.baseUrl}?${params.toString()}` : this.baseUrl;
     const response = await fetch(url);
