@@ -50,9 +50,41 @@ async function getOrderWithItems(
     throw new Error("Error fetching order items");
   }
 
+  // Si la orden está cerrada, obtener información de la transacción y método de pago
+  let paymentInfo = null;
+  if (order.status === "closed") {
+    const { data: transaction } = await supabase
+      .from("transactions")
+      .select(
+        `
+          id,
+          payment_method_id,
+          amount,
+          payment_method:payment_methods!payment_method_id (
+            id,
+            name
+          )
+        `
+      )
+      .eq("order_id", orderId)
+      .eq("type", "income")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (transaction) {
+      paymentInfo = {
+        payment_method_id: transaction.payment_method_id,
+        payment_method: transaction.payment_method,
+        amount: transaction.amount,
+      };
+    }
+  }
+
   return {
     ...order,
     items: items ?? [],
+    payment_info: paymentInfo,
   };
 }
 

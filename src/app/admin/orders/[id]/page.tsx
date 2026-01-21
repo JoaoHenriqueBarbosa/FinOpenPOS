@@ -135,6 +135,13 @@ export default function OrderDetailPage() {
     }
   }, [orderData, isOrderOpen]);
 
+  // Extraer información de pago de la orden (si está cerrada)
+  const paymentInfo = useMemo(() => {
+    if (!displayOrder || isOrderOpen) return null;
+    // La información de pago viene en payment_info desde el endpoint
+    return (displayOrder as any).payment_info ?? null;
+  }, [displayOrder, isOrderOpen]);
+
   const computedTotal = useMemo(() => {
     if (!displayOrder) return 0;
     if (!displayOrder.items || (displayOrder.items ?? []).length === 0) return 0;
@@ -145,7 +152,26 @@ export default function OrderDetailPage() {
   }, [displayOrder]);
 
   // Calcular descuento y total final
+  // Para órdenes cerradas, usar los valores guardados en la orden
+  // Para órdenes abiertas, usar los valores del estado local
   const discountValue = useMemo(() => {
+    if (!displayOrder) return 0;
+    
+    // Si la orden está cerrada, usar los valores guardados
+    if (!isOrderOpen) {
+      const savedDiscountAmount = displayOrder.discount_amount;
+      const savedDiscountPercentage = displayOrder.discount_percentage;
+      
+      if (savedDiscountAmount !== null && savedDiscountAmount !== undefined && savedDiscountAmount > 0) {
+        return savedDiscountAmount;
+      }
+      if (savedDiscountPercentage !== null && savedDiscountPercentage !== undefined && savedDiscountPercentage > 0) {
+        return (computedTotal * savedDiscountPercentage) / 100;
+      }
+      return 0;
+    }
+    
+    // Si la orden está abierta, usar los valores del estado local
     if (discountAmount !== null && discountAmount > 0) {
       return discountAmount;
     }
@@ -153,7 +179,7 @@ export default function OrderDetailPage() {
       return (computedTotal * discountPercentage) / 100;
     }
     return 0;
-  }, [computedTotal, discountPercentage, discountAmount]);
+  }, [computedTotal, discountPercentage, discountAmount, displayOrder, isOrderOpen]);
 
   const finalTotal = Math.max(0, computedTotal - discountValue);
 
@@ -769,11 +795,12 @@ export default function OrderDetailPage() {
         onProductSelect={handleProductSelect}
         loadingProducts={loadingProducts}
         total={computedTotal}
-        discountPercentage={discountPercentage}
-        discountAmount={discountAmount}
+        discountPercentage={isOrderOpen ? discountPercentage : displayOrder?.discount_percentage ?? null}
+        discountAmount={isOrderOpen ? discountAmount : displayOrder?.discount_amount ?? null}
         onDiscountPercentageChange={setDiscountPercentage}
         onDiscountAmountChange={setDiscountAmount}
         paymentMethods={paymentMethods}
+        paymentInfo={paymentInfo}
         selectedPaymentMethodId={selectedPaymentMethodId}
         onPaymentMethodSelect={(id) => setSelectedPaymentMethodId(id)}
         loadingPaymentMethods={loadingPM}
