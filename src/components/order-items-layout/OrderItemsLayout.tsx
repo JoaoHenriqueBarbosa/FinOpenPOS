@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import {
   Card,
   CardHeader,
@@ -34,6 +35,7 @@ import {
   SaveIcon,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
 import { ProductSelector } from "@/components/product-selector/ProductSelector";
 import { PaymentMethodSelector } from "@/components/payment-method-selector/PaymentMethodSelector";
 import type { ProductDTO } from "@/models/dto/product";
@@ -63,6 +65,10 @@ interface OrderItemsLayoutProps {
   
   // Resumen
   total: number;
+  discountPercentage?: number | null;
+  discountAmount?: number | null;
+  onDiscountPercentageChange?: (value: number | null) => void;
+  onDiscountAmountChange?: (value: number | null) => void;
   paymentMethods: PaymentMethodDTO[];
   selectedPaymentMethodId: number | "none";
   onPaymentMethodSelect: (id: number | "none") => void;
@@ -104,6 +110,10 @@ export function OrderItemsLayout({
   onProductSelect,
   loadingProducts = false,
   total,
+  discountPercentage = null,
+  discountAmount = null,
+  onDiscountPercentageChange,
+  onDiscountAmountChange,
   paymentMethods,
   selectedPaymentMethodId,
   onPaymentMethodSelect,
@@ -126,6 +136,18 @@ export function OrderItemsLayout({
   moreProductsSelectValue = "none",
   onMoreProductsSelectChange,
 }: OrderItemsLayoutProps) {
+  // Calcular descuento y total final
+  const discountValue = useMemo(() => {
+    if (discountAmount !== null && discountAmount !== undefined && discountAmount > 0) {
+      return discountAmount;
+    }
+    if (discountPercentage !== null && discountPercentage !== undefined && discountPercentage > 0) {
+      return (total * discountPercentage) / 100;
+    }
+    return 0;
+  }, [total, discountPercentage, discountAmount]);
+
+  const finalTotal = Math.max(0, total - discountValue);
   return (
     <div className="grid gap-4 md:grid-cols-[4fr_1fr] lg:grid-cols-[5fr_1fr] items-start">
       {/* Items de la cuenta */}
@@ -348,6 +370,10 @@ export function OrderItemsLayout({
                 <span>Subtotal</span>
                 <Skeleton className="h-4 w-16" />
               </div>
+              <div className="flex justify-between text-sm">
+                <span>Descuento</span>
+                <Skeleton className="h-4 w-16" />
+              </div>
               <div className="flex justify-between text-base font-semibold">
                 <span>Total</span>
                 <Skeleton className="h-5 w-20" />
@@ -359,9 +385,85 @@ export function OrderItemsLayout({
                 <span>Subtotal</span>
                 <span>${total.toFixed(2)}</span>
               </div>
+              {discountValue > 0 && (
+                <div className="flex justify-between text-sm text-red-600">
+                  <span>Descuento</span>
+                  <span>-${discountValue.toFixed(2)}</span>
+                </div>
+              )}
               <div className="flex justify-between text-base font-semibold">
                 <span>Total</span>
-                <span>${total.toFixed(2)}</span>
+                <span>${finalTotal.toFixed(2)}</span>
+              </div>
+            </>
+          )}
+
+          {/* Campos de descuento - solo si la orden es editable */}
+          {isEditable && !isLoading && (
+            <>
+              <div className="h-px bg-border my-2" />
+              <div className="space-y-3">
+                <Label className="text-sm font-semibold">Descuento</Label>
+                <div className="space-y-2">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Porcentaje (%)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={discountPercentage !== null && discountPercentage !== undefined ? discountPercentage : ""}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value === "") {
+                          onDiscountPercentageChange?.(null);
+                        } else {
+                          const num = Number(value);
+                          if (!Number.isNaN(num) && num >= 0 && num <= 100) {
+                            onDiscountPercentageChange?.(num);
+                            // Si se ingresa porcentaje, limpiar descuento por monto
+                            if (onDiscountAmountChange) {
+                              onDiscountAmountChange(null);
+                            }
+                          }
+                        }
+                      }}
+                      disabled={!isEditable}
+                      className="w-full"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Monto fijo ($)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={discountAmount !== null && discountAmount !== undefined ? discountAmount : ""}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value === "") {
+                          onDiscountAmountChange?.(null);
+                        } else {
+                          const num = Number(value);
+                          if (!Number.isNaN(num) && num >= 0) {
+                            onDiscountAmountChange?.(num);
+                            // Si se ingresa monto fijo, limpiar descuento porcentual
+                            if (onDiscountPercentageChange) {
+                              onDiscountPercentageChange(null);
+                            }
+                          }
+                        }
+                      }}
+                      disabled={!isEditable}
+                      className="w-full"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Ingresá un descuento porcentual o un monto fijo. Si ingresás ambos, se aplicará el monto fijo.
+                  </p>
+                </div>
               </div>
             </>
           )}

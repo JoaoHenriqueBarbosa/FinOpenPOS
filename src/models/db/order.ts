@@ -7,6 +7,8 @@ export interface OrderDB {
   player_id: number;
   status: OrderStatus;
   total_amount: number;
+  discount_percentage: number | null;
+  discount_amount: number | null;
   created_at: string;
   closed_at: string | null;
 }
