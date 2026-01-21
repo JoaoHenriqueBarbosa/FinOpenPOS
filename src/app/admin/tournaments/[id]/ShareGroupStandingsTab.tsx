@@ -56,6 +56,13 @@ function getGroupColor(groupIndex: number): { bg: string; text: string; border: 
   return colorSchemes[groupIndex % colorSchemes.length] || colorSchemes[0];
 }
 
+const advertisementLogos = [
+  "/logos-advertisement/logo-1.jpg",
+  "/logos-advertisement/logo-2.jpg",
+  "/logos-advertisement/logo-3.jpg",
+  "/logos-advertisement/logo-4.jpg",
+];
+
 export default function ShareGroupStandingsTab({ tournament }: { tournament: Pick<TournamentDTO, "id" | "name" | "category"> }) {
   const groupRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
@@ -445,6 +452,16 @@ export default function ShareGroupStandingsTab({ tournament }: { tournament: Pic
                         </div>
                       </div>
                     )}
+                    <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                      {advertisementLogos.map((src) => (
+                        <div
+                          key={src}
+                          className="w-32 h-20 border rounded-lg overflow-hidden bg-white/80 dark:bg-slate-900/60 flex items-center justify-center p-2 shadow-xl shadow-black/20 border-white/40"
+                        >
+                          <img src={src} alt="Publicidad" className="max-w-full max-h-full object-contain" />
+                        </div>
+                      ))}
+                    </div>
                     </div>
                   </div>
                 );

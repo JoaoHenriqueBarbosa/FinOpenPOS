@@ -233,7 +233,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       ? amountInput
       : finalTotal;
 
-    if (amount <= 0) {
+    if (amount < 0) {
       return NextResponse.json(
         { error: "Invalid amount to charge" },
         { status: 400 }

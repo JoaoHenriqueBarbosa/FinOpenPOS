@@ -90,6 +90,13 @@ interface MatchByDate {
   }>;
 }
 
+const advertisementLogos = [
+  "/logos-advertisement/logo-1.jpg",
+  "/logos-advertisement/logo-2.jpg",
+  "/logos-advertisement/logo-3.jpg",
+  "/logos-advertisement/logo-4.jpg",
+];
+
 export default function ShareGroupScheduleTab({
   tournament,
 }: {
@@ -268,7 +275,10 @@ export default function ShareGroupScheduleTab({
   }
 
   return (
-    <Card className="border-none shadow-none p-0">
+    <Card
+      className="border-none shadow-none p-0 bg-gradient-to-b from-slate-50/80 to-slate-100/80 dark:from-slate-900/70 dark:to-slate-900/95"
+      style={{ overflow: "visible" }}
+    >
       <CardHeader className="px-0 pt-0">
         <div className="flex items-center justify-between">
           <div>
@@ -280,7 +290,10 @@ export default function ShareGroupScheduleTab({
         </div>
       </CardHeader>
 
-      <CardContent className="px-0 pt-4" style={{ overflow: "visible", maxHeight: "none" }}>
+      <CardContent
+        className="px-0 pt-4"
+        style={{ overflow: "visible", maxHeight: "none" }}
+      >
         <div className="space-y-6" style={{ overflow: "visible", maxHeight: "none" }}>
           {matchesByDate.map(({ date, matches }) => (
             <div key={date} className="max-w-2xl mx-auto">
@@ -303,14 +316,14 @@ export default function ShareGroupScheduleTab({
                 ref={(el) => {
                   if (el) scheduleRefs.current.set(date, el);
                 }}
-                className="bg-white p-6 rounded-lg border-2 border-gray-200 shadow-lg"
-                style={{ 
+                className="bg-white/80 dark:bg-slate-900/60 p-6 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-2xl shadow-slate-200/60 dark:shadow-slate-900/80 backdrop-blur"
+                style={{
                   fontFamily: "system-ui, -apple-system, sans-serif",
                   overflow: "visible",
                   maxHeight: "none",
                   height: "auto",
                   display: "block",
-                  minHeight: "auto"
+                  minHeight: "auto",
                 }}
               >
                 {/* Header */}
@@ -381,6 +394,16 @@ export default function ShareGroupScheduleTab({
                     </div>
                   );
                 })}
+              </div>
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                {advertisementLogos.map((src) => (
+                  <div
+                    key={src}
+                    className="w-36 h-24 border rounded-lg overflow-hidden bg-white/80 dark:bg-slate-900/60 flex items-center justify-center p-2 shadow-xl shadow-black/20 border-white/40"
+                  >
+                    <img src={src} alt="Publicidad" className="max-w-full max-h-full object-contain" />
+                  </div>
+                ))}
               </div>
               </div>
             </div>
