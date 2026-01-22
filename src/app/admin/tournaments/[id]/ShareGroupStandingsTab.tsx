@@ -399,7 +399,7 @@ export default function ShareGroupStandingsTab({ tournament }: { tournament: Pic
                                         const dayName = getDayOfWeek(match.match_date);
                                         const courtName = match.court_id ? courtMap.get(match.court_id) : null;
                                         const courtText = courtName ? ` - ${courtName}` : "";
-                                        return `${dayName} ${formatDate(match.match_date)} ${formatTime(match.start_time)}${courtText}`;
+                                        return `${dayName} ${formatDate(match.match_date)} ${formatTime(match.start_time)}`;
                                       })()}
                                     </span>
                                   )}
