@@ -75,6 +75,23 @@ CREATE TABLE players (
 );
 
 -- =========================================================
+-- ADVERTISEMENTS (publicidades para flyers)
+-- =========================================================
+
+CREATE TABLE advertisements (
+    id          BIGSERIAL PRIMARY KEY,
+    user_uid    UUID NOT NULL,
+    name        VARCHAR(255) NOT NULL,
+    image_url   TEXT NOT NULL,
+    target_url  TEXT,
+    description TEXT,
+    is_active   BOOLEAN NOT NULL DEFAULT TRUE,
+    ordering    INTEGER NOT NULL DEFAULT 0,
+    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =========================================================
 -- PARTNERS (dueños/propietarios de la sociedad)
 -- =========================================================
 -- Tabla para gestionar los partners (dueños del negocio en una sociedad)
