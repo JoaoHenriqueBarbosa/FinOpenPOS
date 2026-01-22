@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2Icon, CopyIcon } from "lucide-react";
 import { formatDate, formatTime } from "@/lib/date-utils";
 import type { TournamentDTO, GroupsApiResponse, MatchDTO } from "@/models/dto/tournament";
-import { tournamentsService } from "@/services";
+import { tournamentsService, advertisementsService, fallbackAdvertisements, type AdvertisementDTO } from "@/services";
 import { useRef } from "react";
 import { toast } from "sonner";
 import type { CourtDTO } from "@/models/dto/court";
@@ -90,13 +90,6 @@ interface MatchByDate {
   }>;
 }
 
-const advertisementLogos = [
-  "/logos-advertisement/logo-1.jpg",
-  "/logos-advertisement/logo-2.jpg",
-  "/logos-advertisement/logo-3.jpg",
-  "/logos-advertisement/logo-4.jpg",
-];
-
 export default function ShareGroupScheduleTab({
   tournament,
 }: {
@@ -112,6 +105,13 @@ export default function ShareGroupScheduleTab({
     queryFn: () => fetchTournamentGroups(tournament.id),
     staleTime: 1000 * 30,
   });
+
+  const { data: advertisements = [] } = useQuery<AdvertisementDTO[]>({
+    queryKey: ["advertisements"],
+    queryFn: () => advertisementsService.getAll(),
+    staleTime: 1000 * 60 * 5,
+  });
+  const adsToShow = advertisements.length > 0 ? advertisements : fallbackAdvertisements;
 
   // Obtener canchas para mostrar nombres
   const { data: courts = [] } = useQuery<CourtDTO[]>({
@@ -396,12 +396,24 @@ export default function ShareGroupScheduleTab({
                 })}
               </div>
               <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-                {advertisementLogos.map((src) => (
+                {adsToShow.map((ad: AdvertisementDTO) => (
                   <div
-                    key={src}
-                    className="w-36 h-24 border rounded-lg overflow-hidden bg-white/80 dark:bg-slate-900/60 flex items-center justify-center p-2 shadow-xl shadow-black/20 border-white/40"
+                    key={ad.id}
+                    className="w-32 h-20 border rounded-lg overflow-hidden bg-white/80 dark:bg-slate-900/60 flex items-center justify-center p-2 shadow-xl shadow-black/20 border-white/40"
                   >
-                    <img src={src} alt="Publicidad" className="max-w-full max-h-full object-contain" />
+                    {ad.target_url && ad.target_url.startsWith("http") ? (
+                      <a
+                        href={ad.target_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="w-full h-full flex items-center justify-center"
+                        title={ad.name}
+                      >
+                        <img src={ad.image_url} alt={ad.name} className="max-w-full max-h-full object-contain" />
+                      </a>
+                    ) : (
+                      <img src={ad.image_url} alt={ad.name} className="max-w-full max-h-full object-contain" />
+                    )}
                   </div>
                 ))}
               </div>

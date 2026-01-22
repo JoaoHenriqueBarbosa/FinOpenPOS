@@ -11,7 +11,7 @@ import { formatDate, formatTime, getDayOfWeek } from "@/lib/date-utils";
 import { parseLocalDate } from "@/lib/court-slots-utils";
 import type { TournamentDTO, ApiResponseStandings } from "@/models/dto/tournament";
 import type { CourtDTO } from "@/models/dto/court";
-import { tournamentsService } from "@/services";
+import { tournamentsService, advertisementsService, fallbackAdvertisements, type AdvertisementDTO } from "@/services";
 import { useRef } from "react";
 import { toast } from "sonner";
 import { Logo } from "@/components/Logo";
@@ -56,13 +56,6 @@ function getGroupColor(groupIndex: number): { bg: string; text: string; border: 
   return colorSchemes[groupIndex % colorSchemes.length] || colorSchemes[0];
 }
 
-const advertisementLogos = [
-  "/logos-advertisement/logo-1.jpg",
-  "/logos-advertisement/logo-2.jpg",
-  "/logos-advertisement/logo-3.jpg",
-  "/logos-advertisement/logo-4.jpg",
-];
-
 export default function ShareGroupStandingsTab({ tournament }: { tournament: Pick<TournamentDTO, "id" | "name" | "category"> }) {
   const groupRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
@@ -85,6 +78,13 @@ export default function ShareGroupStandingsTab({ tournament }: { tournament: Pic
     },
     staleTime: 1000 * 60 * 5,
   });
+
+  const { data: advertisements = [] } = useQuery<AdvertisementDTO[]>({
+    queryKey: ["advertisements"],
+    queryFn: () => advertisementsService.getAll(),
+    staleTime: 1000 * 60 * 5,
+  });
+  const adsToShow = advertisements.length > 0 ? advertisements : fallbackAdvertisements;
 
   const courtMap = new Map<number, string>();
   courts.forEach((court) => {
@@ -453,12 +453,24 @@ export default function ShareGroupStandingsTab({ tournament }: { tournament: Pic
                       </div>
                     )}
                     <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-                      {advertisementLogos.map((src) => (
+                      {adsToShow.map((ad: AdvertisementDTO) => (
                         <div
-                          key={src}
+                          key={ad.id}
                           className="w-32 h-20 border rounded-lg overflow-hidden bg-white/80 dark:bg-slate-900/60 flex items-center justify-center p-2 shadow-xl shadow-black/20 border-white/40"
                         >
-                          <img src={src} alt="Publicidad" className="max-w-full max-h-full object-contain" />
+                          {ad.target_url && ad.target_url.startsWith("http") ? (
+                            <a
+                              href={ad.target_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="w-full h-full flex items-center justify-center"
+                              title={ad.name}
+                            >
+                              <img src={ad.image_url} alt={ad.name} className="max-w-full max-h-full object-contain" />
+                            </a>
+                          ) : (
+                            <img src={ad.image_url} alt={ad.name} className="max-w-full max-h-full object-contain" />
+                          )}
                         </div>
                       ))}
                     </div>
