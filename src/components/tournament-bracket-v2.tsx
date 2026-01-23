@@ -67,8 +67,8 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, sele
       const scheduleText = scheduleParts.length > 0 ? scheduleParts.join(' • ') : '';
       
       // Nombres de las parejas
-      const team1Name = match.team1 ? match.team1.name : "—";
-      const team2Name = match.team2 ? match.team2.name : "—";
+      const team1Name = match.team1 ? match.team1.name : match.sourceTeam1 || "—";
+      const team2Name = match.team2 ? match.team2.name : match.sourceTeam2 || "—";
       const scoresText = match.scores || "";
 
       // Usar un formato especial con el ID del match para identificarlo directamente
@@ -173,6 +173,11 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, sele
           white-space: pre-line !important;
           text-align: center !important;
         }
+        .placeholder-highlight {
+          background-color: #fde68a !important;
+          color: #333 !important;
+          font-weight: 600;
+        }
         /* Ocultar el segundo team (está vacío) */
         [class*="seed"] [class*="seedTeam"]:nth-child(2) {
           display: none !important;
@@ -198,7 +203,7 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, sele
       });
     });
 
-    const structureMatch = (container: HTMLElement, seedId: number) => {
+const structureMatch = (container: HTMLElement, seedId: number) => {
       const seed = seedDataMap.get(seedId);
       if (!seed || container.querySelector('.bracket-match-structured')) return;
 
@@ -206,6 +211,8 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, sele
       const scoresText = seed.scoresText || '';
       const team1Name = seed.team1Name || "—";
       const team2Name = seed.team2Name || "—";
+      const isPlaceholder1 = !!seed.isPlaceholder1;
+      const isPlaceholder2 = !!seed.isPlaceholder2;
 
       // Crear los 4 divs directamente desde los datos
       const wrapper = document.createElement('div');
@@ -247,6 +254,10 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, sele
       if (seed.teams?.[0]?.isWinner) {
         team1Div.style.cssText += 'background-color: rgba(255, 215, 0, 0.9); border-radius: 3px; color: rgba(0, 0, 0, 0.9);';
       }
+      if (isPlaceholder1) {
+        team1Div.classList.add("placeholder-highlight");
+        team1Div.style.cssText += 'background-color: #fde68a !important; color: #333 !important; font-weight: 600; border-radius: 4px;';
+      }
       wrapper.appendChild(team1Div);
 
       const team2Div = document.createElement('div');
@@ -255,6 +266,10 @@ export function TournamentBracketV2({ rounds, matchesByRound, onMatchClick, sele
       team2Div.style.cssText = 'font-size: 12px; text-align: center; padding: 4px; width: 100%; color: rgba(255, 255, 255, 1);';
       if (seed.teams?.[1]?.isWinner) {
         team2Div.style.cssText += 'background-color: rgba(255, 215, 0, 0.9); border-radius: 3px; color: rgba(0, 0, 0, 0.9);';
+      }
+      if (isPlaceholder2) {
+        team2Div.classList.add("placeholder-highlight");
+        team2Div.style.cssText += 'background-color: #fde68a !important; color: #333 !important; font-weight: 600; border-radius: 4px;';
       }
       wrapper.appendChild(team2Div);
 
