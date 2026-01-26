@@ -23,7 +23,10 @@ export interface CreatePlayerInput {
   status?: PlayerStatus;
 }
 
+export type PlayerStatusFilter = PlayerStatus | "all";
+
 export interface FindPlayersOptions {
+  status?: PlayerStatusFilter;
   onlyActive?: boolean;
   search?: string;
 }

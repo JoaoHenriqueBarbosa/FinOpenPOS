@@ -1,5 +1,8 @@
 import type { PlayerDTO } from "@/models/dto/player";
-import type { PlayerStatus } from "@/models/db/player";
+import type {
+  PlayerStatus,
+  PlayerStatusFilter,
+} from "@/models/db/player";
 
 export interface CreatePlayerInput {
   first_name: string;
@@ -18,8 +21,10 @@ export interface UpdatePlayerInput {
 class PlayersService {
   private baseUrl = "/api/players";
 
-  async getAll(onlyActive?: boolean): Promise<PlayerDTO[]> {
-    const url = onlyActive ? `${this.baseUrl}?onlyActive=true` : this.baseUrl;
+  async getAll(status: PlayerStatusFilter = "active"): Promise<PlayerDTO[]> {
+    const params = new URLSearchParams();
+    params.set("status", status);
+    const url = `${this.baseUrl}?${params.toString()}`;
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error("Failed to fetch players");

@@ -74,7 +74,7 @@ export default function PlayersPage() {
   );
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState({
-    status: "all" as "all" | PlayerStatus,
+    status: "active" as "all" | PlayerStatus,
   });
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(
     null
@@ -88,8 +88,8 @@ export default function PlayersPage() {
     isLoading: loadingPlayers,
     refetch: refetchPlayers,
   } = useQuery({
-    queryKey: ["players"], // Mismo key que TeamsTab y OrdersPage
-    queryFn: () => playersService.getAll(),
+    queryKey: ["players", filters.status], // Mismo key que TeamsTab y OrdersPage
+    queryFn: () => playersService.getAll(filters.status),
     staleTime: 1000 * 60 * 5, // 5 minutos
   });
 

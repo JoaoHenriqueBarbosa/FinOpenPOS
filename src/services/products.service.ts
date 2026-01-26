@@ -1,5 +1,6 @@
 import type { ProductDTO } from "@/models/dto/product";
 import type { ProductCategoryDTO } from "@/models/dto/product-category";
+import type { ProductStatusFilter } from "@/models/db/product";
 
 export interface CreateProductInput {
   name: string;
@@ -24,9 +25,12 @@ export interface UpdateProductInput {
 class ProductsService {
   private baseUrl = "/api/products";
 
-  async getAll(): Promise<ProductDTO[]> {
+  async getAll(status: ProductStatusFilter = "active"): Promise<ProductDTO[]> {
     try {
-      const response = await fetch(this.baseUrl);
+      const params = new URLSearchParams();
+      params.set("status", status);
+      const url = `${this.baseUrl}?${params.toString()}`;
+      const response = await fetch(url);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         const errorMessage = errorData?.error || "Error al cargar los productos";

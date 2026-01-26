@@ -67,7 +67,7 @@ async function fetchOrders(): Promise<OrderDTO[]> {
 }
 
 async function fetchPlayers(): Promise<PlayerDTO[]> {
-  return playersService.getAll(true);
+  return playersService.getAll("active");
 }
 
 async function fetchProducts(): Promise<ProductDTO[]> {

@@ -31,7 +31,14 @@ export class ProductsRepository extends BaseRepository {
         )
       `);
 
-    if (options.onlyActive) {
+    if (options.status) {
+      if (options.status === "active") {
+        query = query.eq("is_active", true);
+      } else if (options.status === "inactive") {
+        query = query.eq("is_active", false);
+      }
+      // if status is "all", no additional filtering
+    } else if (options.onlyActive) {
       query = query.eq("is_active", true);
     }
 
