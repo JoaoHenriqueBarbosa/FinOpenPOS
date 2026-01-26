@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -72,6 +72,24 @@ export default function QuickSalePage() {
   const queryClient = useQueryClient();
 
   const [cart, setCart] = useState<CartItem[]>([]);
+
+  const aggregatedCart = useMemo<CartItem[]>(() => {
+    const map = new Map<number, CartItem>();
+
+    cart.forEach((item) => {
+      const existing = map.get(item.product.id);
+      if (existing) {
+        map.set(item.product.id, {
+          ...existing,
+          quantity: existing.quantity + item.quantity,
+        });
+      } else {
+        map.set(item.product.id, { ...item });
+      }
+    });
+
+    return Array.from(map.values());
+  }, [cart]);
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<number | "none">("none");
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -153,7 +171,7 @@ export default function QuickSalePage() {
   }, []);
 
   // Calcular total
-  const total = cart.reduce(
+  const total = aggregatedCart.reduce(
     (sum, item) => sum + item.product.price * item.quantity,
     0
   );
@@ -178,7 +196,7 @@ export default function QuickSalePage() {
         // Procesar venta rápida en una sola llamada API
         const order = await ordersService.quickSale({
           playerId: quickSalePlayer.id,
-          items: cart.map((item) => ({
+        items: aggregatedCart.map((item) => ({
             productId: item.product.id,
             quantity: item.quantity,
           })),
@@ -270,7 +288,7 @@ export default function QuickSalePage() {
 
 
   // Convertir cart a formato OrderItem
-  const orderItems = cart.map((item) => ({
+  const orderItems = aggregatedCart.map((item) => ({
     id: item.product.id,
     product: { id: item.product.id, name: item.product.name },
     quantity: item.quantity,
