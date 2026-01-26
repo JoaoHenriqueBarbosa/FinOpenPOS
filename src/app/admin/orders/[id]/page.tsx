@@ -16,7 +16,11 @@ import type { OrderDTO, OrderItemDTO, OrderStatus } from "@/models/dto/order";
 import type { ProductDTO } from "@/models/dto/product";
 import type { PaymentMethodDTO } from "@/models/dto/payment-method";
 import { ordersService, productsService, paymentMethodsService } from "@/services";
-import { OrderItemsLayout } from "@/components/order-items-layout/OrderItemsLayout";
+import {
+  OrderProductSelectorPanel,
+  OrderConsumptionPanel,
+  OrderSummaryPanel,
+} from "@/components/order-items-layout/OrderItemsLayout";
 import { formatDateTime } from "@/lib/date-utils";
 
 async function fetchOrder(orderId: number): Promise<OrderDTO> {
@@ -773,6 +777,14 @@ export default function OrderDetailPage() {
     );
   }
 
+  const orderItems = (displayOrder?.items ?? []).map((item) => ({
+    id: item.id,
+    product: item.product ? { id: item.product.id, name: item.product.name } : null,
+    quantity: item.quantity,
+    unit_price: item.unit_price,
+  }));
+  const isOrderLoading = loadingOrder && !displayOrder;
+
   return (
     <div className="flex flex-col gap-4 p-6 w-full">
       {/* Header */}
@@ -815,71 +827,71 @@ export default function OrderDetailPage() {
             </>
           )}
         </div>
-      </div>
+        </div>
 
-      <OrderItemsLayout
-        items={(displayOrder?.items ?? []).map((item) => ({
-          id: item.id,
-          product: item.product ? { id: item.product.id, name: item.product.name } : null,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-        }))}
-        isLoading={loadingOrder && !displayOrder}
-        isEditable={isOrderOpen}
-        onUpdateQuantity={(item, newQuantity) => {
-          const orderItem = displayOrder?.items?.find((i) => i.id === item.id);
-          if (orderItem) {
-            updateItemQuantity(orderItem, newQuantity);
-          }
-        }}
-        onRemoveItem={(item) => {
-          const orderItem = displayOrder?.items?.find((i) => i.id === item.id);
-          if (orderItem) {
-            removeItem(orderItem);
-          }
-        }}
-        products={products}
-        onProductSelect={handleProductSelect}
-        loadingProducts={loadingProducts}
-        total={computedTotal}
-        discountPercentage={isOrderOpen ? discountPercentage : displayOrder?.discount_percentage ?? null}
-        discountAmount={isOrderOpen ? discountAmount : displayOrder?.discount_amount ?? null}
-        onDiscountPercentageChange={setDiscountPercentage}
-        onDiscountAmountChange={setDiscountAmount}
-        paymentMethods={paymentMethods}
-        paymentInfo={paymentInfo}
-        selectedPaymentMethodId={selectedPaymentMethodId}
-        onPaymentMethodSelect={(id) => setSelectedPaymentMethodId(id)}
-        loadingPaymentMethods={loadingPM}
-        onProcess={handlePay}
-        onCancel={handleCancel}
-        processing={paying}
-        cancelling={cancelling}
-        hasPendingChanges={hasPendingChanges}
-        onSaveChanges={handleSaveChanges}
-        savingChanges={savingChanges}
-        title="Consumos"
-        description={
-          isOrderOpen
-            ? "Agregá productos y ajustá cantidades de esta cuenta."
-            : "Esta cuenta está cerrada. No se pueden realizar modificaciones."
-        }
-        processButtonLabel="Cobrar y cerrar cuenta"
-        cancelButtonLabel="Cancelar cuenta"
-        emptyMessage="No hay productos en la cuenta."
-        showMoreProductsSelect={true}
-        moreProductsSelectValue={moreProductsSelectValue}
-        onMoreProductsSelectChange={(value) => {
-          setMoreProductsSelectValue(value);
-          if (value !== "none") {
-            const product = products.find((p) => p.id === Number(value));
-            if (product) {
-              handleProductSelect(product, 1);
-              setMoreProductsSelectValue("none");
+      <div className="grid gap-4 lg:grid-cols-[2.5fr_2fr_0.8fr] items-start">
+        <OrderProductSelectorPanel
+          products={products}
+          onProductSelect={handleProductSelect}
+          loadingProducts={loadingProducts}
+          isEditable={isOrderOpen}
+          showMoreProductsSelect={true}
+          moreProductsSelectValue={moreProductsSelectValue}
+          onMoreProductsSelectChange={(value) => {
+            setMoreProductsSelectValue(value);
+            if (value !== "none") {
+              const product = products.find((p) => p.id === Number(value));
+              if (product) {
+                handleProductSelect(product, 1);
+                setMoreProductsSelectValue("none");
+              }
             }
-          }
-        }}
-      />
+          }}
+        />
+
+        <OrderConsumptionPanel
+          items={orderItems}
+          isLoading={isOrderLoading}
+          isEditable={isOrderOpen}
+          onUpdateQuantity={(item, newQuantity) => {
+            const orderItem = displayOrder?.items?.find((i) => i.id === item.id);
+            if (orderItem) {
+              updateItemQuantity(orderItem, newQuantity);
+            }
+          }}
+          onRemoveItem={(item) => {
+            const orderItem = displayOrder?.items?.find((i) => i.id === item.id);
+            if (orderItem) {
+              removeItem(orderItem);
+            }
+          }}
+          hasPendingChanges={hasPendingChanges}
+          onSaveChanges={handleSaveChanges}
+          savingChanges={savingChanges}
+        />
+
+        <OrderSummaryPanel
+          total={computedTotal}
+          finalTotal={finalTotal}
+          discountValue={discountValue}
+          discountPercentage={isOrderOpen ? discountPercentage : displayOrder?.discount_percentage ?? null}
+          discountAmount={isOrderOpen ? discountAmount : displayOrder?.discount_amount ?? null}
+          isEditable={isOrderOpen}
+          isLoading={isOrderLoading}
+          onDiscountPercentageChange={setDiscountPercentage}
+          onDiscountAmountChange={setDiscountAmount}
+          paymentMethods={paymentMethods}
+          selectedPaymentMethodId={selectedPaymentMethodId}
+          onPaymentMethodSelect={(id) => setSelectedPaymentMethodId(id)}
+          loadingPaymentMethods={loadingPM}
+          paymentInfo={paymentInfo}
+          onProcess={handlePay}
+          onCancel={handleCancel}
+          processing={paying}
+          cancelling={cancelling}
+          isDiscountSectionEnabled={isOrderOpen}
+        />
+      </div>
     </div>
   );
 }
