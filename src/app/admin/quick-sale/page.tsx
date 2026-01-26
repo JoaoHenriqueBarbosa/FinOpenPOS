@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -30,7 +30,11 @@ import type { ProductDTO } from "@/models/dto/product";
 import type { PaymentMethodDTO } from "@/models/dto/payment-method";
 import { productsService, paymentMethodsService, playersService, ordersService } from "@/services";
 import type { PlayerDTO } from "@/models/dto/player";
-import { OrderItemsLayout } from "@/components/order-items-layout/OrderItemsLayout";
+import {
+  OrderConsumptionPanel,
+  OrderProductSelectorPanel,
+  OrderSummaryPanel,
+} from "@/components/order-items-layout/OrderItemsLayout";
 
 // Función para obtener o crear el cliente genérico de venta rápida
 async function getOrCreateQuickSalePlayer(): Promise<PlayerDTO> {
@@ -72,6 +76,24 @@ export default function QuickSalePage() {
   const queryClient = useQueryClient();
 
   const [cart, setCart] = useState<CartItem[]>([]);
+
+  const aggregatedCart = useMemo<CartItem[]>(() => {
+    const map = new Map<number, CartItem>();
+
+    cart.forEach((item) => {
+      const existing = map.get(item.product.id);
+      if (existing) {
+        map.set(item.product.id, {
+          ...existing,
+          quantity: existing.quantity + item.quantity,
+        });
+      } else {
+        map.set(item.product.id, { ...item });
+      }
+    });
+
+    return Array.from(map.values());
+  }, [cart]);
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<number | "none">("none");
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -153,7 +175,7 @@ export default function QuickSalePage() {
   }, []);
 
   // Calcular total
-  const total = cart.reduce(
+  const total = aggregatedCart.reduce(
     (sum, item) => sum + item.product.price * item.quantity,
     0
   );
@@ -178,7 +200,7 @@ export default function QuickSalePage() {
         // Procesar venta rápida en una sola llamada API
         const order = await ordersService.quickSale({
           playerId: quickSalePlayer.id,
-          items: cart.map((item) => ({
+        items: aggregatedCart.map((item) => ({
             productId: item.product.id,
             quantity: item.quantity,
           })),
@@ -270,7 +292,7 @@ export default function QuickSalePage() {
 
 
   // Convertir cart a formato OrderItem
-  const orderItems = cart.map((item) => ({
+  const orderItems = aggregatedCart.map((item) => ({
     id: item.product.id,
     product: { id: item.product.id, name: item.product.name },
     quantity: item.quantity,
@@ -302,37 +324,48 @@ export default function QuickSalePage() {
         </CardHeader>
 
         <CardContent>
-          <OrderItemsLayout
-            items={orderItems}
-            isLoading={isLoading}
-            isEditable={!isProcessing}
-            onUpdateQuantity={(item, newQuantity) => {
-              if (!item.product) return;
-              handleUpdateQuantity(item.product.id, newQuantity - item.quantity);
-            }}
-            onRemoveItem={(item) => {
-              if (!item.product) return;
-              handleRemoveProduct(item.product.id);
-            }}
-            products={products}
-            onProductSelect={handleAddProduct}
-            loadingProducts={loadingProducts}
-            total={total}
-            paymentMethods={paymentMethods}
-            selectedPaymentMethodId={selectedPaymentMethodId}
-            onPaymentMethodSelect={(id) => setSelectedPaymentMethodId(id)}
-            loadingPaymentMethods={loadingPaymentMethods}
-            onProcess={handleProcessSale}
-            processing={isProcessing}
-            onClear={() => {
-              setCart([]);
-              setSelectedPaymentMethodId("none");
-            }}
-            processButtonLabel={isProcessing ? "Procesando..." : "Procesar venta"}
-            clearButtonLabel="Limpiar"
-            emptyMessage="El carrito está vacío. Agregá productos para continuar."
-            showMoreProductsSelect={true}
-          />
+          <div className="grid gap-4 lg:grid-cols-[2.5fr_2fr_0.8fr] items-start">
+            <OrderProductSelectorPanel
+              products={products}
+              onProductSelect={handleAddProduct}
+              loadingProducts={loadingProducts}
+              isEditable={!isProcessing}
+              showMoreProductsSelect={true}
+            />
+            <OrderConsumptionPanel
+              items={orderItems}
+              isLoading={isLoading}
+              isEditable={!isProcessing}
+              onUpdateQuantity={(item, newQuantity) => {
+                if (!item.product) return;
+                handleUpdateQuantity(item.product.id, newQuantity - item.quantity);
+              }}
+              onRemoveItem={(item) => {
+                if (!item.product) return;
+                handleRemoveProduct(item.product.id);
+              }}
+              hasPendingChanges={cart.length > 0}
+              emptyMessage="El carrito está vacío. Agregá productos para continuar."
+            />
+            <OrderSummaryPanel
+              total={total}
+              finalTotal={total}
+              discountValue={0}
+              isEditable={!isProcessing}
+              paymentMethods={paymentMethods}
+              selectedPaymentMethodId={selectedPaymentMethodId}
+              onPaymentMethodSelect={(id) => setSelectedPaymentMethodId(id)}
+              loadingPaymentMethods={loadingPaymentMethods}
+              onProcess={handleProcessSale}
+              processing={isProcessing}
+              onClear={() => {
+                setCart([]);
+                setSelectedPaymentMethodId("none");
+              }}
+              processButtonLabel={isProcessing ? "Procesando..." : "Procesar venta"}
+              clearButtonLabel="Limpiar"
+            />
+          </div>
         </CardContent>
       </Card>
     </div>
