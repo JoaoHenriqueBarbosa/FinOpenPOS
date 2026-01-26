@@ -56,7 +56,7 @@ const aggregateOrderItems = (items: OrderItemDTO[] | undefined): OrderItemDTO[] 
     }
   }
 
-  return [...grouped.values(), ...withoutProduct];
+  return [...Array.from(grouped.values()), ...withoutProduct];
 };
 
 const normalizeOrder = (order: OrderDTO): OrderDTO => ({
