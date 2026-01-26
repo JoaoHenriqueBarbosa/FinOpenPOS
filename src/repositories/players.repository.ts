@@ -1,6 +1,11 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { BaseRepository } from "./base-repository";
-import type { Player, PlayerStatus, CreatePlayerInput, FindPlayersOptions } from "@/models/db/player";
+import type {
+  Player,
+  PlayerStatus,
+  CreatePlayerInput,
+  FindPlayersOptions,
+} from "@/models/db/player";
 
 export class PlayersRepository extends BaseRepository {
   /**
@@ -11,7 +16,11 @@ export class PlayersRepository extends BaseRepository {
       .from("players")
       .select("id, first_name, last_name, phone, status, created_at");
 
-    if (options.onlyActive) {
+    if (options.status) {
+      if (options.status !== "all") {
+        query = query.eq("status", options.status);
+      }
+    } else if (options.onlyActive) {
       query = query.eq("status", "active");
     }
 

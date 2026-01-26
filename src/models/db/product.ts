@@ -41,10 +41,13 @@ export interface CreateProductCategoryInput {
   is_active?: boolean;
 }
 
+export type ProductStatusFilter = "active" | "inactive" | "all";
+
 export interface FindProductsOptions {
   categoryId?: number;
   search?: string;
   onlyActive?: boolean;
+  status?: ProductStatusFilter;
 }
 
 export interface FindProductCategoriesOptions {

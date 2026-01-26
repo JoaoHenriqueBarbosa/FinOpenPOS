@@ -3,18 +3,31 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server';
 import { createRepositories } from '@/lib/repository-factory';
 
+import type { ProductStatusFilter } from "@/models/db/product";
+
 export async function GET(request: Request) {
   try {
     const repos = await createRepositories();
     const url = new URL(request.url);
     const categoryId = url.searchParams.get('categoryId');
     const search = url.searchParams.get('q');
-    const onlyActive = url.searchParams.get('onlyActive') === 'true';
+    const onlyActiveParam = url.searchParams.get('onlyActive');
+    const onlyActive = onlyActiveParam === null ? true : onlyActiveParam === 'true';
+    const rawStatusParam = url.searchParams.get('status');
+    const normalizedStatusParam = rawStatusParam?.toLowerCase();
+    const allowedStatuses: ProductStatusFilter[] = ["active", "inactive", "all"];
+    const requestedStatus =
+      normalizedStatusParam &&
+      allowedStatuses.includes(normalizedStatusParam as ProductStatusFilter)
+        ? (normalizedStatusParam as ProductStatusFilter)
+        : null;
+    const effectiveStatus: ProductStatusFilter =
+      requestedStatus ?? (onlyActive ? "active" : "all");
 
     const products = await repos.products.findAll({
       categoryId: categoryId ? Number(categoryId) : undefined,
       search: search ?? undefined,
-      onlyActive,
+      status: effectiveStatus,
     });
 
     // Transformar ProductDB a ProductDTO con categoría normalizada

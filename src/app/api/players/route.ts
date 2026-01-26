@@ -3,15 +3,28 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server';
 import { createRepositories } from '@/lib/repository-factory';
 
+import type { PlayerStatusFilter } from "@/models/db/player";
+
 export async function GET(request: Request) {
   try {
     const repos = await createRepositories();
     const url = new URL(request.url);
-    const onlyActive = url.searchParams.get('onlyActive') === 'true';
+    const onlyActiveParam = url.searchParams.get('onlyActive');
+    const onlyActive = onlyActiveParam === null ? true : onlyActiveParam === 'true';
+    const rawStatusParam = url.searchParams.get('status');
+    const normalizedStatusParam = rawStatusParam?.toLowerCase();
+    const allowedStatuses: PlayerStatusFilter[] = ["active", "inactive", "all"];
+    const requestedStatus =
+      normalizedStatusParam &&
+      allowedStatuses.includes(normalizedStatusParam as PlayerStatusFilter)
+        ? (normalizedStatusParam as PlayerStatusFilter)
+        : null;
+    const effectiveStatus: PlayerStatusFilter =
+      requestedStatus ?? (onlyActive ? "active" : "all");
     const search = url.searchParams.get('q')?.trim();
 
     const players = await repos.players.findAll({
-      onlyActive,
+      status: effectiveStatus,
       search: search ?? undefined,
     });
 

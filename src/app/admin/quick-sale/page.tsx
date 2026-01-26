@@ -35,7 +35,7 @@ import { OrderItemsLayout } from "@/components/order-items-layout/OrderItemsLayo
 // Función para obtener o crear el cliente genérico de venta rápida
 async function getOrCreateQuickSalePlayer(): Promise<PlayerDTO> {
   // Primero intentar buscar un cliente existente llamado "Venta rápida"
-  const players = await playersService.getAll(true);
+  const players = await playersService.getAll("active");
   const quickSalePlayer = players.find(
     (p) => p.first_name === "Venta rápida" && (p.last_name === "" || p.last_name === "Cliente ocasional")
   );

@@ -99,6 +99,9 @@ export default function Products() {
   }>({
     categoryId: "all",
   });
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">(
+    "active"
+  );
   const [currentPage, setCurrentPage] = useState(1);
   const [productsPerPage] = useState(10);
   const [isAddProductDialogOpen, setIsAddProductDialogOpen] = useState(false);
@@ -127,11 +130,6 @@ export default function Products() {
 
   const queryClient = useQueryClient();
 
-  // Fetch functions para React Query
-  async function fetchProducts(): Promise<ProductDTO[]> {
-    return productsService.getAll();
-  }
-
   async function fetchCategories(): Promise<ProductCategoryDTO[]> {
     return productCategoriesService.getAll(true);
   }
@@ -143,8 +141,8 @@ export default function Products() {
     isError: productsError,
     error: productsErrorData,
   } = useQuery({
-    queryKey: ["products"], // Mismo key que PurchasesPage y OrderDetailPage
-    queryFn: fetchProducts,
+    queryKey: ["products", statusFilter], // Mismo key que PurchasesPage y OrderDetailPage
+    queryFn: () => productsService.getAll(statusFilter),
     staleTime: 1000 * 60 * 5, // 5 minutos
   });
 
@@ -312,6 +310,11 @@ export default function Products() {
       ...prev,
       [type]: value,
     }));
+    setCurrentPage(1);
+  };
+
+  const handleStatusFilterChange = (value: "all" | "active" | "inactive") => {
+    setStatusFilter(value);
     setCurrentPage(1);
   };
 
@@ -503,6 +506,28 @@ export default function Products() {
                           {cat.name}
                         </DropdownMenuCheckboxItem>
                       ))}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel>Filtrar por Estado</DropdownMenuLabel>
+                      <DropdownMenuCheckboxItem
+                        checked={statusFilter === "all"}
+                        onCheckedChange={() => handleStatusFilterChange("all")}
+                      >
+                        Todos
+                      </DropdownMenuCheckboxItem>
+                      <DropdownMenuCheckboxItem
+                        checked={statusFilter === "active"}
+                        onCheckedChange={() => handleStatusFilterChange("active")}
+                      >
+                        Activos
+                      </DropdownMenuCheckboxItem>
+                      <DropdownMenuCheckboxItem
+                        checked={statusFilter === "inactive"}
+                        onCheckedChange={() =>
+                          handleStatusFilterChange("inactive")
+                        }
+                      >
+                        Inactivos
+                      </DropdownMenuCheckboxItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
