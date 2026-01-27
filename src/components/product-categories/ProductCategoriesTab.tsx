@@ -53,6 +53,9 @@ export function ProductCategoriesTab() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>("all");
+  const [sellableFilter, setSellableFilter] = useState<
+    "all" | "sellable" | "non_sellable"
+  >("all");
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
@@ -104,16 +107,30 @@ export function ProductCategoriesTab() {
       if (activeFilter === "active" && !cat.is_active) return false;
       if (activeFilter === "inactive" && cat.is_active) return false;
 
+      if (sellableFilter === "sellable" && cat.is_sellable === false) {
+        return false;
+      }
+
+      if (sellableFilter === "non_sellable" && cat.is_sellable !== false) {
+        return false;
+      }
+
       const term = searchTerm.toLowerCase();
       return (
         cat.name.toLowerCase().includes(term) ||
         (cat.description ?? "").toLowerCase().includes(term)
       );
     });
-  }, [categories, activeFilter, searchTerm]);
+  }, [categories, activeFilter, sellableFilter, searchTerm]);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
+  };
+
+  const handleSellableFilterChange = (
+    value: "all" | "sellable" | "non_sellable"
+  ) => {
+    setSellableFilter(value);
   };
 
   const openCreateDialog = () => {
@@ -282,6 +299,30 @@ export function ProductCategoriesTab() {
                     onCheckedChange={() => setActiveFilter("inactive")}
                   >
                     Inactivos
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>Filtrar por Venta</DropdownMenuLabel>
+                  <DropdownMenuCheckboxItem
+                    checked={sellableFilter === "all"}
+                    onCheckedChange={() => handleSellableFilterChange("all")}
+                  >
+                    Todos
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem
+                    checked={sellableFilter === "sellable"}
+                    onCheckedChange={() =>
+                      handleSellableFilterChange("sellable")
+                    }
+                  >
+                    Vendibles
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem
+                    checked={sellableFilter === "non_sellable"}
+                    onCheckedChange={() =>
+                      handleSellableFilterChange("non_sellable")
+                    }
+                  >
+                    No vendibles
                   </DropdownMenuCheckboxItem>
                 </DropdownMenuContent>
               </DropdownMenu>
