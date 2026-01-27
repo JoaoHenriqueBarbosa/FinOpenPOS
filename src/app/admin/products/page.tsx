@@ -103,6 +103,9 @@ export default function Products() {
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">(
     "active"
   );
+  const [usesStockFilter, setUsesStockFilter] = useState<
+    "all" | "uses_stock" | "no_stock"
+  >("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [productsPerPage] = useState(10);
   const [isAddProductDialogOpen, setIsAddProductDialogOpen] = useState(false);
@@ -260,6 +263,14 @@ async function fetchCategories(): Promise<ProductCategoryDTO[]> {
         return false;
       }
 
+      if (usesStockFilter === "uses_stock" && product.uses_stock === false) {
+        return false;
+      }
+
+      if (usesStockFilter === "no_stock" && product.uses_stock !== false) {
+        return false;
+      }
+
       const term = debouncedSearchTerm.toLowerCase();
       return (
         product.name.toLowerCase().includes(term) ||
@@ -285,7 +296,7 @@ async function fetchCategories(): Promise<ProductCategoryDTO[]> {
       // Si ninguno tiene categoría, ordenar por nombre de producto
       return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
     });
-  }, [products, filters.categoryId, debouncedSearchTerm]);
+  }, [products, filters.categoryId, debouncedSearchTerm, usesStockFilter]);
 
   const indexOfLastProduct = currentPage * productsPerPage;
   const indexOfFirstProduct = indexOfLastProduct - productsPerPage;
@@ -318,6 +329,13 @@ async function fetchCategories(): Promise<ProductCategoryDTO[]> {
 
   const handleStatusFilterChange = (value: "all" | "active" | "inactive") => {
     setStatusFilter(value);
+    setCurrentPage(1);
+  };
+
+  const handleUsesStockFilterChange = (
+    value: "all" | "uses_stock" | "no_stock"
+  ) => {
+    setUsesStockFilter(value);
     setCurrentPage(1);
   };
 
@@ -361,6 +379,7 @@ async function fetchCategories(): Promise<ProductCategoryDTO[]> {
     productDescription,
     productPrice,
     productCategoryId,
+    productUsesStock,
   ]);
 
   const handleEditProduct = useCallback(async () => {
@@ -406,6 +425,7 @@ async function fetchCategories(): Promise<ProductCategoryDTO[]> {
     productDescription,
     productPrice,
     productCategoryId,
+    productUsesStock,
   ]);
 
   const handleDeleteProduct = useCallback(async () => {
@@ -532,6 +552,30 @@ async function fetchCategories(): Promise<ProductCategoryDTO[]> {
                       >
                         Inactivos
                       </DropdownMenuCheckboxItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel>Filtrar por stock</DropdownMenuLabel>
+                      <DropdownMenuCheckboxItem
+                        checked={usesStockFilter === "all"}
+                        onCheckedChange={() => handleUsesStockFilterChange("all")}
+                      >
+                        Todos
+                      </DropdownMenuCheckboxItem>
+                      <DropdownMenuCheckboxItem
+                        checked={usesStockFilter === "uses_stock"}
+                        onCheckedChange={() =>
+                          handleUsesStockFilterChange("uses_stock")
+                        }
+                      >
+                        Usa stock
+                      </DropdownMenuCheckboxItem>
+                      <DropdownMenuCheckboxItem
+                        checked={usesStockFilter === "no_stock"}
+                        onCheckedChange={() =>
+                          handleUsesStockFilterChange("no_stock")
+                        }
+                      >
+                        No usa stock
+                      </DropdownMenuCheckboxItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -550,6 +594,7 @@ async function fetchCategories(): Promise<ProductCategoryDTO[]> {
                       <TableHead>Producto</TableHead>
                       <TableHead>Descripcion</TableHead>
                       <TableHead>Categoria</TableHead>
+                      <TableHead>Usa stock</TableHead>
                       <TableHead>Precio</TableHead>
                       <TableHead>Acciones</TableHead>
                     </TableRow>
@@ -579,6 +624,13 @@ async function fetchCategories(): Promise<ProductCategoryDTO[]> {
                           </TableCell>
                           <TableCell>{product.description ?? "-"}</TableCell>
                           <TableCell>{getCategoryName(product.category?.id ?? null)}</TableCell>
+                          <TableCell>
+                            {product.uses_stock ? (
+                              <span className="text-emerald-600 font-medium">Sí</span>
+                            ) : (
+                              <span className="text-muted-foreground">No</span>
+                            )}
+                          </TableCell>
                           <TableCell>${product.price.toFixed(2)}</TableCell>
                           <TableCell>
                           <div className="flex items-center gap-2">
