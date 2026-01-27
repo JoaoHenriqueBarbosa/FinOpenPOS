@@ -19,6 +19,11 @@ export async function GET(request: Request) {
     const toDate = url.searchParams.get('toDate');
     const categoryIdParam = url.searchParams.get('categoryId');
     const categoryId = categoryIdParam ? Number(categoryIdParam) : null;
+    const limitParam = url.searchParams.get('limit');
+    const limit =
+      limitParam && !Number.isNaN(Number(limitParam))
+        ? Number(limitParam)
+        : undefined;
 
     const repository = new StockMovementsRepository(supabase, user.id);
     const statisticsService = new StockMovementsStatisticsService(repository);
@@ -27,6 +32,7 @@ export async function GET(request: Request) {
       fromDate: fromDate ?? undefined,
       toDate: toDate ?? undefined,
       categoryId,
+      limit,
     });
 
     return NextResponse.json(statistics);
