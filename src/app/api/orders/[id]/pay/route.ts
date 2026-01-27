@@ -180,7 +180,16 @@ export async function POST(request: Request, { params }: RouteParams) {
     // 2) Asegurarnos que haya items
     const { data: items, error: itemsError } = await supabase
       .from("order_items")
-      .select("id, quantity, unit_price, product_id")
+      .select(`
+        id,
+        quantity,
+        unit_price,
+        product_id,
+        product:product_id (
+          name,
+          uses_stock
+        )
+      `)
       .eq("order_id", orderId);
 
     if (itemsError) {
@@ -282,14 +291,38 @@ export async function POST(request: Request, { params }: RouteParams) {
 
     // 7) Crear movimientos de stock tipo 'sale'
     //    Usamos quantity > 0 y movement_type = 'sale'.
-    const stockMovementsPayload = items.map((item: any) => ({
-      product_id: item.product_id,
-      movement_type: "sale",
-      quantity: item.quantity, // positiva, en los cálculos restás cuando movement_type = 'sale'
-      unit_cost: item.unit_price, // acá queda el precio de venta por unidad
-      notes: `Venta (order #${orderId})`,
-      user_uid: user.id,
-    }));
+    const normalizeProductRecord = (productField: any) => {
+      if (!productField) {
+        return null;
+      }
+      return Array.isArray(productField) ? productField[0] ?? null : productField;
+    };
+
+    type StockMovementPayload = {
+      product_id: number;
+      movement_type: "sale";
+      quantity: number;
+      unit_cost: number;
+      notes: string;
+      user_uid: string;
+    };
+
+    const stockMovementsPayload = items
+      .map((item: any) => {
+        const product = normalizeProductRecord(item.product);
+        if (product && product.uses_stock === false) {
+          return null;
+        }
+        return {
+          product_id: item.product_id,
+          movement_type: "sale",
+          quantity: item.quantity,
+          unit_cost: item.unit_price,
+          notes: `Venta (order #${orderId})`,
+          user_uid: user.id,
+        };
+      })
+      .filter((movement): movement is StockMovementPayload => movement !== null);
 
     const { error: smError } = await supabase
       .from("stock_movements")

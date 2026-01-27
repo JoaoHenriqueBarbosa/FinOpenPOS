@@ -170,14 +170,31 @@ export async function POST(request: Request) {
       );
     }
 
-    const stockMovementsPayload = orderWithItems.items.map((item: any) => ({
-      product_id: item.product_id,
-      movement_type: "sale",
-      quantity: item.quantity,
-      unit_cost: item.unit_price,
-      notes: `Quick sale (order #${orderId})`,
-      user_uid: user.id,
-    }));
+    type StockMovementPayload = {
+      product_id: number;
+      movement_type: "sale";
+      quantity: number;
+      unit_cost: number;
+      notes: string;
+      user_uid: string;
+    };
+
+    const stockMovementsPayload = orderWithItems.items
+      .map((item: any) => {
+        const product = item.product;
+        if (product && product.uses_stock === false) {
+          return null;
+        }
+        return {
+          product_id: item.product_id,
+          movement_type: "sale",
+          quantity: item.quantity,
+          unit_cost: item.unit_price,
+          notes: `Quick sale (order #${orderId})`,
+          user_uid: user.id,
+        };
+      })
+      .filter((movement): movement is StockMovementPayload => movement !== null);
 
     const { error: smError } = await supabase
       .from("stock_movements")

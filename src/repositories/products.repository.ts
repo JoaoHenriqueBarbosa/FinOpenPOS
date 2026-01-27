@@ -25,9 +25,10 @@ export class ProductsRepository extends BaseRepository {
           id,
           name,
           description,
-          color,
-          is_active,
-          created_at
+        color,
+        is_sellable,
+        is_active,
+        created_at
         )
       `);
 

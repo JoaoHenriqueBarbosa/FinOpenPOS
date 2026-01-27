@@ -33,6 +33,14 @@ export function ProductSelector({
     [products]
   );
 
+  const sellableProducts = useMemo(
+    () =>
+      activeProducts.filter((product) =>
+        product.category ? product.category.is_sellable !== false : true
+      ),
+    [activeProducts]
+  );
+
   // Agrupar productos por categoría
   const productsByCategory = useMemo(() => {
     const grouped = new Map<
@@ -43,7 +51,7 @@ export function ProductSelector({
     // Agregar categoría null para productos sin categoría
     grouped.set(null, { category: null, products: [] });
 
-    activeProducts.forEach((product) => {
+    sellableProducts.forEach((product) => {
       const categoryId = product.category?.id ?? null;
       if (!grouped.has(categoryId)) {
         grouped.set(categoryId, {
@@ -57,7 +65,7 @@ export function ProductSelector({
     return Array.from(grouped.values()).filter(
       (group) => group.products.length > 0
     );
-  }, [activeProducts]);
+  }, [sellableProducts]);
 
   // Filtrar productos por término de búsqueda
   const filteredProductsByCategory = useMemo(() => {
@@ -85,14 +93,14 @@ export function ProductSelector({
     }
 
     const term = searchTerm.toLowerCase().trim();
-    return activeProducts.filter(
+    return sellableProducts.filter(
       (p) =>
         p.name.toLowerCase().includes(term) &&
         !filteredProductsByCategory.some((group) =>
           group.products.some((prod) => prod.id === p.id)
         )
     );
-  }, [activeProducts, searchTerm, filteredProductsByCategory]);
+  }, [sellableProducts, searchTerm, filteredProductsByCategory]);
 
   const handleProductClick = (product: ProductDTO) => {
     if (!disabled) {
@@ -208,7 +216,7 @@ export function ProductSelector({
         )}
 
       {/* Mensaje cuando no hay productos */}
-      {(!searchTerm.trim() || compact) && activeProducts.length === 0 && (
+      {(!searchTerm.trim() || compact) && sellableProducts.length === 0 && (
         <div className="text-center text-muted-foreground py-8">
           No hay productos disponibles
         </div>

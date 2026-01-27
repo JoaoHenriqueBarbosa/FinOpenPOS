@@ -8,10 +8,13 @@ export async function GET(request: Request) {
     const repos = await createRepositories();
     const url = new URL(request.url);
     const onlyActive = url.searchParams.get('onlyActive') === 'true';
+    const onlySellable = url.searchParams.get('onlySellable') === 'true';
     const search = url.searchParams.get('q')?.trim();
 
     const categories = await repos.productCategories.findAll({
       onlyActive,
+      onlySellable,
+      search: search ?? undefined,
     });
 
     return NextResponse.json(categories);
@@ -41,6 +44,7 @@ export async function POST(request: Request) {
       name,
       description: body.description ?? null,
       color: body.color ?? null,
+      is_sellable: body.is_sellable ?? true,
       is_active: body.is_active ?? true,
     });
 

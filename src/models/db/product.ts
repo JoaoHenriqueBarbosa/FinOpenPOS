@@ -5,6 +5,7 @@ export interface ProductCategoryDB {
   name: string;
   description: string | null;
   color: string | null;
+  is_sellable: boolean;
   is_active: boolean;
   created_at: string;
 }
@@ -38,6 +39,7 @@ export interface CreateProductCategoryInput {
   name: string;
   description?: string | null;
   color?: string | null;
+  is_sellable?: boolean;
   is_active?: boolean;
 }
 
@@ -52,6 +54,7 @@ export interface FindProductsOptions {
 
 export interface FindProductCategoriesOptions {
   onlyActive?: boolean;
+  onlySellable?: boolean;
   search?: string;
 }
 

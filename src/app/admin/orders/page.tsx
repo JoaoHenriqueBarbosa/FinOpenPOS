@@ -75,7 +75,7 @@ async function fetchProducts(): Promise<ProductDTO[]> {
 }
 
 async function fetchProductCategories(): Promise<ProductCategoryDTO[]> {
-  return productCategoriesService.getAll(true);
+  return productCategoriesService.getAll({ onlyActive: true });
 }
 
 export default function OrdersPage() {

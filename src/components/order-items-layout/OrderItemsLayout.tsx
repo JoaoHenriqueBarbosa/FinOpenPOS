@@ -244,6 +244,18 @@ export function OrderProductSelectorPanel({
   moreProductsSelectValue = "none",
   onMoreProductsSelectChange,
 }: OrderProductSelectorPanelProps) {
+  const sellableProducts = useMemo(
+    () =>
+      products.filter((product) => {
+        if (!product.is_active) return false;
+        if (product.category?.is_sellable === false) {
+          return false;
+        }
+        return true;
+      }),
+    [products]
+  );
+
   return (
     <Card>
       <CardHeader>
@@ -252,7 +264,7 @@ export function OrderProductSelectorPanel({
       </CardHeader>
       <CardContent className="space-y-4">
         <ProductSelector
-          products={products}
+          products={sellableProducts}
           onProductSelect={(product) => onProductSelect(product)}
           disabled={!isEditable || loadingProducts}
           showSearch={false}
@@ -286,9 +298,7 @@ export function OrderProductSelectorPanel({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Seleccionar producto...</SelectItem>
-                {products
-                  .filter((p) => p.is_active)
-                  .map((p) => (
+            {sellableProducts.map((p) => (
                     <SelectItem key={p.id} value={String(p.id)}>
                       {p.name} - ${p.price.toFixed(2)}
                       {p.category && ` (${p.category.name})`}

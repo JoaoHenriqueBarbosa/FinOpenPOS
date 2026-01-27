@@ -39,6 +39,7 @@ export async function GET(request: Request) {
         product:product_id (
           id,
           name,
+          uses_stock,
           category:category_id (
             id,
             name
@@ -73,6 +74,9 @@ export async function GET(request: Request) {
       if (!item.product) return;
 
       const product = Array.isArray(item.product) ? item.product[0] : item.product;
+      if (product && product.uses_stock === false) {
+        return;
+      }
       const category = product.category 
         ? (Array.isArray(product.category) ? product.category[0] : product.category)
         : null;

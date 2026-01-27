@@ -193,7 +193,7 @@ export class OrdersRepository extends BaseRepository {
     product_id: number;
     quantity: number;
     unit_price: number;
-    product?: { name: string };
+    product?: { name: string; uses_stock?: boolean };
   }> }) | null> {
     const order = await this.findById(orderId);
     if (!order) {
@@ -209,7 +209,8 @@ export class OrdersRepository extends BaseRepository {
         quantity,
         unit_price,
         product:product_id (
-          name
+          name,
+          uses_stock
         )
       `
       )
@@ -227,7 +228,7 @@ export class OrdersRepository extends BaseRepository {
         product_id: number;
         quantity: number;
         unit_price: number;
-        product?: { name: string };
+        product?: { name: string; uses_stock?: boolean };
       }>,
     };
   }
@@ -243,7 +244,7 @@ export class OrdersRepository extends BaseRepository {
     product_id: number;
     quantity: number;
     unit_price: number;
-    product?: { name: string };
+    product?: { name: string; uses_stock?: boolean };
   }> }> {
     // Get current items
     const { data: currentItems, error: currentItemsError } = await this.supabase

@@ -26,6 +26,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -62,6 +63,7 @@ export function ProductCategoriesTab() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [color, setColor] = useState("");
+  const [categoryIsSellable, setCategoryIsSellable] = useState(true);
 
   const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] =
     useState(false);
@@ -74,6 +76,7 @@ export function ProductCategoriesTab() {
     setName("");
     setDescription("");
     setColor("");
+    setCategoryIsSellable(true);
     setIsEdit(false);
   };
 
@@ -126,6 +129,7 @@ export function ProductCategoriesTab() {
     setColor(category.color ?? "");
     setIsEdit(true);
     setIsDialogOpen(true);
+    setCategoryIsSellable(category.is_sellable);
   };
 
   const handleSave = useCallback(async () => {
@@ -138,6 +142,7 @@ export function ProductCategoriesTab() {
       name: name.trim(),
       description: description.trim() || null,
       color: color.trim() || null,
+      is_sellable: categoryIsSellable,
     };
 
     try {
@@ -186,7 +191,14 @@ export function ProductCategoriesTab() {
       console.error("Error saving category:", err);
       toast.error("Error al guardar la categoría");
     }
-  }, [isEdit, selectedCategoryId, name, description, color]);
+  }, [
+    isEdit,
+    selectedCategoryId,
+    name,
+    description,
+    color,
+    categoryIsSellable,
+  ]);
 
   const handleDelete = useCallback(async () => {
     if (!categoryToDelete) return;
@@ -289,6 +301,7 @@ export function ProductCategoriesTab() {
                   <TableHead>Nombre</TableHead>
                   <TableHead>Descripción</TableHead>
                   <TableHead>Color</TableHead>
+                  <TableHead>Venta</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead>Acciones</TableHead>
                 </TableRow>
@@ -311,6 +324,13 @@ export function ProductCategoriesTab() {
                         </div>
                       ) : (
                         "-"
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {cat.is_sellable ? (
+                        <span className="text-emerald-600 font-medium">Sí</span>
+                      ) : (
+                        <span className="text-muted-foreground">No</span>
                       )}
                     </TableCell>
                     <TableCell>
@@ -425,6 +445,23 @@ export function ProductCategoriesTab() {
                   onChange={(e) => setColor(e.target.value)}
                   className="flex-1"
                 />
+              </div>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="cat-sellable" className="text-right">
+                ¿Se vende?
+              </Label>
+              <div className="col-span-3 flex items-center gap-2">
+                <Switch
+                  id="cat-sellable"
+                  checked={categoryIsSellable}
+                  onCheckedChange={(checked) =>
+                    setCategoryIsSellable(Boolean(checked))
+                  }
+                />
+                <span className="text-sm text-muted-foreground">
+                  Los productos de esta categoría aparecerán en los selectores de venta solo si está habilitada.
+                </span>
               </div>
             </div>
           </div>

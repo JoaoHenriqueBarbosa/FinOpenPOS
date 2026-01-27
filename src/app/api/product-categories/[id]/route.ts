@@ -67,6 +67,10 @@ export async function PATCH(request: Request, { params }: Params) {
       updateFields.is_active = body.is_active;
     }
 
+    if (typeof body.is_sellable === 'boolean') {
+      updateFields.is_sellable = body.is_sellable;
+    }
+
     if (Object.keys(updateFields).length === 0) {
       return NextResponse.json(
         { error: 'No fields to update' },

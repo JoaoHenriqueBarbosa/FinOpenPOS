@@ -57,6 +57,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -114,6 +115,7 @@ export default function Products() {
   const [productCategoryId, setProductCategoryId] = useState<
     number | "none"
   >("none");
+  const [productUsesStock, setProductUsesStock] = useState(true);
   const [isEditProductDialogOpen, setIsEditProductDialogOpen] =
     useState(false);
   const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] =
@@ -126,13 +128,14 @@ export default function Products() {
     setProductDescription("");
     setProductPrice("");
     setProductCategoryId("none");
+    setProductUsesStock(true);
   };
 
   const queryClient = useQueryClient();
 
-  async function fetchCategories(): Promise<ProductCategoryDTO[]> {
-    return productCategoriesService.getAll(true);
-  }
+async function fetchCategories(): Promise<ProductCategoryDTO[]> {
+  return productCategoriesService.getAll({ onlyActive: true });
+}
 
   // React Query para compartir cache con otros componentes
   const {
@@ -336,7 +339,7 @@ export default function Products() {
         name: productName,
         description: productDescription || null,
         price,
-        uses_stock: true,
+        uses_stock: productUsesStock,
         min_stock: 0,
         category_id:
           productCategoryId === "none" ? null : Number(productCategoryId),
@@ -382,6 +385,7 @@ export default function Products() {
         name: productName,
         description: productDescription || null,
         price,
+        uses_stock: productUsesStock,
         category_id:
           productCategoryId === "none" ? null : Number(productCategoryId),
       };
@@ -589,6 +593,7 @@ export default function Products() {
                                 setProductCategoryId(
                                   product.category?.id ?? "none"
                                 );
+                              setProductUsesStock(product.uses_stock ?? true);
                                 setIsEditProductDialogOpen(true);
                               }}
                             >
@@ -1059,6 +1064,23 @@ export default function Products() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="uses-stock" className="text-right">
+                Control de stock
+              </Label>
+              <div className="col-span-3 flex items-center gap-3">
+                <Switch
+                  id="uses-stock"
+                  checked={productUsesStock}
+                  onCheckedChange={(checked) =>
+                    setProductUsesStock(Boolean(checked))
+                  }
+                />
+                <span className="text-sm text-muted-foreground">
+                  Si está desactivado, el producto se excluye del control de stock.
+                </span>
+              </div>
             </div>
           </div>
           <DialogFooter>

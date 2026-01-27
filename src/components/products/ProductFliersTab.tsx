@@ -22,7 +22,7 @@ async function fetchProducts(): Promise<ProductDTO[]> {
 }
 
 async function fetchCategories(): Promise<ProductCategoryDTO[]> {
-  return productCategoriesService.getAll(true);
+  return productCategoriesService.getAll({ onlyActive: true });
 }
 
 export function ProductFliersTab() {

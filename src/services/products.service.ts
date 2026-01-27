@@ -130,8 +130,23 @@ class ProductsService {
 class ProductCategoriesService {
   private baseUrl = "/api/product-categories";
 
-  async getAll(onlyActive?: boolean): Promise<ProductCategoryDTO[]> {
-    const url = onlyActive ? `${this.baseUrl}?onlyActive=true` : this.baseUrl;
+  async getAll(options?: {
+    onlyActive?: boolean;
+    onlySellable?: boolean;
+  }): Promise<ProductCategoryDTO[]> {
+    const params = new URLSearchParams();
+    if (options?.onlyActive) {
+      params.set("onlyActive", "true");
+    }
+    if (options?.onlySellable) {
+      params.set("onlySellable", "true");
+    }
+
+    const url =
+      params.toString().length > 0
+        ? `${this.baseUrl}?${params.toString()}`
+        : this.baseUrl;
+
     const response = await fetch(url);
     if (!response.ok) {
       return [];
@@ -147,7 +162,12 @@ class ProductCategoriesService {
     return response.json();
   }
 
-  async create(input: { name: string; color: string }): Promise<ProductCategoryDTO> {
+  async create(input: {
+    name: string;
+    color: string;
+    description?: string | null;
+    is_sellable?: boolean;
+  }): Promise<ProductCategoryDTO> {
     const response = await fetch(this.baseUrl, {
       method: "POST",
       headers: {
@@ -161,7 +181,12 @@ class ProductCategoriesService {
     return response.json();
   }
 
-  async update(id: number, input: { name?: string; color?: string }): Promise<ProductCategoryDTO> {
+  async update(id: number, input: {
+    name?: string;
+    color?: string;
+    description?: string | null;
+    is_sellable?: boolean;
+  }): Promise<ProductCategoryDTO> {
     const response = await fetch(`${this.baseUrl}/${id}`, {
       method: "PATCH",
       headers: {

@@ -26,6 +26,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -62,6 +63,7 @@ export default function ProductCategoriesPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [color, setColor] = useState("");
+  const [categoryIsSellable, setCategoryIsSellable] = useState(true);
 
   const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] =
     useState(false);
@@ -74,6 +76,7 @@ export default function ProductCategoriesPage() {
     setName("");
     setDescription("");
     setColor("");
+    setCategoryIsSellable(true);
     setIsEdit(false);
   };
 
@@ -123,6 +126,7 @@ export default function ProductCategoriesPage() {
     setName(category.name);
     setDescription(category.description ?? "");
     setColor(category.color ?? "");
+    setCategoryIsSellable(category.is_sellable);
     setIsEdit(true);
     setIsDialogOpen(true);
   };
@@ -137,6 +141,7 @@ export default function ProductCategoriesPage() {
       name: name.trim(),
       description: description.trim() || null,
       color: color.trim() || null,
+      is_sellable: categoryIsSellable,
     };
 
     try {
@@ -283,6 +288,7 @@ export default function ProductCategoriesPage() {
                   <TableHead>Nombre</TableHead>
                   <TableHead>Descripcion</TableHead>
                   <TableHead>Color</TableHead>
+                  <TableHead>Venta</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead>Acciones</TableHead>
                 </TableRow>
@@ -305,6 +311,13 @@ export default function ProductCategoriesPage() {
                         </div>
                       ) : (
                         "-"
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {cat.is_sellable ? (
+                        <span className="text-emerald-600 font-medium">Sí</span>
+                      ) : (
+                        <span className="text-muted-foreground">No</span>
                       )}
                     </TableCell>
                     <TableCell>
@@ -419,6 +432,23 @@ export default function ProductCategoriesPage() {
                   onChange={(e) => setColor(e.target.value)}
                   className="flex-1"
                 />
+              </div>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="cat-sellable" className="text-right">
+                ¿Se vende?
+              </Label>
+              <div className="col-span-3 flex items-center gap-2">
+                <Switch
+                  id="cat-sellable"
+                  checked={categoryIsSellable}
+                  onCheckedChange={(checked) =>
+                    setCategoryIsSellable(Boolean(checked))
+                  }
+                />
+                <span className="text-sm text-muted-foreground">
+                  Los productos de esta categoría solo aparecerán en los selectores de venta si está habilitada.
+                </span>
               </div>
             </div>
           </div>
