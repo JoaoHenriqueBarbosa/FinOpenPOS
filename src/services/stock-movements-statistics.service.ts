@@ -15,6 +15,7 @@ export interface StockStatisticsOptions {
   fromDate?: string;
   toDate?: string;
   categoryId?: number | null;
+  limit?: number;
 }
 
 export class StockMovementsStatisticsService {
@@ -26,6 +27,7 @@ export class StockMovementsStatisticsService {
     const movements = await this.repository.findAllWithProduct({
       fromDate: options.fromDate,
       toDate: options.toDate,
+      limit: options.limit,
     });
 
     const stats = new Map<number, StockStatisticsItem>();

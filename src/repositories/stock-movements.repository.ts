@@ -23,6 +23,7 @@ export interface StockMovementWithProduct {
 export interface StockMovementsQueryOptions {
   fromDate?: string;
   toDate?: string;
+  limit?: number;
 }
 
 export class StockMovementsRepository extends BaseRepository {
@@ -60,7 +61,14 @@ export class StockMovementsRepository extends BaseRepository {
       query = query.lte("created_at", toISO);
     }
 
-    const { data, error } = await query.order("created_at", { ascending: false });
+    let preparedQuery = query.order("created_at", { ascending: false });
+    const resolvedLimit =
+      options.limit && Number.isFinite(options.limit) && options.limit > 0
+        ? Math.min(Math.floor(options.limit), 100000)
+        : 10000;
+    preparedQuery = preparedQuery.range(0, resolvedLimit - 1);
+
+    const { data, error } = await preparedQuery;
 
     if (error) {
       throw new Error("Failed to load stock movements: " + error.message);
