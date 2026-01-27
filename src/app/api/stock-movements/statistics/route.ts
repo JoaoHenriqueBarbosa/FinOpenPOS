@@ -32,7 +32,7 @@ export async function GET(request: Request) {
       fromDate: fromDate ?? undefined,
       toDate: toDate ?? undefined,
       categoryId,
-      limit,
+      pageSize: limit,
     });
 
     return NextResponse.json(statistics);

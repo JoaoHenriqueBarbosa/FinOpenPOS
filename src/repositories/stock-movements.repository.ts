@@ -24,6 +24,7 @@ export interface StockMovementsQueryOptions {
   fromDate?: string;
   toDate?: string;
   limit?: number;
+  offset?: number;
 }
 
 export class StockMovementsRepository extends BaseRepository {
@@ -61,14 +62,18 @@ export class StockMovementsRepository extends BaseRepository {
       query = query.lte("created_at", toISO);
     }
 
-    let preparedQuery = query.order("created_at", { ascending: false });
     const resolvedLimit =
       options.limit && Number.isFinite(options.limit) && options.limit > 0
         ? Math.min(Math.floor(options.limit), 100000)
         : 10000;
-    preparedQuery = preparedQuery.range(0, resolvedLimit - 1);
+    const offset =
+      options.offset && Number.isFinite(options.offset) && options.offset >= 0
+        ? Math.floor(options.offset)
+        : 0;
 
-    const { data, error } = await preparedQuery;
+    const { data, error } = await query
+      .order("created_at", { ascending: false })
+      .range(offset, offset + resolvedLimit - 1);
 
     if (error) {
       throw new Error("Failed to load stock movements: " + error.message);

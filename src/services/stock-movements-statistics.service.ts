@@ -1,4 +1,7 @@
-import { StockMovementsRepository } from "@/repositories/stock-movements.repository";
+import {
+  StockMovementsRepository,
+  type StockMovementWithProduct,
+} from "@/repositories/stock-movements.repository";
 
 export interface StockStatisticsItem {
   productId: number;
@@ -15,7 +18,7 @@ export interface StockStatisticsOptions {
   fromDate?: string;
   toDate?: string;
   categoryId?: number | null;
-  limit?: number;
+  pageSize?: number;
 }
 
 export class StockMovementsStatisticsService {
@@ -24,15 +27,34 @@ export class StockMovementsStatisticsService {
   async getStatistics(
     options: StockStatisticsOptions = {}
   ): Promise<StockStatisticsItem[]> {
-    const movements = await this.repository.findAllWithProduct({
-      fromDate: options.fromDate,
-      toDate: options.toDate,
-      limit: options.limit,
-    });
+    const allMovements: StockMovementWithProduct[] = [];
+
+    const pageSize =
+      options.pageSize && Number.isFinite(options.pageSize) && options.pageSize > 0
+        ? Math.min(Math.floor(options.pageSize), 100000)
+        : 5000;
+
+    let offset = 0;
+    while (true) {
+      const chunk = await this.repository.findAllWithProduct({
+        fromDate: options.fromDate,
+        toDate: options.toDate,
+        limit: pageSize,
+        offset,
+      });
+      if (chunk.length === 0) {
+        break;
+      }
+      allMovements.push(...chunk);
+      if (chunk.length < pageSize) {
+        break;
+      }
+      offset += pageSize;
+    }
 
     const stats = new Map<number, StockStatisticsItem>();
 
-    movements.forEach((item) => {
+    allMovements.forEach((item) => {
       if (!item.product) return;
 
       const product = Array.isArray(item.product) ? item.product[0] : item.product;
