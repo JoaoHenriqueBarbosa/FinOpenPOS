@@ -8,7 +8,7 @@ export interface StockMovementWithProduct {
   movement_type: StockMovementType;
   quantity: number;
   product:
-    | {
+    | Array<{
         id: number;
         name: string;
         uses_stock: boolean;
@@ -16,7 +16,7 @@ export interface StockMovementWithProduct {
           id: number;
           name: string;
         }> | null;
-      }
+      }>
     | null;
 }
 
