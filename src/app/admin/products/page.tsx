@@ -206,6 +206,7 @@ async function fetchCategories(): Promise<ProductCategoryDTO[]> {
       return stockMovementsService.createAdjustment(input);
     },
     onSuccess: () => {
+      refetchStockStats();
       queryClient.invalidateQueries({ queryKey: ["stock-statistics"] });
       setIsAdjustmentDialogOpen(false);
       setAdjustmentProductId("none");
