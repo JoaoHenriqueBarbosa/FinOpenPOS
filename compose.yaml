@@ -1,8 +1,6 @@
 services:
   app:
     build: .
-    ports:
-      - "3000:3000"
     environment:
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
       - BETTER_AUTH_URL=${BETTER_AUTH_URL}

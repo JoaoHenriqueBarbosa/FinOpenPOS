@@ -14,7 +14,7 @@ COPY . .
 ENV BETTER_AUTH_SECRET=build-placeholder
 ENV BETTER_AUTH_URL=http://localhost:3000
 
-RUN bun run --bun next build
+RUN mkdir -p data && bun run --bun next build
 
 FROM base AS runtime
 WORKDIR /app
