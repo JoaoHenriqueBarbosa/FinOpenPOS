@@ -47,6 +47,16 @@ export async function signup(formData: FormData) {
   redirect('/admin')
 }
 
+export async function logout() {
+  const supabase = createClient()
+  const { error } = await supabase.auth.signOut()
+
+  if (error) console.error('Logout failed:', error);
+
+  revalidatePath('/', 'layout')
+  redirect('/')
+}
+
 export async function generateExampleData(user_uid: string) {
   const supabase = createClient()
 }
