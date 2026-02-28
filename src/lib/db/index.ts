@@ -7,14 +7,18 @@ const globalForPGlite = globalThis as unknown as {
 };
 
 function createPGlite() {
+  // In production (Vercel), use in-memory — no filesystem access at runtime.
+  // In development, persist to ./data/pglite for convenience.
   if (process.env.NODE_ENV === "production") {
     return new PGlite();
   }
   return new PGlite("./data/pglite");
 }
 
-// Always reuse the same instance — critical for in-memory mode in production,
-// and to avoid duplicates during HMR in development.
-export const pglite = globalForPGlite.pglite ??= createPGlite();
+export const pglite = globalForPGlite.pglite ?? createPGlite();
+
+if (process.env.NODE_ENV !== "production") {
+  globalForPGlite.pglite = pglite;
+}
 
 export const db = drizzle({ client: pglite, schema });
