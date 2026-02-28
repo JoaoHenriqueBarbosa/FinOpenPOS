@@ -45,12 +45,13 @@ const CHART_COLORS = [
   "hsl(var(--chart-5))",
 ];
 
-function formatCurrency(value: number) {
+/** Format cents integer as currency string. */
+function formatCurrency(cents: number) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
     minimumFractionDigits: 2,
-  }).format(value);
+  }).format(cents / 100);
 }
 
 function formatShortDate(dateStr: string) {

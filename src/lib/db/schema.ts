@@ -3,7 +3,6 @@ import {
   serial,
   varchar,
   text,
-  decimal,
   integer,
   timestamp,
 } from "drizzle-orm/pg-core";
@@ -25,7 +24,7 @@ export const products = pgTable("products", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
-  price: decimal("price", { precision: 10, scale: 2 }).notNull().$type<number>(),
+  price: integer("price").notNull(),
   in_stock: integer("in_stock").notNull(),
   user_uid: varchar("user_uid", { length: 255 }).notNull(),
   category: varchar("category", { length: 50 }),
@@ -46,7 +45,7 @@ export const customers = pgTable("customers", {
 export const orders = pgTable("orders", {
   id: serial("id").primaryKey(),
   customer_id: integer("customer_id").references(() => customers.id),
-  total_amount: decimal("total_amount", { precision: 10, scale: 2 }).notNull().$type<number>(),
+  total_amount: integer("total_amount").notNull(),
   user_uid: varchar("user_uid", { length: 255 }).notNull(),
   status: varchar("status", { length: 20 }),
   created_at: timestamp("created_at").defaultNow(),
@@ -58,7 +57,7 @@ export const orderItems = pgTable("order_items", {
   order_id: integer("order_id").references(() => orders.id),
   product_id: integer("product_id").references(() => products.id),
   quantity: integer("quantity").notNull(),
-  price: decimal("price", { precision: 10, scale: 2 }).notNull().$type<number>(),
+  price: integer("price").notNull(),
 });
 
 // ── Payment Methods ─────────────────────────────────────────────────────────
@@ -73,7 +72,7 @@ export const transactions = pgTable("transactions", {
   description: text("description"),
   order_id: integer("order_id").references(() => orders.id),
   payment_method_id: integer("payment_method_id").references(() => paymentMethods.id),
-  amount: decimal("amount", { precision: 10, scale: 2 }).notNull().$type<number>(),
+  amount: integer("amount").notNull(),
   user_uid: varchar("user_uid", { length: 255 }).notNull(),
   type: varchar("type", { length: 20 }),
   category: varchar("category", { length: 100 }),

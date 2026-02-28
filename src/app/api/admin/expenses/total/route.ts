@@ -23,7 +23,7 @@ export async function GET() {
       );
 
     const totalExpenses = expensesData.reduce(
-      (sum, t) => sum + Number(t.amount),
+      (sum, t) => sum + t.amount,
       0
     );
 

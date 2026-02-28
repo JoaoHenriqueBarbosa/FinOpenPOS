@@ -97,7 +97,7 @@ export default function Products() {
       const newProduct = {
         name: productName,
         description: productDescription,
-        price: productPrice,
+        price: Math.round(productPrice * 100),
         in_stock: productInStock,
         category: productCategory,
       };
@@ -129,7 +129,7 @@ export default function Products() {
         id: selectedProductId,
         name: productName,
         description: productDescription,
-        price: productPrice,
+        price: Math.round(productPrice * 100),
         in_stock: productInStock,
         category: productCategory,
       };
@@ -353,7 +353,7 @@ export default function Products() {
                       {product.name}
                     </TableCell>
                     <TableCell>{product.description}</TableCell>
-                    <TableCell>${product.price.toFixed(2)}</TableCell>
+                    <TableCell>${(product.price / 100).toFixed(2)}</TableCell>
                     <TableCell>{product.in_stock}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -364,7 +364,7 @@ export default function Products() {
                             setSelectedProductId(product.id);
                             setProductName(product.name);
                             setProductDescription(product.description);
-                            setProductPrice(product.price);
+                            setProductPrice(product.price / 100);
                             setProductInStock(product.in_stock);
                             setProductCategory(product.category);
                             setIsEditProductDialogOpen(true);

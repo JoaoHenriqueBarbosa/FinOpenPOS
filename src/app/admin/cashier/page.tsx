@@ -81,7 +81,10 @@ export default function Cashier() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(newTransaction),
+        body: JSON.stringify({
+          ...newTransaction,
+          amount: Math.round(Number(newTransaction.amount) * 100),
+        }),
       });
 
       if (response.ok) {
@@ -187,7 +190,7 @@ export default function Cashier() {
                     <Badge variant={transaction.type}>{transaction.type}</Badge>
                   </TableCell>
                   <TableCell>{formatDate(transaction.created_at)}</TableCell>
-                  <TableCell>${transaction.amount.toFixed(2)}</TableCell>
+                  <TableCell>${(transaction.amount / 100).toFixed(2)}</TableCell>
                   <TableCell>
                     <Badge
                       variant={

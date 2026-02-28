@@ -30,7 +30,7 @@ export async function GET() {
         const date = t.created_at
           ? new Date(t.created_at).toISOString().split("T")[0]
           : "unknown";
-        acc[date] = (acc[date] || 0) + Number(t.amount);
+        acc[date] = (acc[date] || 0) + t.amount;
         return acc;
       },
       {} as Record<string, number>

@@ -35,11 +35,11 @@ export async function GET() {
     );
 
     const totalSelling = sellingTransactions.reduce(
-      (sum, t) => sum + Number(t.amount),
+      (sum, t) => sum + t.amount,
       0
     );
     const totalExpenses = expenseTransactions.reduce(
-      (sum, t) => sum + Number(t.amount),
+      (sum, t) => sum + t.amount,
       0
     );
 
