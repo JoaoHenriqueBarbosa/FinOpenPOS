@@ -227,7 +227,7 @@ export default function Cashier() {
             <div className="grid gap-4 py-4">
               <editForm.Field name="description">
                 {(field) => (
-                  <div className="grid grid-cols-4 items-center gap-4">
+                  <div className="flex flex-col sm:grid sm:grid-cols-4 sm:items-center gap-2 sm:gap-4">
                     <Label htmlFor="edit-desc">Description</Label>
                     <div className="col-span-3">
                       <Input id="edit-desc" value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} error={field.state.meta.errors.length > 0 ? field.state.meta.errors.map(e => e?.message ?? e).join(", ") : undefined} />
@@ -237,7 +237,7 @@ export default function Cashier() {
               </editForm.Field>
               <editForm.Field name="category">
                 {(field) => (
-                  <div className="grid grid-cols-4 items-center gap-4">
+                  <div className="flex flex-col sm:grid sm:grid-cols-4 sm:items-center gap-2 sm:gap-4">
                     <Label htmlFor="edit-cat">Category</Label>
                     <Input id="edit-cat" value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} className="col-span-3" />
                   </div>
@@ -245,7 +245,7 @@ export default function Cashier() {
               </editForm.Field>
               <editForm.Field name="type">
                 {(field) => (
-                  <div className="grid grid-cols-4 items-center gap-4">
+                  <div className="flex flex-col sm:grid sm:grid-cols-4 sm:items-center gap-2 sm:gap-4">
                     <Label htmlFor="edit-type">Type</Label>
                     <Select value={field.state.value} onValueChange={(v) => field.handleChange(v as TransactionType)}>
                       <SelectTrigger id="edit-type" className="col-span-3"><SelectValue /></SelectTrigger>
@@ -256,7 +256,7 @@ export default function Cashier() {
               </editForm.Field>
               <editForm.Field name="amount">
                 {(field) => (
-                  <div className="grid grid-cols-4 items-center gap-4">
+                  <div className="flex flex-col sm:grid sm:grid-cols-4 sm:items-center gap-2 sm:gap-4">
                     <Label htmlFor="edit-amount">Amount</Label>
                     <div className="col-span-3">
                       <Input id="edit-amount" type="number" min="0.01" step="0.01" value={field.state.value} onChange={(e) => field.handleChange(Number(e.target.value))} onBlur={field.handleBlur} error={field.state.meta.errors.length > 0 ? field.state.meta.errors.map(e => e?.message ?? e).join(", ") : undefined} />
@@ -266,7 +266,7 @@ export default function Cashier() {
               </editForm.Field>
               <editForm.Field name="status">
                 {(field) => (
-                  <div className="grid grid-cols-4 items-center gap-4">
+                  <div className="flex flex-col sm:grid sm:grid-cols-4 sm:items-center gap-2 sm:gap-4">
                     <Label htmlFor="edit-status">Status</Label>
                     <Select value={field.state.value} onValueChange={(v) => field.handleChange(v as TransactionStatus)}>
                       <SelectTrigger id="edit-status" className="col-span-3"><SelectValue /></SelectTrigger>
