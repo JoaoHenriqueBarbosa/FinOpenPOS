@@ -1,19 +1,23 @@
 import { db } from "@/lib/db";
 import { paymentMethods } from "@/lib/db/schema";
-import { NextResponse } from "next/server";
+import { authHandler, json } from "@/lib/api";
 
-export async function GET() {
-  try {
-    const data = await db
-      .select({ id: paymentMethods.id, name: paymentMethods.name })
-      .from(paymentMethods);
+export const GET = authHandler(async () => {
+  const data = await db.select().from(paymentMethods);
+  return json(data);
+});
 
-    return NextResponse.json(data);
-  } catch (error) {
-    console.error("Error fetching payment methods:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch payment methods" },
-      { status: 500 }
-    );
+export const POST = authHandler(async (_user, request) => {
+  const { name } = await request.json();
+
+  if (!name?.trim()) {
+    return json({ error: "Name is required" }, 400);
   }
-}
+
+  const [data] = await db
+    .insert(paymentMethods)
+    .values({ name: name.trim() })
+    .returning();
+
+  return json(data);
+});

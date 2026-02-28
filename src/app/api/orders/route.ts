@@ -1,41 +1,22 @@
 import { db } from "@/lib/db";
 import { orders, orderItems, transactions, customers } from "@/lib/db/schema";
-import { getAuthUser } from "@/lib/auth-guard";
-
+import { authHandler, json } from "@/lib/api";
 import { eq } from "drizzle-orm";
-import { NextResponse } from "next/server";
 
-export async function GET() {
-  const user = await getAuthUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  try {
-    const data = await db.query.orders.findMany({
-      where: eq(orders.user_uid, user.id),
-      with: {
-        customer: {
-          columns: { name: true },
-        },
+export const GET = authHandler(async (user) => {
+  const data = await db.query.orders.findMany({
+    where: eq(orders.user_uid, user.id),
+    with: {
+      customer: {
+        columns: { name: true },
       },
-    });
+    },
+  });
 
-    return NextResponse.json(data);
-  } catch (error) {
-    return NextResponse.json(
-      { error: (error as Error).message },
-      { status: 500 }
-    );
-  }
-}
+  return json(data);
+});
 
-export async function POST(request: Request) {
-  const user = await getAuthUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export const POST = authHandler(async (user, request) => {
   const {
     customerId,
     paymentMethodId,
@@ -48,57 +29,46 @@ export async function POST(request: Request) {
     total: number;
   } = await request.json();
 
-  try {
-    const result = await db.transaction(async (tx) => {
-      // Insert the order
-      const [orderData] = await tx
-        .insert(orders)
-        .values({
-          customer_id: customerId,
-          total_amount: total,
-          user_uid: user.id,
-          status: "completed",
-        })
-        .returning();
-
-      // Insert order items
-      await tx.insert(orderItems).values(
-        products.map((product) => ({
-          order_id: orderData.id,
-          product_id: product.id,
-          quantity: product.quantity,
-          price: product.price,
-        }))
-      );
-
-      // Insert transaction record
-      await tx.insert(transactions).values({
-        order_id: orderData.id,
-        payment_method_id: paymentMethodId,
-        amount: total,
+  const result = await db.transaction(async (tx) => {
+    const [orderData] = await tx
+      .insert(orders)
+      .values({
+        customer_id: customerId,
+        total_amount: total,
         user_uid: user.id,
         status: "completed",
-        category: "selling",
-        type: "income",
-        description: `Payment for order #${orderData.id}`,
-      });
+      })
+      .returning();
 
-      // Fetch customer name to match previous API shape
-      const customer = customerId
-        ? await tx.query.customers.findFirst({
-            where: eq(customers.id, customerId),
-            columns: { name: true },
-          })
-        : null;
+    await tx.insert(orderItems).values(
+      products.map((product) => ({
+        order_id: orderData.id,
+        product_id: product.id,
+        quantity: product.quantity,
+        price: product.price,
+      }))
+    );
 
-      return { ...orderData, customer };
+    await tx.insert(transactions).values({
+      order_id: orderData.id,
+      payment_method_id: paymentMethodId,
+      amount: total,
+      user_uid: user.id,
+      status: "completed",
+      category: "selling",
+      type: "income",
+      description: `Payment for order #${orderData.id}`,
     });
 
-    return NextResponse.json(result);
-  } catch (error) {
-    return NextResponse.json(
-      { error: (error as Error).message },
-      { status: 500 }
-    );
-  }
-}
+    const customer = customerId
+      ? await tx.query.customers.findFirst({
+          where: eq(customers.id, customerId),
+          columns: { name: true },
+        })
+      : null;
+
+    return { ...orderData, customer };
+  });
+
+  return json(result);
+});
