@@ -47,6 +47,8 @@ import {
 import Link from "next/link";
 import { useCrud } from "@/hooks/use-crud";
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
 
 type Order = {
   id: number;
@@ -105,17 +107,21 @@ export default function OrdersPage() {
         ? orders.find((o) => o.id === editingId)?.created_at
         : new Date().toISOString().split("T")[0],
     };
-    if (isEditing) {
-      await update(editingId, payload as Partial<Order>);
+    const result = isEditing
+      ? await update(editingId, payload as Partial<Order>)
+      : await add(payload as Partial<Order>);
+    if (result) {
+      toast.success(isEditing ? "Order updated" : "Order created");
+      setIsDialogOpen(false);
     } else {
-      await add(payload as Partial<Order>);
+      toast.error(isEditing ? "Failed to update order" : "Failed to create order");
     }
-    setIsDialogOpen(false);
   };
 
   const handleDelete = async () => {
     if (deleteId !== null) {
-      await remove(deleteId);
+      const ok = await remove(deleteId);
+      ok ? toast.success("Order deleted") : toast.error("Failed to delete order");
       setIsDeleteOpen(false);
       setDeleteId(null);
     }
@@ -123,9 +129,26 @@ export default function OrdersPage() {
 
   if (loading) {
     return (
-      <div className="h-[80vh] flex items-center justify-center">
-        <Loader2Icon className="mx-auto h-12 w-12 animate-spin" />
-      </div>
+      <Card className="flex flex-col gap-6 p-6">
+        <CardHeader className="p-0">
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-10 w-48" />
+            <Skeleton className="h-9 w-32" />
+          </div>
+        </CardHeader>
+        <CardContent className="p-0 space-y-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4">
+              <Skeleton className="h-4 w-12" />
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-8 w-24" />
+            </div>
+          ))}
+        </CardContent>
+      </Card>
     );
   }
 

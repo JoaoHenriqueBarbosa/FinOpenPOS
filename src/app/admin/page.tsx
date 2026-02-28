@@ -37,6 +37,7 @@ import {
   Label,
 } from "recharts";
 import { formatCurrency, formatShortDate } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const CHART_COLORS = [
   "hsl(var(--chart-1))",
@@ -119,8 +120,34 @@ export default function Page() {
 
   if (loading) {
     return (
-      <div className="h-[80vh] flex items-center justify-center">
-        <Loader2 className="mx-auto h-12 w-12 animate-spin text-muted-foreground" />
+      <div className="grid flex-1 items-start gap-6">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Card key={i}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-4" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-28 mb-2" />
+                <Skeleton className="h-3 w-40" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <div className="grid gap-6 lg:grid-cols-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i}>
+              <CardHeader className="pb-2">
+                <Skeleton className="h-5 w-32" />
+                <Skeleton className="h-3 w-48" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-[280px] w-full" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
     );
   }

@@ -45,6 +45,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useCrud } from "@/hooks/use-crud";
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
 
 type Customer = {
   id: number;
@@ -91,17 +93,21 @@ export default function CustomersPage() {
   };
 
   const handleSave = async () => {
-    if (isEditing) {
-      await update(editingId, form);
+    const result = isEditing
+      ? await update(editingId, form)
+      : await add(form as Partial<Customer>);
+    if (result) {
+      toast.success(isEditing ? "Customer updated" : "Customer created");
+      setIsDialogOpen(false);
     } else {
-      await add(form as Partial<Customer>);
+      toast.error(isEditing ? "Failed to update customer" : "Failed to create customer");
     }
-    setIsDialogOpen(false);
   };
 
   const handleDelete = async () => {
     if (deleteId !== null) {
-      await remove(deleteId);
+      const ok = await remove(deleteId);
+      ok ? toast.success("Customer deleted") : toast.error("Failed to delete customer");
       setIsDeleteOpen(false);
       setDeleteId(null);
     }
@@ -109,9 +115,25 @@ export default function CustomersPage() {
 
   if (loading) {
     return (
-      <div className="h-[80vh] flex items-center justify-center">
-        <Loader2Icon className="mx-auto h-12 w-12 animate-spin" />
-      </div>
+      <Card className="flex flex-col gap-6 p-6">
+        <CardHeader className="p-0">
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-10 w-48" />
+            <Skeleton className="h-9 w-32" />
+          </div>
+        </CardHeader>
+        <CardContent className="p-0 space-y-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-8 w-20" />
+            </div>
+          ))}
+        </CardContent>
+      </Card>
     );
   }
 
