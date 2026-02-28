@@ -1,14 +1,7 @@
 "use client";
 
-"use client";
-
-import React, { useState, useEffect, useCallback, useMemo } from "react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardFooter,
-} from "@/components/ui/card";
+import { useState, useMemo } from "react";
+import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card";
 import {
   Loader2Icon,
   PlusCircle,
@@ -50,6 +43,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
+import { useCrud } from "@/hooks/use-crud";
+import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
 
 type Customer = {
   id: number;
@@ -59,191 +56,90 @@ type Customer = {
   status: "active" | "inactive";
 };
 
+type CustomerForm = { name: string; email: string; phone: string; status: "active" | "inactive" };
+const emptyForm: CustomerForm = { name: "", email: "", phone: "", status: "active" };
+
 export default function CustomersPage() {
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showNewCustomerDialog, setShowNewCustomerDialog] = useState(false);
-  const [newCustomerName, setNewCustomerName] = useState("");
-  const [newCustomerEmail, setNewCustomerEmail] = useState("");
-  const [newCustomerPhone, setNewCustomerPhone] = useState("");
-  const [newCustomerStatus, setNewCustomerStatus] = useState<
-    "active" | "inactive"
-  >("active");
-  const [isEditCustomerDialogOpen, setIsEditCustomerDialogOpen] =
-    useState(false);
-  const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] =
-    useState(false);
-  const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(
-    null
-  );
+  const { items: customers, loading, error, add, update, remove } = useCrud<Customer>({ url: "/api/customers" });
+
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [form, setForm] = useState(emptyForm);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filters, setFilters] = useState({
-    status: "all",
-  });
-  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(
-    null
-  );
+  const [statusFilter, setStatusFilter] = useState("all");
 
-  useEffect(() => {
-    const fetchCustomers = async () => {
-      try {
-        const response = await fetch("/api/customers");
-        if (!response.ok) {
-          throw new Error("Failed to fetch customers");
-        }
-        const data = await response.json();
-        setCustomers(data);
-      } catch (error) {
-        setError((error as Error).message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchCustomers();
-  }, []);
+  const isEditing = editingId !== null;
 
   const filteredCustomers = useMemo(() => {
-    return customers.filter((customer) => {
-      if (filters.status !== "all" && customer.status !== filters.status) {
-        return false;
-      }
-      return (
-        customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        customer.phone.includes(searchTerm)
-      );
+    return customers.filter((c) => {
+      if (statusFilter !== "all" && c.status !== statusFilter) return false;
+      const q = searchTerm.toLowerCase();
+      return c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q) || c.phone.includes(searchTerm);
     });
-  }, [customers, filters.status, searchTerm]);
+  }, [customers, statusFilter, searchTerm]);
 
-  const resetSelectedCustomer = () => {
-    setSelectedCustomerId(null);
-    setNewCustomerName("");
-    setNewCustomerEmail("");
-    setNewCustomerPhone("");
-    setNewCustomerStatus("active");
+  const openCreate = () => {
+    setEditingId(null);
+    setForm(emptyForm);
+    setIsDialogOpen(true);
   };
 
-  const handleAddCustomer = useCallback(async () => {
-    try {
-      const newCustomer = {
-        name: newCustomerName,
-        email: newCustomerEmail,
-        phone: newCustomerPhone,
-        status: newCustomerStatus,
-      };
-      const response = await fetch("/api/customers", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(newCustomer),
-      });
-
-      if (!response.ok) {
-        throw new Error("Error creating customer");
-      }
-
-      const createdCustomer = await response.json();
-      setCustomers([...customers, createdCustomer]);
-      setShowNewCustomerDialog(false);
-      resetSelectedCustomer();
-    } catch (error) {
-      console.error(error);
-    }
-  }, [
-    newCustomerName,
-    newCustomerEmail,
-    newCustomerPhone,
-    newCustomerStatus,
-    customers,
-  ]);
-
-  const handleEditCustomer = useCallback(async () => {
-    if (!selectedCustomerId) return;
-    try {
-      const updatedCustomer = {
-        id: selectedCustomerId,
-        name: newCustomerName,
-        email: newCustomerEmail,
-        phone: newCustomerPhone,
-        status: newCustomerStatus,
-      };
-      const response = await fetch(`/api/customers/${selectedCustomerId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(updatedCustomer),
-      });
-
-      if (!response.ok) {
-        throw new Error("Error updating customer");
-      }
-
-      const updatedCustomerData = await response.json();
-      setCustomers(
-        customers.map((c) =>
-          c.id === updatedCustomerData.id ? updatedCustomerData : c
-        )
-      );
-      setIsEditCustomerDialogOpen(false);
-      resetSelectedCustomer();
-    } catch (error) {
-      console.error(error);
-    }
-  }, [
-    selectedCustomerId,
-    newCustomerName,
-    newCustomerEmail,
-    newCustomerPhone,
-    newCustomerStatus,
-    customers,
-  ]);
-
-  const handleDeleteCustomer = useCallback(async () => {
-    if (!customerToDelete) return;
-    try {
-      const response = await fetch(`/api/customers/${customerToDelete.id}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        throw new Error("Error deleting customer");
-      }
-
-      setCustomers(customers.filter((c) => c.id !== customerToDelete.id));
-      setIsDeleteConfirmationOpen(false);
-      setCustomerToDelete(null);
-    } catch (error) {
-      console.error(error);
-    }
-  }, [customerToDelete, customers]);
-
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(e.target.value);
+  const openEdit = (c: Customer) => {
+    setEditingId(c.id);
+    setForm({ name: c.name, email: c.email, phone: c.phone, status: c.status });
+    setIsDialogOpen(true);
   };
 
-  const handleFilterChange = (value: string) => {
-    setFilters((prevFilters) => ({
-      ...prevFilters,
-      status: value,
-    }));
+  const handleSave = async () => {
+    const result = isEditing
+      ? await update(editingId, form)
+      : await add(form as Partial<Customer>);
+    if (result) {
+      toast.success(isEditing ? "Customer updated" : "Customer created");
+      setIsDialogOpen(false);
+    } else {
+      toast.error(isEditing ? "Failed to update customer" : "Failed to create customer");
+    }
+  };
+
+  const handleDelete = async () => {
+    if (deleteId !== null) {
+      const ok = await remove(deleteId);
+      ok ? toast.success("Customer deleted") : toast.error("Failed to delete customer");
+      setIsDeleteOpen(false);
+      setDeleteId(null);
+    }
   };
 
   if (loading) {
     return (
-      <div className="h-[80vh] flex items-center justify-center">
-        <Loader2Icon className="mx-auto h-12 w-12 animate-spin" />
-      </div>
+      <Card className="flex flex-col gap-6 p-6">
+        <CardHeader className="p-0">
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-10 w-48" />
+            <Skeleton className="h-9 w-32" />
+          </div>
+        </CardHeader>
+        <CardContent className="p-0 space-y-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-8 w-20" />
+            </div>
+          ))}
+        </CardContent>
+      </Card>
     );
   }
 
   if (error) {
     return (
       <div className="container mx-auto p-4">
-        <h1 className="text-2xl font-bold mb-4">Customers</h1>
         <Card>
           <CardContent>
             <p className="text-red-500">{error}</p>
@@ -263,7 +159,7 @@ export default function CustomersPage() {
                 type="text"
                 placeholder="Search customers..."
                 value={searchTerm}
-                onChange={handleSearch}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 className="pr-8"
               />
               <SearchIcon className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -278,28 +174,19 @@ export default function CustomersPage() {
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuCheckboxItem
-                  checked={filters.status === "all"}
-                  onCheckedChange={() => handleFilterChange("all")}
-                >
-                  All Statuses
-                </DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem
-                  checked={filters.status === "active"}
-                  onCheckedChange={() => handleFilterChange("active")}
-                >
-                  Active
-                </DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem
-                  checked={filters.status === "inactive"}
-                  onCheckedChange={() => handleFilterChange("inactive")}
-                >
-                  Inactive
-                </DropdownMenuCheckboxItem>
+                {["all", "active", "inactive"].map((s) => (
+                  <DropdownMenuCheckboxItem
+                    key={s}
+                    checked={statusFilter === s}
+                    onCheckedChange={() => setStatusFilter(s)}
+                  >
+                    {s === "all" ? "All Statuses" : s.charAt(0).toUpperCase() + s.slice(1)}
+                  </DropdownMenuCheckboxItem>
+                ))}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          <Button size="sm" onClick={() => setShowNewCustomerDialog(true)}>
+          <Button size="sm" onClick={openCreate}>
             <PlusCircle className="w-4 h-4 mr-2" />
             Add Customer
           </Button>
@@ -326,28 +213,14 @@ export default function CustomersPage() {
                   <TableCell>{customer.status}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => {
-                          setSelectedCustomerId(customer.id);
-                          setNewCustomerName(customer.name);
-                          setNewCustomerEmail(customer.email);
-                          setNewCustomerPhone(customer.phone);
-                          setNewCustomerStatus(customer.status);
-                          setIsEditCustomerDialogOpen(true);
-                        }}
-                      >
+                      <Button size="icon" variant="ghost" onClick={() => openEdit(customer)}>
                         <FilePenIcon className="w-4 h-4" />
                         <span className="sr-only">Edit</span>
                       </Button>
                       <Button
                         size="icon"
                         variant="ghost"
-                        onClick={() => {
-                          setCustomerToDelete(customer);
-                          setIsDeleteConfirmationOpen(true);
-                        }}
+                        onClick={() => { setDeleteId(customer.id); setIsDeleteOpen(true); }}
                       >
                         <Trash2 className="w-4 h-4" />
                         <span className="sr-only">Delete</span>
@@ -360,62 +233,29 @@ export default function CustomersPage() {
           </Table>
         </div>
       </CardContent>
-      <CardFooter className="flex justify-between items-center">
-        {/* Pagination can be added here if needed */}
-      </CardFooter>
+      <CardFooter className="flex justify-between items-center" />
 
-      <Dialog
-        open={showNewCustomerDialog || isEditCustomerDialogOpen}
-        onOpenChange={(open) => {
-          if (!open) {
-            setShowNewCustomerDialog(false);
-            setIsEditCustomerDialogOpen(false);
-            resetSelectedCustomer();
-          }
-        }}
-      >
+      <Dialog open={isDialogOpen} onOpenChange={(open) => { if (!open) setIsDialogOpen(false); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {showNewCustomerDialog ? "Create New Customer" : "Edit Customer"}
-            </DialogTitle>
+            <DialogTitle>{isEditing ? "Edit Customer" : "Create New Customer"}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="name">Name</Label>
-              <Input
-                id="name"
-                value={newCustomerName}
-                onChange={(e) => setNewCustomerName(e.target.value)}
-                className="col-span-3"
-              />
+              <Input id="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                value={newCustomerEmail}
-                onChange={(e) => setNewCustomerEmail(e.target.value)}
-                className="col-span-3"
-              />
+              <Input id="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="phone">Phone</Label>
-              <Input
-                id="phone"
-                value={newCustomerPhone}
-                onChange={(e) => setNewCustomerPhone(e.target.value)}
-                className="col-span-3"
-              />
+              <Input id="phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="status">Status</Label>
-              <Select
-                value={newCustomerStatus}
-                onValueChange={(value: "active" | "inactive") =>
-                  setNewCustomerStatus(value)
-                }
-              >
+              <Select value={form.status} onValueChange={(value: "active" | "inactive") => setForm({ ...form, status: value })}>
                 <SelectTrigger id="status" className="col-span-3">
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
@@ -427,50 +267,18 @@ export default function CustomersPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setShowNewCustomerDialog(false);
-                setIsEditCustomerDialogOpen(false);
-                resetSelectedCustomer();
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={
-                showNewCustomerDialog ? handleAddCustomer : handleEditCustomer
-              }
-            >
-              {showNewCustomerDialog ? "Create Customer" : "Update Customer"}
-            </Button>
+            <Button variant="secondary" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSave}>{isEditing ? "Update Customer" : "Create Customer"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={isDeleteConfirmationOpen}
-        onOpenChange={setIsDeleteConfirmationOpen}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirm Deletion</DialogTitle>
-          </DialogHeader>
-          Are you sure you want to delete this customer? This action cannot be
-          undone.
-          <DialogFooter>
-            <Button
-              variant="secondary"
-              onClick={() => setIsDeleteConfirmationOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleDeleteCustomer}>
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DeleteConfirmationDialog
+        open={isDeleteOpen}
+        onOpenChange={setIsDeleteOpen}
+        onConfirm={handleDelete}
+        description="Are you sure you want to delete this customer? This action cannot be undone."
+      />
     </Card>
   );
 }

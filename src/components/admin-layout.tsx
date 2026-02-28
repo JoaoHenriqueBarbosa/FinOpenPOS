@@ -28,18 +28,31 @@ import {
   ShoppingCartIcon,
   UsersIcon,
   ShoppingBagIcon,
+  CreditCardIcon,
+  type LucideIcon,
 } from "lucide-react";
 
 import { logout } from "@/app/login/actions";
 
-const pageNames: { [key: string]: string } = {
-  "/admin": "Dashboard",
-  "/admin/customers": "Customers",
-  "/admin/products": "Products",
-  "/admin/orders": "Orders",
-  "/admin/pos": "Point of Sale",
-  "/admin/cashier": "Cashier",
-};
+interface NavItem {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+}
+
+const navItems: NavItem[] = [
+  { href: "/admin", label: "Dashboard", icon: LayoutDashboardIcon },
+  { href: "/admin/cashier", label: "Cashier", icon: DollarSignIcon },
+  { href: "/admin/products", label: "Products", icon: PackageIcon },
+  { href: "/admin/customers", label: "Customers", icon: UsersIcon },
+  { href: "/admin/orders", label: "Orders", icon: ShoppingBagIcon },
+  { href: "/admin/payment-methods", label: "Payment Methods", icon: CreditCardIcon },
+  { href: "/admin/pos", label: "Point of Sale", icon: ShoppingCartIcon },
+];
+
+const pageNames: Record<string, string> = Object.fromEntries(
+  navItems.map((item) => [item.href, item.label])
+);
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -93,96 +106,24 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
         <aside className="fixed mt-[56px] inset-y-0 left-0 z-10 hidden w-14 flex-col border-r bg-background sm:flex">
           <nav className="flex flex-col items-center gap-4 px-2 sm:py-5">
             <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Link
-                    href="/admin"
-                    className={`flex h-9 w-9 items-center justify-center rounded-lg ${pathname === "/admin"
-                      ? "bg-accent text-accent-foreground"
-                      : "text-muted-foreground"
+              {navItems.map(({ href, label, icon: Icon }) => (
+                <Tooltip key={href}>
+                  <TooltipTrigger asChild>
+                    <Link
+                      href={href}
+                      className={`flex h-9 w-9 items-center justify-center rounded-lg ${
+                        pathname === href
+                          ? "bg-accent text-accent-foreground"
+                          : "text-muted-foreground"
                       } transition-colors hover:text-foreground md:h-8 md:w-8`}
-                  >
-                    <LayoutDashboardIcon className="h-5 w-5" />
-                    <span className="sr-only">Dashboard</span>
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent side="right">Dashboard</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Link
-                    href="/admin/cashier"
-                    className={`flex h-9 w-9 items-center justify-center rounded-lg ${pathname === "/admin/cashier"
-                      ? "bg-accent text-accent-foreground"
-                      : "text-muted-foreground"
-                      } transition-colors hover:text-foreground md:h-8 md:w-8`}
-                  >
-                    <DollarSignIcon className="h-5 w-5" />
-                    <span className="sr-only">Cashier</span>
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent side="right">Cashier</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Link
-                    href="/admin/products"
-                    className={`flex h-9 w-9 items-center justify-center rounded-lg ${pathname === "/admin/products"
-                      ? "bg-accent text-accent-foreground"
-                      : "text-muted-foreground"
-                      } transition-colors hover:text-foreground md:h-8 md:w-8`}
-                  >
-                    <PackageIcon className="h-5 w-5" />
-                    <span className="sr-only">Products</span>
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent side="right">Products</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Link
-                    href="/admin/customers"
-                    className={`flex h-9 w-9 items-center justify-center rounded-lg ${pathname === "/admin/customers"
-                      ? "bg-accent text-accent-foreground"
-                      : "text-muted-foreground"
-                      } transition-colors hover:text-foreground md:h-8 md:w-8`}
-                  >
-                    <UsersIcon className="h-5 w-5" />
-                    <span className="sr-only">Customers</span>
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent side="right">Customers</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Link
-                    href="/admin/orders"
-                    className={`flex h-9 w-9 items-center justify-center rounded-lg ${pathname === "/admin/orders"
-                      ? "bg-accent text-accent-foreground"
-                      : "text-muted-foreground"
-                      } transition-colors hover:text-foreground md:h-8 md:w-8`}
-                  >
-                    <ShoppingBagIcon className="h-5 w-5" />
-                    <span className="sr-only">Orders</span>
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent side="right">Orders</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Link
-                    href="/admin/pos"
-                    className={`flex h-9 w-9 items-center justify-center rounded-lg ${pathname === "/admin/pos"
-                      ? "bg-accent text-accent-foreground"
-                      : "text-muted-foreground"
-                      } transition-colors hover:text-foreground md:h-8 md:w-8`}
-                  >
-                    <ShoppingCartIcon className="h-5 w-5" />
-                    <span className="sr-only">POS</span>
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent side="right">Point of Sale</TooltipContent>
-              </Tooltip>
+                    >
+                      <Icon className="h-5 w-5" />
+                      <span className="sr-only">{label}</span>
+                    </Link>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">{label}</TooltipContent>
+                </Tooltip>
+              ))}
             </TooltipProvider>
           </nav>
         </aside>
