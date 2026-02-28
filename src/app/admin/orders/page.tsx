@@ -175,7 +175,7 @@ export default function OrdersPage() {
   if (error) { return <Card><CardContent><p className="text-red-500">{error.message}</p></CardContent></Card>; }
 
   return (
-    <Card className="flex flex-col gap-6 p-6">
+    <Card className="flex flex-col gap-4 p-3 sm:gap-6 sm:p-6">
       <CardHeader className="p-0">
         <SearchFilter
           search={searchTerm}
@@ -207,13 +207,13 @@ export default function OrdersPage() {
             }}
           >
             <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
+              <div className="flex flex-col sm:grid sm:grid-cols-4 sm:items-center gap-2 sm:gap-4">
                 <Label htmlFor="customerName">Customer</Label>
                 <Input id="customerName" value={editCustomerName} disabled className="col-span-3" />
               </div>
               <form.Field name="total">
                 {(field) => (
-                  <div className="grid grid-cols-4 items-center gap-4">
+                  <div className="flex flex-col sm:grid sm:grid-cols-4 sm:items-center gap-2 sm:gap-4">
                     <Label htmlFor="total">Total</Label>
                     <div className="col-span-3">
                       <Input id="total" type="number" value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} error={field.state.meta.errors.length > 0 ? field.state.meta.errors.map(e => e?.message ?? e).join(", ") : undefined} />
@@ -223,7 +223,7 @@ export default function OrdersPage() {
               </form.Field>
               <form.Field name="status">
                 {(field) => (
-                  <div className="grid grid-cols-4 items-center gap-4">
+                  <div className="flex flex-col sm:grid sm:grid-cols-4 sm:items-center gap-2 sm:gap-4">
                     <Label htmlFor="status">Status</Label>
                     <Select value={field.state.value} onValueChange={(value) => field.handleChange(value as OrderStatus)}>
                       <SelectTrigger id="status" className="col-span-3"><SelectValue placeholder="Select status" /></SelectTrigger>
