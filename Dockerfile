@@ -29,5 +29,5 @@ COPY --from=build /app/drizzle.config.ts ./
 COPY --from=build /app/scripts ./scripts
 COPY --from=build /app/src ./src
 
-EXPOSE 3000
+EXPOSE 3111
 CMD ["sh", "-c", "bun scripts/ensure-db.ts && bun drizzle-kit push && bun next start"]
