@@ -17,9 +17,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useTRPC } from "@/lib/trpc/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { RouterInputs } from "@/lib/trpc/router";
 
-type TransactionType = "income" | "expense";
-type TransactionForm = { description: string; category: string; type: TransactionType; amount: number; status: string };
+type TransactionCreate = RouterInputs["transactions"]["create"];
+type TransactionForm = { description: string; category: string; type: TransactionCreate["type"]; amount: number; status: NonNullable<TransactionCreate["status"]> };
 const emptyForm: TransactionForm = { description: "", category: "", type: "income", amount: 0, status: "completed" };
 
 export default function Cashier() {
@@ -48,19 +49,19 @@ export default function Cashier() {
 
   const openEdit = (t: typeof transactions[0]) => {
     setEditingId(t.id);
-    setForm({ description: t.description ?? "", category: t.category ?? "", type: (t.type as TransactionType) ?? "income", amount: t.amount / 100, status: t.status ?? "completed" });
+    setForm({ description: t.description ?? "", category: t.category ?? "", type: (t.type ?? "income") as TransactionForm["type"], amount: t.amount / 100, status: (t.status ?? "completed") as TransactionForm["status"] });
     setIsEditOpen(true);
   };
 
   const handleEditSave = () => {
     if (editingId === null) return;
-    updateMutation.mutate({ id: editingId, description: form.description, category: form.category, type: form.type, amount: Math.round(form.amount * 100), status: form.status as "completed" | "pending" });
+    updateMutation.mutate({ id: editingId, description: form.description, category: form.category, type: form.type, amount: Math.round(form.amount * 100), status: form.status });
   };
 
   const handleAddTransaction = () => {
     if (!form.description.trim()) { toast.error("Description is required"); return; }
     if (form.amount <= 0) { toast.error("Amount must be greater than zero"); return; }
-    createMutation.mutate({ description: form.description, category: form.category, type: form.type, amount: Math.round(form.amount * 100), status: form.status as "completed" | "pending" });
+    createMutation.mutate({ description: form.description, category: form.category, type: form.type, amount: Math.round(form.amount * 100), status: form.status });
   };
 
   const handleDelete = () => {
@@ -86,7 +87,7 @@ export default function Cashier() {
                     <TableCell>{transaction.id}</TableCell>
                     <TableCell>{transaction.description}</TableCell>
                     <TableCell>{transaction.category}</TableCell>
-                    <TableCell><Badge variant={transaction.type as TransactionType}>{transaction.type}</Badge></TableCell>
+                    <TableCell><Badge variant={transaction.type as "income" | "expense" | undefined}>{transaction.type}</Badge></TableCell>
                     <TableCell>{formatDate(transaction.created_at!)}</TableCell>
                     <TableCell>${(transaction.amount / 100).toFixed(2)}</TableCell>
                     <TableCell><Badge variant={transaction.status === "completed" ? "default" : "secondary"}>{transaction.status}</Badge></TableCell>
@@ -102,10 +103,10 @@ export default function Cashier() {
                   <TableCell className="font-medium text-muted-foreground">New</TableCell>
                   <TableCell><Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Description" className="h-8" /></TableCell>
                   <TableCell><Input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="Category" className="h-8" /></TableCell>
-                  <TableCell><Select value={form.type} onValueChange={(value) => setForm({ ...form, type: value as TransactionType })}><SelectTrigger className="h-8"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="income">Income</SelectItem><SelectItem value="expense">Expense</SelectItem></SelectContent></Select></TableCell>
+                  <TableCell><Select value={form.type} onValueChange={(value) => setForm({ ...form, type: value as TransactionForm["type"] })}><SelectTrigger className="h-8"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="income">Income</SelectItem><SelectItem value="expense">Expense</SelectItem></SelectContent></Select></TableCell>
                   <TableCell className="text-muted-foreground text-sm">{formatDate(new Date().toISOString())}</TableCell>
                   <TableCell><div className="relative"><span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span><Input type="number" min="0.01" step="0.01" value={form.amount || ""} onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })} placeholder="0.00" className="h-8 pl-5" /></div></TableCell>
-                  <TableCell><Select value={form.status} onValueChange={(value) => setForm({ ...form, status: value })}><SelectTrigger className="h-8"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="completed">Completed</SelectItem><SelectItem value="pending">Pending</SelectItem></SelectContent></Select></TableCell>
+                  <TableCell><Select value={form.status} onValueChange={(value) => setForm({ ...form, status: value as TransactionForm["status"] })}><SelectTrigger className="h-8"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="completed">Completed</SelectItem><SelectItem value="pending">Pending</SelectItem></SelectContent></Select></TableCell>
                   <TableCell><Button size="sm" onClick={handleAddTransaction} disabled={createMutation.isPending}>{createMutation.isPending ? <Loader2Icon className="h-4 w-4 animate-spin" /> : "Add"}</Button></TableCell>
                 </TableRow>
               </TableBody>
@@ -120,9 +121,9 @@ export default function Cashier() {
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="edit-desc">Description</Label><Input id="edit-desc" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="col-span-3" /></div>
             <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="edit-cat">Category</Label><Input id="edit-cat" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="col-span-3" /></div>
-            <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="edit-type">Type</Label><Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v as TransactionType })}><SelectTrigger id="edit-type" className="col-span-3"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="income">Income</SelectItem><SelectItem value="expense">Expense</SelectItem></SelectContent></Select></div>
+            <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="edit-type">Type</Label><Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v as TransactionForm["type"] })}><SelectTrigger id="edit-type" className="col-span-3"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="income">Income</SelectItem><SelectItem value="expense">Expense</SelectItem></SelectContent></Select></div>
             <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="edit-amount">Amount</Label><Input id="edit-amount" type="number" min="0.01" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })} className="col-span-3" /></div>
-            <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="edit-status">Status</Label><Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}><SelectTrigger id="edit-status" className="col-span-3"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="completed">Completed</SelectItem><SelectItem value="pending">Pending</SelectItem></SelectContent></Select></div>
+            <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="edit-status">Status</Label><Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as TransactionForm["status"] })}><SelectTrigger id="edit-status" className="col-span-3"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="completed">Completed</SelectItem><SelectItem value="pending">Pending</SelectItem></SelectContent></Select></div>
           </div>
           <DialogFooter><Button variant="secondary" onClick={() => setIsEditOpen(false)}>Cancel</Button><Button onClick={handleEditSave} disabled={updateMutation.isPending}>{updateMutation.isPending ? <Loader2Icon className="h-4 w-4 animate-spin mr-2" /> : null}Update</Button></DialogFooter>
         </DialogContent>

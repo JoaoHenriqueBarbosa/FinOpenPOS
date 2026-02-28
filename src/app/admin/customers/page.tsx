@@ -15,8 +15,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useTRPC } from "@/lib/trpc/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { RouterInputs } from "@/lib/trpc/router";
 
-type CustomerForm = { name: string; email: string; phone: string; status: "active" | "inactive" };
+type CustomerCreate = RouterInputs["customers"]["create"];
+type CustomerForm = Pick<CustomerCreate, "name" | "email"> & { phone: string; status: NonNullable<CustomerCreate["status"]> };
 const emptyForm: CustomerForm = { name: "", email: "", phone: "", status: "active" };
 
 export default function CustomersPage() {
@@ -58,7 +60,7 @@ export default function CustomersPage() {
   const openCreate = () => { setEditingId(null); setForm(emptyForm); setIsDialogOpen(true); };
   const openEdit = (c: typeof customers[0]) => {
     setEditingId(c.id);
-    setForm({ name: c.name, email: c.email, phone: c.phone ?? "", status: (c.status as "active" | "inactive") ?? "active" });
+    setForm({ name: c.name, email: c.email, phone: c.phone ?? "", status: (c.status ?? "active") as CustomerForm["status"] });
     setIsDialogOpen(true);
   };
 
@@ -123,7 +125,7 @@ export default function CustomersPage() {
             <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="name">Name</Label><Input id="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="col-span-3" /></div>
             <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="email">Email</Label><Input id="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="col-span-3" /></div>
             <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="phone">Phone</Label><Input id="phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="col-span-3" /></div>
-            <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="status">Status</Label><Select value={form.status} onValueChange={(value: "active" | "inactive") => setForm({ ...form, status: value })}><SelectTrigger id="status" className="col-span-3"><SelectValue placeholder="Select status" /></SelectTrigger><SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="inactive">Inactive</SelectItem></SelectContent></Select></div>
+            <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="status">Status</Label><Select value={form.status} onValueChange={(value) => setForm({ ...form, status: value as CustomerForm["status"] })}><SelectTrigger id="status" className="col-span-3"><SelectValue placeholder="Select status" /></SelectTrigger><SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="inactive">Inactive</SelectItem></SelectContent></Select></div>
           </div>
           <DialogFooter><Button variant="secondary" onClick={() => setIsDialogOpen(false)}>Cancel</Button><Button onClick={handleSave} disabled={createMutation.isPending || updateMutation.isPending}>{isEditing ? "Update Customer" : "Create Customer"}</Button></DialogFooter>
         </DialogContent>

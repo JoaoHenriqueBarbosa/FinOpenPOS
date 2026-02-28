@@ -16,8 +16,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useTRPC } from "@/lib/trpc/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { RouterInputs } from "@/lib/trpc/router";
 
-type OrderForm = { customerName: string; total: string; status: "completed" | "pending" | "cancelled" };
+type OrderStatus = NonNullable<RouterInputs["orders"]["update"]["status"]>;
+type OrderForm = { customerName: string; total: string; status: OrderStatus };
 const emptyForm: OrderForm = { customerName: "", total: "", status: "pending" };
 
 export default function OrdersPage() {
@@ -52,7 +54,7 @@ export default function OrdersPage() {
 
   const openEdit = (o: typeof orders[0]) => {
     setEditingId(o.id);
-    setForm({ customerName: o.customer?.name ?? "", total: (o.total_amount / 100).toString(), status: (o.status as OrderForm["status"]) ?? "pending" });
+    setForm({ customerName: o.customer?.name ?? "", total: (o.total_amount / 100).toString(), status: (o.status ?? "pending") as OrderStatus });
     setIsDialogOpen(true);
   };
 
@@ -123,7 +125,7 @@ export default function OrdersPage() {
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="customerName">Customer</Label><Input id="customerName" value={form.customerName} disabled className="col-span-3" /></div>
             <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="total">Total</Label><Input id="total" type="number" value={form.total} onChange={(e) => setForm({ ...form, total: e.target.value })} className="col-span-3" /></div>
-            <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="status">Status</Label><Select value={form.status} onValueChange={(value: OrderForm["status"]) => setForm({ ...form, status: value })}><SelectTrigger id="status" className="col-span-3"><SelectValue placeholder="Select status" /></SelectTrigger><SelectContent><SelectItem value="completed">Completed</SelectItem><SelectItem value="pending">Pending</SelectItem><SelectItem value="cancelled">Cancelled</SelectItem></SelectContent></Select></div>
+            <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="status">Status</Label><Select value={form.status} onValueChange={(value) => setForm({ ...form, status: value as OrderStatus })}><SelectTrigger id="status" className="col-span-3"><SelectValue placeholder="Select status" /></SelectTrigger><SelectContent><SelectItem value="completed">Completed</SelectItem><SelectItem value="pending">Pending</SelectItem><SelectItem value="cancelled">Cancelled</SelectItem></SelectContent></Select></div>
           </div>
           <DialogFooter><Button variant="secondary" onClick={() => setIsDialogOpen(false)}>Cancel</Button><Button onClick={handleSave} disabled={updateMutation.isPending}>Update Order</Button></DialogFooter>
         </DialogContent>
