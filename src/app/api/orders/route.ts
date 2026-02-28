@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { orders, orderItems, transactions, customers } from "@/lib/db/schema";
 import { getAuthUser } from "@/lib/auth-guard";
+import { parseDecimals } from "@/lib/utils/parse-decimals";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
@@ -20,7 +21,7 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json(data);
+    return NextResponse.json(data.map((o) => parseDecimals(o, "total_amount")));
   } catch (error) {
     return NextResponse.json(
       { error: (error as Error).message },
@@ -93,7 +94,7 @@ export async function POST(request: Request) {
       return { ...orderData, customer };
     });
 
-    return NextResponse.json(result);
+    return NextResponse.json(parseDecimals(result, "total_amount"));
   } catch (error) {
     return NextResponse.json(
       { error: (error as Error).message },
