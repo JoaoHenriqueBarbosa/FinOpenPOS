@@ -29,8 +29,7 @@ export async function GET() {
       (acc, item) => {
         const category = item.category;
         if (!category) return acc;
-        const amount = Number(item.amount);
-        acc[category] = (acc[category] || 0) + amount;
+        acc[category] = (acc[category] || 0) + item.amount;
         return acc;
       },
       {} as Record<string, number>

@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { products } from "@/lib/db/schema";
 import { getAuthUser } from "@/lib/auth-guard";
-import { parseDecimals } from "@/lib/utils/parse-decimals";
+
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
@@ -17,7 +17,7 @@ export async function GET() {
       .from(products)
       .where(eq(products.user_uid, user.id));
 
-    return NextResponse.json(data.map((p) => parseDecimals(p, "price")));
+    return NextResponse.json(data);
   } catch (error) {
     return NextResponse.json(
       { error: (error as Error).message },
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
       .values({ ...newProduct, user_uid: user.id })
       .returning();
 
-    return NextResponse.json(parseDecimals(data, "price"));
+    return NextResponse.json(data);
   } catch (error) {
     return NextResponse.json(
       { error: (error as Error).message },

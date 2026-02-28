@@ -120,9 +120,9 @@ export default function OrdersPage() {
   const handleAddOrder = useCallback(async () => {
     try {
       const newOrder = {
-        total_amount: parseFloat(newOrderTotal),
+        total_amount: Math.round(parseFloat(newOrderTotal) * 100),
         status: newOrderStatus,
-        created_at: new Date().toISOString().split('T')[0], // Current created_at in YYYY-MM-DD format
+        created_at: new Date().toISOString().split('T')[0],
       };
       const response = await fetch("/api/orders", {
         method: "POST",
@@ -150,9 +150,9 @@ export default function OrdersPage() {
     try {
       const updatedOrder = {
         id: selectedOrderId,
-        total_amount: parseFloat(newOrderTotal),
+        total_amount: Math.round(parseFloat(newOrderTotal) * 100),
         status: newOrderStatus,
-        created_at: orders.find(o => o.id === selectedOrderId)?.created_at, // Preserve the original created_at
+        created_at: orders.find(o => o.id === selectedOrderId)?.created_at,
       };
       const response = await fetch(`/api/orders/${selectedOrderId}`, {
         method: "PUT",
@@ -302,7 +302,7 @@ export default function OrdersPage() {
                 <TableRow key={order.id}>
                   <TableCell>{order.id}</TableCell>
                   <TableCell>{order.customer.name}</TableCell>
-                  <TableCell>${order.total_amount.toFixed(2)}</TableCell>
+                  <TableCell>${(order.total_amount / 100).toFixed(2)}</TableCell>
                   <TableCell>{order.status}</TableCell>
                   <TableCell>{order.created_at}</TableCell>
                   <TableCell>
@@ -313,7 +313,7 @@ export default function OrdersPage() {
                         onClick={() => {
                           setSelectedOrderId(order.id);
                           setNewOrderCustomerName(order.customer.name);
-                          setNewOrderTotal(order.total_amount.toString());
+                          setNewOrderTotal((order.total_amount / 100).toString());
                           setNewOrderStatus(order.status);
                           setIsEditOrderDialogOpen(true);
                         }}

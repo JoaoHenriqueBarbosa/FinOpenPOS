@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { orders, orderItems, customers } from "@/lib/db/schema";
 import { getAuthUser } from "@/lib/auth-guard";
-import { parseDecimals } from "@/lib/utils/parse-decimals";
+
 import { eq, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
@@ -41,7 +41,7 @@ export async function PUT(
         })
       : null;
 
-    return NextResponse.json(parseDecimals({ ...data, customer }, "total_amount"));
+    return NextResponse.json({ ...data, customer });
   } catch (error) {
     return NextResponse.json(
       { error: (error as Error).message },

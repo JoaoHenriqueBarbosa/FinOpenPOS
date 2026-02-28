@@ -62,9 +62,9 @@ function calculateProfitMarginSeries(
     }
 
     if (t.category === "selling") {
-      dailyData[date].selling += Number(t.amount);
+      dailyData[date].selling += t.amount;
     } else if (t.type === "expense") {
-      dailyData[date].expense += Number(t.amount);
+      dailyData[date].expense += t.amount;
     }
   });
 

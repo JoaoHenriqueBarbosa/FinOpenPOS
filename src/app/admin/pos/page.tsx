@@ -206,7 +206,7 @@ export default function POSPage() {
               {selectedProducts.map((product) => (
                 <TableRow key={product.id}>
                   <TableCell>{product.name}</TableCell>
-                  <TableCell>${product.price.toFixed(2)}</TableCell>
+                  <TableCell>${(product.price / 100).toFixed(2)}</TableCell>
                   <TableCell>
                     <input
                       type="number"
@@ -222,7 +222,7 @@ export default function POSPage() {
                     />
                   </TableCell>
                   <TableCell>
-                    ${((product.quantity || 1) * product.price).toFixed(2)}
+                    ${((product.quantity || 1) * product.price / 100).toFixed(2)}
                   </TableCell>
                   <TableCell>
                     <Button
@@ -238,7 +238,7 @@ export default function POSPage() {
             </TableBody>
           </Table>
           <div className="mt-4 text-right">
-            <strong>Total: ${total.toFixed(2)}</strong>
+            <strong>Total: ${(total / 100).toFixed(2)}</strong>
           </div>
           <div className="mt-4">
             <Button onClick={handleCreateOrder} disabled={selectedProducts.length === 0 || !selectedCustomer || !paymentMethod}>
