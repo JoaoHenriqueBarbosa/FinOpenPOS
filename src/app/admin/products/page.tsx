@@ -25,7 +25,6 @@ import {
   FilePenIcon,
   TrashIcon,
   PlusIcon,
-  Loader2Icon,
 } from "lucide-react";
 import {
   Dialog,
@@ -44,30 +43,31 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useCrud } from "@/hooks/use-crud";
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-
-interface Product {
-  id: number;
-  name: string;
-  description: string;
-  price: number;
-  in_stock: number;
-  category: string;
-}
+import { useTRPC } from "@/lib/trpc/client";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 const emptyForm = { name: "", description: "", price: 0, in_stock: 0, category: "" };
 
 export default function Products() {
-  const { items: products, loading, add, update, remove } = useCrud<Product>({
-    url: "/api/products",
-    transformForApi: (data) => ({
-      ...data,
-      price: Math.round((data.price ?? 0) * 100),
-    }),
-  });
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const { data: products = [], isLoading } = useQuery(trpc.products.list.queryOptions());
+
+  const createMutation = useMutation(trpc.products.create.mutationOptions({
+    onSuccess: () => { queryClient.invalidateQueries(trpc.products.list.queryOptions()); toast.success("Product created"); setIsDialogOpen(false); },
+    onError: () => toast.error("Failed to create product"),
+  }));
+  const updateMutation = useMutation(trpc.products.update.mutationOptions({
+    onSuccess: () => { queryClient.invalidateQueries(trpc.products.list.queryOptions()); toast.success("Product updated"); setIsDialogOpen(false); },
+    onError: () => toast.error("Failed to update product"),
+  }));
+  const deleteMutation = useMutation(trpc.products.delete.mutationOptions({
+    onSuccess: () => { queryClient.invalidateQueries(trpc.products.list.queryOptions()); toast.success("Product deleted"); },
+    onError: () => toast.error("Failed to delete product"),
+  }));
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -95,68 +95,38 @@ export default function Products() {
     currentPage * productsPerPage
   );
 
-  const openCreate = () => {
-    setEditingId(null);
-    setForm(emptyForm);
-    setIsDialogOpen(true);
-  };
-
-  const openEdit = (p: Product) => {
+  const openCreate = () => { setEditingId(null); setForm(emptyForm); setIsDialogOpen(true); };
+  const openEdit = (p: typeof products[0]) => {
     setEditingId(p.id);
-    setForm({ name: p.name, description: p.description, price: p.price / 100, in_stock: p.in_stock, category: p.category });
+    setForm({ name: p.name, description: p.description ?? "", price: p.price / 100, in_stock: p.in_stock, category: p.category ?? "" });
     setIsDialogOpen(true);
   };
 
-  const handleSave = async () => {
-    const result = isEditing
-      ? await update(editingId, form as Partial<Product>)
-      : await add(form as Partial<Product>);
-    if (result) {
-      toast.success(isEditing ? "Product updated" : "Product created");
-      setIsDialogOpen(false);
+  const handleSave = () => {
+    if (isEditing) {
+      updateMutation.mutate({ id: editingId, name: form.name, description: form.description, price: Math.round(form.price * 100), in_stock: form.in_stock, category: form.category });
     } else {
-      toast.error(isEditing ? "Failed to update product" : "Failed to create product");
+      createMutation.mutate({ name: form.name, description: form.description, price: Math.round(form.price * 100), in_stock: form.in_stock, category: form.category });
     }
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (deleteId !== null) {
-      const ok = await remove(deleteId);
-      ok ? toast.success("Product deleted") : toast.error("Failed to delete product");
+      deleteMutation.mutate({ id: deleteId });
       setIsDeleteOpen(false);
       setDeleteId(null);
     }
   };
 
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(e.target.value);
-    setCurrentPage(1);
-  };
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => { setSearchTerm(e.target.value); setCurrentPage(1); };
+  const handleFilterChange = (type: "category" | "inStock", value: string) => { setFilters((prev) => ({ ...prev, [type]: value })); setCurrentPage(1); };
 
-  const handleFilterChange = (type: "category" | "inStock", value: string) => {
-    setFilters((prev) => ({ ...prev, [type]: value }));
-    setCurrentPage(1);
-  };
-
-  if (loading) {
+  if (isLoading) {
     return (
       <Card className="flex flex-col gap-6 p-6">
-        <CardHeader className="p-0">
-          <div className="flex items-center justify-between">
-            <Skeleton className="h-10 w-48" />
-            <Skeleton className="h-9 w-32" />
-          </div>
-        </CardHeader>
+        <CardHeader className="p-0"><div className="flex items-center justify-between"><Skeleton className="h-10 w-48" /><Skeleton className="h-9 w-32" /></div></CardHeader>
         <CardContent className="p-0 space-y-3">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-4">
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-4 w-48" />
-              <Skeleton className="h-4 w-16" />
-              <Skeleton className="h-4 w-12" />
-              <Skeleton className="h-8 w-20" />
-            </div>
-          ))}
+          {Array.from({ length: 5 }).map((_, i) => (<div key={i} className="flex items-center gap-4"><Skeleton className="h-4 w-32" /><Skeleton className="h-4 w-48" /><Skeleton className="h-4 w-16" /><Skeleton className="h-4 w-12" /><Skeleton className="h-8 w-20" /></div>))}
         </CardContent>
       </Card>
     );
@@ -169,65 +139,27 @@ export default function Products() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="relative">
-                <Input
-                  type="text"
-                  placeholder="Search products..."
-                  value={searchTerm}
-                  onChange={handleSearch}
-                  className="pr-8"
-                />
+                <Input type="text" placeholder="Search products..." value={searchTerm} onChange={handleSearch} className="pr-8" />
                 <SearchIcon className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               </div>
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-1">
-                    <FilterIcon className="w-4 h-4" />
-                    <span>Filters</span>
-                  </Button>
-                </DropdownMenuTrigger>
+                <DropdownMenuTrigger asChild><Button variant="outline" size="sm" className="gap-1"><FilterIcon className="w-4 h-4" /><span>Filters</span></Button></DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
                   <DropdownMenuLabel>Filter by</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  {["all", "electronics", "home", "health"].map((cat) => (
-                    <DropdownMenuCheckboxItem
-                      key={cat}
-                      checked={filters.category === cat}
-                      onCheckedChange={() => handleFilterChange("category", cat)}
-                    >
-                      {cat === "all" ? "All Categories" : cat.charAt(0).toUpperCase() + cat.slice(1)}
-                    </DropdownMenuCheckboxItem>
-                  ))}
+                  {["all", "electronics", "home", "health"].map((cat) => (<DropdownMenuCheckboxItem key={cat} checked={filters.category === cat} onCheckedChange={() => handleFilterChange("category", cat)}>{cat === "all" ? "All Categories" : cat.charAt(0).toUpperCase() + cat.slice(1)}</DropdownMenuCheckboxItem>))}
                   <DropdownMenuSeparator />
-                  {["all", "in-stock", "out-of-stock"].map((stock) => (
-                    <DropdownMenuCheckboxItem
-                      key={stock}
-                      checked={filters.inStock === stock}
-                      onCheckedChange={() => handleFilterChange("inStock", stock)}
-                    >
-                      {stock === "all" ? "All Stock" : stock === "in-stock" ? "In Stock" : "Out of Stock"}
-                    </DropdownMenuCheckboxItem>
-                  ))}
+                  {["all", "in-stock", "out-of-stock"].map((stock) => (<DropdownMenuCheckboxItem key={stock} checked={filters.inStock === stock} onCheckedChange={() => handleFilterChange("inStock", stock)}>{stock === "all" ? "All Stock" : stock === "in-stock" ? "In Stock" : "Out of Stock"}</DropdownMenuCheckboxItem>))}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-            <Button size="sm" onClick={openCreate}>
-              <PlusIcon className="w-4 h-4 mr-2" />
-              Add Product
-            </Button>
+            <Button size="sm" onClick={openCreate}><PlusIcon className="w-4 h-4 mr-2" />Add Product</Button>
           </div>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Product</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Price</TableHead>
-                  <TableHead>Stock</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
+              <TableHeader><TableRow><TableHead>Product</TableHead><TableHead>Description</TableHead><TableHead>Price</TableHead><TableHead>Stock</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
               <TableBody>
                 {currentProducts.map((product) => (
                   <TableRow key={product.id}>
@@ -237,18 +169,8 @@ export default function Products() {
                     <TableCell>{product.in_stock}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <Button size="icon" variant="ghost" onClick={() => openEdit(product)}>
-                          <FilePenIcon className="w-4 h-4" />
-                          <span className="sr-only">Edit</span>
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => { setDeleteId(product.id); setIsDeleteOpen(true); }}
-                        >
-                          <TrashIcon className="w-4 h-4" />
-                          <span className="sr-only">Delete</span>
-                        </Button>
+                        <Button size="icon" variant="ghost" onClick={() => openEdit(product)}><FilePenIcon className="w-4 h-4" /><span className="sr-only">Edit</span></Button>
+                        <Button size="icon" variant="ghost" onClick={() => { setDeleteId(product.id); setIsDeleteOpen(true); }}><TrashIcon className="w-4 h-4" /><span className="sr-only">Delete</span></Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -262,56 +184,21 @@ export default function Products() {
 
       <Dialog open={isDialogOpen} onOpenChange={(open) => { if (!open) setIsDialogOpen(false); }}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{isEditing ? "Edit Product" : "Add New Product"}</DialogTitle>
-            <DialogDescription>
-              {isEditing ? "Edit the details of the product." : "Enter the details of the new product."}
-            </DialogDescription>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>{isEditing ? "Edit Product" : "Add New Product"}</DialogTitle><DialogDescription>{isEditing ? "Edit the details of the product." : "Enter the details of the new product."}</DialogDescription></DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">Name</Label>
-              <Input id="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="col-span-3" />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="description" className="text-right">Description</Label>
-              <Input id="description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="col-span-3" />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="price" className="text-right">Price</Label>
-              <Input id="price" type="number" value={form.price} onChange={(e) => setForm({ ...form, price: Number(e.target.value) })} className="col-span-3" />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="in_stock" className="text-right">In Stock</Label>
-              <Input id="in_stock" type="number" value={form.in_stock} onChange={(e) => setForm({ ...form, in_stock: Number(e.target.value) })} className="col-span-3" />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="category" className="text-right">Category</Label>
-              <Select value={form.category} onValueChange={(value) => setForm({ ...form, category: value })}>
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Select a category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="electronics">Electronics</SelectItem>
-                  <SelectItem value="clothing">Clothing</SelectItem>
-                  <SelectItem value="books">Books</SelectItem>
-                  <SelectItem value="home">Home</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="name" className="text-right">Name</Label><Input id="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="col-span-3" /></div>
+            <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="description" className="text-right">Description</Label><Input id="description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="col-span-3" /></div>
+            <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="price" className="text-right">Price</Label><Input id="price" type="number" value={form.price} onChange={(e) => setForm({ ...form, price: Number(e.target.value) })} className="col-span-3" /></div>
+            <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="in_stock" className="text-right">In Stock</Label><Input id="in_stock" type="number" value={form.in_stock} onChange={(e) => setForm({ ...form, in_stock: Number(e.target.value) })} className="col-span-3" /></div>
+            <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="category" className="text-right">Category</Label>
+              <Select value={form.category} onValueChange={(value) => setForm({ ...form, category: value })}><SelectTrigger className="col-span-3"><SelectValue placeholder="Select a category" /></SelectTrigger><SelectContent><SelectItem value="electronics">Electronics</SelectItem><SelectItem value="clothing">Clothing</SelectItem><SelectItem value="books">Books</SelectItem><SelectItem value="home">Home</SelectItem></SelectContent></Select>
             </div>
           </div>
-          <DialogFooter>
-            <Button onClick={handleSave}>{isEditing ? "Update Product" : "Add Product"}</Button>
-          </DialogFooter>
+          <DialogFooter><Button onClick={handleSave} disabled={createMutation.isPending || updateMutation.isPending}>{isEditing ? "Update Product" : "Add Product"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <DeleteConfirmationDialog
-        open={isDeleteOpen}
-        onOpenChange={setIsDeleteOpen}
-        onConfirm={handleDelete}
-        description="Are you sure you want to delete this product? This action cannot be undone."
-      />
+      <DeleteConfirmationDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen} onConfirm={handleDelete} description="Are you sure you want to delete this product? This action cannot be undone." />
     </>
   );
 }

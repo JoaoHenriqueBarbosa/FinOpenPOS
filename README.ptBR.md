@@ -13,6 +13,7 @@ Sistema open-source de Ponto de Venda (PDV) e gestão de estoque, construído co
 - **Ponto de Venda (PDV)** para processamento rápido de vendas
 - **Caixa** com registro de transações (receitas e despesas)
 - **Autenticação** com email/senha via Better Auth
+- **Documentação da API** gerada automaticamente via Scalar em `/api/docs`
 
 ## Tech Stack
 
@@ -22,7 +23,9 @@ Sistema open-source de Ponto de Venda (PDV) e gestão de estoque, construído co
 | UI | React 19, Tailwind CSS 4, Radix UI, Recharts |
 | Banco de dados | PGLite (PostgreSQL via WASM) |
 | ORM | Drizzle ORM |
+| API | tRPC v11 (type safety ponta a ponta) |
 | Autenticação | Better Auth |
+| Docs da API | Scalar (OpenAPI 3.0) |
 | Runtime | Bun |
 
 ## Quick Start
@@ -65,22 +68,54 @@ Acesse http://localhost:3000 e use o botão **Fill demo credentials** para entra
 src/
 ├── app/
 │   ├── admin/           # Dashboard, produtos, clientes, pedidos, PDV, caixa
-│   ├── api/             # API routes (CRUD + analytics)
+│   ├── api/
+│   │   ├── auth/        # Handler catch-all do Better Auth
+│   │   ├── trpc/        # Handler HTTP do tRPC (/api/trpc/*)
+│   │   ├── docs/        # Documentação interativa via Scalar
+│   │   └── openapi.json/# Spec OpenAPI 3.0 gerada automaticamente
 │   ├── login/           # Página de login
 │   └── signup/          # Página de cadastro
-├── components/ui/       # Componentes shadcn (Button, Card, Dialog, etc.)
+├── components/
+│   ├── ui/              # Componentes shadcn (Button, Card, Dialog, etc.)
+│   └── trpc-provider.tsx # TRPCProvider + setup React Query
 ├── lib/
 │   ├── db/
 │   │   ├── index.ts     # Singleton PGLite + instância Drizzle
 │   │   ├── schema.ts    # Schema Drizzle (6 tabelas de negócio)
 │   │   ├── auth-schema.ts # Tabelas do Better Auth (auto-geradas)
 │   │   └── seed.ts      # Seed com dados demo via Faker
+│   ├── trpc/
+│   │   ├── init.ts      # Contexto tRPC, router, procedures (public + protected)
+│   │   ├── router.ts    # Router raiz (products, customers, orders, etc.)
+│   │   ├── openapi.ts   # Gerador de spec OpenAPI a partir dos routers tRPC
+│   │   └── routers/     # Routers individuais com validação Zod
 │   ├── auth.ts          # Config Better Auth (server)
 │   ├── auth-client.ts   # Client auth (useSession, signIn, etc.)
-│   └── auth-guard.ts    # Helper getAuthUser() para API routes
+│   └── auth-guard.ts    # Helper getAuthUser() para procedures tRPC
 ├── proxy.ts             # Middleware Next.js 16 (proteção de rotas)
 └── instrumentation.ts   # Executa seed no startup do Next.js
 ```
+
+## API
+
+Todas as procedures exigem autenticação via cookie de sessão do Better Auth. A API usa **tRPC** para type safety de ponta a ponta — os componentes do frontend consomem as procedures diretamente com inferência completa de TypeScript.
+
+### Documentação Interativa
+
+Acesse **`/api/docs`** para a referência completa e interativa da API, gerada pelo Scalar a partir das definições dos routers tRPC.
+
+A spec OpenAPI 3.0 raw está disponível em `/api/openapi.json`.
+
+### Procedures tRPC
+
+| Router | Procedures | Descrição |
+|--------|-----------|-----------|
+| `products` | `list`, `create`, `update`, `delete` | CRUD de produtos com estoque e categorias |
+| `customers` | `list`, `create`, `update`, `delete` | CRUD de clientes com status |
+| `orders` | `list`, `create`, `update`, `delete` | Gestão de pedidos com itens e transações |
+| `transactions` | `list`, `create`, `update`, `delete` | Registro de transações (receitas/despesas) |
+| `paymentMethods` | `list`, `create`, `update`, `delete` | Gestão de métodos de pagamento |
+| `dashboard` | `stats` | Receita, despesas, lucro, fluxo de caixa e margens agregados |
 
 ## Deploy com Docker
 
@@ -175,31 +210,11 @@ bun run dev
 - Remova `serverExternalPackages` do `next.config.mjs`
 - No Docker, troque o volume PGLite por uma conexão ao PostgreSQL via `DATABASE_URL`
 
-> O schema Drizzle (`src/lib/db/schema.ts`) não muda. Todas as queries, relations e API routes continuam funcionando sem alteração.
+> O schema Drizzle (`src/lib/db/schema.ts`) não muda. Todas as queries, relations e procedures tRPC continuam funcionando sem alteração.
 
 ## Valores Monetários
 
 Todos os valores monetários são armazenados como **inteiros em centavos** (ex: R$ 49,99 = `4999`). Isso evita problemas de precisão com ponto flutuante. Na interface, os valores são divididos por 100 para exibição.
-
-## API Routes
-
-Todas as rotas exigem autenticação via cookie de sessão do Better Auth.
-
-| Rota | Métodos | Descrição |
-|------|---------|-----------|
-| `/api/products` | GET, POST | Listar/criar produtos |
-| `/api/products/[id]` | GET, PUT, DELETE | CRUD de produto |
-| `/api/customers` | GET, POST | Listar/criar clientes |
-| `/api/customers/[id]` | GET, PUT, DELETE | CRUD de cliente |
-| `/api/orders` | GET, POST | Listar/criar pedidos |
-| `/api/orders/[id]` | GET, DELETE | Obter/deletar pedido |
-| `/api/transactions` | GET, POST | Listar/criar transações |
-| `/api/transactions/[id]` | GET, PUT, DELETE | CRUD de transação |
-| `/api/payment-methods` | GET | Listar métodos de pagamento |
-| `/api/admin/revenue/*` | GET | Total e por categoria |
-| `/api/admin/expenses/*` | GET | Total e por categoria |
-| `/api/admin/profit/*` | GET | Total e margem |
-| `/api/admin/cashflow` | GET | Fluxo de caixa mensal |
 
 ## Contribuindo
 
