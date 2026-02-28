@@ -15,6 +15,7 @@ const t = initTRPC.context<TRPCContext>().meta<OpenApiMeta>().create({
 });
 
 export const router = t.router;
+export const createCallerFactory = t.createCallerFactory;
 export const publicProcedure = t.procedure;
 
 export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {

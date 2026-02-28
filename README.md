@@ -61,6 +61,8 @@ Open http://localhost:3000 and use the **Fill demo credentials** button to sign 
 | `bun run start` | Start the production server |
 | `bun run db:push` | Push Drizzle schema to PGLite |
 | `bun run db:ensure` | Detect and auto-clean corrupted PGLite data |
+| `bun test` | Run all E2E tests (tRPC routers) |
+| `bun run test:coverage` | Run tests with coverage report |
 
 ## Project Structure
 
@@ -89,6 +91,7 @@ src/
 │   │   ├── router.ts    # Root router (products, customers, orders, etc.)
 │   │   ├── openapi.ts   # OpenAPI spec generator from tRPC routers
 │   │   └── routers/     # Individual routers with Zod validation
+│   │       └── __tests__/# E2E tests (bun:test + PGLite in-memory)
 │   ├── auth.ts          # Better Auth config (server)
 │   ├── auth-client.ts   # Client auth (useSession, signIn, etc.)
 │   └── auth-guard.ts    # getAuthUser() helper for tRPC procedures
@@ -116,6 +119,20 @@ The raw OpenAPI 3.0 spec is available at `/api/openapi.json`.
 | `transactions` | `list`, `create`, `update`, `delete` | Income/expense transaction logging |
 | `paymentMethods` | `list`, `create`, `update`, `delete` | Payment method management |
 | `dashboard` | `stats` | Aggregated revenue, expenses, profit, cash flow, margins |
+
+## Testing
+
+All 6 tRPC routers have 100% test coverage (70 tests, 216 assertions) using `bun:test` with PGLite in-memory databases.
+
+```bash
+# Run all tests
+bun test
+
+# Run with coverage report
+bun run test:coverage
+```
+
+Each test file gets an isolated PGLite instance via `mock.module("@/lib/db", ...)`. The DDL is derived automatically from the Drizzle schema using `getTableConfig` — no hardcoded SQL to keep in sync. Tests verify actual DB state after every mutation: `list()` after create/update/delete, cross-user isolation, FK cascade behavior, and Zod validation rejections.
 
 ## Docker Deploy
 
