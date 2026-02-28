@@ -4,13 +4,25 @@ import { db } from "@/lib/db";
 import { paymentMethods } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
+const paymentMethodSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  created_at: z.date().nullable(),
+});
+
 export const paymentMethodsRouter = router({
-  list: protectedProcedure.query(async () => {
-    return db.select().from(paymentMethods);
-  }),
+  list: protectedProcedure
+    .meta({ openapi: { method: "GET", path: "/payment-methods", tags: ["Payment Methods"], summary: "List all payment methods" } })
+    .input(z.void())
+    .output(z.array(paymentMethodSchema))
+    .query(async () => {
+      return db.select().from(paymentMethods);
+    }),
 
   create: protectedProcedure
+    .meta({ openapi: { method: "POST", path: "/payment-methods", tags: ["Payment Methods"], summary: "Create a payment method" } })
     .input(z.object({ name: z.string().min(1) }))
+    .output(paymentMethodSchema)
     .mutation(async ({ input }) => {
       const [data] = await db
         .insert(paymentMethods)
@@ -20,7 +32,9 @@ export const paymentMethodsRouter = router({
     }),
 
   update: protectedProcedure
+    .meta({ openapi: { method: "PATCH", path: "/payment-methods/{id}", tags: ["Payment Methods"], summary: "Update a payment method" } })
     .input(z.object({ id: z.number(), name: z.string().min(1) }))
+    .output(paymentMethodSchema)
     .mutation(async ({ input }) => {
       const [data] = await db
         .update(paymentMethods)
@@ -31,7 +45,9 @@ export const paymentMethodsRouter = router({
     }),
 
   delete: protectedProcedure
+    .meta({ openapi: { method: "DELETE", path: "/payment-methods/{id}", tags: ["Payment Methods"], summary: "Delete a payment method" } })
     .input(z.object({ id: z.number() }))
+    .output(z.object({ success: z.boolean() }))
     .mutation(async ({ input }) => {
       await db.delete(paymentMethods).where(eq(paymentMethods.id, input.id));
       return { success: true };

@@ -1,4 +1,5 @@
 import { initTRPC, TRPCError } from "@trpc/server";
+import type { OpenApiMeta } from "trpc-to-openapi";
 import superjson from "superjson";
 import { getAuthUser } from "@/lib/auth-guard";
 
@@ -9,7 +10,7 @@ export const createTRPCContext = async () => {
 
 export type TRPCContext = Awaited<ReturnType<typeof createTRPCContext>>;
 
-const t = initTRPC.context<TRPCContext>().create({
+const t = initTRPC.context<TRPCContext>().meta<OpenApiMeta>().create({
   transformer: superjson,
 });
 

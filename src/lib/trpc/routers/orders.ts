@@ -4,19 +4,34 @@ import { db } from "@/lib/db";
 import { orders, orderItems, transactions, customers } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 
+const orderWithCustomerSchema = z.object({
+  id: z.number(),
+  customer_id: z.number().nullable(),
+  total_amount: z.number(),
+  status: z.string().nullable(),
+  user_uid: z.string(),
+  created_at: z.date().nullable(),
+  customer: z.object({ name: z.string() }).nullable(),
+});
+
 export const ordersRouter = router({
-  list: protectedProcedure.query(async ({ ctx }) => {
-    return db.query.orders.findMany({
-      where: eq(orders.user_uid, ctx.user.id),
-      with: {
-        customer: {
-          columns: { name: true },
+  list: protectedProcedure
+    .meta({ openapi: { method: "GET", path: "/orders", tags: ["Orders"], summary: "List all orders" } })
+    .input(z.void())
+    .output(z.array(orderWithCustomerSchema))
+    .query(async ({ ctx }) => {
+      return db.query.orders.findMany({
+        where: eq(orders.user_uid, ctx.user.id),
+        with: {
+          customer: {
+            columns: { name: true },
+          },
         },
-      },
-    });
-  }),
+      });
+    }),
 
   create: protectedProcedure
+    .meta({ openapi: { method: "POST", path: "/orders", tags: ["Orders"], summary: "Create an order with items" } })
     .input(
       z.object({
         customerId: z.number(),
@@ -31,6 +46,7 @@ export const ordersRouter = router({
         total: z.number().int(),
       })
     )
+    .output(orderWithCustomerSchema)
     .mutation(async ({ ctx, input }) => {
       return db.transaction(async (tx) => {
         const [orderData] = await tx
@@ -70,11 +86,12 @@ export const ordersRouter = router({
             })
           : null;
 
-        return { ...orderData, customer };
+        return { ...orderData, customer: customer ?? null };
       });
     }),
 
   update: protectedProcedure
+    .meta({ openapi: { method: "PATCH", path: "/orders/{id}", tags: ["Orders"], summary: "Update an order" } })
     .input(
       z.object({
         id: z.number(),
@@ -82,6 +99,7 @@ export const ordersRouter = router({
         status: z.enum(["completed", "pending", "cancelled"]).optional(),
       })
     )
+    .output(orderWithCustomerSchema)
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
       const [updated] = await db
@@ -97,11 +115,13 @@ export const ordersRouter = router({
           })
         : null;
 
-      return { ...updated, customer };
+      return { ...updated, customer: customer ?? null };
     }),
 
   delete: protectedProcedure
+    .meta({ openapi: { method: "DELETE", path: "/orders/{id}", tags: ["Orders"], summary: "Delete an order and its items" } })
     .input(z.object({ id: z.number() }))
+    .output(z.object({ success: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
       await db.transaction(async (tx) => {
         await tx.delete(orderItems).where(eq(orderItems.order_id, input.id));

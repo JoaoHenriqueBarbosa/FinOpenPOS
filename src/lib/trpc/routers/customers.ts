@@ -4,12 +4,27 @@ import { db } from "@/lib/db";
 import { customers } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 
+const customerSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  email: z.string(),
+  phone: z.string().nullable(),
+  status: z.string().nullable(),
+  user_uid: z.string(),
+  created_at: z.date().nullable(),
+});
+
 export const customersRouter = router({
-  list: protectedProcedure.query(async ({ ctx }) => {
-    return db.select().from(customers).where(eq(customers.user_uid, ctx.user.id));
-  }),
+  list: protectedProcedure
+    .meta({ openapi: { method: "GET", path: "/customers", tags: ["Customers"], summary: "List all customers" } })
+    .input(z.void())
+    .output(z.array(customerSchema))
+    .query(async ({ ctx }) => {
+      return db.select().from(customers).where(eq(customers.user_uid, ctx.user.id));
+    }),
 
   create: protectedProcedure
+    .meta({ openapi: { method: "POST", path: "/customers", tags: ["Customers"], summary: "Create a customer" } })
     .input(
       z.object({
         name: z.string().min(1),
@@ -18,6 +33,7 @@ export const customersRouter = router({
         status: z.enum(["active", "inactive"]).optional(),
       })
     )
+    .output(customerSchema)
     .mutation(async ({ ctx, input }) => {
       const [data] = await db
         .insert(customers)
@@ -27,6 +43,7 @@ export const customersRouter = router({
     }),
 
   update: protectedProcedure
+    .meta({ openapi: { method: "PATCH", path: "/customers/{id}", tags: ["Customers"], summary: "Update a customer" } })
     .input(
       z.object({
         id: z.number(),
@@ -36,6 +53,7 @@ export const customersRouter = router({
         status: z.enum(["active", "inactive"]).optional(),
       })
     )
+    .output(customerSchema)
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
       const [updated] = await db
@@ -47,7 +65,9 @@ export const customersRouter = router({
     }),
 
   delete: protectedProcedure
+    .meta({ openapi: { method: "DELETE", path: "/customers/{id}", tags: ["Customers"], summary: "Delete a customer" } })
     .input(z.object({ id: z.number() }))
+    .output(z.object({ success: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
       await db
         .delete(customers)

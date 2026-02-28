@@ -4,12 +4,28 @@ import { db } from "@/lib/db";
 import { products } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 
+const productSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  description: z.string().nullable(),
+  price: z.number(),
+  in_stock: z.number(),
+  category: z.string().nullable(),
+  user_uid: z.string(),
+  created_at: z.date().nullable(),
+});
+
 export const productsRouter = router({
-  list: protectedProcedure.query(async ({ ctx }) => {
-    return db.select().from(products).where(eq(products.user_uid, ctx.user.id));
-  }),
+  list: protectedProcedure
+    .meta({ openapi: { method: "GET", path: "/products", tags: ["Products"], summary: "List all products" } })
+    .input(z.void())
+    .output(z.array(productSchema))
+    .query(async ({ ctx }) => {
+      return db.select().from(products).where(eq(products.user_uid, ctx.user.id));
+    }),
 
   create: protectedProcedure
+    .meta({ openapi: { method: "POST", path: "/products", tags: ["Products"], summary: "Create a product" } })
     .input(
       z.object({
         name: z.string().min(1),
@@ -19,6 +35,7 @@ export const productsRouter = router({
         category: z.string().optional(),
       })
     )
+    .output(productSchema)
     .mutation(async ({ ctx, input }) => {
       const [data] = await db
         .insert(products)
@@ -28,6 +45,7 @@ export const productsRouter = router({
     }),
 
   update: protectedProcedure
+    .meta({ openapi: { method: "PATCH", path: "/products/{id}", tags: ["Products"], summary: "Update a product" } })
     .input(
       z.object({
         id: z.number(),
@@ -38,6 +56,7 @@ export const productsRouter = router({
         category: z.string().optional(),
       })
     )
+    .output(productSchema)
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
       const [updated] = await db
@@ -49,7 +68,9 @@ export const productsRouter = router({
     }),
 
   delete: protectedProcedure
+    .meta({ openapi: { method: "DELETE", path: "/products/{id}", tags: ["Products"], summary: "Delete a product" } })
     .input(z.object({ id: z.number() }))
+    .output(z.object({ success: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
       await db
         .delete(products)
