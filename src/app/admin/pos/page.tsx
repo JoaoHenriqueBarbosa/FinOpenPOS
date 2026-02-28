@@ -19,15 +19,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useTRPC } from "@/lib/trpc/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { RouterOutputs } from "@/lib/trpc/router";
 
-interface POSProduct {
-  id: number;
-  name: string;
-  price: number;
-  in_stock: number;
-  category: string;
-  quantity: number;
-}
+type Product = RouterOutputs["products"]["list"][number];
+type POSProduct = Pick<Product, "id" | "name" | "price" | "in_stock"> & { category: string; quantity: number };
 
 export default function POSPage() {
   const trpc = useTRPC();
