@@ -15,6 +15,27 @@ Open-source Point of Sale (POS) and inventory management system built with Next.
 - **Authentication** with email/password via Better Auth
 - **API Documentation** auto-generated interactive docs via Scalar at `/api/docs`
 
+## Architecture
+
+```mermaid
+flowchart LR
+  Browser["Browser\nReact 19"]
+  Proxy["proxy.ts\n(session check)"]
+  tRPC["tRPC v11\n(superjson)"]
+  Auth["Better Auth\n(session cookie)"]
+  Drizzle["Drizzle ORM"]
+  PGLite["PGLite\n(PostgreSQL WASM)"]
+  Scalar["Scalar\n/api/docs"]
+
+  Browser -->|HTTP request| Proxy
+  Proxy -->|authenticated| tRPC
+  Proxy -->|/api/auth/*| Auth
+  tRPC -->|protectedProcedure| Drizzle
+  Drizzle -->|SQL| PGLite
+  tRPC -.->|OpenAPI spec| Scalar
+  Auth -->|session| PGLite
+```
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -59,7 +80,7 @@ Open http://localhost:3000 and use the **Fill demo credentials** button to sign 
 | `bun run dev` | Validate PGLite, push schema and start dev server |
 | `bun run build` | Validate PGLite, push schema and production build |
 | `bun run start` | Start the production server |
-| `bun run db:push` | Push Drizzle schema to PGLite |
+| `bun run db:push` | Push Drizzle schema to PGLite and regenerate ER diagram |
 | `bun run db:ensure` | Detect and auto-clean corrupted PGLite data |
 | `bun test` | Run all E2E tests (tRPC routers) |
 | `bun run test:coverage` | Run tests with coverage report |
@@ -132,6 +153,31 @@ bun test
 bun run test:coverage
 ```
 
+```mermaid
+flowchart TB
+  subgraph TestFile["Each test file"]
+    PGLite["PGLite\n(in-memory)"]
+    Mock["mock.module\n(@/lib/db)"]
+    Caller["createCallerFactory\n(authed / unauthed)"]
+    DDL["DDL from\ngetTableConfig"]
+  end
+
+  Schema["schema.ts\n(single source of truth)"] -->|derives| DDL
+  DDL -->|CREATE TABLE| PGLite
+  Mock -->|injects| PGLite
+  Caller -->|calls router| Mock
+
+  subgraph Verifications
+    Create["create → list() confirms persistence"]
+    Update["update → list() confirms change + unchanged fields"]
+    Delete["delete → list() confirms removal"]
+    Isolation["cross-user → data invisible"]
+    Validation["Zod reject → count unchanged"]
+  end
+
+  Caller --> Verifications
+```
+
 Each test file gets an isolated PGLite instance via `mock.module("@/lib/db", ...)`. The DDL is derived automatically from the Drizzle schema using `getTableConfig` — no hardcoded SQL to keep in sync. Tests verify actual DB state after every mutation: `list()` after create/update/delete, cross-user isolation, FK cascade behavior, and Zod validation rejections.
 
 ## Docker Deploy
@@ -164,6 +210,81 @@ BETTER_AUTH_URL=https://your-domain.com
 The project works with Coolify and similar platforms that detect `compose.yaml`. Set the environment variables in the platform UI. The default internal port is `3111` (configurable via `PORT` env).
 
 ## Database
+
+### Schema
+
+<!-- ER_START -->
+
+```mermaid
+erDiagram
+    products {
+        serial id PK
+        varchar name
+        text description
+        integer price
+        integer in_stock
+        varchar user_uid
+        varchar category
+        timestamp created_at
+    }
+
+    customers {
+        serial id PK
+        varchar name
+        varchar email UK
+        varchar phone
+        varchar user_uid
+        varchar status
+        timestamp created_at
+    }
+
+    payment_methods {
+        serial id PK
+        varchar name UK
+        timestamp created_at
+    }
+
+    orders {
+        serial id PK
+        integer customer_id FK
+        integer total_amount
+        varchar user_uid
+        varchar status
+        timestamp created_at
+    }
+
+    order_items {
+        serial id PK
+        integer order_id FK
+        integer product_id FK
+        integer quantity
+        integer price
+        timestamp created_at
+    }
+
+    transactions {
+        serial id PK
+        text description
+        integer order_id FK
+        integer payment_method_id FK
+        integer amount
+        varchar user_uid
+        varchar type
+        varchar category
+        varchar status
+        timestamp created_at
+    }
+
+    customers |o--o{ orders : "has"
+    orders |o--o{ order_items : "contains"
+    products |o--o{ order_items : "references"
+    orders |o--o{ transactions : "generates"
+    payment_methods |o--o{ transactions : "uses"
+```
+
+<!-- ER_END -->
+
+All monetary values are stored as **integer cents** (e.g., $49.99 = `4999`). This avoids floating-point precision issues. Values are divided by 100 for display in the UI. All tables with `user_uid` enforce multi-tenancy — `payment_methods` is the only global table.
 
 ### PGLite (default)
 
@@ -228,10 +349,6 @@ bun run dev
 - In Docker, replace the PGLite volume with a PostgreSQL connection via `DATABASE_URL`
 
 > The Drizzle schema (`src/lib/db/schema.ts`) doesn't change. All queries, relations and tRPC procedures keep working without modification.
-
-## Monetary Values
-
-All monetary values are stored as **integer cents** (e.g., $49.99 = `4999`). This avoids floating-point precision issues. Values are divided by 100 for display in the UI.
 
 ## Contributing
 
