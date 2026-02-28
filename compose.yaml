@@ -6,6 +6,8 @@ services:
       - BETTER_AUTH_URL=${BETTER_AUTH_URL}
     volumes:
       - pglite_data:/app/data/pglite
+    ports:
+      - "3111:3000"
     restart: unless-stopped
 
 volumes:
