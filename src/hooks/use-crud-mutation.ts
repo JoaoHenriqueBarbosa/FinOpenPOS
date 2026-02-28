@@ -8,7 +8,7 @@ import { toast } from "sonner";
 
 interface UseCrudMutationOptions<TData, TError, TVariables, TOnMutateResult> {
   mutationOptions: UseMutationOptions<TData, TError, TVariables, TOnMutateResult>;
-  invalidateKeys: unknown[] | unknown[][];
+  invalidateKeys: unknown[];
   successMessage: string;
   errorMessage: string;
   onSuccess?: (data: TData) => void;
@@ -28,9 +28,6 @@ export function useCrudMutation<
 }: UseCrudMutationOptions<TData, TError, TVariables, TOnMutateResult>) {
   const queryClient = useQueryClient();
 
-  const isArrayOfArrays =
-    invalidateKeys.length > 0 && Array.isArray(invalidateKeys[0]);
-
   const { onSuccess: originalOnSuccess, onError: originalOnError, ...rest } =
     mutationOptions;
 
@@ -42,13 +39,7 @@ export function useCrudMutation<
       onMutateResult: TOnMutateResult,
       context: MutationFunctionContext,
     ) => {
-      if (isArrayOfArrays) {
-        for (const key of invalidateKeys as unknown[][]) {
-          queryClient.invalidateQueries({ queryKey: key });
-        }
-      } else {
-        queryClient.invalidateQueries({ queryKey: invalidateKeys });
-      }
+      queryClient.invalidateQueries({ queryKey: invalidateKeys });
       toast.success(successMessage);
       onSuccessCallback?.(data);
       originalOnSuccess?.(data, variables, onMutateResult, context);
