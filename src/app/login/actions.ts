@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 
 export async function login(formData: FormData) {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   // type-casting here for convenience
   // in practice, you should validate your inputs
@@ -27,7 +27,7 @@ export async function login(formData: FormData) {
 }
 
 export async function signup(formData: FormData) {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   // type-casting here for convenience
   // in practice, you should validate your inputs
@@ -48,7 +48,7 @@ export async function signup(formData: FormData) {
 }
 
 export async function logout() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { error } = await supabase.auth.signOut()
 
   if (error) console.error('Logout failed:', error);
@@ -58,5 +58,5 @@ export async function logout() {
 }
 
 export async function generateExampleData(user_uid: string) {
-  const supabase = createClient()
+  const supabase = await createClient()
 }

@@ -3,18 +3,18 @@ import { NextResponse } from 'next/server'
 
 export async function PUT(
   request: Request,
-  { params }: { params: { orderId: string } }
+  { params }: { params: Promise<{ orderId: string }> }
 ) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
-  
+
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const updatedOrder = await request.json();
-  const orderId = params.orderId;
+  const { orderId } = await params;
 
   const { data, error } = await supabase
     .from('orders')
@@ -37,17 +37,17 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { orderId: string } }
+  { params }: { params: Promise<{ orderId: string }> }
 ) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
-  
+
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const orderId = params.orderId;
+  const { orderId } = await params;
 
   // First, delete related order_items
   const { error: orderItemsError } = await supabase

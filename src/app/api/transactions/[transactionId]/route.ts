@@ -3,18 +3,18 @@ import { NextResponse } from 'next/server'
 
 export async function PUT(
   request: Request,
-  { params }: { params: { transactionId: string } }
+  { params }: { params: Promise<{ transactionId: string }> }
 ) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
-  
+
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const updatedTransaction = await request.json();
-  const transactionId = params.transactionId;
+  const { transactionId } = await params;
 
   const { data, error } = await supabase
     .from('transactions')
@@ -36,17 +36,17 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { transactionId: string } }
+  { params }: { params: Promise<{ transactionId: string }> }
 ) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
-  
+
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const transactionId = params.transactionId;
+  const { transactionId } = await params;
 
   const { error } = await supabase
     .from('transactions')
