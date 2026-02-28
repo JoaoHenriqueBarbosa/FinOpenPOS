@@ -43,3 +43,6 @@ next-env.d.ts
 
 # drizzle migrations
 /drizzle
+
+# playwright mcp
+.playwright-mcp/
