@@ -182,7 +182,7 @@ export default function Products() {
 
   if (isLoading) {
     return (
-      <Card className="flex flex-col gap-6 p-6">
+      <Card className="flex flex-col gap-4 p-3 sm:gap-6 sm:p-6">
         <CardHeader className="p-0"><div className="flex items-center justify-between"><Skeleton className="h-10 w-48" /><Skeleton className="h-9 w-32" /></div></CardHeader>
         <CardContent className="p-0 space-y-3">
           {Array.from({ length: 5 }).map((_, i) => (<div key={i} className="flex items-center gap-4"><Skeleton className="h-4 w-32" /><Skeleton className="h-4 w-48" /><Skeleton className="h-4 w-16" /><Skeleton className="h-4 w-12" /><Skeleton className="h-8 w-20" /></div>))}
@@ -193,7 +193,7 @@ export default function Products() {
 
   return (
     <>
-      <Card className="flex flex-col gap-6 p-6">
+      <Card className="flex flex-col gap-4 p-3 sm:gap-6 sm:p-6">
         <CardHeader className="p-0">
           <SearchFilter
             search={searchTerm}
@@ -238,8 +238,8 @@ export default function Products() {
             <div className="grid gap-4 py-4">
               <form.Field name="name">
                 {(field) => (
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="name" className="text-right">Name</Label>
+                  <div className="flex flex-col sm:grid sm:grid-cols-4 sm:items-center gap-2 sm:gap-4">
+                    <Label htmlFor="name" className="sm:text-right">Name</Label>
                     <div className="col-span-3">
                       <Input
                         id="name"
@@ -254,16 +254,16 @@ export default function Products() {
               </form.Field>
               <form.Field name="description">
                 {(field) => (
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="description" className="text-right">Description</Label>
+                  <div className="flex flex-col sm:grid sm:grid-cols-4 sm:items-center gap-2 sm:gap-4">
+                    <Label htmlFor="description" className="sm:text-right">Description</Label>
                     <Input id="description" value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} className="col-span-3" />
                   </div>
                 )}
               </form.Field>
               <form.Field name="price">
                 {(field) => (
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="price" className="text-right">Price</Label>
+                  <div className="flex flex-col sm:grid sm:grid-cols-4 sm:items-center gap-2 sm:gap-4">
+                    <Label htmlFor="price" className="sm:text-right">Price</Label>
                     <div className="col-span-3">
                       <Input
                         id="price"
@@ -280,8 +280,8 @@ export default function Products() {
               </form.Field>
               <form.Field name="in_stock">
                 {(field) => (
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="in_stock" className="text-right">In Stock</Label>
+                  <div className="flex flex-col sm:grid sm:grid-cols-4 sm:items-center gap-2 sm:gap-4">
+                    <Label htmlFor="in_stock" className="sm:text-right">In Stock</Label>
                     <div className="col-span-3">
                       <Input
                         id="in_stock"
@@ -297,8 +297,8 @@ export default function Products() {
               </form.Field>
               <form.Field name="category">
                 {(field) => (
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="category" className="text-right">Category</Label>
+                  <div className="flex flex-col sm:grid sm:grid-cols-4 sm:items-center gap-2 sm:gap-4">
+                    <Label htmlFor="category" className="sm:text-right">Category</Label>
                     <Select value={field.state.value} onValueChange={(value) => field.handleChange(value)}>
                       <SelectTrigger className="col-span-3"><SelectValue placeholder="Select a category" /></SelectTrigger>
                       <SelectContent>

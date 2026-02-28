@@ -121,7 +121,7 @@ export default function PaymentMethodsPage() {
   if (error) { return <Card><CardContent><p className="text-red-500">{error.message}</p></CardContent></Card>; }
 
   return (
-    <Card className="flex flex-col gap-6 p-6">
+    <Card className="flex flex-col gap-4 p-3 sm:gap-6 sm:p-6">
       <CardHeader className="p-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-muted-foreground">
@@ -154,7 +154,7 @@ export default function PaymentMethodsPage() {
             <div className="grid gap-4 py-4">
               <form.Field name="name">
                 {(field) => (
-                  <div className="grid grid-cols-4 items-center gap-4">
+                  <div className="flex flex-col sm:grid sm:grid-cols-4 sm:items-center gap-2 sm:gap-4">
                     <Label htmlFor="method-name">Name</Label>
                     <div className="col-span-3">
                       <Input

@@ -88,7 +88,7 @@ export default function Page() {
   const profitIsPositive = data.totalProfit >= 0;
 
   return (
-    <div className="grid flex-1 items-start gap-6">
+    <div className="grid flex-1 items-start gap-6 min-w-0 overflow-hidden">
       {/* KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <Card>
@@ -146,7 +146,7 @@ export default function Page() {
       </div>
 
       {/* Charts Grid */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2 min-w-0">
         <CategoryPieChart
           title="Revenue by Category"
           description="Breakdown of income across categories"
@@ -196,7 +196,7 @@ function CategoryPieChart({
   );
 
   return (
-    <Card>
+    <Card className="min-w-0 overflow-hidden">
       <CardHeader className="pb-2">
         <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
@@ -278,7 +278,7 @@ function ProfitMarginChart({
   } satisfies ChartConfig;
 
   return (
-    <Card>
+    <Card className="min-w-0 overflow-hidden">
       <CardHeader className="pb-2">
         <CardTitle>Profit Margin</CardTitle>
         <CardDescription>Daily profit margin percentage</CardDescription>
@@ -344,7 +344,7 @@ function CashFlowChart({
   } satisfies ChartConfig;
 
   return (
-    <Card>
+    <Card className="min-w-0 overflow-hidden">
       <CardHeader className="pb-2">
         <CardTitle>Cash Flow</CardTitle>
         <CardDescription>Daily transaction volume</CardDescription>
