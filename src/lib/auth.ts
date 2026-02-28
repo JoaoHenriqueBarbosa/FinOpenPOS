@@ -11,12 +11,5 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
   },
-  session: {
-    cookieCache: {
-      enabled: true,
-      maxAge: 7 * 24 * 60 * 60, // 7 days
-      strategy: "jwt",
-    },
-  },
   plugins: [nextCookies()],
 });
