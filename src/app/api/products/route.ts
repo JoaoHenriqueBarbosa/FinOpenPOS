@@ -1,49 +1,49 @@
+import { db } from "@/lib/db";
+import { products } from "@/lib/db/schema";
+import { getAuthUser } from "@/lib/auth-guard";
+import { eq } from "drizzle-orm";
+import { NextResponse } from "next/server";
 
-import { createClient } from '@/lib/supabase/server'
-import { NextResponse } from 'next/server'
-
-export async function GET(request: Request) {
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  
+export async function GET() {
+  const user = await getAuthUser();
   if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data, error } = await supabase
-    .from('products')
-    .select('*')
-    .eq('user_uid', user.id)
+  try {
+    const data = await db
+      .select()
+      .from(products)
+      .where(eq(products.user_uid, user.id));
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json(data);
+  } catch (error) {
+    return NextResponse.json(
+      { error: (error as Error).message },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json(data)
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  
+  const user = await getAuthUser();
   if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const newProduct = await request.json();
+  try {
+    const newProduct = await request.json();
 
-  const { data, error } = await supabase
-    .from('products')
-    .insert([
-      { ...newProduct, user_uid: user.id }
-    ])
-    .select()
+    const [data] = await db
+      .insert(products)
+      .values({ ...newProduct, user_uid: user.id })
+      .returning();
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json(data);
+  } catch (error) {
+    return NextResponse.json(
+      { error: (error as Error).message },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json(data[0])
 }

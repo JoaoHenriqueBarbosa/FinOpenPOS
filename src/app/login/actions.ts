@@ -1,62 +1,49 @@
-'use server'
+"use server";
 
-import { revalidatePath } from 'next/cache'
-import { redirect } from 'next/navigation'
-
-import { createClient } from '@/lib/supabase/server'
+import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
 
 export async function login(formData: FormData) {
-  const supabase = await createClient()
+  const email = formData.get("email") as string;
+  const password = formData.get("password") as string;
 
-  // type-casting here for convenience
-  // in practice, you should validate your inputs
-  const data = {
-    email: formData.get('email') as string,
-    password: formData.get('password') as string,
+  try {
+    await auth.api.signInEmail({
+      body: { email, password },
+      headers: await headers(),
+    });
+  } catch {
+    redirect("/login?error=invalid-credentials");
   }
 
-  const { error } = await supabase.auth.signInWithPassword(data)
-
-  if (error) {
-    console.log(error)
-    redirect('/error')
-  }
-
-  revalidatePath('/admin', 'layout')
-  redirect('/admin')
+  revalidatePath("/admin", "layout");
+  redirect("/admin");
 }
 
 export async function signup(formData: FormData) {
-  const supabase = await createClient()
+  const email = formData.get("email") as string;
+  const password = formData.get("password") as string;
 
-  // type-casting here for convenience
-  // in practice, you should validate your inputs
-  const data = {
-    email: formData.get('email') as string,
-    password: formData.get('password') as string,
+  try {
+    await auth.api.signUpEmail({
+      body: { email, password, name: email.split("@")[0] },
+      headers: await headers(),
+    });
+  } catch {
+    redirect("/login?error=signup-failed");
   }
 
-  const { error } = await supabase.auth.signUp(data)
-
-  if (error) {
-    console.log(error)
-    redirect('/error')
-  }
-
-  revalidatePath('/admin', 'layout')
-  redirect('/admin')
+  revalidatePath("/admin", "layout");
+  redirect("/admin");
 }
 
 export async function logout() {
-  const supabase = await createClient()
-  const { error } = await supabase.auth.signOut()
+  await auth.api.signOut({
+    headers: await headers(),
+  });
 
-  if (error) console.error('Logout failed:', error);
-
-  revalidatePath('/', 'layout')
-  redirect('/')
-}
-
-export async function generateExampleData(user_uid: string) {
-  const supabase = await createClient()
+  revalidatePath("/", "layout");
+  redirect("/");
 }

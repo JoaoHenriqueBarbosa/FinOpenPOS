@@ -1,106 +1,103 @@
-import { createClient } from '@/lib/supabase/server'
-import { NextResponse } from 'next/server'
+import { db } from "@/lib/db";
+import { orders, orderItems, transactions, customers } from "@/lib/db/schema";
+import { getAuthUser } from "@/lib/auth-guard";
+import { eq } from "drizzle-orm";
+import { NextResponse } from "next/server";
 
-export async function GET(request: Request) {
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  
+export async function GET() {
+  const user = await getAuthUser();
   if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data, error } = await supabase
-    .from('orders')
-    .select(`
-      id,
-      customer_id,
-      total_amount,
-      user_uid,
-      status,
-      created_at,
-      customer:customer_id (
-        name
-      )
-      `)
-    .eq('user_uid', user.id)
+  try {
+    const data = await db.query.orders.findMany({
+      where: eq(orders.user_uid, user.id),
+      with: {
+        customer: {
+          columns: { name: true },
+        },
+      },
+    });
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json(data);
+  } catch (error) {
+    return NextResponse.json(
+      { error: (error as Error).message },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json(data)
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  
+  const user = await getAuthUser();
   if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { customerId, paymentMethodId, products, total } = await request.json();
+  const {
+    customerId,
+    paymentMethodId,
+    products,
+    total,
+  }: {
+    customerId: number;
+    paymentMethodId: number;
+    products: { id: number; quantity: number; price: number }[];
+    total: number;
+  } = await request.json();
 
   try {
-    // Insert the order
-    const { data: orderData, error: orderError } = await supabase
-      .from('orders')
-      .insert({
-        customer_id: customerId,
-        total_amount: total,
-        user_uid: user.id,
-        status: 'completed'
-      })
-      .select('*, customer:customers(name)')
-      .single();
+    const result = await db.transaction(async (tx) => {
+      // Insert the order
+      const [orderData] = await tx
+        .insert(orders)
+        .values({
+          customer_id: customerId,
+          total_amount: total,
+          user_uid: user.id,
+          status: "completed",
+        })
+        .returning();
 
-    if (orderError) {
-      throw orderError;
-    }
+      // Insert order items
+      await tx.insert(orderItems).values(
+        products.map((product) => ({
+          order_id: orderData.id,
+          product_id: product.id,
+          quantity: product.quantity,
+          price: product.price,
+        }))
+      );
 
-    // Insert the order items
-    const orderItems = products.map((product: { id: number, quantity: number, price: number }) => ({
-      order_id: orderData.id,
-      product_id: product.id,
-      quantity: product.quantity,
-      price: product.price
-    }));
-
-    const { error: itemsError } = await supabase
-      .from('order_items')
-      .insert(orderItems);
-
-    if (itemsError) {
-      // If there's an error inserting order items, delete the order
-      await supabase.from('orders').delete().eq('id', orderData.id);
-      throw itemsError;
-    }
-
-    // Insert the transaction record
-    const { error: transactionError } = await supabase
-      .from('transactions')
-      .insert({
+      // Insert transaction record
+      await tx.insert(transactions).values({
         order_id: orderData.id,
         payment_method_id: paymentMethodId,
         amount: total,
         user_uid: user.id,
-        status: 'completed',
-        category: 'selling',
-        type: 'income',
-        description: `Payment for order #${orderData.id}`
+        status: "completed",
+        category: "selling",
+        type: "income",
+        description: `Payment for order #${orderData.id}`,
       });
 
-    if (transactionError) {
-      // If there's an error inserting the transaction, delete the order and order items
-      await supabase.from('orders').delete().eq('id', orderData.id);
-      await supabase.from('order_items').delete().eq('order_id', orderData.id);
-      throw transactionError;
-    }
+      // Fetch customer name to match previous API shape
+      const customer = customerId
+        ? await tx.query.customers.findFirst({
+            where: eq(customers.id, customerId),
+            columns: { name: true },
+          })
+        : null;
 
-    return NextResponse.json(orderData);
+      return { ...orderData, customer };
+    });
+
+    return NextResponse.json(result);
   } catch (error) {
-    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
+    return NextResponse.json(
+      { error: (error as Error).message },
+      { status: 500 }
+    );
   }
 }

@@ -37,3 +37,9 @@ next-env.d.ts
 .aider*
 
 .env
+
+# pglite local database
+/data/pglite
+
+# drizzle migrations
+/drizzle

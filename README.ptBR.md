@@ -30,14 +30,14 @@ Esta iteração específica abraça o espírito do desenvolvimento de código ab
    ```
    npm install
    ```
-3. Configure seu projeto Supabase e adicione as variáveis de ambiente necessárias:
+3. Configure as variáveis de ambiente:
    - Crie um arquivo `.env.local` na raiz do seu projeto
    - Adicione as seguintes linhas ao arquivo:
      ```
-     NEXT_PUBLIC_SUPABASE_URL=seu_url_do_projeto_supabase
-     NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_chave_anon_do_supabase
+     BETTER_AUTH_SECRET=sua-chave-secreta-aqui
+     BETTER_AUTH_URL=http://localhost:3000
      ```
-   - Substitua `seu_url_do_projeto_supabase` e `sua_chave_anon_do_supabase` pelo URL do seu projeto Supabase e chave anônima reais
+   - Substitua `sua-chave-secreta-aqui` por um segredo aleatório (ex: `openssl rand -base64 32`)
 4. Execute o servidor de desenvolvimento:
    ```
    npm run dev
@@ -48,7 +48,7 @@ Esta iteração específica abraça o espírito do desenvolvimento de código ab
 
 - `src/app/`: Páginas do roteador Next.js
 - `src/components/`: Componentes reutilizáveis do React
-- `src/lib/`: Funções utilitárias e cliente Supabase
+- `src/lib/`: Funções utilitárias, banco de dados e config de auth
 - `schema.sql`: Esquema do banco de dados
 
 ## Principais Páginas
@@ -74,7 +74,7 @@ Para o esquema completo, consulte `schema.sql`.
 
 ## Autenticação
 
-A autenticação de usuários é realizada através do Supabase. A página de login está disponível em `/login`.
+A autenticação de usuários é realizada através do Better Auth com email/senha. A página de login está disponível em `/login`.
 
 ## Tratamento de Erros
 

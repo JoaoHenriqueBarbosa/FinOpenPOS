@@ -30,17 +30,17 @@ This particular iteration embraces the spirit of open-source development, making
    ```
    npm install
    ```
-3. Set up your Supabase project and add the necessary environment variables:
+3. Set up environment variables:
    - Copy the `.env.example` to `.env.local` file in the root of the project
      ```
      cp .env.example .env.local
      ```
    - Add the following lines to the file:
      ```
-     NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
-     NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+     BETTER_AUTH_SECRET=your-secret-key-here
+     BETTER_AUTH_URL=http://localhost:3000
      ```
-   - Replace `your_supabase_project_url` and `your_supabase_anon_key` with your actual Supabase project URL and anon key
+   - Replace `your-secret-key-here` with a random secret (e.g. `openssl rand -base64 32`)
 4. Run the development server:
    ```
    npm run dev
@@ -51,7 +51,7 @@ This particular iteration embraces the spirit of open-source development, making
 
 - `src/app/`: Next.js app router pages
 - `src/components/`: Reusable React components
-- `src/lib/`: Utility functions and Supabase client
+- `src/lib/`: Utility functions, database, and auth config
 - `schema.sql`: Database schema
 
 ## Key Pages
@@ -77,7 +77,7 @@ For the complete schema, refer to `schema.sql`.
 
 ## Authentication
 
-User authentication is handled through Supabase. The login page is available at `/login`.
+User authentication is handled through Better Auth with email/password. The login page is available at `/login`.
 
 ## Error Handling
 

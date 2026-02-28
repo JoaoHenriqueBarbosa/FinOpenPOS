@@ -1,62 +1,77 @@
-import { createClient } from '@/lib/supabase/server'
-import { NextResponse } from 'next/server'
+import { db } from "@/lib/db";
+import { transactions } from "@/lib/db/schema";
+import { getAuthUser } from "@/lib/auth-guard";
+import { eq, and } from "drizzle-orm";
+import { NextResponse } from "next/server";
 
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ transactionId: string }> }
 ) {
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-
+  const user = await getAuthUser();
   if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const updatedTransaction = await request.json();
-  const { transactionId } = await params;
+  try {
+    const updatedTransaction = await request.json();
+    const { transactionId } = await params;
 
-  const { data, error } = await supabase
-    .from('transactions')
-    .update({ ...updatedTransaction, user_uid: user.id })
-    .eq('id', transactionId)
-    .eq('user_uid', user.id)
-    .select()
+    const data = await db
+      .update(transactions)
+      .set({ ...updatedTransaction, user_uid: user.id })
+      .where(
+        and(
+          eq(transactions.id, Number(transactionId)),
+          eq(transactions.user_uid, user.id)
+        )
+      )
+      .returning();
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    if (data.length === 0) {
+      return NextResponse.json(
+        { error: "Transaction not found or not authorized" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(data[0]);
+  } catch (error) {
+    return NextResponse.json(
+      { error: (error as Error).message },
+      { status: 500 }
+    );
   }
-
-  if (data.length === 0) {
-    return NextResponse.json({ error: 'Transaction not found or not authorized' }, { status: 404 })
-  }
-
-  return NextResponse.json(data[0])
 }
 
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ transactionId: string }> }
 ) {
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-
+  const user = await getAuthUser();
   if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { transactionId } = await params;
+  try {
+    const { transactionId } = await params;
 
-  const { error } = await supabase
-    .from('transactions')
-    .delete()
-    .eq('id', transactionId)
-    .eq('user_uid', user.id)
+    await db
+      .delete(transactions)
+      .where(
+        and(
+          eq(transactions.id, Number(transactionId)),
+          eq(transactions.user_uid, user.id)
+        )
+      );
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({
+      message: "Transaction deleted successfully",
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: (error as Error).message },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json({ message: 'Transaction deleted successfully' })
 }
