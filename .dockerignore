@@ -1,0 +1,9 @@
+node_modules
+.next
+data/pglite
+drizzle
+.env
+.env*.local
+.git
+.claude
+.playwright-mcp
