@@ -1,12 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardFooter,
-} from "@/components/ui/card";
+import { useState, useMemo } from "react";
+import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card";
 import {
   Loader2Icon,
   PlusCircle,
@@ -50,6 +45,8 @@ import {
   DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
+import { useCrud } from "@/hooks/use-crud";
+import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
 
 type Order = {
   id: number;
@@ -57,152 +54,71 @@ type Order = {
   total_amount: number;
   status: "completed" | "pending" | "cancelled";
   created_at: string;
-  customer: {
-    name: string;
-  };
+  customer: { name: string };
 };
 
+type OrderForm = { customerName: string; total: string; status: "completed" | "pending" | "cancelled" };
+const emptyForm: OrderForm = { customerName: "", total: "", status: "pending" };
+
 export default function OrdersPage() {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showNewOrderDialog, setShowNewOrderDialog] = useState(false);
-  const [newOrderCustomerName, setNewOrderCustomerName] = useState("");
-  const [newOrderTotal, setNewOrderTotal] = useState("");
-  const [newOrderStatus, setNewOrderStatus] = useState<"completed" | "pending" | "cancelled">("pending");
-  const [isEditOrderDialogOpen, setIsEditOrderDialogOpen] = useState(false);
-  const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(false);
-  const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
+  const { items: orders, loading, error, add, update, remove } = useCrud<Order>({ url: "/api/orders" });
+
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [form, setForm] = useState(emptyForm);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filters, setFilters] = useState({
-    status: "all",
-  });
-  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+  const [statusFilter, setStatusFilter] = useState("all");
 
-  useEffect(() => {
-    const fetchOrders = async () => {
-      try {
-        const response = await fetch("/api/orders");
-        if (!response.ok) {
-          throw new Error("Failed to fetch orders");
-        }
-        const data = await response.json();
-        setOrders(data);
-      } catch (error) {
-        setError((error as Error).message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchOrders();
-  }, []);
+  const isEditing = editingId !== null;
 
   const filteredOrders = useMemo(() => {
-    return orders.filter((order) => {
-      if (filters.status !== "all" && order.status !== filters.status) {
-        return false;
-      }
-      return (
-        order.customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        order.id.toString().includes(searchTerm)
-      );
+    return orders.filter((o) => {
+      if (statusFilter !== "all" && o.status !== statusFilter) return false;
+      const q = searchTerm.toLowerCase();
+      return o.customer.name.toLowerCase().includes(q) || o.id.toString().includes(searchTerm);
     });
-  }, [orders, filters.status, searchTerm]);
+  }, [orders, statusFilter, searchTerm]);
 
-  const resetSelectedOrder = () => {
-    setSelectedOrderId(null);
-    setNewOrderCustomerName("");
-    setNewOrderTotal("");
-    setNewOrderStatus("pending");
+  const openCreate = () => {
+    setEditingId(null);
+    setForm(emptyForm);
+    setIsDialogOpen(true);
   };
 
-  const handleAddOrder = useCallback(async () => {
-    try {
-      const newOrder = {
-        total_amount: Math.round(parseFloat(newOrderTotal) * 100),
-        status: newOrderStatus,
-        created_at: new Date().toISOString().split('T')[0],
-      };
-      const response = await fetch("/api/orders", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(newOrder),
-      });
-
-      if (!response.ok) {
-        throw new Error("Error creating order");
-      }
-
-      const createdOrder = await response.json();
-      setOrders([...orders, createdOrder]);
-      setShowNewOrderDialog(false);
-      resetSelectedOrder();
-    } catch (error) {
-      console.error(error);
-    }
-  }, [newOrderTotal, newOrderStatus, orders]);
-
-  const handleEditOrder = useCallback(async () => {
-    if (!selectedOrderId) return;
-    try {
-      const updatedOrder = {
-        id: selectedOrderId,
-        total_amount: Math.round(parseFloat(newOrderTotal) * 100),
-        status: newOrderStatus,
-        created_at: orders.find(o => o.id === selectedOrderId)?.created_at,
-      };
-      const response = await fetch(`/api/orders/${selectedOrderId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(updatedOrder),
-      });
-
-      if (!response.ok) {
-        throw new Error("Error updating order");
-      }
-
-      const updatedOrderData = await response.json();
-      setOrders(orders.map((o) => (o.id === updatedOrderData.id ? updatedOrderData : o)));
-      setIsEditOrderDialogOpen(false);
-      resetSelectedOrder();
-    } catch (error) {
-      console.error(error);
-    }
-  }, [selectedOrderId, newOrderTotal, newOrderStatus, orders]);
-
-  const handleDeleteOrder = useCallback(async () => {
-    if (!orderToDelete) return;
-    try {
-      const response = await fetch(`/api/orders/${orderToDelete.id}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        throw new Error("Error deleting order");
-      }
-
-      setOrders(orders.filter((o) => o.id !== orderToDelete.id));
-      setIsDeleteConfirmationOpen(false);
-      setOrderToDelete(null);
-    } catch (error) {
-      console.error(error);
-    }
-  }, [orderToDelete, orders]);
-
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(e.target.value);
+  const openEdit = (o: Order) => {
+    setEditingId(o.id);
+    setForm({
+      customerName: o.customer.name,
+      total: (o.total_amount / 100).toString(),
+      status: o.status,
+    });
+    setIsDialogOpen(true);
   };
 
-  const handleFilterChange = (value: string) => {
-    setFilters((prevFilters) => ({
-      ...prevFilters,
-      status: value,
-    }));
+  const handleSave = async () => {
+    const payload = {
+      total_amount: Math.round(parseFloat(form.total) * 100),
+      status: form.status,
+      created_at: isEditing
+        ? orders.find((o) => o.id === editingId)?.created_at
+        : new Date().toISOString().split("T")[0],
+    };
+    if (isEditing) {
+      await update(editingId, payload as Partial<Order>);
+    } else {
+      await add(payload as Partial<Order>);
+    }
+    setIsDialogOpen(false);
+  };
+
+  const handleDelete = async () => {
+    if (deleteId !== null) {
+      await remove(deleteId);
+      setIsDeleteOpen(false);
+      setDeleteId(null);
+    }
   };
 
   if (loading) {
@@ -216,7 +132,6 @@ export default function OrdersPage() {
   if (error) {
     return (
       <div className="container mx-auto p-4">
-        <h1 className="text-2xl font-bold mb-4">Orders</h1>
         <Card>
           <CardContent>
             <p className="text-red-500">{error}</p>
@@ -236,7 +151,7 @@ export default function OrdersPage() {
                 type="text"
                 placeholder="Search orders..."
                 value={searchTerm}
-                onChange={handleSearch}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 className="pr-8"
               />
               <SearchIcon className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -251,34 +166,19 @@ export default function OrdersPage() {
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuCheckboxItem
-                  checked={filters.status === "all"}
-                  onCheckedChange={() => handleFilterChange("all")}
-                >
-                  All Statuses
-                </DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem
-                  checked={filters.status === "completed"}
-                  onCheckedChange={() => handleFilterChange("completed")}
-                >
-                  Completed
-                </DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem
-                  checked={filters.status === "pending"}
-                  onCheckedChange={() => handleFilterChange("pending")}
-                >
-                  Pending
-                </DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem
-                  checked={filters.status === "cancelled"}
-                  onCheckedChange={() => handleFilterChange("cancelled")}
-                >
-                  Cancelled
-                </DropdownMenuCheckboxItem>
+                {["all", "completed", "pending", "cancelled"].map((s) => (
+                  <DropdownMenuCheckboxItem
+                    key={s}
+                    checked={statusFilter === s}
+                    onCheckedChange={() => setStatusFilter(s)}
+                  >
+                    {s === "all" ? "All Statuses" : s.charAt(0).toUpperCase() + s.slice(1)}
+                  </DropdownMenuCheckboxItem>
+                ))}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          <Button size="sm" onClick={() => setShowNewOrderDialog(true)}>
+          <Button size="sm" onClick={openCreate}>
             <PlusCircle className="w-4 h-4 mr-2" />
             Create Order
           </Button>
@@ -307,27 +207,14 @@ export default function OrdersPage() {
                   <TableCell>{order.created_at}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => {
-                          setSelectedOrderId(order.id);
-                          setNewOrderCustomerName(order.customer.name);
-                          setNewOrderTotal((order.total_amount / 100).toString());
-                          setNewOrderStatus(order.status);
-                          setIsEditOrderDialogOpen(true);
-                        }}
-                      >
+                      <Button size="icon" variant="ghost" onClick={() => openEdit(order)}>
                         <FilePenIcon className="w-4 h-4" />
                         <span className="sr-only">Edit</span>
                       </Button>
                       <Button
                         size="icon"
                         variant="ghost"
-                        onClick={() => {
-                          setOrderToDelete(order);
-                          setIsDeleteConfirmationOpen(true);
-                        }}
+                        onClick={() => { setDeleteId(order.id); setIsDeleteOpen(true); }}
                       >
                         <Trash2 className="w-4 h-4" />
                         <span className="sr-only">Delete</span>
@@ -346,33 +233,20 @@ export default function OrdersPage() {
           </Table>
         </div>
       </CardContent>
-      <CardFooter className="flex justify-between items-center">
-        {/* Pagination can be added here if needed */}
-      </CardFooter>
+      <CardFooter className="flex justify-between items-center" />
 
-      <Dialog
-        open={showNewOrderDialog || isEditOrderDialogOpen}
-        onOpenChange={(open) => {
-          if (!open) {
-            setShowNewOrderDialog(false);
-            setIsEditOrderDialogOpen(false);
-            resetSelectedOrder();
-          }
-        }}
-      >
+      <Dialog open={isDialogOpen} onOpenChange={(open) => { if (!open) setIsDialogOpen(false); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {showNewOrderDialog ? "Create New Order" : "Edit Order"}
-            </DialogTitle>
+            <DialogTitle>{isEditing ? "Edit Order" : "Create New Order"}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="customerName">Customer Name</Label>
               <Input
                 id="customerName"
-                value={newOrderCustomerName}
-                onChange={(e) => setNewOrderCustomerName(e.target.value)}
+                value={form.customerName}
+                onChange={(e) => setForm({ ...form, customerName: e.target.value })}
                 className="col-span-3"
               />
             </div>
@@ -381,18 +255,16 @@ export default function OrdersPage() {
               <Input
                 id="total"
                 type="number"
-                value={newOrderTotal}
-                onChange={(e) => setNewOrderTotal(e.target.value)}
+                value={form.total}
+                onChange={(e) => setForm({ ...form, total: e.target.value })}
                 className="col-span-3"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="status">Status</Label>
               <Select
-                value={newOrderStatus}
-                onValueChange={(value: "completed" | "pending" | "cancelled") =>
-                  setNewOrderStatus(value)
-                }
+                value={form.status}
+                onValueChange={(value: "completed" | "pending" | "cancelled") => setForm({ ...form, status: value })}
               >
                 <SelectTrigger id="status" className="col-span-3">
                   <SelectValue placeholder="Select status" />
@@ -406,45 +278,18 @@ export default function OrdersPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setShowNewOrderDialog(false);
-                setIsEditOrderDialogOpen(false);
-                resetSelectedOrder();
-              }}
-            >
-              Cancel
-            </Button>
-            <Button onClick={showNewOrderDialog ? handleAddOrder : handleEditOrder}>
-              {showNewOrderDialog ? "Create Order" : "Update Order"}
-            </Button>
+            <Button variant="secondary" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSave}>{isEditing ? "Update Order" : "Create Order"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={isDeleteConfirmationOpen}
-        onOpenChange={setIsDeleteConfirmationOpen}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirm Deletion</DialogTitle>
-          </DialogHeader>
-          Are you sure you want to delete this order? This action cannot be undone.
-          <DialogFooter>
-            <Button
-              variant="secondary"
-              onClick={() => setIsDeleteConfirmationOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleDeleteOrder}>
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DeleteConfirmationDialog
+        open={isDeleteOpen}
+        onOpenChange={setIsDeleteOpen}
+        onConfirm={handleDelete}
+        description="Are you sure you want to delete this order? This action cannot be undone."
+      />
     </Card>
   );
 }

@@ -36,6 +36,7 @@ import {
   Cell,
   Label,
 } from "recharts";
+import { formatCurrency, formatShortDate } from "@/lib/utils";
 
 const CHART_COLORS = [
   "hsl(var(--chart-1))",
@@ -44,20 +45,6 @@ const CHART_COLORS = [
   "hsl(var(--chart-4))",
   "hsl(var(--chart-5))",
 ];
-
-/** Format cents integer as currency string. */
-function formatCurrency(cents: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-  }).format(cents / 100);
-}
-
-function formatShortDate(dateStr: string) {
-  const d = new Date(dateStr + "T00:00:00");
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
 
 export default function Page() {
   const [totalRevenue, setTotalRevenue] = useState(0);
@@ -200,23 +187,35 @@ export default function Page() {
 
       {/* Charts Grid */}
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Revenue by Category - Donut */}
-        <RevenuePieChart data={revenueByCategory} />
+        <CategoryPieChart
+          title="Revenue by Category"
+          description="Breakdown of income across categories"
+          data={revenueByCategory}
+        />
 
-        {/* Expenses by Category - Donut */}
-        <ExpensesPieChart data={expensesByCategory} />
+        <CategoryPieChart
+          title="Expenses by Category"
+          description="Breakdown of expenses across categories"
+          data={expensesByCategory}
+        />
 
-        {/* Profit Margin - Bar */}
         <ProfitMarginChart data={profitMargin} />
-
-        {/* Cash Flow - Area */}
         <CashFlowChart data={cashFlow} />
       </div>
     </div>
   );
 }
 
-function RevenuePieChart({ data }: { data: Record<string, number> }) {
+/** Reusable donut chart for category breakdowns. */
+function CategoryPieChart({
+  title,
+  description,
+  data,
+}: {
+  title: string;
+  description: string;
+  data: Record<string, number>;
+}) {
   const entries = Object.entries(data);
   const total = entries.reduce((sum, [, v]) => sum + v, 0);
 
@@ -239,106 +238,12 @@ function RevenuePieChart({ data }: { data: Record<string, number> }) {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle>Revenue by Category</CardTitle>
-        <CardDescription>
-          Breakdown of income across categories
-        </CardDescription>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent>
         {entries.length === 0 ? (
-          <EmptyState message="No revenue data yet" />
-        ) : (
-          <ChartContainer
-            config={chartConfig}
-            className="mx-auto aspect-square max-h-[280px]"
-          >
-            <PieChart>
-              <ChartTooltip
-                content={
-                  <ChartTooltipContent
-                    nameKey="category"
-                    formatter={(value) => formatCurrency(Number(value))}
-                  />
-                }
-              />
-              <Pie
-                data={chartData}
-                dataKey="value"
-                nameKey="category"
-                innerRadius={60}
-                strokeWidth={2}
-                stroke="hsl(var(--background))"
-              >
-                <Label
-                  content={({ viewBox }) => {
-                    if (viewBox && "cx" in viewBox && "cy" in viewBox) {
-                      return (
-                        <text
-                          x={viewBox.cx}
-                          y={viewBox.cy}
-                          textAnchor="middle"
-                          dominantBaseline="middle"
-                        >
-                          <tspan
-                            x={viewBox.cx}
-                            y={viewBox.cy}
-                            className="fill-foreground text-xl font-bold"
-                          >
-                            {formatCurrency(total)}
-                          </tspan>
-                          <tspan
-                            x={viewBox.cx}
-                            y={(viewBox.cy || 0) + 20}
-                            className="fill-muted-foreground text-xs"
-                          >
-                            Total
-                          </tspan>
-                        </text>
-                      );
-                    }
-                  }}
-                />
-              </Pie>
-              <ChartLegend content={<ChartLegendContent nameKey="category" />} />
-            </PieChart>
-          </ChartContainer>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function ExpensesPieChart({ data }: { data: Record<string, number> }) {
-  const entries = Object.entries(data);
-  const total = entries.reduce((sum, [, v]) => sum + v, 0);
-
-  const chartData = entries.map(([category, value], i) => ({
-    category,
-    value,
-    fill: CHART_COLORS[i % CHART_COLORS.length],
-  }));
-
-  const chartConfig: ChartConfig = Object.fromEntries(
-    entries.map(([category], i) => [
-      category,
-      {
-        label: category.charAt(0).toUpperCase() + category.slice(1),
-        color: CHART_COLORS[i % CHART_COLORS.length],
-      },
-    ])
-  );
-
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle>Expenses by Category</CardTitle>
-        <CardDescription>
-          Breakdown of expenses across categories
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {entries.length === 0 ? (
-          <EmptyState message="No expense data yet" />
+          <EmptyState message={`No ${title.toLowerCase()} data yet`} />
         ) : (
           <ChartContainer
             config={chartConfig}

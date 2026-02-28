@@ -1,82 +1,42 @@
 import { db } from "@/lib/db";
 import { orders, orderItems, customers } from "@/lib/db/schema";
-import { getAuthUser } from "@/lib/auth-guard";
-
+import { authHandler, json } from "@/lib/api";
 import { eq, and } from "drizzle-orm";
-import { NextResponse } from "next/server";
 
-export async function PUT(
-  request: Request,
-  { params }: { params: Promise<{ orderId: string }> }
-) {
-  const user = await getAuthUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const PUT = authHandler(async (user, request, { params }) => {
+  const body = await request.json();
+  const { orderId } = await params;
+
+  const [data] = await db
+    .update(orders)
+    .set({ ...body, user_uid: user.id })
+    .where(and(eq(orders.id, Number(orderId)), eq(orders.user_uid, user.id)))
+    .returning();
+
+  if (!data) {
+    return json({ error: "Order not found or not authorized" }, 404);
   }
 
-  try {
-    const updatedOrder = await request.json();
-    const { orderId } = await params;
+  const customer = data.customer_id
+    ? await db.query.customers.findFirst({
+        where: eq(customers.id, data.customer_id),
+        columns: { name: true },
+      })
+    : null;
 
-    const [data] = await db
-      .update(orders)
-      .set({ ...updatedOrder, user_uid: user.id })
-      .where(
-        and(eq(orders.id, Number(orderId)), eq(orders.user_uid, user.id))
-      )
-      .returning();
+  return json({ ...data, customer });
+});
 
-    if (!data) {
-      return NextResponse.json(
-        { error: "Order not found or not authorized" },
-        { status: 404 }
-      );
-    }
+export const DELETE = authHandler(async (user, _request, { params }) => {
+  const { orderId } = await params;
+  const id = Number(orderId);
 
-    // Fetch customer name to match previous API shape
-    const customer = data.customer_id
-      ? await db.query.customers.findFirst({
-          where: eq(customers.id, data.customer_id),
-          columns: { name: true },
-        })
-      : null;
+  await db.transaction(async (tx) => {
+    await tx.delete(orderItems).where(eq(orderItems.order_id, id));
+    await tx
+      .delete(orders)
+      .where(and(eq(orders.id, id), eq(orders.user_uid, user.id)));
+  });
 
-    return NextResponse.json({ ...data, customer });
-  } catch (error) {
-    return NextResponse.json(
-      { error: (error as Error).message },
-      { status: 500 }
-    );
-  }
-}
-
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ orderId: string }> }
-) {
-  const user = await getAuthUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  try {
-    const { orderId } = await params;
-    const id = Number(orderId);
-
-    await db.transaction(async (tx) => {
-      await tx.delete(orderItems).where(eq(orderItems.order_id, id));
-      await tx
-        .delete(orders)
-        .where(and(eq(orders.id, id), eq(orders.user_uid, user.id)));
-    });
-
-    return NextResponse.json({
-      message: "Order and related items deleted successfully",
-    });
-  } catch (error) {
-    return NextResponse.json(
-      { error: (error as Error).message },
-      { status: 500 }
-    );
-  }
-}
+  return json({ message: "Order and related items deleted successfully" });
+});

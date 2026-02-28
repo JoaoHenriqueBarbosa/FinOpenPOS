@@ -1,14 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import {
-  Loader2Icon,
-  PlusCircle,
-  Trash2,
-  FilePenIcon,
-  CreditCardIcon,
-} from "lucide-react";
+import { Loader2Icon, PlusCircle, Trash2, FilePenIcon, CreditCardIcon } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -27,6 +21,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useCrud } from "@/hooks/use-crud";
+import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
 
 type PaymentMethod = {
   id: number;
@@ -34,91 +30,45 @@ type PaymentMethod = {
 };
 
 export default function PaymentMethodsPage() {
-  const [methods, setMethods] = useState<PaymentMethod[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { items: methods, loading, error, add, update, remove } = useCrud<PaymentMethod>({ url: "/api/payment-methods" });
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [methodToDelete, setMethodToDelete] = useState<PaymentMethod | null>(
-    null
-  );
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
   const [name, setName] = useState("");
 
-  const isEditing = selectedId !== null;
+  const isEditing = editingId !== null;
 
-  useEffect(() => {
-    const fetchMethods = async () => {
-      try {
-        const response = await fetch("/api/payment-methods");
-        if (!response.ok) throw new Error("Failed to fetch payment methods");
-        const data = await response.json();
-        setMethods(data);
-      } catch (error) {
-        setError((error as Error).message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchMethods();
-  }, []);
-
-  const resetForm = () => {
-    setSelectedId(null);
+  const openCreate = () => {
+    setEditingId(null);
     setName("");
+    setIsDialogOpen(true);
   };
 
-  const handleSave = useCallback(async () => {
+  const openEdit = (m: PaymentMethod) => {
+    setEditingId(m.id);
+    setName(m.name);
+    setIsDialogOpen(true);
+  };
+
+  const handleSave = async () => {
     if (!name.trim()) return;
-
-    try {
-      const url = isEditing
-        ? `/api/payment-methods/${selectedId}`
-        : "/api/payment-methods";
-
-      const response = await fetch(url, {
-        method: isEditing ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
-      });
-
-      if (!response.ok) throw new Error("Failed to save payment method");
-
-      const saved = await response.json();
-
-      if (isEditing) {
-        setMethods(methods.map((m) => (m.id === saved.id ? saved : m)));
-      } else {
-        setMethods([...methods, saved]);
-      }
-
-      setIsDialogOpen(false);
-      resetForm();
-    } catch (error) {
-      console.error(error);
+    if (isEditing) {
+      await update(editingId, { name });
+    } else {
+      await add({ name } as Partial<PaymentMethod>);
     }
-  }, [name, isEditing, selectedId, methods]);
+    setIsDialogOpen(false);
+  };
 
-  const handleDelete = useCallback(async () => {
-    if (!methodToDelete) return;
-
-    try {
-      const response = await fetch(
-        `/api/payment-methods/${methodToDelete.id}`,
-        { method: "DELETE" }
-      );
-
-      if (!response.ok) throw new Error("Failed to delete payment method");
-
-      setMethods(methods.filter((m) => m.id !== methodToDelete.id));
+  const handleDelete = async () => {
+    if (deleteId !== null) {
+      await remove(deleteId);
       setIsDeleteOpen(false);
-      setMethodToDelete(null);
-    } catch (error) {
-      console.error(error);
+      setDeleteId(null);
     }
-  }, [methodToDelete, methods]);
+  };
 
   if (loading) {
     return (
@@ -146,17 +96,9 @@ export default function PaymentMethodsPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-muted-foreground">
             <CreditCardIcon className="w-5 h-5" />
-            <span className="text-sm">
-              {methods.length} method{methods.length !== 1 && "s"}
-            </span>
+            <span className="text-sm">{methods.length} method{methods.length !== 1 && "s"}</span>
           </div>
-          <Button
-            size="sm"
-            onClick={() => {
-              resetForm();
-              setIsDialogOpen(true);
-            }}
-          >
+          <Button size="sm" onClick={openCreate}>
             <PlusCircle className="w-4 h-4 mr-2" />
             Add Method
           </Button>
@@ -176,25 +118,14 @@ export default function PaymentMethodsPage() {
                 <TableCell>{method.name}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => {
-                        setSelectedId(method.id);
-                        setName(method.name);
-                        setIsDialogOpen(true);
-                      }}
-                    >
+                    <Button size="icon" variant="ghost" onClick={() => openEdit(method)}>
                       <FilePenIcon className="w-4 h-4" />
                       <span className="sr-only">Edit</span>
                     </Button>
                     <Button
                       size="icon"
                       variant="ghost"
-                      onClick={() => {
-                        setMethodToDelete(method);
-                        setIsDeleteOpen(true);
-                      }}
+                      onClick={() => { setDeleteId(method.id); setIsDeleteOpen(true); }}
                     >
                       <Trash2 className="w-4 h-4" />
                       <span className="sr-only">Delete</span>
@@ -207,20 +138,10 @@ export default function PaymentMethodsPage() {
         </Table>
       </CardContent>
 
-      <Dialog
-        open={isDialogOpen}
-        onOpenChange={(open) => {
-          if (!open) {
-            setIsDialogOpen(false);
-            resetForm();
-          }
-        }}
-      >
+      <Dialog open={isDialogOpen} onOpenChange={(open) => { if (!open) setIsDialogOpen(false); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {isEditing ? "Edit Payment Method" : "New Payment Method"}
-            </DialogTitle>
+            <DialogTitle>{isEditing ? "Edit Payment Method" : "New Payment Method"}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
@@ -231,22 +152,12 @@ export default function PaymentMethodsPage() {
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Credit Card, PIX, Cash"
                 className="col-span-3"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleSave();
-                }}
+                onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
               />
             </div>
           </div>
           <DialogFooter>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setIsDialogOpen(false);
-                resetForm();
-              }}
-            >
-              Cancel
-            </Button>
+            <Button variant="secondary" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleSave} disabled={!name.trim()}>
               {isEditing ? "Update" : "Create"}
             </Button>
@@ -254,26 +165,12 @@ export default function PaymentMethodsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirm Deletion</DialogTitle>
-          </DialogHeader>
-          Are you sure you want to delete &quot;{methodToDelete?.name}&quot;?
-          Transactions using this method may be affected.
-          <DialogFooter>
-            <Button
-              variant="secondary"
-              onClick={() => setIsDeleteOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleDelete}>
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DeleteConfirmationDialog
+        open={isDeleteOpen}
+        onOpenChange={setIsDeleteOpen}
+        onConfirm={handleDelete}
+        description={`Are you sure you want to delete this payment method? Transactions using this method may be affected.`}
+      />
     </Card>
   );
 }
