@@ -1,53 +1,118 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card";
-import { PlusCircle, Trash2, SearchIcon, FilterIcon, FilePenIcon } from "lucide-react";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useForm } from "@tanstack/react-form";
+import { z } from "zod/v4";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { PlusCircle, FilePenIcon, TrashIcon, UsersIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { toast } from "sonner";
 import { useTRPC } from "@/lib/trpc/client";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { RouterInputs } from "@/lib/trpc/router";
+import { useQuery } from "@tanstack/react-query";
+import { useCrudMutation } from "@/hooks/use-crud-mutation";
+import { DataTable, TableActions, TableActionButton, type Column, type ExportColumn } from "@/components/ui/data-table";
+import { SearchFilter, type FilterOption } from "@/components/ui/search-filter";
+import type { RouterOutputs } from "@/lib/trpc/router";
 
-type CustomerCreate = RouterInputs["customers"]["create"];
-type CustomerForm = Pick<CustomerCreate, "name" | "email"> & { phone: string; status: NonNullable<CustomerCreate["status"]> };
-const emptyForm: CustomerForm = { name: "", email: "", phone: "", status: "active" };
+type Customer = RouterOutputs["customers"]["list"][number];
+
+const customerFormSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  email: z.string().email("Invalid email"),
+  phone: z.string(),
+  status: z.enum(["active", "inactive"]),
+});
+
+const statusFilterOptions: FilterOption[] = [
+  { label: "All", value: "all" },
+  { label: "Active", value: "active", variant: "success" },
+  { label: "Inactive", value: "inactive", variant: "danger" },
+];
+
+const tableColumns: Column<Customer>[] = [
+  { key: "name", header: "Name", sortable: true, className: "font-medium" },
+  { key: "email", header: "Email", sortable: true },
+  { key: "phone", header: "Phone", hideOnMobile: true },
+  {
+    key: "status",
+    header: "Status",
+    sortable: true,
+    render: (row) => (
+      <span className={row.status === "active" ? "text-green-600" : "text-muted-foreground"}>
+        {row.status ?? "active"}
+      </span>
+    ),
+  },
+];
+
+const exportColumns: ExportColumn<Customer>[] = [
+  { key: "name", header: "Name", getValue: (c) => c.name },
+  { key: "email", header: "Email", getValue: (c) => c.email },
+  { key: "phone", header: "Phone", getValue: (c) => c.phone ?? "" },
+  { key: "status", header: "Status", getValue: (c) => c.status ?? "active" },
+];
 
 export default function CustomersPage() {
   const trpc = useTRPC();
-  const queryClient = useQueryClient();
   const { data: customers = [], isLoading, error } = useQuery(trpc.customers.list.queryOptions());
-
-  const createMutation = useMutation(trpc.customers.create.mutationOptions({
-    onSuccess: () => { queryClient.invalidateQueries(trpc.customers.list.queryOptions()); toast.success("Customer created"); setIsDialogOpen(false); },
-    onError: () => toast.error("Failed to create customer"),
-  }));
-  const updateMutation = useMutation(trpc.customers.update.mutationOptions({
-    onSuccess: () => { queryClient.invalidateQueries(trpc.customers.list.queryOptions()); toast.success("Customer updated"); setIsDialogOpen(false); },
-    onError: () => toast.error("Failed to update customer"),
-  }));
-  const deleteMutation = useMutation(trpc.customers.delete.mutationOptions({
-    onSuccess: () => { queryClient.invalidateQueries(trpc.customers.list.queryOptions()); toast.success("Customer deleted"); },
-    onError: () => toast.error("Failed to delete customer"),
-  }));
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [form, setForm] = useState(emptyForm);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
   const isEditing = editingId !== null;
+  const invalidateKeys = trpc.customers.list.queryOptions().queryKey;
+
+  const createMutation = useCrudMutation({
+    mutationOptions: trpc.customers.create.mutationOptions(),
+    invalidateKeys,
+    successMessage: "Customer created",
+    errorMessage: "Failed to create customer",
+    onSuccess: () => setIsDialogOpen(false),
+  });
+
+  const updateMutation = useCrudMutation({
+    mutationOptions: trpc.customers.update.mutationOptions(),
+    invalidateKeys,
+    successMessage: "Customer updated",
+    errorMessage: "Failed to update customer",
+    onSuccess: () => setIsDialogOpen(false),
+  });
+
+  const deleteMutation = useCrudMutation({
+    mutationOptions: trpc.customers.delete.mutationOptions(),
+    invalidateKeys,
+    successMessage: "Customer deleted",
+    errorMessage: "Failed to delete customer",
+  });
+
+  const form = useForm({
+    defaultValues: { name: "", email: "", phone: "", status: "active" as "active" | "inactive" },
+    validators: {
+      onSubmit: customerFormSchema,
+    },
+    onSubmit: ({ value }) => {
+      const payload = {
+        name: value.name,
+        email: value.email,
+        phone: value.phone || undefined,
+        status: value.status,
+      };
+      if (isEditing) {
+        updateMutation.mutate({ id: editingId, ...payload });
+      } else {
+        createMutation.mutate(payload);
+      }
+    },
+  });
 
   const filteredCustomers = useMemo(() => {
     return customers.filter((c) => {
@@ -57,23 +122,39 @@ export default function CustomersPage() {
     });
   }, [customers, statusFilter, searchTerm]);
 
-  const openCreate = () => { setEditingId(null); setForm(emptyForm); setIsDialogOpen(true); };
-  const openEdit = (c: typeof customers[0]) => {
-    setEditingId(c.id);
-    setForm({ name: c.name, email: c.email, phone: c.phone ?? "", status: (c.status ?? "active") as CustomerForm["status"] });
+  const openCreate = () => {
+    setEditingId(null);
+    form.reset();
     setIsDialogOpen(true);
   };
 
-  const handleSave = () => {
-    if (isEditing) {
-      updateMutation.mutate({ id: editingId, ...form });
-    } else {
-      createMutation.mutate(form);
-    }
+  const openEdit = (c: Customer) => {
+    setEditingId(c.id);
+    form.reset();
+    form.setFieldValue("name", c.name);
+    form.setFieldValue("email", c.email);
+    form.setFieldValue("phone", c.phone ?? "");
+    form.setFieldValue("status", (c.status ?? "active") as "active" | "inactive");
+    setIsDialogOpen(true);
   };
 
   const handleDelete = () => {
-    if (deleteId !== null) { deleteMutation.mutate({ id: deleteId }); setIsDeleteOpen(false); setDeleteId(null); }
+    if (deleteId !== null) {
+      deleteMutation.mutate({ id: deleteId });
+      setIsDeleteOpen(false);
+      setDeleteId(null);
+    }
+  };
+
+  const actionsColumn: Column<Customer> = {
+    key: "actions",
+    header: "Actions",
+    render: (row) => (
+      <TableActions>
+        <TableActionButton onClick={() => openEdit(row)} icon={<FilePenIcon className="w-4 h-4" />} label="Edit" />
+        <TableActionButton variant="danger" onClick={() => { setDeleteId(row.id); setIsDeleteOpen(true); }} icon={<TrashIcon className="w-4 h-4" />} label="Delete" />
+      </TableActions>
+    ),
   };
 
   if (isLoading) {
@@ -90,44 +171,89 @@ export default function CustomersPage() {
   return (
     <Card className="flex flex-col gap-6 p-6">
       <CardHeader className="p-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="relative"><Input type="text" placeholder="Search customers..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pr-8" /><SearchIcon className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /></div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild><Button variant="outline" size="sm" className="gap-1"><FilterIcon className="w-4 h-4" /><span>Filters</span></Button></DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48"><DropdownMenuLabel>Filter by Status</DropdownMenuLabel><DropdownMenuSeparator />{["all", "active", "inactive"].map((s) => (<DropdownMenuCheckboxItem key={s} checked={statusFilter === s} onCheckedChange={() => setStatusFilter(s)}>{s === "all" ? "All Statuses" : s.charAt(0).toUpperCase() + s.slice(1)}</DropdownMenuCheckboxItem>))}</DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+        <SearchFilter
+          search={searchTerm}
+          onSearchChange={setSearchTerm}
+          searchPlaceholder="Search customers..."
+          filters={[{ options: statusFilterOptions, value: statusFilter, onChange: setStatusFilter }]}
+        >
           <Button size="sm" onClick={openCreate}><PlusCircle className="w-4 h-4 mr-2" />Add Customer</Button>
-        </div>
+        </SearchFilter>
       </CardHeader>
       <CardContent className="p-0">
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Phone</TableHead><TableHead>Status</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
-            <TableBody>
-              {filteredCustomers.map((customer) => (
-                <TableRow key={customer.id}>
-                  <TableCell>{customer.name}</TableCell><TableCell>{customer.email}</TableCell><TableCell>{customer.phone}</TableCell><TableCell>{customer.status}</TableCell>
-                  <TableCell><div className="flex items-center gap-2"><Button size="icon" variant="ghost" onClick={() => openEdit(customer)}><FilePenIcon className="w-4 h-4" /><span className="sr-only">Edit</span></Button><Button size="icon" variant="ghost" onClick={() => { setDeleteId(customer.id); setIsDeleteOpen(true); }}><Trash2 className="w-4 h-4" /><span className="sr-only">Delete</span></Button></div></TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <DataTable
+          data={filteredCustomers}
+          columns={[...tableColumns, actionsColumn]}
+          exportColumns={exportColumns}
+          exportFilename="customers"
+          emptyMessage="No customers found."
+          emptyIcon={<UsersIcon className="w-8 h-8" />}
+          defaultSort={[{ id: "name", desc: false }]}
+        />
       </CardContent>
-      <CardFooter className="flex justify-between items-center" />
 
       <Dialog open={isDialogOpen} onOpenChange={(open) => { if (!open) setIsDialogOpen(false); }}>
         <DialogContent>
           <DialogHeader><DialogTitle>{isEditing ? "Edit Customer" : "Create New Customer"}</DialogTitle></DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="name">Name</Label><Input id="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="col-span-3" /></div>
-            <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="email">Email</Label><Input id="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="col-span-3" /></div>
-            <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="phone">Phone</Label><Input id="phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="col-span-3" /></div>
-            <div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="status">Status</Label><Select value={form.status} onValueChange={(value) => setForm({ ...form, status: value as CustomerForm["status"] })}><SelectTrigger id="status" className="col-span-3"><SelectValue placeholder="Select status" /></SelectTrigger><SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="inactive">Inactive</SelectItem></SelectContent></Select></div>
-          </div>
-          <DialogFooter><Button variant="secondary" onClick={() => setIsDialogOpen(false)}>Cancel</Button><Button onClick={handleSave} disabled={createMutation.isPending || updateMutation.isPending}>{isEditing ? "Update Customer" : "Create Customer"}</Button></DialogFooter>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              form.handleSubmit();
+            }}
+          >
+            <div className="grid gap-4 py-4">
+              <form.Field name="name">
+                {(field) => (
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="name">Name</Label>
+                    <div className="col-span-3">
+                      <Input id="name" value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} error={field.state.meta.errors.length > 0 ? field.state.meta.errors.map(e => e?.message ?? e).join(", ") : undefined} />
+                    </div>
+                  </div>
+                )}
+              </form.Field>
+              <form.Field name="email">
+                {(field) => (
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="email">Email</Label>
+                    <div className="col-span-3">
+                      <Input id="email" value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} error={field.state.meta.errors.length > 0 ? field.state.meta.errors.map(e => e?.message ?? e).join(", ") : undefined} />
+                    </div>
+                  </div>
+                )}
+              </form.Field>
+              <form.Field name="phone">
+                {(field) => (
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="phone">Phone</Label>
+                    <Input id="phone" value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} className="col-span-3" />
+                  </div>
+                )}
+              </form.Field>
+              <form.Field name="status">
+                {(field) => (
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="status">Status</Label>
+                    <Select value={field.state.value} onValueChange={(value) => field.handleChange(value as "active" | "inactive")}>
+                      <SelectTrigger id="status" className="col-span-3"><SelectValue placeholder="Select status" /></SelectTrigger>
+                      <SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="inactive">Inactive</SelectItem></SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </form.Field>
+            </div>
+            <DialogFooter>
+              <Button variant="secondary" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+              <form.Subscribe selector={(state) => state.isSubmitting}>
+                {(isSubmitting) => (
+                  <Button type="submit" disabled={isSubmitting || createMutation.isPending || updateMutation.isPending}>
+                    {isEditing ? "Update Customer" : "Create Customer"}
+                  </Button>
+                )}
+              </form.Subscribe>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
