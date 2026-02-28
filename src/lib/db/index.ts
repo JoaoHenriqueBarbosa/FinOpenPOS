@@ -9,8 +9,6 @@ const globalForPGlite = globalThis as unknown as {
 export const pglite =
   globalForPGlite.pglite ?? new PGlite("./data/pglite");
 
-if (process.env.NODE_ENV !== "production") {
-  globalForPGlite.pglite = pglite;
-}
+globalForPGlite.pglite = pglite;
 
 export const db = drizzle({ client: pglite, schema });

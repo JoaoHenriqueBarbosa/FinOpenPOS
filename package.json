@@ -3,10 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "bun run db:push && next dev",
-    "build": "bun run db:push && next build",
+    "dev": "bun run db:ensure && bun run db:push && next dev",
+    "build": "bun run db:ensure && bun run db:push && next build",
     "start": "next start",
     "lint": "next lint",
+    "db:ensure": "bun scripts/ensure-db.ts",
     "db:push": "drizzle-kit push"
   },
   "dependencies": {
