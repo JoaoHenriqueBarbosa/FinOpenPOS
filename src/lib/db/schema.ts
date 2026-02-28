@@ -28,6 +28,7 @@ export const products = pgTable("products", {
   in_stock: integer("in_stock").notNull(),
   user_uid: varchar("user_uid", { length: 255 }).notNull(),
   category: varchar("category", { length: 50 }),
+  created_at: timestamp("created_at").defaultNow(),
 });
 
 // ── Customers ───────────────────────────────────────────────────────────────
@@ -58,12 +59,14 @@ export const orderItems = pgTable("order_items", {
   product_id: integer("product_id").references(() => products.id),
   quantity: integer("quantity").notNull(),
   price: integer("price").notNull(),
+  created_at: timestamp("created_at").defaultNow(),
 });
 
 // ── Payment Methods ─────────────────────────────────────────────────────────
 export const paymentMethods = pgTable("payment_methods", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 50 }).notNull().unique(),
+  created_at: timestamp("created_at").defaultNow(),
 });
 
 // ── Transactions ────────────────────────────────────────────────────────────

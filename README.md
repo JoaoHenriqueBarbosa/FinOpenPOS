@@ -13,6 +13,7 @@ Open-source Point of Sale (POS) and inventory management system built with Next.
 - **Point of Sale (POS)** for quick sales processing
 - **Cashier** with income and expense transaction logging
 - **Authentication** with email/password via Better Auth
+- **API Documentation** auto-generated interactive docs via Scalar at `/api/docs`
 
 ## Tech Stack
 
@@ -22,7 +23,9 @@ Open-source Point of Sale (POS) and inventory management system built with Next.
 | UI | React 19, Tailwind CSS 4, Radix UI, Recharts |
 | Database | PGLite (PostgreSQL via WASM) |
 | ORM | Drizzle ORM |
+| API | tRPC v11 (end-to-end type safety) |
 | Auth | Better Auth |
+| API Docs | Scalar (OpenAPI 3.0) |
 | Runtime | Bun |
 
 ## Quick Start
@@ -65,22 +68,54 @@ Open http://localhost:3000 and use the **Fill demo credentials** button to sign 
 src/
 ├── app/
 │   ├── admin/           # Dashboard, products, customers, orders, POS, cashier
-│   ├── api/             # API routes (CRUD + analytics)
+│   ├── api/
+│   │   ├── auth/        # Better Auth catch-all handler
+│   │   ├── trpc/        # tRPC HTTP handler (/api/trpc/*)
+│   │   ├── docs/        # Scalar interactive API docs
+│   │   └── openapi.json/# Auto-generated OpenAPI 3.0 spec
 │   ├── login/           # Login page
 │   └── signup/          # Sign up page
-├── components/ui/       # shadcn components (Button, Card, Dialog, etc.)
+├── components/
+│   ├── ui/              # shadcn components (Button, Card, Dialog, etc.)
+│   └── trpc-provider.tsx # TRPCProvider + React Query setup
 ├── lib/
 │   ├── db/
 │   │   ├── index.ts     # PGLite singleton + Drizzle instance
 │   │   ├── schema.ts    # Drizzle schema (6 business tables)
 │   │   ├── auth-schema.ts # Better Auth tables (auto-generated)
 │   │   └── seed.ts      # Demo data seed via Faker
+│   ├── trpc/
+│   │   ├── init.ts      # tRPC context, router, procedures (public + protected)
+│   │   ├── router.ts    # Root router (products, customers, orders, etc.)
+│   │   ├── openapi.ts   # OpenAPI spec generator from tRPC routers
+│   │   └── routers/     # Individual routers with Zod validation
 │   ├── auth.ts          # Better Auth config (server)
 │   ├── auth-client.ts   # Client auth (useSession, signIn, etc.)
-│   └── auth-guard.ts    # getAuthUser() helper for API routes
+│   └── auth-guard.ts    # getAuthUser() helper for tRPC procedures
 ├── proxy.ts             # Next.js 16 middleware (route protection)
 └── instrumentation.ts   # Runs seed on Next.js startup
 ```
+
+## API
+
+All API procedures require authentication via Better Auth session cookie. The API uses **tRPC** for end-to-end type safety — frontend components consume procedures directly with full TypeScript inference.
+
+### Interactive Docs
+
+Visit **`/api/docs`** for the full interactive API reference powered by Scalar, auto-generated from the tRPC router definitions.
+
+The raw OpenAPI 3.0 spec is available at `/api/openapi.json`.
+
+### tRPC Procedures
+
+| Router | Procedures | Description |
+|--------|-----------|-------------|
+| `products` | `list`, `create`, `update`, `delete` | Product CRUD with stock and categories |
+| `customers` | `list`, `create`, `update`, `delete` | Customer CRUD with status |
+| `orders` | `list`, `create`, `update`, `delete` | Order management with items and transactions |
+| `transactions` | `list`, `create`, `update`, `delete` | Income/expense transaction logging |
+| `paymentMethods` | `list`, `create`, `update`, `delete` | Payment method management |
+| `dashboard` | `stats` | Aggregated revenue, expenses, profit, cash flow, margins |
 
 ## Docker Deploy
 
@@ -175,31 +210,11 @@ bun run dev
 - Remove `serverExternalPackages` from `next.config.mjs`
 - In Docker, replace the PGLite volume with a PostgreSQL connection via `DATABASE_URL`
 
-> The Drizzle schema (`src/lib/db/schema.ts`) doesn't change. All queries, relations and API routes keep working without modification.
+> The Drizzle schema (`src/lib/db/schema.ts`) doesn't change. All queries, relations and tRPC procedures keep working without modification.
 
 ## Monetary Values
 
 All monetary values are stored as **integer cents** (e.g., $49.99 = `4999`). This avoids floating-point precision issues. Values are divided by 100 for display in the UI.
-
-## API Routes
-
-All routes require authentication via Better Auth session cookie.
-
-| Route | Methods | Description |
-|-------|---------|-------------|
-| `/api/products` | GET, POST | List/create products |
-| `/api/products/[id]` | GET, PUT, DELETE | Product CRUD |
-| `/api/customers` | GET, POST | List/create customers |
-| `/api/customers/[id]` | GET, PUT, DELETE | Customer CRUD |
-| `/api/orders` | GET, POST | List/create orders |
-| `/api/orders/[id]` | GET, DELETE | Get/delete order |
-| `/api/transactions` | GET, POST | List/create transactions |
-| `/api/transactions/[id]` | GET, PUT, DELETE | Transaction CRUD |
-| `/api/payment-methods` | GET | List payment methods |
-| `/api/admin/revenue/*` | GET | Total and by category |
-| `/api/admin/expenses/*` | GET | Total and by category |
-| `/api/admin/profit/*` | GET | Total and margin |
-| `/api/admin/cashflow` | GET | Monthly cash flow |
 
 ## Contributing
 
