@@ -1,74 +1,81 @@
-import { createClient } from '@/lib/supabase/server'
-import { NextResponse } from 'next/server'
+import { db } from "@/lib/db";
+import { orders, orderItems, customers } from "@/lib/db/schema";
+import { getAuthUser } from "@/lib/auth-guard";
+import { eq, and } from "drizzle-orm";
+import { NextResponse } from "next/server";
 
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ orderId: string }> }
 ) {
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-
+  const user = await getAuthUser();
   if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const updatedOrder = await request.json();
-  const { orderId } = await params;
+  try {
+    const updatedOrder = await request.json();
+    const { orderId } = await params;
 
-  const { data, error } = await supabase
-    .from('orders')
-    .update({ ...updatedOrder, user_uid: user.id })
-    .eq('id', orderId)
-    .eq('user_uid', user.id)
-    .select('*, customer:customers(name)')
-    .single()
+    const [data] = await db
+      .update(orders)
+      .set({ ...updatedOrder, user_uid: user.id })
+      .where(
+        and(eq(orders.id, Number(orderId)), eq(orders.user_uid, user.id))
+      )
+      .returning();
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    if (!data) {
+      return NextResponse.json(
+        { error: "Order not found or not authorized" },
+        { status: 404 }
+      );
+    }
+
+    // Fetch customer name to match previous API shape
+    const customer = data.customer_id
+      ? await db.query.customers.findFirst({
+          where: eq(customers.id, data.customer_id),
+          columns: { name: true },
+        })
+      : null;
+
+    return NextResponse.json({ ...data, customer });
+  } catch (error) {
+    return NextResponse.json(
+      { error: (error as Error).message },
+      { status: 500 }
+    );
   }
-
-  if (!data) {
-    return NextResponse.json({ error: 'Order not found or not authorized' }, { status: 404 })
-  }
-
-  return NextResponse.json(data)
 }
 
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ orderId: string }> }
 ) {
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-
+  const user = await getAuthUser();
   if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { orderId } = await params;
+  try {
+    const { orderId } = await params;
+    const id = Number(orderId);
 
-  // First, delete related order_items
-  const { error: orderItemsError } = await supabase
-    .from('order_items')
-    .delete()
-    .eq('order_id', orderId)
+    await db.transaction(async (tx) => {
+      await tx.delete(orderItems).where(eq(orderItems.order_id, id));
+      await tx
+        .delete(orders)
+        .where(and(eq(orders.id, id), eq(orders.user_uid, user.id)));
+    });
 
-  if (orderItemsError) {
-    return NextResponse.json({ error: orderItemsError.message }, { status: 500 })
+    return NextResponse.json({
+      message: "Order and related items deleted successfully",
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: (error as Error).message },
+      { status: 500 }
+    );
   }
-
-  // Then, delete the order
-  const { error: orderError } = await supabase
-    .from('orders')
-    .delete()
-    .eq('id', orderId)
-    .eq('user_uid', user.id)
-
-  if (orderError) {
-    return NextResponse.json({ error: orderError.message }, { status: 500 })
-  }
-
-  return NextResponse.json({ message: 'Order and related items deleted successfully' })
 }

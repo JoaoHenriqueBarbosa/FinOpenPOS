@@ -1,35 +1,47 @@
-import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { transactions } from "@/lib/db/schema";
+import { getAuthUser } from "@/lib/auth-guard";
+import { eq, and, asc } from "drizzle-orm";
 
-export async function GET(request: Request) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
+export async function GET() {
+  const user = await getAuthUser();
   if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data: transactionsData, error: transactionsError } = await supabase
-    .from('transactions')
-    .select('amount, created_at')
-    .eq('status', 'completed')
-    .eq('user_uid', user.id)
-    .order('created_at', { ascending: true });
+  try {
+    const transactionsData = await db
+      .select({
+        amount: transactions.amount,
+        created_at: transactions.created_at,
+      })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.status, "completed"),
+          eq(transactions.user_uid, user.id)
+        )
+      )
+      .orderBy(asc(transactions.created_at));
 
-  if (transactionsError) {
-    console.error('Error fetching cash flow data:', transactionsError);
-    return NextResponse.json({ error: 'Failed to fetch cash flow data' }, { status: 500 });
+    const cashFlow = transactionsData.reduce(
+      (acc, t) => {
+        const date = t.created_at
+          ? new Date(t.created_at).toISOString().split("T")[0]
+          : "unknown";
+        acc[date] = (acc[date] || 0) + Number(t.amount);
+        return acc;
+      },
+      {} as Record<string, number>
+    );
+
+    return NextResponse.json({ cashFlow });
+  } catch (error) {
+    console.error("Error fetching cash flow data:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch cash flow data" },
+      { status: 500 }
+    );
   }
-
-  const cashFlow = transactionsData?.reduce((acc, transaction) => {
-    const date = new Date(transaction.created_at).toISOString().split('T')[0];
-    if (acc[date]) {
-      acc[date] += transaction.amount;
-    } else {
-      acc[date] = transaction.amount;
-    }
-    return acc;
-  }, {} as Record<string, number>);
-
-  return NextResponse.json({ cashFlow });
 }

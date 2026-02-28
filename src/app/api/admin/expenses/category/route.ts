@@ -1,39 +1,47 @@
-import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { transactions } from "@/lib/db/schema";
+import { getAuthUser } from "@/lib/auth-guard";
+import { eq, and } from "drizzle-orm";
 
-export async function GET(request: Request) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
+export async function GET() {
+  const user = await getAuthUser();
   if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data: expensesData, error: expensesError } = await supabase
-    .from('transactions')
-    .select('amount, category, status, user_uid')
-    .eq('status', 'completed')
-    .eq('type', 'expense')
-    .eq('user_uid', user.id);
+  try {
+    const expensesData = await db
+      .select({
+        amount: transactions.amount,
+        category: transactions.category,
+      })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.status, "completed"),
+          eq(transactions.type, "expense"),
+          eq(transactions.user_uid, user.id)
+        )
+      );
 
-  if (expensesError) {
-    console.error('Error fetching expenses by category:', expensesError);
-    return NextResponse.json({ error: 'Failed to fetch expenses by category' }, { status: 500 });
+    const expensesByCategory = expensesData.reduce(
+      (acc, item) => {
+        const category = item.category;
+        if (!category) return acc;
+        const amount = Number(item.amount);
+        acc[category] = (acc[category] || 0) + amount;
+        return acc;
+      },
+      {} as Record<string, number>
+    );
+
+    return NextResponse.json({ expensesByCategory });
+  } catch (error) {
+    console.error("Error fetching expenses by category:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch expenses by category" },
+      { status: 500 }
+    );
   }
-
-  const expensesByCategory = expensesData?.reduce((acc, item) => {
-    const category = item.category; // Acessando a categoria do primeiro produto
-    if (!category) {
-      return acc; // Se a categoria não existir, continuar para o último item
-    }
-    const expenses = item.amount;
-    if (acc[category]) {
-      acc[category] += expenses;
-    } else {
-      acc[category] = expenses;
-    }
-    return acc;
-  }, {} as Record<string, number>);
-
-  return NextResponse.json({ expensesByCategory });
 }
