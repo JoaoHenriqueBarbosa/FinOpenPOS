@@ -12,7 +12,7 @@ export async function GET() {
 
   try {
     const data = await db
-      .select({ id: customers.id, name: customers.name })
+      .select()
       .from(customers)
       .where(eq(customers.user_uid, user.id));
 
