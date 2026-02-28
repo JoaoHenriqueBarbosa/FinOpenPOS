@@ -161,12 +161,12 @@ export default function POSPage() {
   }
 
   return (
-    <div className="container mx-auto p-4">
+    <div className="w-full max-w-4xl mx-auto">
       <Card className="mb-4">
         <CardHeader>
           <CardTitle>Sale Details</CardTitle>
         </CardHeader>
-        <CardContent className="flex gap-4">
+        <CardContent className="flex flex-col sm:flex-row gap-3 sm:gap-4">
           <div className="flex-1">
             <Combobox
               items={customers}
@@ -186,12 +186,12 @@ export default function POSPage() {
       <Card>
         <CardHeader>
           <CardTitle>Products</CardTitle>
-          <div className="flex gap-3 !mt-4">
+          <div className="flex flex-col sm:flex-row gap-3 !mt-4">
             <div className="relative flex-1">
               <SearchIcon className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 type="text"
-                placeholder="Search products by name or category..."
+                placeholder="Search products..."
                 value={productSearch}
                 onChange={(e) => setProductSearch(e.target.value)}
                 className="pl-8"
@@ -214,77 +214,81 @@ export default function POSPage() {
               Select products above to add them to the order
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Product</TableHead>
-                  <TableHead>Price</TableHead>
-                  <TableHead>Stock</TableHead>
-                  <TableHead>Quantity</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {selectedProducts.map((product) => {
-                  const source = products.find((p) => p.id === product.id);
-                  return (
-                    <TableRow key={product.id}>
-                      <TableCell className="font-medium">{product.name}</TableCell>
-                      <TableCell>${(product.price / 100).toFixed(2)}</TableCell>
-                      <TableCell>
-                        <Badge variant={source && source.in_stock > 5 ? "default" : "destructive"}>
-                          {source?.in_stock ?? 0}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Product</TableHead>
+                    <TableHead className="hidden sm:table-cell">Price</TableHead>
+                    <TableHead className="hidden md:table-cell">Stock</TableHead>
+                    <TableHead>Qty</TableHead>
+                    <TableHead>Total</TableHead>
+                    <TableHead className="w-10"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {selectedProducts.map((product) => {
+                    const source = products.find((p) => p.id === product.id);
+                    return (
+                      <TableRow key={product.id}>
+                        <TableCell className="font-medium">{product.name}</TableCell>
+                        <TableCell className="hidden sm:table-cell">${(product.price / 100).toFixed(2)}</TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          <Badge variant={source && source.in_stock > 5 ? "default" : "destructive"}>
+                            {source?.in_stock ?? 0}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-7 w-7"
+                              onClick={() => handleQuantityChange(product.id, -1)}
+                              disabled={product.quantity <= 1}
+                            >
+                              <MinusIcon className="h-3 w-3" />
+                            </Button>
+                            <span className="w-8 text-center tabular-nums">{product.quantity}</span>
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-7 w-7"
+                              onClick={() => handleQuantityChange(product.id, 1)}
+                              disabled={source ? product.quantity >= source.in_stock : false}
+                            >
+                              <PlusIcon className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          ${(product.quantity * product.price / 100).toFixed(2)}
+                        </TableCell>
+                        <TableCell>
                           <Button
+                            variant="ghost"
                             size="icon"
-                            variant="outline"
-                            className="h-7 w-7"
-                            onClick={() => handleQuantityChange(product.id, -1)}
-                            disabled={product.quantity <= 1}
+                            className="h-8 w-8"
+                            onClick={() => handleRemoveProduct(product.id)}
                           >
-                            <MinusIcon className="h-3 w-3" />
+                            <Trash2Icon className="h-4 w-4" />
+                            <span className="sr-only">Remove</span>
                           </Button>
-                          <span className="w-8 text-center tabular-nums">{product.quantity}</span>
-                          <Button
-                            size="icon"
-                            variant="outline"
-                            className="h-7 w-7"
-                            onClick={() => handleQuantityChange(product.id, 1)}
-                            disabled={source ? product.quantity >= source.in_stock : false}
-                          >
-                            <PlusIcon className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        ${(product.quantity * product.price / 100).toFixed(2)}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleRemoveProduct(product.id)}
-                        >
-                          <Trash2Icon className="h-4 w-4" />
-                          <span className="sr-only">Remove</span>
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           )}
-          <div className="mt-4 flex items-center justify-between border-t pt-4">
+          <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t pt-4">
             <strong className="text-lg">Total: ${(total / 100).toFixed(2)}</strong>
             <Button
               onClick={handleCreateOrder}
               disabled={!canCreate || createOrderMutation.isPending}
               size="lg"
+              className="w-full sm:w-auto"
             >
               {createOrderMutation.isPending && <Loader2Icon className="h-4 w-4 animate-spin mr-2" />}
               Create Order
