@@ -1,72 +1,35 @@
 import { db } from "@/lib/db";
 import { paymentMethods } from "@/lib/db/schema";
-import { getAuthUser } from "@/lib/auth-guard";
+import { authHandler, json } from "@/lib/api";
 import { eq } from "drizzle-orm";
-import { NextResponse } from "next/server";
 
-export async function PUT(
-  request: Request,
-  { params }: { params: Promise<{ paymentMethodId: string }> }
-) {
-  const user = await getAuthUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const PUT = authHandler(async (_user, request, { params }) => {
+  const { paymentMethodId } = await params;
+  const { name } = await request.json();
+
+  if (!name?.trim()) {
+    return json({ error: "Name is required" }, 400);
   }
 
-  try {
-    const { paymentMethodId } = await params;
-    const { name } = await request.json();
+  const [data] = await db
+    .update(paymentMethods)
+    .set({ name: name.trim() })
+    .where(eq(paymentMethods.id, Number(paymentMethodId)))
+    .returning();
 
-    if (!name?.trim()) {
-      return NextResponse.json(
-        { error: "Name is required" },
-        { status: 400 }
-      );
-    }
-
-    const [data] = await db
-      .update(paymentMethods)
-      .set({ name: name.trim() })
-      .where(eq(paymentMethods.id, parseInt(paymentMethodId)))
-      .returning();
-
-    if (!data) {
-      return NextResponse.json(
-        { error: "Payment method not found" },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json(data);
-  } catch (error) {
-    return NextResponse.json(
-      { error: (error as Error).message },
-      { status: 500 }
-    );
-  }
-}
-
-export async function DELETE(
-  _request: Request,
-  { params }: { params: Promise<{ paymentMethodId: string }> }
-) {
-  const user = await getAuthUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!data) {
+    return json({ error: "Payment method not found" }, 404);
   }
 
-  try {
-    const { paymentMethodId } = await params;
+  return json(data);
+});
 
-    await db
-      .delete(paymentMethods)
-      .where(eq(paymentMethods.id, parseInt(paymentMethodId)));
+export const DELETE = authHandler(async (_user, _request, { params }) => {
+  const { paymentMethodId } = await params;
 
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    return NextResponse.json(
-      { error: (error as Error).message },
-      { status: 500 }
-    );
-  }
-}
+  await db
+    .delete(paymentMethods)
+    .where(eq(paymentMethods.id, Number(paymentMethodId)));
+
+  return json({ success: true });
+});

@@ -1,4 +1,6 @@
 "use client";
+
+import { useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -22,16 +24,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import { EllipsisVerticalIcon, Loader2Icon } from "lucide-react";
-import { useState, useEffect, useCallback } from "react";
 import { formatDate } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import {
@@ -41,6 +34,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useCrud } from "@/hooks/use-crud";
+import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
 
 type TransactionType = "income" | "expense";
 
@@ -55,12 +50,16 @@ interface Transaction {
 }
 
 export default function Cashier() {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] =
-    useState(false);
-  const [transactionToDelete, setTransactionToDelete] =
-    useState<Transaction | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { items: transactions, loading, add, remove } = useCrud<Transaction>({
+    url: "/api/transactions",
+    transformForApi: (data) => ({
+      ...data,
+      amount: Math.round(Number(data.amount) * 100),
+    }),
+  });
+
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
   const [newTransaction, setNewTransaction] = useState<Partial<Transaction>>({
     description: "",
     category: "",
@@ -75,78 +74,23 @@ export default function Cashier() {
   };
 
   const handleAddTransaction = async () => {
-    try {
-      const response = await fetch("/api/transactions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ...newTransaction,
-          amount: Math.round(Number(newTransaction.amount) * 100),
-        }),
-      });
-
-      if (response.ok) {
-        const addedTransaction = await response.json();
-        setTransactions((prev) => [...prev, addedTransaction]);
-        setNewTransaction({
-          description: "",
-          category: "",
-          type: "income",
-          amount: 0,
-          status: "completed",
-        });
-      } else {
-        console.error("Failed to add transaction");
-      }
-    } catch (error) {
-      console.error("Error adding transaction:", error);
-    }
+    await add(newTransaction as Partial<Transaction>);
+    setNewTransaction({
+      description: "",
+      category: "",
+      type: "income",
+      amount: 0,
+      status: "completed",
+    });
   };
 
-  const handleDeleteTransaction = useCallback(async () => {
-    if (!transactionToDelete) return;
-    try {
-      const response = await fetch(
-        `/api/transactions/${transactionToDelete.id}`,
-        {
-          method: "DELETE",
-        }
-      );
-
-      if (response.ok) {
-        setTransactions(
-          transactions.filter((t) => t.id !== transactionToDelete.id)
-        );
-        setIsDeleteConfirmationOpen(false);
-        setTransactionToDelete(null);
-      } else {
-        console.error("Failed to delete transaction");
-      }
-    } catch (error) {
-      console.error("Error deleting transaction:", error);
+  const handleDelete = async () => {
+    if (deleteId !== null) {
+      await remove(deleteId);
+      setIsDeleteOpen(false);
+      setDeleteId(null);
     }
-  }, [transactionToDelete, transactions]);
-
-  useEffect(() => {
-    const fetchTransactions = async () => {
-      try {
-        const response = await fetch("/api/transactions");
-        if (!response.ok) {
-          throw new Error("Failed to fetch transactions");
-        }
-        const data = await response.json();
-        setTransactions(data);
-      } catch (error) {
-        console.error("Error fetching transactions:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchTransactions();
-  }, []);
+  };
 
   if (loading) {
     return (
@@ -193,11 +137,7 @@ export default function Cashier() {
                   <TableCell>${(transaction.amount / 100).toFixed(2)}</TableCell>
                   <TableCell>
                     <Badge
-                      variant={
-                        transaction.status === "completed"
-                          ? "default"
-                          : "secondary"
-                      }
+                      variant={transaction.status === "completed" ? "default" : "secondary"}
                     >
                       {transaction.status}
                     </Badge>
@@ -205,11 +145,7 @@ export default function Cashier() {
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button
-                          aria-haspopup="true"
-                          size="icon"
-                          variant="ghost"
-                        >
+                        <Button aria-haspopup="true" size="icon" variant="ghost">
                           <EllipsisVerticalIcon className="h-4 w-4" />
                           <span className="sr-only">Toggle menu</span>
                         </Button>
@@ -217,10 +153,7 @@ export default function Cashier() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem>Edit</DropdownMenuItem>
                         <DropdownMenuItem
-                          onClick={() => {
-                            setTransactionToDelete(transaction);
-                            setIsDeleteConfirmationOpen(true);
-                          }}
+                          onClick={() => { setDeleteId(transaction.id); setIsDeleteOpen(true); }}
                         >
                           Delete
                         </DropdownMenuItem>
@@ -232,34 +165,17 @@ export default function Cashier() {
               <TableRow>
                 <TableCell>New</TableCell>
                 <TableCell>
-                  <Input
-                    name="description"
-                    value={newTransaction.description}
-                    onChange={handleInputChange}
-                    placeholder="Description"
-                  />
+                  <Input name="description" value={newTransaction.description} onChange={handleInputChange} placeholder="Description" />
                 </TableCell>
                 <TableCell>
-                  <Input
-                    name="category"
-                    value={newTransaction.category}
-                    onChange={handleInputChange}
-                    placeholder="Category"
-                  />
+                  <Input name="category" value={newTransaction.category} onChange={handleInputChange} placeholder="Category" />
                 </TableCell>
                 <TableCell>
                   <Select
                     defaultValue={newTransaction.type}
-                    onValueChange={(value) =>
-                      setNewTransaction({
-                        ...newTransaction,
-                        type: value as TransactionType,
-                      })
-                    }
+                    onValueChange={(value) => setNewTransaction({ ...newTransaction, type: value as TransactionType })}
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Theme" />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Theme" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="income">Income</SelectItem>
                       <SelectItem value="expense">Expense</SelectItem>
@@ -268,27 +184,14 @@ export default function Cashier() {
                 </TableCell>
                 <TableCell>{formatDate(new Date().toISOString())}</TableCell>
                 <TableCell>
-                  <Input
-                    name="amount"
-                    type="number"
-                    value={newTransaction.amount}
-                    onChange={handleInputChange}
-                    placeholder="Amount"
-                  />
+                  <Input name="amount" type="number" value={newTransaction.amount} onChange={handleInputChange} placeholder="Amount" />
                 </TableCell>
                 <TableCell>
                   <Select
                     defaultValue={newTransaction.status}
-                    onValueChange={(value) =>
-                      setNewTransaction({
-                        ...newTransaction,
-                        status: value,
-                      })
-                    }
+                    onValueChange={(value) => setNewTransaction({ ...newTransaction, status: value })}
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="completed">Completed</SelectItem>
                       <SelectItem value="pending">Pending</SelectItem>
@@ -302,33 +205,14 @@ export default function Cashier() {
             </TableBody>
           </Table>
         </CardContent>
-        {/* Remove card footer */}
       </Card>
-      <Dialog
-        open={isDeleteConfirmationOpen}
-        onOpenChange={setIsDeleteConfirmationOpen}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirm Deletion</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this transaction? This action
-              cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsDeleteConfirmationOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleDeleteTransaction}>
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
+      <DeleteConfirmationDialog
+        open={isDeleteOpen}
+        onOpenChange={setIsDeleteOpen}
+        onConfirm={handleDelete}
+        description="Are you sure you want to delete this transaction? This action cannot be undone."
+      />
     </>
   );
 }

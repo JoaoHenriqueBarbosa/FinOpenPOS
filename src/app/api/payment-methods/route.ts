@@ -1,50 +1,23 @@
 import { db } from "@/lib/db";
 import { paymentMethods } from "@/lib/db/schema";
-import { getAuthUser } from "@/lib/auth-guard";
-import { NextResponse } from "next/server";
+import { authHandler, json } from "@/lib/api";
 
-export async function GET() {
-  const user = await getAuthUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const GET = authHandler(async () => {
+  const data = await db.select().from(paymentMethods);
+  return json(data);
+});
+
+export const POST = authHandler(async (_user, request) => {
+  const { name } = await request.json();
+
+  if (!name?.trim()) {
+    return json({ error: "Name is required" }, 400);
   }
 
-  try {
-    const data = await db.select().from(paymentMethods);
-    return NextResponse.json(data);
-  } catch (error) {
-    return NextResponse.json(
-      { error: (error as Error).message },
-      { status: 500 }
-    );
-  }
-}
+  const [data] = await db
+    .insert(paymentMethods)
+    .values({ name: name.trim() })
+    .returning();
 
-export async function POST(request: Request) {
-  const user = await getAuthUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  try {
-    const { name } = await request.json();
-    if (!name?.trim()) {
-      return NextResponse.json(
-        { error: "Name is required" },
-        { status: 400 }
-      );
-    }
-
-    const [data] = await db
-      .insert(paymentMethods)
-      .values({ name: name.trim() })
-      .returning();
-
-    return NextResponse.json(data);
-  } catch (error) {
-    return NextResponse.json(
-      { error: (error as Error).message },
-      { status: 500 }
-    );
-  }
-}
+  return json(data);
+});
