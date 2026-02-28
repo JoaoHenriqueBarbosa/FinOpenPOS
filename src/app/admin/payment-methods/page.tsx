@@ -1,56 +1,112 @@
 "use client";
 
 import { useState } from "react";
+import { useForm } from "@tanstack/react-form";
+import { z } from "zod/v4";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { PlusCircle, Trash2, FilePenIcon, CreditCardIcon } from "lucide-react";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PlusCircle, FilePenIcon, TrashIcon, CreditCardIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { toast } from "sonner";
 import { useTRPC } from "@/lib/trpc/client";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
+import { useCrudMutation } from "@/hooks/use-crud-mutation";
+import { DataTable, TableActions, TableActionButton, type Column } from "@/components/ui/data-table";
+import type { RouterOutputs } from "@/lib/trpc/router";
+
+type PaymentMethod = RouterOutputs["paymentMethods"]["list"][number];
+
+const paymentMethodSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+});
+
+const tableColumns: Column<PaymentMethod>[] = [
+  { key: "name", header: "Name", sortable: true, className: "font-medium" },
+];
 
 export default function PaymentMethodsPage() {
   const trpc = useTRPC();
-  const queryClient = useQueryClient();
   const { data: methods = [], isLoading, error } = useQuery(trpc.paymentMethods.list.queryOptions());
-
-  const createMutation = useMutation(trpc.paymentMethods.create.mutationOptions({
-    onSuccess: () => { queryClient.invalidateQueries(trpc.paymentMethods.list.queryOptions()); toast.success("Payment method created"); setIsDialogOpen(false); },
-    onError: () => toast.error("Failed to create"),
-  }));
-  const updateMutation = useMutation(trpc.paymentMethods.update.mutationOptions({
-    onSuccess: () => { queryClient.invalidateQueries(trpc.paymentMethods.list.queryOptions()); toast.success("Payment method updated"); setIsDialogOpen(false); },
-    onError: () => toast.error("Failed to update"),
-  }));
-  const deleteMutation = useMutation(trpc.paymentMethods.delete.mutationOptions({
-    onSuccess: () => { queryClient.invalidateQueries(trpc.paymentMethods.list.queryOptions()); toast.success("Payment method deleted"); },
-    onError: () => toast.error("Failed to delete"),
-  }));
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [name, setName] = useState("");
 
   const isEditing = editingId !== null;
+  const invalidateKeys = trpc.paymentMethods.list.queryOptions().queryKey;
 
-  const openCreate = () => { setEditingId(null); setName(""); setIsDialogOpen(true); };
-  const openEdit = (m: typeof methods[0]) => { setEditingId(m.id); setName(m.name); setIsDialogOpen(true); };
+  const createMutation = useCrudMutation({
+    mutationOptions: trpc.paymentMethods.create.mutationOptions(),
+    invalidateKeys,
+    successMessage: "Payment method created",
+    errorMessage: "Failed to create",
+    onSuccess: () => setIsDialogOpen(false),
+  });
 
-  const handleSave = () => {
-    if (!name.trim()) return;
-    if (isEditing) { updateMutation.mutate({ id: editingId, name }); }
-    else { createMutation.mutate({ name }); }
+  const updateMutation = useCrudMutation({
+    mutationOptions: trpc.paymentMethods.update.mutationOptions(),
+    invalidateKeys,
+    successMessage: "Payment method updated",
+    errorMessage: "Failed to update",
+    onSuccess: () => setIsDialogOpen(false),
+  });
+
+  const deleteMutation = useCrudMutation({
+    mutationOptions: trpc.paymentMethods.delete.mutationOptions(),
+    invalidateKeys,
+    successMessage: "Payment method deleted",
+    errorMessage: "Failed to delete",
+  });
+
+  const form = useForm({
+    defaultValues: { name: "" },
+    validators: {
+      onSubmit: paymentMethodSchema,
+    },
+    onSubmit: ({ value }) => {
+      if (isEditing) {
+        updateMutation.mutate({ id: editingId, name: value.name });
+      } else {
+        createMutation.mutate({ name: value.name });
+      }
+    },
+  });
+
+  const openCreate = () => {
+    setEditingId(null);
+    form.reset();
+    setIsDialogOpen(true);
+  };
+
+  const openEdit = (m: PaymentMethod) => {
+    setEditingId(m.id);
+    form.reset();
+    form.setFieldValue("name", m.name);
+    setIsDialogOpen(true);
   };
 
   const handleDelete = () => {
-    if (deleteId !== null) { deleteMutation.mutate({ id: deleteId }); setIsDeleteOpen(false); setDeleteId(null); }
+    if (deleteId !== null) {
+      deleteMutation.mutate({ id: deleteId });
+      setIsDeleteOpen(false);
+      setDeleteId(null);
+    }
+  };
+
+  const actionsColumn: Column<PaymentMethod> = {
+    key: "actions",
+    header: "Actions",
+    headerClassName: "w-[100px]",
+    render: (row) => (
+      <TableActions>
+        <TableActionButton onClick={() => openEdit(row)} icon={<FilePenIcon className="w-4 h-4" />} label="Edit" />
+        <TableActionButton variant="danger" onClick={() => { setDeleteId(row.id); setIsDeleteOpen(true); }} icon={<TrashIcon className="w-4 h-4" />} label="Delete" />
+      </TableActions>
+    ),
   };
 
   if (isLoading) {
@@ -68,29 +124,64 @@ export default function PaymentMethodsPage() {
     <Card className="flex flex-col gap-6 p-6">
       <CardHeader className="p-0">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-muted-foreground"><CreditCardIcon className="w-5 h-5" /><span className="text-sm">{methods.length} method{methods.length !== 1 && "s"}</span></div>
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <CreditCardIcon className="w-5 h-5" />
+            <span className="text-sm">{methods.length} method{methods.length !== 1 && "s"}</span>
+          </div>
           <Button size="sm" onClick={openCreate}><PlusCircle className="w-4 h-4 mr-2" />Add Method</Button>
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        <Table>
-          <TableHeader><TableRow><TableHead>Name</TableHead><TableHead className="w-[100px]">Actions</TableHead></TableRow></TableHeader>
-          <TableBody>
-            {methods.map((method) => (
-              <TableRow key={method.id}>
-                <TableCell>{method.name}</TableCell>
-                <TableCell><div className="flex items-center gap-2"><Button size="icon" variant="ghost" onClick={() => openEdit(method)}><FilePenIcon className="w-4 h-4" /><span className="sr-only">Edit</span></Button><Button size="icon" variant="ghost" onClick={() => { setDeleteId(method.id); setIsDeleteOpen(true); }}><Trash2 className="w-4 h-4" /><span className="sr-only">Delete</span></Button></div></TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <DataTable
+          data={methods}
+          columns={[...tableColumns, actionsColumn]}
+          emptyMessage="No payment methods found."
+          emptyIcon={<CreditCardIcon className="w-8 h-8" />}
+          defaultSort={[{ id: "name", desc: false }]}
+        />
       </CardContent>
 
       <Dialog open={isDialogOpen} onOpenChange={(open) => { if (!open) setIsDialogOpen(false); }}>
         <DialogContent>
           <DialogHeader><DialogTitle>{isEditing ? "Edit Payment Method" : "New Payment Method"}</DialogTitle></DialogHeader>
-          <div className="grid gap-4 py-4"><div className="grid grid-cols-4 items-center gap-4"><Label htmlFor="method-name">Name</Label><Input id="method-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Credit Card, PIX, Cash" className="col-span-3" onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }} /></div></div>
-          <DialogFooter><Button variant="secondary" onClick={() => setIsDialogOpen(false)}>Cancel</Button><Button onClick={handleSave} disabled={!name.trim() || createMutation.isPending || updateMutation.isPending}>{isEditing ? "Update" : "Create"}</Button></DialogFooter>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              form.handleSubmit();
+            }}
+          >
+            <div className="grid gap-4 py-4">
+              <form.Field name="name">
+                {(field) => (
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="method-name">Name</Label>
+                    <div className="col-span-3">
+                      <Input
+                        id="method-name"
+                        value={field.state.value}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                        onBlur={field.handleBlur}
+                        placeholder="e.g. Credit Card, PIX, Cash"
+                        error={field.state.meta.errors.length > 0 ? field.state.meta.errors.map(e => e?.message ?? e).join(", ") : undefined}
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); form.handleSubmit(); } }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </form.Field>
+            </div>
+            <DialogFooter>
+              <Button variant="secondary" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+              <form.Subscribe selector={(state) => state.isSubmitting}>
+                {(isSubmitting) => (
+                  <Button type="submit" disabled={isSubmitting || createMutation.isPending || updateMutation.isPending}>
+                    {isEditing ? "Update" : "Create"}
+                  </Button>
+                )}
+              </form.Subscribe>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
