@@ -1,23 +1,16 @@
-"use client";
-
 import { login } from "./actions";
-import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { MountainIcon } from "lucide-react";
-import { useRef } from "react";
 
-export default function LoginPage() {
-  const emailRef = useRef<HTMLInputElement>(null);
-  const passwordRef = useRef<HTMLInputElement>(null);
-
-  function fillDemo() {
-    if (emailRef.current) emailRef.current.value = "test@example.com";
-    if (passwordRef.current) passwordRef.current.value = "test1234";
-  }
-
+export default function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background">
       <div className="mx-auto w-full max-w-md space-y-6">
@@ -34,7 +27,6 @@ export default function LoginPage() {
               <div className="grid gap-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
-                  ref={emailRef}
                   id="email"
                   name="email"
                   type="email"
@@ -46,7 +38,6 @@ export default function LoginPage() {
               <div className="grid gap-2">
                 <Label htmlFor="password">Password</Label>
                 <Input
-                  ref={passwordRef}
                   id="password"
                   name="password"
                   type="password"
@@ -59,20 +50,9 @@ export default function LoginPage() {
               <Button className="w-full" formAction={login}>
                 Log in
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                onClick={fillDemo}
-              >
-                Fill demo credentials
-              </Button>
               <p className="text-sm text-center text-muted-foreground">
                 Don&apos;t have an account?{" "}
-                <Link
-                  href="/signup"
-                  className="text-primary underline-offset-4 hover:underline"
-                >
+                <Link href="/signup" className="text-primary underline-offset-4 hover:underline">
                   Sign up
                 </Link>
               </p>
