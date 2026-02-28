@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -17,63 +17,49 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2Icon, MinusIcon, PlusIcon, SearchIcon, Trash2Icon } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { useTRPC } from "@/lib/trpc/client";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
-type Product = {
+interface POSProduct {
   id: number;
   name: string;
   price: number;
   in_stock: number;
   category: string;
-};
-
-type Customer = {
-  id: number;
-  name: string;
-};
-
-type PaymentMethod = {
-  id: number;
-  name: string;
-};
-
-interface POSProduct extends Product {
   quantity: number;
 }
 
 export default function POSPage() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
-  const [selectedProducts, setSelectedProducts] = useState<POSProduct[]>([]);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
-  const [productSearch, setProductSearch] = useState("");
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const { data: products = [], isLoading: loadingProducts } = useQuery(trpc.products.list.queryOptions());
+  const { data: customers = [], isLoading: loadingCustomers } = useQuery(trpc.customers.list.queryOptions());
+  const { data: paymentMethods = [], isLoading: loadingMethods } = useQuery(trpc.paymentMethods.list.queryOptions());
 
-  useEffect(() => {
-    Promise.all([
-      fetch("/api/products").then((r) => r.json()),
-      fetch("/api/customers").then((r) => r.json()),
-      fetch("/api/payment-methods").then((r) => r.json()),
-    ])
-      .then(([prods, custs, methods]) => {
-        setProducts(prods);
-        setCustomers(custs);
-        setPaymentMethods(methods);
-      })
-      .catch((err) => {
-        console.error(err);
-        toast.error("Failed to load data");
-      })
-      .finally(() => setLoading(false));
-  }, []);
+  const loading = loadingProducts || loadingCustomers || loadingMethods;
+
+  const createOrderMutation = useMutation(trpc.orders.create.mutationOptions({
+    onSuccess: () => {
+      queryClient.invalidateQueries(trpc.orders.list.queryOptions());
+      queryClient.invalidateQueries(trpc.products.list.queryOptions());
+      toast.success("Order created successfully");
+      setSelectedProducts([]);
+      setSelectedCustomer(null);
+      setPaymentMethod(null);
+    },
+    onError: (err) => toast.error(err.message || "Failed to create order"),
+  }));
+
+  const [selectedProducts, setSelectedProducts] = useState<POSProduct[]>([]);
+  const [paymentMethod, setPaymentMethod] = useState<{ id: number; name: string } | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<{ id: number; name: string } | null>(null);
+  const [productSearch, setProductSearch] = useState("");
 
   const filteredProducts = useMemo(() => {
     if (!productSearch.trim()) return products;
     const q = productSearch.toLowerCase();
     return products.filter(
-      (p) => p.name.toLowerCase().includes(q) || p.category?.toLowerCase().includes(q)
+      (p) => p.name.toLowerCase().includes(q) || (p.category ?? "").toLowerCase().includes(q)
     );
   }, [products, productSearch]);
 
@@ -96,7 +82,7 @@ export default function POSPage() {
         )
       );
     } else {
-      setSelectedProducts([...selectedProducts, { ...product, quantity: 1 }]);
+      setSelectedProducts([...selectedProducts, { id: product.id, name: product.name, price: product.price, in_stock: product.in_stock, category: product.category ?? "", quantity: 1 }]);
     }
   };
 
@@ -113,17 +99,16 @@ export default function POSPage() {
   const handleQuantityChange = (productId: number, delta: number) => {
     const product = products.find((p) => p.id === productId);
     setSelectedProducts((prev) =>
-      prev
-        .map((p) => {
-          if (p.id !== productId) return p;
-          const newQty = p.quantity + delta;
-          if (newQty <= 0) return p;
-          if (product && newQty > product.in_stock) {
-            toast.error(`Only ${product.in_stock} units available`);
-            return p;
-          }
-          return { ...p, quantity: newQty };
-        })
+      prev.map((p) => {
+        if (p.id !== productId) return p;
+        const newQty = p.quantity + delta;
+        if (newQty <= 0) return p;
+        if (product && newQty > product.in_stock) {
+          toast.error(`Only ${product.in_stock} units available`);
+          return p;
+        }
+        return { ...p, quantity: newQty };
+      })
     );
   };
 
@@ -138,40 +123,18 @@ export default function POSPage() {
 
   const canCreate = selectedProducts.length > 0 && selectedCustomer && paymentMethod;
 
-  const handleCreateOrder = async () => {
+  const handleCreateOrder = () => {
     if (!canCreate) return;
-
-    setCreating(true);
-    try {
-      const response = await fetch("/api/orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customerId: selectedCustomer!.id,
-          paymentMethodId: paymentMethod!.id,
-          products: selectedProducts.map((p) => ({
-            id: p.id,
-            quantity: p.quantity,
-            price: p.price,
-          })),
-          total,
-        }),
-      });
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({ error: "Unknown error" }));
-        throw new Error(err.error || "Failed to create order");
-      }
-
-      toast.success("Order created successfully");
-      setSelectedProducts([]);
-      setSelectedCustomer(null);
-      setPaymentMethod(null);
-    } catch (error) {
-      toast.error((error as Error).message);
-    } finally {
-      setCreating(false);
-    }
+    createOrderMutation.mutate({
+      customerId: selectedCustomer!.id,
+      paymentMethodId: paymentMethod!.id,
+      products: selectedProducts.map((p) => ({
+        id: p.id,
+        quantity: p.quantity,
+        price: p.price,
+      })),
+      total,
+    });
   };
 
   if (loading) {
@@ -325,10 +288,10 @@ export default function POSPage() {
             <strong className="text-lg">Total: ${(total / 100).toFixed(2)}</strong>
             <Button
               onClick={handleCreateOrder}
-              disabled={!canCreate || creating}
+              disabled={!canCreate || createOrderMutation.isPending}
               size="lg"
             >
-              {creating && <Loader2Icon className="h-4 w-4 animate-spin mr-2" />}
+              {createOrderMutation.isPending && <Loader2Icon className="h-4 w-4 animate-spin mr-2" />}
               Create Order
             </Button>
           </div>

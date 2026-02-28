@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import {
   Card,
   CardHeader,
@@ -18,7 +17,6 @@ import {
 } from "@/components/ui/chart";
 import {
   DollarSign,
-  Loader2,
   TrendingDown,
   TrendingUp,
   Wallet,
@@ -38,6 +36,8 @@ import {
 } from "recharts";
 import { formatCurrency, formatShortDate } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useTRPC } from "@/lib/trpc/client";
+import { useQuery } from "@tanstack/react-query";
 
 const CHART_COLORS = [
   "hsl(var(--chart-1))",
@@ -48,77 +48,10 @@ const CHART_COLORS = [
 ];
 
 export default function Page() {
-  const [totalRevenue, setTotalRevenue] = useState(0);
-  const [totalExpenses, setTotalExpenses] = useState(0);
-  const [totalProfit, setTotalProfit] = useState(0);
-  const [cashFlow, setCashFlow] = useState<{ date: string; amount: number }[]>(
-    []
-  );
-  const [revenueByCategory, setRevenueByCategory] = useState<
-    Record<string, number>
-  >({});
-  const [expensesByCategory, setExpensesByCategory] = useState<
-    Record<string, number>
-  >({});
-  const [profitMargin, setProfitMargin] = useState<
-    { date: string; margin: number }[]
-  >([]);
-  const [loading, setLoading] = useState(true);
+  const trpc = useTRPC();
+  const { data, isLoading } = useQuery(trpc.dashboard.stats.queryOptions());
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [
-          revenueRes,
-          expensesRes,
-          profitRes,
-          cashFlowRes,
-          revenueByCategoryRes,
-          expensesByCategoryRes,
-          profitMarginRes,
-        ] = await Promise.all([
-          fetch("/api/admin/revenue/total"),
-          fetch("/api/admin/expenses/total"),
-          fetch("/api/admin/profit/total"),
-          fetch("/api/admin/cashflow"),
-          fetch("/api/admin/revenue/category"),
-          fetch("/api/admin/expenses/category"),
-          fetch("/api/admin/profit/margin"),
-        ]);
-
-        const revenue = await revenueRes.json();
-        const expenses = await expensesRes.json();
-        const profit = await profitRes.json();
-        const cashFlowData = await cashFlowRes.json();
-        const revenueByCategoryData = await revenueByCategoryRes.json();
-        const expensesByCategoryData = await expensesByCategoryRes.json();
-        const profitMarginData = await profitMarginRes.json();
-
-        setTotalRevenue(revenue.totalRevenue ?? 0);
-        setTotalExpenses(expenses.totalExpenses ?? 0);
-        setTotalProfit(profit.totalProfit ?? 0);
-        setCashFlow(
-          cashFlowData.cashFlow
-            ? Object.entries(cashFlowData.cashFlow).map(([date, amount]) => ({
-                date,
-                amount: Number(amount),
-              }))
-            : []
-        );
-        setRevenueByCategory(revenueByCategoryData.revenueByCategory ?? {});
-        setExpensesByCategory(expensesByCategoryData.expensesByCategory ?? {});
-        setProfitMargin(profitMarginData.profitMargin ?? []);
-      } catch (error) {
-        console.error("Error fetching data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
-
-  if (loading) {
+  if (isLoading || !data) {
     return (
       <div className="grid flex-1 items-start gap-6">
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -152,7 +85,7 @@ export default function Page() {
     );
   }
 
-  const profitIsPositive = totalProfit >= 0;
+  const profitIsPositive = data.totalProfit >= 0;
 
   return (
     <div className="grid flex-1 items-start gap-6">
@@ -167,7 +100,7 @@ export default function Page() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatCurrency(totalRevenue)}
+              {formatCurrency(data.totalRevenue)}
             </div>
             <p className="text-xs text-muted-foreground">
               Completed income transactions
@@ -183,7 +116,7 @@ export default function Page() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatCurrency(totalExpenses)}
+              {formatCurrency(data.totalExpenses)}
             </div>
             <p className="text-xs text-muted-foreground">
               Completed expense transactions
@@ -203,7 +136,7 @@ export default function Page() {
             <div
               className={`text-2xl font-bold ${profitIsPositive ? "text-emerald-600" : "text-red-600"}`}
             >
-              {formatCurrency(totalProfit)}
+              {formatCurrency(data.totalProfit)}
             </div>
             <p className="text-xs text-muted-foreground">
               Revenue from selling minus expenses
@@ -217,17 +150,17 @@ export default function Page() {
         <CategoryPieChart
           title="Revenue by Category"
           description="Breakdown of income across categories"
-          data={revenueByCategory}
+          data={data.revenueByCategory}
         />
 
         <CategoryPieChart
           title="Expenses by Category"
           description="Breakdown of expenses across categories"
-          data={expensesByCategory}
+          data={data.expensesByCategory}
         />
 
-        <ProfitMarginChart data={profitMargin} />
-        <CashFlowChart data={cashFlow} />
+        <ProfitMarginChart data={data.profitMargin} />
+        <CashFlowChart data={data.cashFlow} />
       </div>
     </div>
   );
