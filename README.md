@@ -1,26 +1,28 @@
 # FinOpenPOS
 
-Sistema open-source de Ponto de Venda (PDV) e gestao de estoque, construido com Next.js 16, React 19 e PostgreSQL embarcado via PGLite. Zero dependencias externas para rodar — `bun dev` e pronto.
+Open-source Point of Sale (POS) and inventory management system built with Next.js 16, React 19 and embedded PostgreSQL via PGLite. Zero external dependencies to run — `bun dev` and you're set.
+
+> **[Leia em Portugues](README.ptBR.md)**
 
 ## Features
 
-- **Dashboard** com graficos interativos (receita, despesas, fluxo de caixa, margem de lucro)
-- **Gestao de Produtos** com categorias e controle de estoque
-- **Gestao de Clientes** com status ativo/inativo
-- **Gestao de Pedidos** com itens, totais e status
-- **Ponto de Venda (PDV)** para processamento rapido de vendas
-- **Caixa** com registro de transacoes (receitas e despesas)
-- **Autenticacao** com email/senha via Better Auth
+- **Dashboard** with interactive charts (revenue, expenses, cash flow, profit margin)
+- **Product Management** with categories and stock control
+- **Customer Management** with active/inactive status
+- **Order Management** with items, totals and status tracking
+- **Point of Sale (POS)** for quick sales processing
+- **Cashier** with income and expense transaction logging
+- **Authentication** with email/password via Better Auth
 
 ## Tech Stack
 
-| Camada | Tecnologia |
-|--------|------------|
+| Layer | Technology |
+|-------|------------|
 | Framework | Next.js 16 (App Router) |
 | UI | React 19, Tailwind CSS 4, Radix UI, Recharts |
-| Banco de dados | PGLite (PostgreSQL via WASM) |
+| Database | PGLite (PostgreSQL via WASM) |
 | ORM | Drizzle ORM |
-| Autenticacao | Better Auth |
+| Auth | Better Auth |
 | Runtime | Bun |
 
 ## Quick Start
@@ -31,10 +33,10 @@ cd FinOpenPOS
 cp .env.example .env
 ```
 
-Edite o `.env` com um secret seguro:
+Edit `.env` with a secure secret:
 
 ```
-BETTER_AUTH_SECRET=gere-com-openssl-rand-base64-32
+BETTER_AUTH_SECRET=generate-with-openssl-rand-base64-32
 BETTER_AUTH_URL=http://localhost:3000
 ```
 
@@ -43,94 +45,94 @@ bun install
 bun run dev
 ```
 
-Acesse http://localhost:3000 e use o botao **Fill demo credentials** para entrar com a conta de teste (`test@example.com` / `test1234`).
+Open http://localhost:3000 and use the **Fill demo credentials** button to sign in with the test account (`test@example.com` / `test1234`).
 
-> O primeiro `bun run dev` cria o banco automaticamente em `./data/pglite`, empurra o schema via Drizzle e executa o seed com dados demo (20 clientes, 32 produtos, 40 pedidos, 25 transacoes).
+> The first `bun run dev` automatically creates the database at `./data/pglite`, pushes the schema via Drizzle and runs the seed with demo data (20 customers, 32 products, 40 orders, 25 transactions).
 
 ## Scripts
 
-| Comando | Descricao |
-|---------|-----------|
-| `bun run dev` | Valida PGLite, push schema e inicia dev server |
-| `bun run build` | Valida PGLite, push schema e build de producao |
-| `bun run start` | Inicia o servidor de producao |
-| `bun run db:push` | Empurra schema Drizzle para o PGLite |
-| `bun run db:ensure` | Detecta e limpa PGLite corrompido automaticamente |
+| Command | Description |
+|---------|-------------|
+| `bun run dev` | Validate PGLite, push schema and start dev server |
+| `bun run build` | Validate PGLite, push schema and production build |
+| `bun run start` | Start the production server |
+| `bun run db:push` | Push Drizzle schema to PGLite |
+| `bun run db:ensure` | Detect and auto-clean corrupted PGLite data |
 
-## Estrutura do Projeto
+## Project Structure
 
 ```
 src/
 ├── app/
-│   ├── admin/           # Dashboard, produtos, clientes, pedidos, PDV, caixa
+│   ├── admin/           # Dashboard, products, customers, orders, POS, cashier
 │   ├── api/             # API routes (CRUD + analytics)
-│   ├── login/           # Pagina de login
-│   └── signup/          # Pagina de cadastro
-├── components/ui/       # Componentes shadcn (Button, Card, Dialog, etc.)
+│   ├── login/           # Login page
+│   └── signup/          # Sign up page
+├── components/ui/       # shadcn components (Button, Card, Dialog, etc.)
 ├── lib/
 │   ├── db/
-│   │   ├── index.ts     # Singleton PGLite + instancia Drizzle
-│   │   ├── schema.ts    # Schema Drizzle (6 tabelas de negocio)
-│   │   ├── auth-schema.ts # Tabelas do Better Auth (auto-geradas)
-│   │   └── seed.ts      # Seed com dados demo via Faker
-│   ├── auth.ts          # Config Better Auth (server)
+│   │   ├── index.ts     # PGLite singleton + Drizzle instance
+│   │   ├── schema.ts    # Drizzle schema (6 business tables)
+│   │   ├── auth-schema.ts # Better Auth tables (auto-generated)
+│   │   └── seed.ts      # Demo data seed via Faker
+│   ├── auth.ts          # Better Auth config (server)
 │   ├── auth-client.ts   # Client auth (useSession, signIn, etc.)
-│   └── auth-guard.ts    # Helper getAuthUser() para API routes
-├── proxy.ts             # Middleware Next.js 16 (protecao de rotas)
-└── instrumentation.ts   # Executa seed no startup do Next.js
+│   └── auth-guard.ts    # getAuthUser() helper for API routes
+├── proxy.ts             # Next.js 16 middleware (route protection)
+└── instrumentation.ts   # Runs seed on Next.js startup
 ```
 
-## Deploy com Docker
+## Docker Deploy
 
-O projeto inclui Dockerfile multi-stage baseado em Alpine e Docker Compose com volume persistente.
+The project includes a multi-stage Alpine-based Dockerfile and Docker Compose with a persistent volume.
 
 ```bash
-# Build e start
+# Build and start
 docker compose up -d
 
-# Ver logs
+# View logs
 docker compose logs -f
 
-# Parar
+# Stop
 docker compose down
 
-# Parar e apagar dados do banco
+# Stop and delete database data
 docker compose down -v
 ```
 
-O `compose.yaml` espera as variaveis de ambiente `BETTER_AUTH_SECRET` e `BETTER_AUTH_URL`. Crie um `.env` na raiz ou passe via `-e`:
+The `compose.yaml` expects `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL` environment variables. Create a `.env` file at the root or pass them via `-e`:
 
 ```bash
-BETTER_AUTH_SECRET=sua-chave-secreta-de-32-chars-minimo
-BETTER_AUTH_URL=https://seu-dominio.com
+BETTER_AUTH_SECRET=your-secret-key-at-least-32-chars
+BETTER_AUTH_URL=https://your-domain.com
 ```
 
 ### Coolify / PaaS
 
-O projeto funciona com Coolify e plataformas similares que detectam `compose.yaml`. Configure as variaveis de ambiente na UI da plataforma. A porta interna padrao e `3111` (configuravel via env `PORT`).
+The project works with Coolify and similar platforms that detect `compose.yaml`. Set the environment variables in the platform UI. The default internal port is `3111` (configurable via `PORT` env).
 
-## Banco de Dados
+## Database
 
-### PGLite (padrao)
+### PGLite (default)
 
-O PGLite roda PostgreSQL completo via WASM, direto no processo do Node.js. Os dados ficam em `./data/pglite` (filesystem). Nao precisa de servidor PostgreSQL externo.
+PGLite runs full PostgreSQL via WASM, directly in the Node.js process. Data is stored at `./data/pglite` (filesystem). No external PostgreSQL server required.
 
-**Vantagens:** zero config, sem dependencias, ideal para dev e projetos pequenos.
+**Pros:** zero config, no dependencies, ideal for dev and small projects.
 
-**Limitacoes:** single-process (sem conexoes concorrentes de fora), performance abaixo de um PostgreSQL nativo para cargas pesadas, sem replicacao.
+**Limitations:** single-process (no external concurrent connections), lower performance than native PostgreSQL under heavy load, no replication.
 
-### Migrando para PostgreSQL
+### Migrating to PostgreSQL
 
-Quando o projeto crescer e precisar de um banco real, a migracao e simples porque o Drizzle ORM abstrai a camada de acesso — o schema e identico.
+When the project grows and needs a real database, migration is straightforward because Drizzle ORM abstracts the data access layer — the schema is identical.
 
-#### 1. Instale o driver do PostgreSQL
+#### 1. Install the PostgreSQL driver
 
 ```bash
 bun add pg
 bun remove @electric-sql/pglite
 ```
 
-#### 2. Atualize `src/lib/db/index.ts`
+#### 2. Update `src/lib/db/index.ts`
 
 ```ts
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -139,7 +141,7 @@ import * as schema from "./schema";
 export const db = drizzle(process.env.DATABASE_URL!, { schema });
 ```
 
-#### 3. Atualize `drizzle.config.ts`
+#### 3. Update `drizzle.config.ts`
 
 ```ts
 import { defineConfig } from "drizzle-kit";
@@ -153,56 +155,56 @@ export default defineConfig({
 });
 ```
 
-#### 4. Adicione a env
+#### 4. Add the env variable
 
 ```
 DATABASE_URL=postgresql://user:password@host:5432/finopenpos
 ```
 
-#### 5. Empurre o schema e rode
+#### 5. Push schema and run
 
 ```bash
 bun run db:push
 bun run dev
 ```
 
-#### 6. Limpe o que nao precisa mais
+#### 6. Clean up what's no longer needed
 
-- Delete `scripts/ensure-db.ts` (so existe para recovery do PGLite)
-- Remova `db:ensure` do script `dev` e `build` no `package.json`
-- Remova `serverExternalPackages` do `next.config.mjs`
-- No Docker, troque o volume PGLite por uma conexao ao PostgreSQL via `DATABASE_URL`
+- Delete `scripts/ensure-db.ts` (only exists for PGLite recovery)
+- Remove `db:ensure` from `dev` and `build` scripts in `package.json`
+- Remove `serverExternalPackages` from `next.config.mjs`
+- In Docker, replace the PGLite volume with a PostgreSQL connection via `DATABASE_URL`
 
-> O schema Drizzle (`src/lib/db/schema.ts`) nao muda. Todas as queries, relations e API routes continuam funcionando sem alteracao.
+> The Drizzle schema (`src/lib/db/schema.ts`) doesn't change. All queries, relations and API routes keep working without modification.
 
-## Valores Monetarios
+## Monetary Values
 
-Todos os valores monetarios sao armazenados como **inteiros em centavos** (ex: R$ 49,99 = `4999`). Isso evita problemas de precisao com ponto flutuante. Na interface, os valores sao divididos por 100 para exibicao.
+All monetary values are stored as **integer cents** (e.g., $49.99 = `4999`). This avoids floating-point precision issues. Values are divided by 100 for display in the UI.
 
 ## API Routes
 
-Todas as rotas exigem autenticacao via cookie de sessao do Better Auth.
+All routes require authentication via Better Auth session cookie.
 
-| Rota | Metodos | Descricao |
-|------|---------|-----------|
-| `/api/products` | GET, POST | Listar/criar produtos |
-| `/api/products/[id]` | GET, PUT, DELETE | CRUD de produto |
-| `/api/customers` | GET, POST | Listar/criar clientes |
-| `/api/customers/[id]` | GET, PUT, DELETE | CRUD de cliente |
-| `/api/orders` | GET, POST | Listar/criar pedidos |
-| `/api/orders/[id]` | GET, DELETE | Obter/deletar pedido |
-| `/api/transactions` | GET, POST | Listar/criar transacoes |
-| `/api/transactions/[id]` | GET, PUT, DELETE | CRUD de transacao |
-| `/api/payment-methods` | GET | Listar metodos de pagamento |
-| `/api/admin/revenue/*` | GET | Total e por categoria |
-| `/api/admin/expenses/*` | GET | Total e por categoria |
-| `/api/admin/profit/*` | GET | Total e margem |
-| `/api/admin/cashflow` | GET | Fluxo de caixa mensal |
+| Route | Methods | Description |
+|-------|---------|-------------|
+| `/api/products` | GET, POST | List/create products |
+| `/api/products/[id]` | GET, PUT, DELETE | Product CRUD |
+| `/api/customers` | GET, POST | List/create customers |
+| `/api/customers/[id]` | GET, PUT, DELETE | Customer CRUD |
+| `/api/orders` | GET, POST | List/create orders |
+| `/api/orders/[id]` | GET, DELETE | Get/delete order |
+| `/api/transactions` | GET, POST | List/create transactions |
+| `/api/transactions/[id]` | GET, PUT, DELETE | Transaction CRUD |
+| `/api/payment-methods` | GET | List payment methods |
+| `/api/admin/revenue/*` | GET | Total and by category |
+| `/api/admin/expenses/*` | GET | Total and by category |
+| `/api/admin/profit/*` | GET | Total and margin |
+| `/api/admin/cashflow` | GET | Monthly cash flow |
 
-## Contribuindo
+## Contributing
 
-Contribuicoes sao bem-vindas! Abra uma issue ou envie um Pull Request.
+Contributions are welcome! Open an issue or submit a Pull Request.
 
-## Licenca
+## License
 
-MIT License — veja [LICENSE](LICENSE).
+MIT License — see [LICENSE](LICENSE).
