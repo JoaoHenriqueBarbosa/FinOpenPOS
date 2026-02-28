@@ -28,6 +28,7 @@ import {
   ShoppingCartIcon,
   UsersIcon,
   ShoppingBagIcon,
+  CreditCardIcon,
 } from "lucide-react";
 
 import { logout } from "@/app/login/actions";
@@ -39,6 +40,7 @@ const pageNames: { [key: string]: string } = {
   "/admin/orders": "Orders",
   "/admin/pos": "Point of Sale",
   "/admin/cashier": "Cashier",
+  "/admin/payment-methods": "Payment Methods",
 };
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -167,6 +169,21 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                   </Link>
                 </TooltipTrigger>
                 <TooltipContent side="right">Orders</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Link
+                    href="/admin/payment-methods"
+                    className={`flex h-9 w-9 items-center justify-center rounded-lg ${pathname === "/admin/payment-methods"
+                      ? "bg-accent text-accent-foreground"
+                      : "text-muted-foreground"
+                      } transition-colors hover:text-foreground md:h-8 md:w-8`}
+                  >
+                    <CreditCardIcon className="h-5 w-5" />
+                    <span className="sr-only">Payment Methods</span>
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent side="right">Payment Methods</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
