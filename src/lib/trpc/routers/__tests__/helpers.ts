@@ -12,6 +12,10 @@ const TABLES: PgTable[] = [
   schema.orders,
   schema.orderItems,
   schema.transactions,
+  schema.fiscalSettings,
+  schema.invoices,
+  schema.invoiceItems,
+  schema.invoiceEvents,
 ];
 
 function tableToDDL(table: PgTable): string {
