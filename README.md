@@ -225,6 +225,12 @@ erDiagram
         integer in_stock
         varchar user_uid
         varchar category
+        varchar ncm
+        varchar cfop
+        varchar icms_cst
+        varchar pis_cst
+        varchar cofins_cst
+        varchar unit_of_measure
         timestamp created_at
     }
 

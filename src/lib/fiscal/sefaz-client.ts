@@ -1,4 +1,7 @@
-import https from "node:https";
+import { execSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { XMLParser } from "fast-xml-parser";
 import { SOAP_ENVELOPE_NS, NFE_WSDL_NS } from "./constants";
 import type { SefazService } from "./types";
@@ -35,62 +38,62 @@ interface SefazRawResponse {
 
 /**
  * Send a SOAP 1.2 request to a SEFAZ web service with mutual TLS (client certificate).
+ *
+ * Uses curl with PEM cert/key extracted from PFX, because Bun's node:https
+ * does not fully support mTLS with PFX (ECONNREFUSED on Agent with pfx option).
  */
 export async function sefazRequest(options: SefazRequestOptions): Promise<SefazRawResponse> {
   const { url, service, xmlContent, pfx, passphrase, timeout = 30000 } = options;
 
   const soapEnvelope = buildSoapEnvelope(service, xmlContent);
 
-  const parsedUrl = new URL(url);
+  // Extract PEM cert/key from PFX for curl
+  const tmpDir = os.tmpdir();
+  const tmpPfx = path.join(tmpDir, `_sefaz_${Date.now()}.pfx`);
+  const tmpCert = path.join(tmpDir, `_sefaz_${Date.now()}.cert.pem`);
+  const tmpKey = path.join(tmpDir, `_sefaz_${Date.now()}.key.pem`);
+  const tmpBody = path.join(tmpDir, `_sefaz_${Date.now()}.xml`);
 
-  return new Promise<SefazRawResponse>((resolve, reject) => {
-    const agent = new https.Agent({
-      pfx,
-      passphrase,
-      rejectUnauthorized: true,
-    });
+  try {
+    fs.writeFileSync(tmpPfx, pfx);
+    fs.writeFileSync(tmpBody, soapEnvelope);
 
-    const req = https.request(
-      {
-        hostname: parsedUrl.hostname,
-        port: parsedUrl.port || 443,
-        path: parsedUrl.pathname + parsedUrl.search,
-        method: "POST",
-        agent,
-        headers: {
-          "Content-Type": "application/soap+xml; charset=utf-8",
-          "Content-Length": Buffer.byteLength(soapEnvelope, "utf-8"),
-        },
-        timeout,
-      },
-      (res) => {
-        const chunks: Buffer[] = [];
-        res.on("data", (chunk) => chunks.push(chunk));
-        res.on("end", () => {
-          const body = Buffer.concat(chunks).toString("utf-8");
-          const content = extractSoapContent(body);
-
-          resolve({
-            httpStatus: res.statusCode || 0,
-            body,
-            content,
-          });
-        });
-      }
+    // Extract cert and key from PFX
+    execSync(
+      `openssl pkcs12 -in ${tmpPfx} -clcerts -nokeys -passin pass:${passphrase} -legacy 2>/dev/null > ${tmpCert}`
+    );
+    execSync(
+      `openssl pkcs12 -in ${tmpPfx} -nocerts -nodes -passin pass:${passphrase} -legacy 2>/dev/null > ${tmpKey}`
     );
 
-    req.on("error", (err) => {
-      reject(new Error(`SEFAZ request failed: ${err.message}`));
-    });
+    const timeoutSecs = Math.ceil(timeout / 1000);
+    const result = execSync(
+      `curl -s -k --cert ${tmpCert} --key ${tmpKey} ` +
+      `-H "Content-Type: application/soap+xml; charset=utf-8" ` +
+      `-d @${tmpBody} ` +
+      `--max-time ${timeoutSecs} ` +
+      `-w "\\n__HTTP_STATUS__%{http_code}" ` +
+      `"${url}"`,
+      { encoding: "utf-8", timeout: timeout + 5000 }
+    );
 
-    req.on("timeout", () => {
-      req.destroy();
-      reject(new Error(`SEFAZ request timed out after ${timeout}ms`));
-    });
+    // Parse HTTP status from curl output
+    const statusMatch = result.match(/__HTTP_STATUS__(\d+)$/);
+    const httpStatus = statusMatch ? parseInt(statusMatch[1]) : 0;
+    const body = result.replace(/__HTTP_STATUS__\d+$/, "").trim();
+    const content = extractSoapContent(body);
 
-    req.write(soapEnvelope);
-    req.end();
-  });
+    return { httpStatus, body, content };
+  } catch (err: any) {
+    if (err.message?.includes("ETIMEDOUT") || err.killed) {
+      throw new Error(`SEFAZ request timed out after ${timeout}ms`);
+    }
+    throw new Error(`SEFAZ request failed: ${err.message}`);
+  } finally {
+    for (const f of [tmpPfx, tmpCert, tmpKey, tmpBody]) {
+      try { fs.unlinkSync(f); } catch {}
+    }
+  }
 }
 
 /**

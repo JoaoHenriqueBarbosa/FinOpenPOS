@@ -283,6 +283,7 @@ const messages: Messages = {
     address: "Endereço",
     stateCode: "Estado (UF)",
     cityCode: "Código Município (IBGE)",
+    cityName: "Nome do Município",
     street: "Logradouro",
     streetNumber: "Número",
     district: "Bairro",

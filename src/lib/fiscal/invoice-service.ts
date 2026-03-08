@@ -432,6 +432,7 @@ async function loadFiscalSettings(
     taxRegime: row.tax_regime as 1 | 2 | 3,
     stateCode: row.state_code,
     cityCode: row.city_code,
+    cityName: row.city_name,
     street: row.street,
     streetNumber: row.street_number,
     district: row.district,
@@ -510,6 +511,7 @@ function buildInvoiceData(
       taxRegime: settings.taxRegime,
       stateCode: settings.stateCode,
       cityCode: settings.cityCode,
+      cityName: settings.cityName,
       street: settings.street,
       streetNumber: settings.streetNumber,
       district: settings.district,
@@ -532,7 +534,9 @@ async function sendToSefaz(
   const url = getSefazUrl(
     settings.stateCode,
     "NfeAutorizacao",
-    settings.environment
+    settings.environment,
+    false,
+    model
   );
 
   const requestXml = buildAuthorizationRequestXml(

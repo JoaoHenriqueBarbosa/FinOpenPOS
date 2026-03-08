@@ -21,6 +21,7 @@ const validSettings = {
   tax_regime: 1,
   state_code: "SP",
   city_code: "3550308",
+  city_name: "Sao Paulo",
   street: "Av Paulista",
   street_number: "1000",
   district: "Bela Vista",

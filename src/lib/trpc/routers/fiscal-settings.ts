@@ -40,6 +40,7 @@ export const fiscalSettingsRouter = router({
         tax_regime: z.number().int().min(1).max(3),
         state_code: z.string().length(2),
         city_code: z.string().length(7),
+        city_name: z.string().min(1),
         street: z.string().min(1),
         street_number: z.string().min(1),
         district: z.string().min(1),

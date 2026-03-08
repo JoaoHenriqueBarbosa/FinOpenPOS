@@ -62,6 +62,7 @@ export interface FiscalSettings {
   taxRegime: TaxRegime;
   stateCode: string; // UF
   cityCode: string; // IBGE
+  cityName: string;
   street: string;
   streetNumber: string;
   district: string;
@@ -102,6 +103,7 @@ export interface InvoiceBuildData {
     taxRegime: TaxRegime;
     stateCode: string;
     cityCode: string;
+    cityName: string;
     street: string;
     streetNumber: string;
     district: string;

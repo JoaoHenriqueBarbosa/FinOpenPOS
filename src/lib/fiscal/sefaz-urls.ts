@@ -1,4 +1,4 @@
-import type { SefazEnvironment, SefazService } from "./types";
+import type { SefazEnvironment, SefazService, InvoiceModel } from "./types";
 
 interface ServiceUrls {
   production: string;
@@ -431,18 +431,90 @@ const STATE_CONTINGENCY: Record<string, AuthorizerServices> = {
   MS: SVC_RS, MT: SVC_RS, PE: SVC_RS, PR: SVC_RS,
 };
 
+// ── NFC-e endpoints (model 65) ──────────────────────────────────────────────
+// NFC-e uses different endpoints than NF-e. States with own NFC-e authorizers
+// are listed here; the rest use SVRS_NFCE.
+
+const SVRS_NFCE: AuthorizerServices = {
+  NfeStatusServico: {
+    production: "https://nfce.svrs.rs.gov.br/ws/NfeStatusServico/NfeStatusServico4.asmx",
+    homologation: "https://nfce-homologacao.svrs.rs.gov.br/ws/NfeStatusServico/NfeStatusServico4.asmx",
+  },
+  NfeAutorizacao: {
+    production: "https://nfce.svrs.rs.gov.br/ws/NfeAutorizacao/NFeAutorizacao4.asmx",
+    homologation: "https://nfce-homologacao.svrs.rs.gov.br/ws/NfeAutorizacao/NFeAutorizacao4.asmx",
+  },
+  NfeRetAutorizacao: {
+    production: "https://nfce.svrs.rs.gov.br/ws/NfeRetAutorizacao/NFeRetAutorizacao4.asmx",
+    homologation: "https://nfce-homologacao.svrs.rs.gov.br/ws/NfeRetAutorizacao/NFeRetAutorizacao4.asmx",
+  },
+  NfeConsultaProtocolo: {
+    production: "https://nfce.svrs.rs.gov.br/ws/NfeConsulta/NfeConsulta4.asmx",
+    homologation: "https://nfce-homologacao.svrs.rs.gov.br/ws/NfeConsulta/NfeConsulta4.asmx",
+  },
+  NfeInutilizacao: {
+    production: "https://nfce.svrs.rs.gov.br/ws/nfeinutilizacao/nfeinutilizacao4.asmx",
+    homologation: "https://nfce-homologacao.svrs.rs.gov.br/ws/nfeinutilizacao/nfeinutilizacao4.asmx",
+  },
+  RecepcaoEvento: {
+    production: "https://nfce.svrs.rs.gov.br/ws/recepcaoevento/recepcaoevento4.asmx",
+    homologation: "https://nfce-homologacao.svrs.rs.gov.br/ws/recepcaoevento/recepcaoevento4.asmx",
+  },
+};
+
+const PR_NFCE: AuthorizerServices = {
+  NfeStatusServico: {
+    production: "https://nfce.sefa.pr.gov.br/nfce/NFeStatusServico4",
+    homologation: "https://homologacao.nfce.sefa.pr.gov.br/nfce/NFeStatusServico4",
+  },
+  NfeAutorizacao: {
+    production: "https://nfce.sefa.pr.gov.br/nfce/NFeAutorizacao4",
+    homologation: "https://homologacao.nfce.sefa.pr.gov.br/nfce/NFeAutorizacao4",
+  },
+  NfeRetAutorizacao: {
+    production: "https://nfce.sefa.pr.gov.br/nfce/NFeRetAutorizacao4",
+    homologation: "https://homologacao.nfce.sefa.pr.gov.br/nfce/NFeRetAutorizacao4",
+  },
+  NfeConsultaProtocolo: {
+    production: "https://nfce.sefa.pr.gov.br/nfce/NFeConsultaProtocolo4",
+    homologation: "https://homologacao.nfce.sefa.pr.gov.br/nfce/NFeConsultaProtocolo4",
+  },
+  NfeInutilizacao: {
+    production: "https://nfce.sefa.pr.gov.br/nfce/NFeInutilizacao4",
+    homologation: "https://homologacao.nfce.sefa.pr.gov.br/nfce/NFeInutilizacao4",
+  },
+  RecepcaoEvento: {
+    production: "https://nfce.sefa.pr.gov.br/nfce/NFeRecepcaoEvento4",
+    homologation: "https://homologacao.nfce.sefa.pr.gov.br/nfce/NFeRecepcaoEvento4",
+  },
+};
+
+// States with own NFC-e authorizers; rest use SVRS_NFCE
+const STATE_NFCE_AUTHORIZER: Record<string, AuthorizerServices> = {
+  PR: PR_NFCE,
+  // AM, BA, GO, MG, MS, MT, PE, RS, SP also have own NFC-e endpoints
+  // but for now we default them to SVRS_NFCE (can be added as needed)
+};
+
 /**
- * Get the SEFAZ web service URL for a given state, service and environment.
+ * Get the SEFAZ web service URL for a given state, service, environment and model.
  */
 export function getSefazUrl(
   stateCode: string,
   service: SefazService,
   environment: SefazEnvironment,
-  contingency = false
+  contingency = false,
+  model: InvoiceModel = 55
 ): string {
-  const authorizer = contingency
-    ? STATE_CONTINGENCY[stateCode]
-    : STATE_AUTHORIZER[stateCode];
+  let authorizer: AuthorizerServices | undefined;
+
+  if (contingency) {
+    authorizer = STATE_CONTINGENCY[stateCode];
+  } else if (model === 65) {
+    authorizer = STATE_NFCE_AUTHORIZER[stateCode] || SVRS_NFCE;
+  } else {
+    authorizer = STATE_AUTHORIZER[stateCode];
+  }
 
   if (!authorizer) {
     throw new Error(`No SEFAZ authorizer found for state: ${stateCode}`);

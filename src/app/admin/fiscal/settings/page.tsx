@@ -56,6 +56,7 @@ export default function FiscalSettingsPage() {
       tax_regime: String(settings?.tax_regime ?? "1"),
       state_code: settings?.state_code ?? "",
       city_code: settings?.city_code ?? "",
+      city_name: settings?.city_name ?? "",
       street: settings?.street ?? "",
       street_number: settings?.street_number ?? "",
       district: settings?.district ?? "",
@@ -82,6 +83,7 @@ export default function FiscalSettingsPage() {
         tax_regime: parseInt(value.tax_regime),
         state_code: value.state_code,
         city_code: value.city_code,
+        city_name: value.city_name,
         street: value.street,
         street_number: value.street_number,
         district: value.district,
@@ -194,7 +196,7 @@ export default function FiscalSettingsPage() {
           <CardTitle>{t("address")}</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4">
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <form.Field name="state_code">
               {(field) => (
                 <div className="space-y-2">
@@ -208,6 +210,14 @@ export default function FiscalSettingsPage() {
                 <div className="space-y-2">
                   <Label>{t("cityCode")}</Label>
                   <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} maxLength={7} placeholder="3550308" />
+                </div>
+              )}
+            </form.Field>
+            <form.Field name="city_name">
+              {(field) => (
+                <div className="space-y-2">
+                  <Label>{t("cityName")}</Label>
+                  <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} placeholder="Curitiba" />
                 </div>
               )}
             </form.Field>
