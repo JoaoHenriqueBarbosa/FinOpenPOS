@@ -12,6 +12,12 @@ const productSchema = z.object({
   in_stock: z.number(),
   category: z.string().nullable(),
   user_uid: z.string(),
+  ncm: z.string().nullable(),
+  cfop: z.string().nullable(),
+  icms_cst: z.string().nullable(),
+  pis_cst: z.string().nullable(),
+  cofins_cst: z.string().nullable(),
+  unit_of_measure: z.string().nullable(),
   created_at: z.date().nullable(),
 });
 
@@ -33,6 +39,12 @@ export const productsRouter = router({
         price: z.number().int(),
         in_stock: z.number().int().min(0),
         category: z.string().optional(),
+        ncm: z.string().max(8).optional(),
+        cfop: z.string().max(4).optional(),
+        icms_cst: z.string().max(3).optional(),
+        pis_cst: z.string().max(2).optional(),
+        cofins_cst: z.string().max(2).optional(),
+        unit_of_measure: z.string().max(6).optional(),
       })
     )
     .output(productSchema)
@@ -54,6 +66,12 @@ export const productsRouter = router({
         price: z.number().int().optional(),
         in_stock: z.number().int().min(0).optional(),
         category: z.string().optional(),
+        ncm: z.string().max(8).optional(),
+        cfop: z.string().max(4).optional(),
+        icms_cst: z.string().max(3).optional(),
+        pis_cst: z.string().max(2).optional(),
+        cofins_cst: z.string().max(2).optional(),
+        unit_of_measure: z.string().max(6).optional(),
       })
     )
     .output(productSchema)
