@@ -28,6 +28,7 @@ export default function FiscalSettingsPage() {
   const [certFile, setCertFile] = useState<string | null>(null);
   const [certFileName, setCertFileName] = useState("");
   const [selectedState, setSelectedState] = useState(settings?.state_code ?? "");
+  const [cepLoading, setCepLoading] = useState(false);
   const { data: citiesData = [] } = useQuery(
     trpc.cities.listByState.queryOptions(
       { state_code: selectedState },
@@ -112,6 +113,28 @@ export default function FiscalSettingsPage() {
       });
     },
   });
+
+  const handleCepLookup = async (cep: string) => {
+    const clean = cep.replace(/\D/g, "");
+    if (clean.length !== 8) return;
+    setCepLoading(true);
+    try {
+      const result = await queryClient.fetchQuery(
+        trpc.cities.lookupCep.queryOptions({ cep: clean })
+      );
+      if (result) {
+        form.setFieldValue("street", result.street);
+        form.setFieldValue("district", result.district);
+        form.setFieldValue("state_code", result.state_code);
+        form.setFieldValue("city_name", result.city_name);
+        if (result.city_code) {
+          form.setFieldValue("city_code", result.city_code);
+        }
+        setSelectedState(result.state_code);
+      }
+    } catch {}
+    setCepLoading(false);
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -205,6 +228,27 @@ export default function FiscalSettingsPage() {
         </CardHeader>
         <CardContent className="grid gap-4">
           <div className="grid gap-4 sm:grid-cols-3">
+            <form.Field name="zip_code">
+              {(field) => (
+                <div className="space-y-2">
+                  <Label>{t("zipCode")}</Label>
+                  <div className="relative">
+                    <Input
+                      value={field.state.value}
+                      onChange={(e) => {
+                        field.handleChange(e.target.value);
+                        if (e.target.value.replace(/\D/g, "").length === 8) {
+                          handleCepLookup(e.target.value);
+                        }
+                      }}
+                      maxLength={9}
+                      placeholder="80010000"
+                    />
+                    {cepLoading && <Loader2Icon className="absolute right-2 top-2.5 h-4 w-4 animate-spin text-muted-foreground" />}
+                  </div>
+                </div>
+              )}
+            </form.Field>
             <div className="space-y-2">
               <Label>{t("stateCode")}</Label>
               <Combobox
@@ -256,14 +300,6 @@ export default function FiscalSettingsPage() {
                 </p>
               )}
             </div>
-            <form.Field name="zip_code">
-              {(field) => (
-                <div className="space-y-2">
-                  <Label>{t("zipCode")}</Label>
-                  <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} maxLength={8} placeholder="01001000" />
-                </div>
-              )}
-            </form.Field>
           </div>
           <div className="grid gap-4 sm:grid-cols-4">
             <form.Field name="street">
