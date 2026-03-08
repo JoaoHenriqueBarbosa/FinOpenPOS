@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,21 +22,23 @@ export function DeleteConfirmationDialog({
   open,
   onOpenChange,
   onConfirm,
-  description = "Are you sure you want to delete this item? This action cannot be undone.",
+  description,
 }: DeleteConfirmationDialogProps) {
+  const t = useTranslations("common");
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Confirm Deletion</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          <DialogTitle>{t("confirmDeletion")}</DialogTitle>
+          <DialogDescription>{description ?? t("defaultDeleteMessage")}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="secondary" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t("cancel")}
           </Button>
           <Button variant="destructive" onClick={onConfirm}>
-            Delete
+            {t("delete")}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -20,6 +20,8 @@ import { toast } from "sonner";
 import { useTRPC } from "@/lib/trpc/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { RouterOutputs } from "@/lib/trpc/router";
+import { useTranslations, useLocale } from "next-intl";
+import { formatCurrency } from "@/lib/utils";
 
 type Product = RouterOutputs["products"]["list"][number];
 type POSProduct = Pick<Product, "id" | "name" | "price" | "in_stock"> & { category: string; quantity: number };
@@ -30,6 +32,10 @@ export default function POSPage() {
   const { data: products = [], isLoading: loadingProducts } = useQuery(trpc.products.list.queryOptions());
   const { data: customers = [], isLoading: loadingCustomers } = useQuery(trpc.customers.list.queryOptions());
   const { data: paymentMethods = [], isLoading: loadingMethods } = useQuery(trpc.paymentMethods.list.queryOptions());
+  const t = useTranslations("pos");
+  const tc = useTranslations("common");
+  const tOrders = useTranslations("orders");
+  const locale = useLocale();
 
   const loading = loadingProducts || loadingCustomers || loadingMethods;
 
@@ -37,12 +43,12 @@ export default function POSPage() {
     onSuccess: () => {
       queryClient.invalidateQueries(trpc.orders.list.queryOptions());
       queryClient.invalidateQueries(trpc.products.list.queryOptions());
-      toast.success("Order created successfully");
+      toast.success(tOrders("createdSuccessfully"));
       setSelectedProducts([]);
       setSelectedCustomer(null);
       setPaymentMethod(null);
     },
-    onError: (err) => toast.error(err.message || "Failed to create order"),
+    onError: (err) => toast.error(err.message || tOrders("createError")),
   }));
 
   const [selectedProducts, setSelectedProducts] = useState<POSProduct[]>([]);
@@ -62,12 +68,12 @@ export default function POSPage() {
     const product = products.find((p) => p.id === productId);
     if (!product) return;
     if (product.in_stock <= 0) {
-      toast.error(`${product.name} is out of stock`);
+      toast.error(t("outOfStock", { name: product.name }));
       return;
     }
     const existing = selectedProducts.find((p) => p.id === productId);
     if (existing && existing.quantity >= product.in_stock) {
-      toast.error(`Only ${product.in_stock} units of ${product.name} available`);
+      toast.error(t("limitedStock", { count: product.in_stock, name: product.name }));
       return;
     }
     if (existing) {
@@ -99,7 +105,7 @@ export default function POSPage() {
         const newQty = p.quantity + delta;
         if (newQty <= 0) return p;
         if (product && newQty > product.in_stock) {
-          toast.error(`Only ${product.in_stock} units available`);
+          toast.error(t("limitedUnits", { count: product.in_stock }));
           return p;
         }
         return { ...p, quantity: newQty };
@@ -164,20 +170,20 @@ export default function POSPage() {
     <div className="w-full max-w-4xl mx-auto">
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>Sale Details</CardTitle>
+          <CardTitle>{t("saleDetails")}</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col sm:flex-row gap-3 sm:gap-4">
           <div className="flex-1">
             <Combobox
               items={customers}
-              placeholder="Select Customer"
+              placeholder={t("selectCustomer")}
               onSelect={handleSelectCustomer}
             />
           </div>
           <div className="flex-1">
             <Combobox
               items={paymentMethods}
-              placeholder="Select Payment Method"
+              placeholder={t("selectPaymentMethod")}
               onSelect={handleSelectPaymentMethod}
             />
           </div>
@@ -185,13 +191,13 @@ export default function POSPage() {
       </Card>
       <Card>
         <CardHeader>
-          <CardTitle>Products</CardTitle>
+          <CardTitle>{t("products")}</CardTitle>
           <div className="flex flex-col sm:flex-row gap-3 !mt-4">
             <div className="relative flex-1">
               <SearchIcon className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 type="text"
-                placeholder="Search products..."
+                placeholder={t("searchPlaceholder")}
                 value={productSearch}
                 onChange={(e) => setProductSearch(e.target.value)}
                 className="pl-8"
@@ -200,9 +206,9 @@ export default function POSPage() {
             <Combobox
               items={filteredProducts.map((p) => ({
                 id: p.id,
-                name: `${p.name} — $${(p.price / 100).toFixed(2)} (${p.in_stock} in stock)`,
+                name: `${p.name} — ${formatCurrency(p.price, locale)} (${p.in_stock} in stock)`,
               }))}
-              placeholder="Add Product"
+              placeholder={t("addProduct")}
               noSelect
               onSelect={handleSelectProduct}
             />
@@ -211,18 +217,18 @@ export default function POSPage() {
         <CardContent>
           {selectedProducts.length === 0 ? (
             <div className="flex h-32 items-center justify-center text-muted-foreground text-sm">
-              Select products above to add them to the order
+              {t("selectProducts")}
             </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Product</TableHead>
-                    <TableHead className="hidden sm:table-cell">Price</TableHead>
-                    <TableHead className="hidden md:table-cell">Stock</TableHead>
-                    <TableHead>Qty</TableHead>
-                    <TableHead>Total</TableHead>
+                    <TableHead>{tc("name")}</TableHead>
+                    <TableHead className="hidden sm:table-cell">{tc("price")}</TableHead>
+                    <TableHead className="hidden md:table-cell">{tc("status")}</TableHead>
+                    <TableHead>{t("qty")}</TableHead>
+                    <TableHead>{tc("total")}</TableHead>
                     <TableHead className="w-10"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -232,7 +238,7 @@ export default function POSPage() {
                     return (
                       <TableRow key={product.id}>
                         <TableCell className="font-medium">{product.name}</TableCell>
-                        <TableCell className="hidden sm:table-cell">${(product.price / 100).toFixed(2)}</TableCell>
+                        <TableCell className="hidden sm:table-cell">{formatCurrency(product.price, locale)}</TableCell>
                         <TableCell className="hidden md:table-cell">
                           <Badge variant={source && source.in_stock > 5 ? "default" : "destructive"}>
                             {source?.in_stock ?? 0}
@@ -262,7 +268,7 @@ export default function POSPage() {
                           </div>
                         </TableCell>
                         <TableCell className="font-medium">
-                          ${(product.quantity * product.price / 100).toFixed(2)}
+                          {formatCurrency(product.quantity * product.price, locale)}
                         </TableCell>
                         <TableCell>
                           <Button
@@ -272,7 +278,7 @@ export default function POSPage() {
                             onClick={() => handleRemoveProduct(product.id)}
                           >
                             <Trash2Icon className="h-4 w-4" />
-                            <span className="sr-only">Remove</span>
+                            <span className="sr-only">{tc("remove")}</span>
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -283,7 +289,7 @@ export default function POSPage() {
             </div>
           )}
           <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t pt-4">
-            <strong className="text-lg">Total: ${(total / 100).toFixed(2)}</strong>
+            <strong className="text-lg">{tc("total")}: {formatCurrency(total, locale)}</strong>
             <Button
               onClick={handleCreateOrder}
               disabled={!canCreate || createOrderMutation.isPending}
@@ -291,7 +297,7 @@ export default function POSPage() {
               className="w-full sm:w-auto"
             >
               {createOrderMutation.isPending && <Loader2Icon className="h-4 w-4 animate-spin mr-2" />}
-              Create Order
+              {t("createOrder")}
             </Button>
           </div>
         </CardContent>

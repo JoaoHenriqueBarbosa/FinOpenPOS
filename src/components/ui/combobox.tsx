@@ -17,6 +17,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 interface ComboboxProps {
   items: { id: number | string; name: string }[];
@@ -30,6 +31,7 @@ export function Combobox({ items, placeholder, onSelect, noSelect, className }: 
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState("");
   const [popoverWidth, setPopoverWidth] = useState(0);
+  const tc = useTranslations("common");
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -53,8 +55,8 @@ export function Combobox({ items, placeholder, onSelect, noSelect, className }: 
         style={{ width: popoverWidth }}
       >
         <Command>
-          <CommandInput placeholder={`Search ${placeholder.toLowerCase()}...`} />
-          <CommandEmpty>No item found.</CommandEmpty>
+          <CommandInput placeholder={`${tc("search").replace("...", "")} ${placeholder.toLowerCase()}...`} />
+          <CommandEmpty>{tc("noItemFound")}</CommandEmpty>
           <CommandList>
             <CommandGroup>
               {items.map((item) => (

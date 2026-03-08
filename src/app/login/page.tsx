@@ -8,10 +8,13 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { MountainIcon } from "lucide-react";
 import { useRef } from "react";
+import { useTranslations } from "next-intl";
+import { LocaleSwitcher } from "@/components/locale-switcher";
 
 export default function LoginPage() {
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
+  const t = useTranslations("login");
 
   function fillDemo() {
     if (emailRef.current) emailRef.current.value = "test@example.com";
@@ -20,31 +23,34 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background">
+      <div className="absolute top-4 right-4">
+        <LocaleSwitcher />
+      </div>
       <div className="mx-auto w-full max-w-md space-y-6">
         <div className="flex flex-col items-center space-y-2">
           <MountainIcon className="h-10 w-10" />
-          <h2 className="text-2xl font-bold">Welcome back</h2>
+          <h2 className="text-2xl font-bold">{t("title")}</h2>
           <p className="text-sm text-muted-foreground">
-            Enter your credentials to access your account.
+            {t("subtitle")}
           </p>
         </div>
         <Card>
           <form>
             <CardContent className="space-y-4 mt-4">
               <div className="grid gap-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{t("email")}</Label>
                 <Input
                   ref={emailRef}
                   id="email"
                   name="email"
                   type="email"
-                  placeholder="name@example.com"
+                  placeholder={t("emailPlaceholder")}
                   required
                   autoComplete="email"
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">{t("password")}</Label>
                 <Input
                   ref={passwordRef}
                   id="password"
@@ -57,7 +63,7 @@ export default function LoginPage() {
             </CardContent>
             <CardFooter className="flex flex-col gap-4">
               <Button className="w-full" formAction={login}>
-                Log in
+                {t("submit")}
               </Button>
               <Button
                 type="button"
@@ -65,15 +71,15 @@ export default function LoginPage() {
                 className="w-full"
                 onClick={fillDemo}
               >
-                Fill demo credentials
+                {t("fillDemo")}
               </Button>
               <p className="text-sm text-center text-muted-foreground">
-                Don&apos;t have an account?{" "}
+                {t("noAccount")}{" "}
                 <Link
                   href="/signup"
                   className="text-primary underline-offset-4 hover:underline"
                 >
-                  Sign up
+                  {t("signUp")}
                 </Link>
               </p>
             </CardFooter>

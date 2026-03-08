@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "sonner";
 import { TRPCReactProvider } from "@/components/trpc-provider";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getMessages } from "next-intl/server";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -11,18 +13,23 @@ export const metadata: Metadata = {
   description: "Open-source point of sale system",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const locale = await getLocale();
+  const messages = await getMessages();
+
   return (
-    <html lang="en">
+    <html lang={locale}>
       <body className={inter.className}>
-        <TRPCReactProvider>
-          <main>{children}</main>
-          <Toaster richColors position="bottom-right" />
-        </TRPCReactProvider>
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          <TRPCReactProvider>
+            <main>{children}</main>
+            <Toaster richColors position="bottom-right" />
+          </TRPCReactProvider>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

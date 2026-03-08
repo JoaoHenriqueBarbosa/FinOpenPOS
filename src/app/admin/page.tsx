@@ -38,6 +38,7 @@ import { formatCurrency, formatShortDate } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTRPC } from "@/lib/trpc/client";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslations, useLocale } from "next-intl";
 
 const CHART_COLORS = [
   "hsl(var(--chart-1))",
@@ -50,6 +51,8 @@ const CHART_COLORS = [
 export default function Page() {
   const trpc = useTRPC();
   const { data, isLoading } = useQuery(trpc.dashboard.stats.queryOptions());
+  const t = useTranslations("dashboard");
+  const locale = useLocale();
 
   if (isLoading || !data) {
     return (
@@ -94,38 +97,38 @@ export default function Page() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Total Revenue
+              {t("totalRevenue")}
             </CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatCurrency(data.totalRevenue)}
+              {formatCurrency(data.totalRevenue, locale)}
             </div>
             <p className="text-xs text-muted-foreground">
-              Completed income transactions
+              {t("completedIncome")}
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Total Expenses
+              {t("totalExpenses")}
             </CardTitle>
             <Wallet className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatCurrency(data.totalExpenses)}
+              {formatCurrency(data.totalExpenses, locale)}
             </div>
             <p className="text-xs text-muted-foreground">
-              Completed expense transactions
+              {t("completedExpenses")}
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("netProfit")}</CardTitle>
             {profitIsPositive ? (
               <TrendingUp className="h-4 w-4 text-emerald-500" />
             ) : (
@@ -136,10 +139,10 @@ export default function Page() {
             <div
               className={`text-2xl font-bold ${profitIsPositive ? "text-emerald-600" : "text-red-600"}`}
             >
-              {formatCurrency(data.totalProfit)}
+              {formatCurrency(data.totalProfit, locale)}
             </div>
             <p className="text-xs text-muted-foreground">
-              Revenue from selling minus expenses
+              {t("profitDescription")}
             </p>
           </CardContent>
         </Card>
@@ -148,14 +151,14 @@ export default function Page() {
       {/* Charts Grid */}
       <div className="grid gap-6 lg:grid-cols-2 min-w-0">
         <CategoryPieChart
-          title="Revenue by Category"
-          description="Breakdown of income across categories"
+          title={t("revenueByCategory")}
+          description={t("revenueBreakdown")}
           data={data.revenueByCategory}
         />
 
         <CategoryPieChart
-          title="Expenses by Category"
-          description="Breakdown of expenses across categories"
+          title={t("expensesByCategory")}
+          description={t("expensesBreakdown")}
           data={data.expensesByCategory}
         />
 
@@ -176,6 +179,9 @@ function CategoryPieChart({
   description: string;
   data: Record<string, number>;
 }) {
+  const t = useTranslations("dashboard");
+  const tc = useTranslations("common");
+  const locale = useLocale();
   const entries = Object.entries(data);
   const total = entries.reduce((sum, [, v]) => sum + v, 0);
 
@@ -203,7 +209,7 @@ function CategoryPieChart({
       </CardHeader>
       <CardContent>
         {entries.length === 0 ? (
-          <EmptyState message={`No ${title.toLowerCase()} data yet`} />
+          <EmptyState message={t("noDataYet", { section: title.toLowerCase() })} />
         ) : (
           <ChartContainer
             config={chartConfig}
@@ -214,7 +220,7 @@ function CategoryPieChart({
                 content={
                   <ChartTooltipContent
                     nameKey="category"
-                    formatter={(value) => formatCurrency(Number(value))}
+                    formatter={(value) => formatCurrency(Number(value), locale)}
                   />
                 }
               />
@@ -241,14 +247,14 @@ function CategoryPieChart({
                             y={viewBox.cy}
                             className="fill-foreground text-xl font-bold"
                           >
-                            {formatCurrency(total)}
+                            {formatCurrency(total, locale)}
                           </tspan>
                           <tspan
                             x={viewBox.cx}
                             y={(viewBox.cy || 0) + 20}
                             className="fill-muted-foreground text-xs"
                           >
-                            Total
+                            {tc("total")}
                           </tspan>
                         </text>
                       );
@@ -270,9 +276,12 @@ function ProfitMarginChart({
 }: {
   data: { date: string; margin: number }[];
 }) {
+  const t = useTranslations("dashboard");
+  const locale = useLocale();
+
   const chartConfig = {
     margin: {
-      label: "Margin %",
+      label: t("marginPercent"),
       color: "hsl(var(--chart-1))",
     },
   } satisfies ChartConfig;
@@ -280,12 +289,12 @@ function ProfitMarginChart({
   return (
     <Card className="min-w-0 overflow-hidden">
       <CardHeader className="pb-2">
-        <CardTitle>Profit Margin</CardTitle>
-        <CardDescription>Daily profit margin percentage</CardDescription>
+        <CardTitle>{t("profitMargin")}</CardTitle>
+        <CardDescription>{t("dailyProfitMargin")}</CardDescription>
       </CardHeader>
       <CardContent>
         {data.length === 0 ? (
-          <EmptyState message="No profit margin data yet" />
+          <EmptyState message={t("noDataYet", { section: t("profitMargin").toLowerCase() })} />
         ) : (
           <ChartContainer config={chartConfig} className="h-[280px] w-full">
             <BarChart accessibilityLayer data={data}>
@@ -295,7 +304,7 @@ function ProfitMarginChart({
                 tickLine={false}
                 tickMargin={10}
                 axisLine={false}
-                tickFormatter={formatShortDate}
+                tickFormatter={(v) => formatShortDate(v, locale)}
               />
               <YAxis
                 tickLine={false}
@@ -306,7 +315,7 @@ function ProfitMarginChart({
               <ChartTooltip
                 content={
                   <ChartTooltipContent
-                    labelFormatter={(label) => formatShortDate(String(label))}
+                    labelFormatter={(label) => formatShortDate(String(label), locale)}
                     formatter={(value) => `${value}%`}
                   />
                 }
@@ -336,9 +345,12 @@ function CashFlowChart({
 }: {
   data: { date: string; amount: number }[];
 }) {
+  const t = useTranslations("dashboard");
+  const locale = useLocale();
+
   const chartConfig = {
     amount: {
-      label: "Amount",
+      label: t("cashFlow"),
       color: "hsl(var(--chart-3))",
     },
   } satisfies ChartConfig;
@@ -346,12 +358,12 @@ function CashFlowChart({
   return (
     <Card className="min-w-0 overflow-hidden">
       <CardHeader className="pb-2">
-        <CardTitle>Cash Flow</CardTitle>
-        <CardDescription>Daily transaction volume</CardDescription>
+        <CardTitle>{t("cashFlow")}</CardTitle>
+        <CardDescription>{t("dailyTransactionVolume")}</CardDescription>
       </CardHeader>
       <CardContent>
         {data.length === 0 ? (
-          <EmptyState message="No cash flow data yet" />
+          <EmptyState message={t("noDataYet", { section: t("cashFlow").toLowerCase() })} />
         ) : (
           <ChartContainer config={chartConfig} className="h-[280px] w-full">
             <AreaChart
@@ -365,19 +377,19 @@ function CashFlowChart({
                 tickLine={false}
                 axisLine={false}
                 tickMargin={8}
-                tickFormatter={formatShortDate}
+                tickFormatter={(v) => formatShortDate(v, locale)}
               />
               <YAxis
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={(v) => `$${v}`}
+                tickFormatter={(v) => formatCurrency(v * 100, locale)}
                 width={60}
               />
               <ChartTooltip
                 content={
                   <ChartTooltipContent
-                    labelFormatter={(label) => formatShortDate(String(label))}
-                    formatter={(value) => formatCurrency(Number(value))}
+                    labelFormatter={(label) => formatShortDate(String(label), locale)}
+                    formatter={(value) => formatCurrency(Number(value), locale)}
                   />
                 }
               />
