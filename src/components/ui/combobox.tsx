@@ -62,13 +62,9 @@ export function Combobox({ items, placeholder, onSelect, noSelect, className }: 
               {items.map((item) => (
                 <CommandItem
                   key={item.id}
-                  value={item.id.toString()}
-                  onSelect={(currentValue) => {
-                    if (typeof item.id === "string") {
-                      onSelect(currentValue);
-                    } else {
-                      onSelect(Number(currentValue));
-                    }
+                  value={item.name}
+                  onSelect={() => {
+                    onSelect(item.id);
                     setOpen(false);
                     if (noSelect) return;
                     setValue(item.name);
