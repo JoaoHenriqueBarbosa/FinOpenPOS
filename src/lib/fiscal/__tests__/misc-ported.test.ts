@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Ported from PHP sped-nfe test files:
  *   - tests/Common/ConfigTest.php

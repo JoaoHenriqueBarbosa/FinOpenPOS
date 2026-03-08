@@ -121,11 +121,131 @@ export interface InvoiceBuildData {
   items: InvoiceItemData[];
   // Payment
   payments: PaymentData[];
+  // Change amount (vTroco)
+  changeAmount?: number; // cents
+  // Payment card details (one per detPag that has card info)
+  paymentCardDetails?: Array<{
+    integType?: string; // tpIntegra: 1=integrated, 2=not integrated
+    cardTaxId?: string; // CNPJ of card processor
+    cardBrand?: string; // tBand code
+    authCode?: string; // cAut authorization code
+  }>;
   // Contingency
   contingency?: {
     type: ContingencyType;
     reason: string;
     at: Date;
+  };
+  // Referenced documents (NFref inside ide)
+  references?: Array<
+    | { type: "nfe"; accessKey: string }
+    | { type: "nf"; stateCode: string; yearMonth: string; taxId: string; model: string; series: string; number: string }
+    | { type: "nfp"; stateCode: string; yearMonth: string; taxId: string; model: string; series: string; number: string }
+    | { type: "cte"; accessKey: string }
+    | { type: "ecf"; model: string; ecfNumber: string; cooNumber: string }
+  >;
+  // Transport
+  transport?: {
+    freightMode: string; // modFrete: 0-9
+    carrier?: {
+      taxId?: string; // CNPJ or CPF
+      name?: string;
+      stateTaxId?: string;
+      stateCode?: string;
+      address?: string;
+    };
+    vehicle?: { plate: string; stateCode: string; rntc?: string };
+    trailers?: Array<{ plate: string; stateCode: string; rntc?: string }>;
+    volumes?: Array<{
+      quantity?: number;
+      species?: string;
+      brand?: string;
+      number?: string;
+      netWeight?: number;
+      grossWeight?: number;
+      seals?: string[];
+    }>;
+    retainedIcms?: {
+      vBCRet: number;
+      pICMSRet: number;
+      vICMSRet: number;
+      cfop: string;
+      cityCode: string;
+    };
+  };
+  // Billing (cobr)
+  billing?: {
+    invoice?: {
+      number: string;
+      originalValue: number; // cents
+      discountValue?: number; // cents
+      netValue: number; // cents
+    };
+    installments?: Array<{
+      number: string;
+      dueDate: string; // YYYY-MM-DD
+      value: number; // cents
+    }>;
+  };
+  // Withdrawal location (retirada)
+  withdrawal?: {
+    taxId: string;
+    name?: string;
+    street: string;
+    number: string;
+    complement?: string;
+    district: string;
+    cityCode: string;
+    cityName: string;
+    stateCode: string;
+    zipCode?: string;
+  };
+  // Delivery location (entrega)
+  delivery?: {
+    taxId: string;
+    name?: string;
+    street: string;
+    number: string;
+    complement?: string;
+    district: string;
+    cityCode: string;
+    cityName: string;
+    stateCode: string;
+    zipCode?: string;
+  };
+  // Authorized XML download (autXML)
+  authorizedXml?: Array<{ taxId: string }>;
+  // Additional info (infAdic)
+  additionalInfo?: {
+    taxpayerNote?: string; // infCpl
+    taxAuthorityNote?: string; // infAdFisco
+    contributorObs?: Array<{ field: string; text: string }>; // obsCont
+    fiscalObs?: Array<{ field: string; text: string }>; // obsFisco
+    processRefs?: Array<{ number: string; origin: string }>; // procRef
+  };
+  // Intermediary (infIntermed)
+  intermediary?: {
+    taxId: string; // CNPJ
+    idCadIntTran?: string;
+  };
+  // Tech responsible (infRespTec)
+  techResponsible?: {
+    taxId: string; // CNPJ
+    contact: string; // xContato
+    email: string;
+    phone?: string; // fone
+  };
+  // Purchase (compra)
+  purchase?: {
+    orderNumber?: string; // xPed
+    contractNumber?: string; // xCont
+    purchaseNote?: string; // xNEmp
+  };
+  // Export (exporta)
+  export?: {
+    exitState: string; // UFSaidaPais
+    exportLocation: string; // xLocExporta
+    dispatchLocation?: string; // xLocDespacho
   };
 }
 

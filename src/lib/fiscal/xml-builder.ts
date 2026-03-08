@@ -64,11 +64,19 @@ export function buildInvoiceXml(data: InvoiceBuildData): {
     buildIde(data, stateIbge, numericCode, accessKey),
     buildEmit(data),
     ...(data.recipient ? [buildDest(data)] : []),
+    ...(data.withdrawal ? [buildWithdrawal(data.withdrawal)] : []),
+    ...(data.delivery ? [buildDelivery(data.delivery)] : []),
+    ...(data.authorizedXml ? data.authorizedXml.map((a) => buildAutXml(a)) : []),
     ...detElements,
     buildTotal(totalProducts, icmsTotals, { vIPI: totalIpi, vPIS: totalPis, vCOFINS: totalCofins, vII: totalIi }),
-    buildTransp(),
-    buildPag(data.payments),
+    buildTransp(data),
+    ...(data.billing ? [buildCobr(data.billing)] : []),
+    buildPag(data.payments, data.changeAmount, data.paymentCardDetails),
+    ...(data.intermediary ? [buildIntermediary(data.intermediary)] : []),
     buildInfAdic(data),
+    ...(data.export ? [buildExport(data.export)] : []),
+    ...(data.purchase ? [buildPurchase(data.purchase)] : []),
+    ...(data.techResponsible ? [buildTechResponsible(data.techResponsible)] : []),
   ]);
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>${tag("NFe", { xmlns: NFE_NAMESPACE }, [infNFe])}`;
@@ -132,6 +140,9 @@ function buildIde(
   const consumerType = isNfce ? "1" : "0"; // 1=final consumer, 0=normal
   const buyerPresence = isNfce ? "1" : "0"; // 1=in-person, 0=not applicable
 
+  // Build referenced documents (NFref) if present
+  const refElements = buildReferences(data.references);
+
   return tag("ide", {}, [
     tag("cUF", {}, stateIbge),
     tag("cNF", {}, numericCode),
@@ -153,6 +164,7 @@ function buildIde(
     tag("indIntermed", {}, "0"), // 0=no intermediary
     tag("procEmi", {}, "0"), // 0=own application
     tag("verProc", {}, "FinOpenPOS 1.0"),
+    ...refElements,
   ]);
 }
 
@@ -380,13 +392,226 @@ function buildTotal(totalProducts: number, icms: IcmsTotals, other: OtherTotals)
   ]);
 }
 
-function buildTransp(): string {
-  return tag("transp", {}, [
-    tag("modFrete", {}, "9"), // 9=no freight
+function buildReferences(
+  references?: InvoiceBuildData["references"]
+): string[] {
+  if (!references || references.length === 0) return [];
+
+  return references.map((ref) => {
+    switch (ref.type) {
+      case "nfe":
+        return tag("NFref", {}, [tag("refNFe", {}, ref.accessKey)]);
+      case "nf":
+        return tag("NFref", {}, [
+          tag("refNF", {}, [
+            tag("cUF", {}, ref.stateCode),
+            tag("AAMM", {}, ref.yearMonth),
+            tag("CNPJ", {}, ref.taxId),
+            tag("mod", {}, ref.model),
+            tag("serie", {}, ref.series),
+            tag("nNF", {}, ref.number),
+          ]),
+        ]);
+      case "nfp":
+        return tag("NFref", {}, [
+          tag("refNFP", {}, [
+            tag("cUF", {}, ref.stateCode),
+            tag("AAMM", {}, ref.yearMonth),
+            ...(ref.taxId.length > 11
+              ? [tag("CNPJ", {}, ref.taxId)]
+              : [tag("CPF", {}, ref.taxId)]),
+            tag("mod", {}, ref.model),
+            tag("serie", {}, ref.series),
+            tag("nNF", {}, ref.number),
+          ]),
+        ]);
+      case "cte":
+        return tag("NFref", {}, [tag("refCTe", {}, ref.accessKey)]);
+      case "ecf":
+        return tag("NFref", {}, [
+          tag("refECF", {}, [
+            tag("mod", {}, ref.model),
+            tag("nECF", {}, ref.ecfNumber),
+            tag("nCOO", {}, ref.cooNumber),
+          ]),
+        ]);
+    }
+  });
+}
+
+function buildWithdrawal(w: NonNullable<InvoiceBuildData["withdrawal"]>): string {
+  const taxIdTag =
+    w.taxId.length <= 11
+      ? tag("CPF", {}, w.taxId.padStart(11, "0"))
+      : tag("CNPJ", {}, w.taxId.padStart(14, "0"));
+
+  return tag("retirada", {}, [
+    taxIdTag,
+    ...(w.name ? [tag("xNome", {}, w.name)] : []),
+    tag("xLgr", {}, w.street),
+    tag("nro", {}, w.number),
+    ...(w.complement ? [tag("xCpl", {}, w.complement)] : []),
+    tag("xBairro", {}, w.district),
+    tag("cMun", {}, w.cityCode),
+    tag("xMun", {}, w.cityName),
+    tag("UF", {}, w.stateCode),
+    ...(w.zipCode ? [tag("CEP", {}, w.zipCode)] : []),
   ]);
 }
 
-function buildPag(payments: PaymentData[]): string {
+function buildDelivery(d: NonNullable<InvoiceBuildData["delivery"]>): string {
+  const taxIdTag =
+    d.taxId.length <= 11
+      ? tag("CPF", {}, d.taxId.padStart(11, "0"))
+      : tag("CNPJ", {}, d.taxId.padStart(14, "0"));
+
+  return tag("entrega", {}, [
+    taxIdTag,
+    ...(d.name ? [tag("xNome", {}, d.name)] : []),
+    tag("xLgr", {}, d.street),
+    tag("nro", {}, d.number),
+    ...(d.complement ? [tag("xCpl", {}, d.complement)] : []),
+    tag("xBairro", {}, d.district),
+    tag("cMun", {}, d.cityCode),
+    tag("xMun", {}, d.cityName),
+    tag("UF", {}, d.stateCode),
+    ...(d.zipCode ? [tag("CEP", {}, d.zipCode)] : []),
+  ]);
+}
+
+function buildAutXml(entry: { taxId: string }): string {
+  const taxIdTag =
+    entry.taxId.length <= 11
+      ? tag("CPF", {}, entry.taxId.padStart(11, "0"))
+      : tag("CNPJ", {}, entry.taxId.padStart(14, "0"));
+
+  return tag("autXML", {}, [taxIdTag]);
+}
+
+function buildTransp(data: InvoiceBuildData): string {
+  const t = data.transport;
+  if (!t) {
+    return tag("transp", {}, [
+      tag("modFrete", {}, "9"), // 9=no freight
+    ]);
+  }
+
+  const children: string[] = [tag("modFrete", {}, t.freightMode)];
+
+  // retTransp (retained ICMS on transport) — comes before transporta in schema
+  if (t.retainedIcms) {
+    const r = t.retainedIcms;
+    children.push(
+      tag("retTransp", {}, [
+        tag("vServ", {}, formatCents(r.vBCRet)),
+        tag("vBCRet", {}, formatCents(r.vBCRet)),
+        tag("pICMSRet", {}, formatDecimal(r.pICMSRet / 100, 4)),
+        tag("vICMSRet", {}, formatCents(r.vICMSRet)),
+        tag("CFOP", {}, r.cfop),
+        tag("cMunFG", {}, r.cityCode),
+      ])
+    );
+  }
+
+  // transporta (carrier info)
+  if (t.carrier) {
+    const c = t.carrier;
+    const carrierChildren: string[] = [];
+    if (c.taxId) {
+      if (c.taxId.length <= 11) {
+        carrierChildren.push(tag("CPF", {}, c.taxId.padStart(11, "0")));
+      } else {
+        carrierChildren.push(tag("CNPJ", {}, c.taxId.padStart(14, "0")));
+      }
+    }
+    if (c.name) carrierChildren.push(tag("xNome", {}, c.name));
+    if (c.stateTaxId) carrierChildren.push(tag("IE", {}, c.stateTaxId));
+    if (c.address) carrierChildren.push(tag("xEnder", {}, c.address));
+    if (c.stateCode) carrierChildren.push(tag("UF", {}, c.stateCode));
+    children.push(tag("transporta", {}, carrierChildren));
+  }
+
+  // veicTransp (transport vehicle)
+  if (t.vehicle) {
+    children.push(
+      tag("veicTransp", {}, [
+        tag("placa", {}, t.vehicle.plate),
+        tag("UF", {}, t.vehicle.stateCode),
+        ...(t.vehicle.rntc ? [tag("RNTC", {}, t.vehicle.rntc)] : []),
+      ])
+    );
+  }
+
+  // reboque (trailers)
+  if (t.trailers) {
+    for (const trailer of t.trailers) {
+      children.push(
+        tag("reboque", {}, [
+          tag("placa", {}, trailer.plate),
+          tag("UF", {}, trailer.stateCode),
+          ...(trailer.rntc ? [tag("RNTC", {}, trailer.rntc)] : []),
+        ])
+      );
+    }
+  }
+
+  // vol (volumes)
+  if (t.volumes) {
+    for (const vol of t.volumes) {
+      const volChildren: string[] = [];
+      if (vol.quantity != null) volChildren.push(tag("qVol", {}, String(vol.quantity)));
+      if (vol.species) volChildren.push(tag("esp", {}, vol.species));
+      if (vol.brand) volChildren.push(tag("marca", {}, vol.brand));
+      if (vol.number) volChildren.push(tag("nVol", {}, vol.number));
+      if (vol.netWeight != null) volChildren.push(tag("pesoL", {}, formatDecimal(vol.netWeight, 3)));
+      if (vol.grossWeight != null) volChildren.push(tag("pesoB", {}, formatDecimal(vol.grossWeight, 3)));
+      if (vol.seals) {
+        for (const seal of vol.seals) {
+          volChildren.push(tag("lacres", {}, [tag("nLacre", {}, seal)]));
+        }
+      }
+      children.push(tag("vol", {}, volChildren));
+    }
+  }
+
+  return tag("transp", {}, children);
+}
+
+function buildCobr(billing: NonNullable<InvoiceBuildData["billing"]>): string {
+  const children: string[] = [];
+
+  if (billing.invoice) {
+    const inv = billing.invoice;
+    children.push(
+      tag("fat", {}, [
+        tag("nFat", {}, inv.number),
+        tag("vOrig", {}, formatCents(inv.originalValue)),
+        ...(inv.discountValue != null ? [tag("vDesc", {}, formatCents(inv.discountValue))] : []),
+        tag("vLiq", {}, formatCents(inv.netValue)),
+      ])
+    );
+  }
+
+  if (billing.installments) {
+    for (const inst of billing.installments) {
+      children.push(
+        tag("dup", {}, [
+          tag("nDup", {}, inst.number),
+          tag("dVenc", {}, inst.dueDate),
+          tag("vDup", {}, formatCents(inst.value)),
+        ])
+      );
+    }
+  }
+
+  return tag("cobr", {}, children);
+}
+
+function buildPag(
+  payments: PaymentData[],
+  changeAmount?: number,
+  cardDetails?: InvoiceBuildData["paymentCardDetails"]
+): string {
   if (payments.length === 0) {
     return tag("pag", {}, [
       tag("detPag", {}, [
@@ -396,12 +621,33 @@ function buildPag(payments: PaymentData[]): string {
     ]);
   }
 
-  return tag("pag", {}, payments.map((p) =>
-    tag("detPag", {}, [
+  const detPagElements = payments.map((p, i) => {
+    const detChildren: string[] = [
       tag("tPag", {}, p.method),
       tag("vPag", {}, formatCents(p.amount)),
-    ])
-  ));
+    ];
+
+    // Add card details if present for this payment index
+    const card = cardDetails?.[i];
+    if (card?.integType) {
+      const cardChildren: string[] = [
+        tag("tpIntegra", {}, card.integType),
+      ];
+      if (card.cardTaxId) cardChildren.push(tag("CNPJ", {}, card.cardTaxId));
+      if (card.cardBrand) cardChildren.push(tag("tBand", {}, card.cardBrand));
+      if (card.authCode) cardChildren.push(tag("cAut", {}, card.authCode));
+      detChildren.push(tag("card", {}, cardChildren));
+    }
+
+    return tag("detPag", {}, detChildren);
+  });
+
+  // vTroco must come AFTER all detPag elements
+  if (changeAmount != null && changeAmount > 0) {
+    detPagElements.push(tag("vTroco", {}, formatCents(changeAmount)));
+  }
+
+  return tag("pag", {}, detPagElements);
 }
 
 function buildInfAdic(data: InvoiceBuildData): string {
@@ -418,10 +664,107 @@ function buildInfAdic(data: InvoiceBuildData): string {
     notes.push("EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL");
   }
 
-  if (notes.length === 0) return "";
+  const addInfo = data.additionalInfo;
+  const hasAdditionalInfo = addInfo && (
+    addInfo.taxpayerNote ||
+    addInfo.taxAuthorityNote ||
+    (addInfo.contributorObs && addInfo.contributorObs.length > 0) ||
+    (addInfo.fiscalObs && addInfo.fiscalObs.length > 0) ||
+    (addInfo.processRefs && addInfo.processRefs.length > 0)
+  );
 
-  return tag("infAdic", {}, [
-    tag("infCpl", {}, notes.join("; ")),
+  if (notes.length === 0 && !hasAdditionalInfo) return "";
+
+  const children: string[] = [];
+
+  // infAdFisco must come before infCpl per schema
+  if (addInfo?.taxAuthorityNote) {
+    children.push(tag("infAdFisco", {}, addInfo.taxAuthorityNote));
+  }
+
+  // infCpl: merge contingency/environment notes with taxpayer note
+  const allNotes = [...notes];
+  if (addInfo?.taxpayerNote) {
+    allNotes.push(addInfo.taxpayerNote);
+  }
+  if (allNotes.length > 0) {
+    children.push(tag("infCpl", {}, allNotes.join("; ")));
+  }
+
+  // obsCont (max 10)
+  if (addInfo?.contributorObs) {
+    for (const obs of addInfo.contributorObs.slice(0, 10)) {
+      children.push(
+        tag("obsCont", { xCampo: obs.field }, [
+          tag("xTexto", {}, obs.text),
+        ])
+      );
+    }
+  }
+
+  // obsFisco (max 10)
+  if (addInfo?.fiscalObs) {
+    for (const obs of addInfo.fiscalObs.slice(0, 10)) {
+      children.push(
+        tag("obsFisco", { xCampo: obs.field }, [
+          tag("xTexto", {}, obs.text),
+        ])
+      );
+    }
+  }
+
+  // procRef (max 100)
+  if (addInfo?.processRefs) {
+    for (const proc of addInfo.processRefs.slice(0, 100)) {
+      children.push(
+        tag("procRef", {}, [
+          tag("nProc", {}, proc.number),
+          tag("indProc", {}, proc.origin),
+        ])
+      );
+    }
+  }
+
+  return tag("infAdic", {}, children);
+}
+
+function buildIntermediary(
+  intermed: NonNullable<InvoiceBuildData["intermediary"]>
+): string {
+  return tag("infIntermed", {}, [
+    tag("CNPJ", {}, intermed.taxId),
+    ...(intermed.idCadIntTran ? [tag("idCadIntTran", {}, intermed.idCadIntTran)] : []),
+  ]);
+}
+
+function buildTechResponsible(
+  tech: NonNullable<InvoiceBuildData["techResponsible"]>
+): string {
+  return tag("infRespTec", {}, [
+    tag("CNPJ", {}, tech.taxId),
+    tag("xContato", {}, tech.contact),
+    tag("email", {}, tech.email),
+    ...(tech.phone ? [tag("fone", {}, tech.phone)] : []),
+  ]);
+}
+
+function buildPurchase(
+  purchase: NonNullable<InvoiceBuildData["purchase"]>
+): string {
+  const children: string[] = [];
+  if (purchase.purchaseNote) children.push(tag("xNEmp", {}, purchase.purchaseNote));
+  if (purchase.orderNumber) children.push(tag("xPed", {}, purchase.orderNumber));
+  if (purchase.contractNumber) children.push(tag("xCont", {}, purchase.contractNumber));
+  return tag("compra", {}, children);
+}
+
+function buildExport(
+  exp: NonNullable<InvoiceBuildData["export"]>
+): string {
+  return tag("exporta", {}, [
+    tag("UFSaidaPais", {}, exp.exitState),
+    tag("xLocExporta", {}, exp.exportLocation),
+    ...(exp.dispatchLocation ? [tag("xLocDespacho", {}, exp.dispatchLocation)] : []),
   ]);
 }
 
