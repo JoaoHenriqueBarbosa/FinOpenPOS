@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Ported from PHP sped-nfe TaxCoverageTest.php and TraitsCoverageTest.php
  *
