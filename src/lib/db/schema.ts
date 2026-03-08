@@ -99,6 +99,13 @@ export const transactions = pgTable("transactions", {
   created_at: timestamp("created_at").defaultNow(),
 });
 
+// ── Cities (IBGE) ──────────────────────────────────────────────────────────
+export const cities = pgTable("cities", {
+  id: integer("id").primaryKey(), // IBGE code (7 digits)
+  name: varchar("name", { length: 120 }).notNull(),
+  state_code: varchar("state_code", { length: 2 }).notNull(),
+});
+
 // ── Fiscal Settings ────────────────────────────────────────────────────────
 export const fiscalSettings = pgTable("fiscal_settings", {
   id: serial("id").primaryKey(),

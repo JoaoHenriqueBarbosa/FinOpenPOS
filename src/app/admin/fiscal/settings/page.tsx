@@ -10,7 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2Icon, CheckCircleIcon, XCircleIcon, ShieldCheckIcon, UploadIcon } from "lucide-react";
+import { Loader2Icon, CheckCircleIcon, XCircleIcon, ShieldCheckIcon } from "lucide-react";
+import { Combobox } from "@/components/ui/combobox";
 import { toast } from "sonner";
 import { useTRPC } from "@/lib/trpc/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -26,6 +27,13 @@ export default function FiscalSettingsPage() {
 
   const [certFile, setCertFile] = useState<string | null>(null);
   const [certFileName, setCertFileName] = useState("");
+  const [selectedState, setSelectedState] = useState(settings?.state_code ?? "");
+  const { data: citiesData = [] } = useQuery(
+    trpc.cities.listByState.queryOptions(
+      { state_code: selectedState },
+      { enabled: selectedState.length === 2 }
+    )
+  );
 
   const upsertMutation = useMutation(trpc.fiscalSettings.upsert.mutationOptions({
     onSuccess: () => {
@@ -196,31 +204,41 @@ export default function FiscalSettingsPage() {
           <CardTitle>{t("address")}</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-3">
             <form.Field name="state_code">
               {(field) => (
                 <div className="space-y-2">
                   <Label>{t("stateCode")}</Label>
-                  <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value.toUpperCase())} maxLength={2} placeholder="SP" />
+                  <Select value={field.state.value} onValueChange={(v) => { field.handleChange(v); setSelectedState(v); }}>
+                    <SelectTrigger><SelectValue placeholder="UF" /></SelectTrigger>
+                    <SelectContent>
+                      {["AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT","PA","PB","PE","PI","PR","RJ","RN","RO","RR","RS","SC","SE","SP","TO"].map((uf) => (
+                        <SelectItem key={uf} value={uf}>{uf}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
             </form.Field>
-            <form.Field name="city_code">
-              {(field) => (
-                <div className="space-y-2">
-                  <Label>{t("cityCode")}</Label>
-                  <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} maxLength={7} placeholder="3550308" />
-                </div>
+            <div className="space-y-2">
+              <Label>{t("cityName")}</Label>
+              <Combobox
+                items={citiesData.map((c) => ({ id: c.id, name: c.name }))}
+                placeholder={t("cityName")}
+                onSelect={(id) => {
+                  const city = citiesData.find((c) => c.id === id);
+                  if (city) {
+                    form.setFieldValue("city_code", String(city.id));
+                    form.setFieldValue("city_name", city.name);
+                  }
+                }}
+              />
+              {form.getFieldValue("city_name") && (
+                <p className="text-xs text-muted-foreground">
+                  {form.getFieldValue("city_name")} ({form.getFieldValue("city_code")})
+                </p>
               )}
-            </form.Field>
-            <form.Field name="city_name">
-              {(field) => (
-                <div className="space-y-2">
-                  <Label>{t("cityName")}</Label>
-                  <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} placeholder="Curitiba" />
-                </div>
-              )}
-            </form.Field>
+            </div>
             <form.Field name="zip_code">
               {(field) => (
                 <div className="space-y-2">
