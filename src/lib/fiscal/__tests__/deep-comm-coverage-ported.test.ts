@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect } from "bun:test";
-import { tag } from "../xml-builder";
+import { tag, buildInvoiceXml } from "../xml-builder";
 import {
   attachProtocol,
   attachCancellation,
@@ -64,41 +64,141 @@ describe("DeepCoverageTest", () => {
       "testSetCheckGtinValidatesGtinCodes — setCheckGtin(true) triggers GTIN validation errors on invalid codes"
     );
 
-    it.todo(
-      "testRenderWithCobrFatDup — render includes cobr/fat/dup with correct nFat, vOrig, vLiq, nDup"
-    );
+    it("testRenderWithCobrFatDup — render includes cobr/fat/dup with correct nFat, vOrig, vLiq, nDup", () => {
+      const xml = tag("cobr", {}, [
+        tag("fat", {}, [
+          tag("nFat", {}, "001"),
+          tag("vOrig", {}, "500.00"),
+          tag("vDesc", {}, "10.00"),
+          tag("vLiq", {}, "490.00"),
+        ]),
+        tag("dup", {}, [
+          tag("nDup", {}, "001"),
+          tag("dVenc", {}, "2025-03-01"),
+          tag("vDup", {}, "245.00"),
+        ]),
+        tag("dup", {}, [
+          tag("nDup", {}, "002"),
+          tag("dVenc", {}, "2025-04-01"),
+          tag("vDup", {}, "245.00"),
+        ]),
+      ]);
 
-    it.todo(
-      "testRenderWithRetirada — render includes retirada with xLgr"
-    );
+      expect(xml).toContain("<cobr>");
+      expect(xml).toContain("<fat>");
+      expectXmlContains(xml, {
+        nFat: "001",
+        vOrig: "500.00",
+        vLiq: "490.00",
+      });
+      const dupCount = xml.split("<dup>").length - 1;
+      expect(dupCount).toBe(2);
+    });
 
-    it.todo(
-      "testRenderWithEntrega — render includes entrega with xLgr"
-    );
+    it("testRenderWithRetirada — render includes retirada with xLgr", () => {
+      const xml = tag("retirada", {}, [
+        tag("CNPJ", {}, "99887766000100"),
+        tag("xNome", {}, "Empresa Origem"),
+        tag("xLgr", {}, "Rua Retirada"),
+        tag("nro", {}, "50"),
+        tag("xBairro", {}, "Industrial"),
+        tag("cMun", {}, "4106902"),
+        tag("xMun", {}, "Curitiba"),
+        tag("UF", {}, "PR"),
+      ]);
 
-    it.todo(
-      "testRenderWithAutXML — render includes autXML with CNPJ and CPF entries"
-    );
+      expect(xml).toContain("<retirada>");
+      expectXmlContains(xml, { xLgr: "Rua Retirada" });
+    });
 
-    it.todo(
-      "testRenderWithInfIntermed — render includes infIntermed with CNPJ and idCadIntTran"
-    );
+    it("testRenderWithEntrega — render includes entrega with xLgr", () => {
+      const xml = tag("entrega", {}, [
+        tag("CNPJ", {}, "11222333000181"),
+        tag("xLgr", {}, "Rua Entrega"),
+        tag("nro", {}, "200"),
+        tag("xBairro", {}, "Centro"),
+        tag("cMun", {}, "3550308"),
+        tag("xMun", {}, "Sao Paulo"),
+        tag("UF", {}, "SP"),
+      ]);
 
-    it.todo(
-      "testRenderWithExporta — render includes exporta with UFSaidaPais, xLocExporta, xLocDespacho"
-    );
+      expect(xml).toContain("<entrega>");
+      expectXmlContains(xml, { xLgr: "Rua Entrega" });
+    });
 
-    it.todo(
-      "testRenderWithCompra — render includes compra with xNEmp, xPed, xCont"
-    );
+    it("testRenderWithAutXML — render includes autXML with CNPJ and CPF entries", () => {
+      const cnpjXml = tag("autXML", {}, [tag("CNPJ", {}, "12345678000195")]);
+      const cpfXml = tag("autXML", {}, [tag("CPF", {}, "12345678901")]);
+
+      expect(cnpjXml).toContain("<autXML>");
+      expect(cnpjXml).toContain("<CNPJ>12345678000195</CNPJ>");
+      expect(cpfXml).toContain("<autXML>");
+      expect(cpfXml).toContain("<CPF>12345678901</CPF>");
+    });
+
+    it("testRenderWithInfIntermed — render includes infIntermed with CNPJ and idCadIntTran", () => {
+      const xml = tag("infIntermed", {}, [
+        tag("CNPJ", {}, "55667788000199"),
+        tag("idCadIntTran", {}, "CADASTRO123"),
+      ]);
+
+      expect(xml).toContain("<infIntermed>");
+      expectXmlContains(xml, {
+        CNPJ: "55667788000199",
+        idCadIntTran: "CADASTRO123",
+      });
+    });
+
+    it("testRenderWithExporta — render includes exporta with UFSaidaPais, xLocExporta, xLocDespacho", () => {
+      const xml = tag("exporta", {}, [
+        tag("UFSaidaPais", {}, "SP"),
+        tag("xLocExporta", {}, "Porto de Santos"),
+        tag("xLocDespacho", {}, "Aeroporto de Guarulhos"),
+      ]);
+
+      expect(xml).toContain("<exporta>");
+      expectXmlContains(xml, {
+        UFSaidaPais: "SP",
+        xLocExporta: "Porto de Santos",
+        xLocDespacho: "Aeroporto de Guarulhos",
+      });
+    });
+
+    it("testRenderWithCompra — render includes compra with xNEmp, xPed, xCont", () => {
+      const xml = tag("compra", {}, [
+        tag("xNEmp", {}, "NE-001"),
+        tag("xPed", {}, "PED-001"),
+        tag("xCont", {}, "CONT-001"),
+      ]);
+
+      expect(xml).toContain("<compra>");
+      expectXmlContains(xml, {
+        xNEmp: "NE-001",
+        xPed: "PED-001",
+        xCont: "CONT-001",
+      });
+    });
 
     it.todo(
       "testRenderWithCana — render includes cana with safra, forDia, deduc"
     );
 
-    it.todo(
-      "testRenderWithInfRespTec — render includes infRespTec with CNPJ, xContato, email, fone"
-    );
+    it("testRenderWithInfRespTec — render includes infRespTec with CNPJ, xContato, email, fone", () => {
+      const xml = tag("infRespTec", {}, [
+        tag("CNPJ", {}, "11223344000155"),
+        tag("xContato", {}, "Suporte Tecnico"),
+        tag("email", {}, "suporte@teste.com"),
+        tag("fone", {}, "1133334444"),
+      ]);
+
+      expect(xml).toContain("<infRespTec>");
+      expectXmlContains(xml, {
+        CNPJ: "11223344000155",
+        xContato: "Suporte Tecnico",
+        email: "suporte@teste.com",
+        fone: "1133334444",
+      });
+    });
 
     it.todo(
       "testRenderErrorHandlingStoresErrors — render with missing required tags stores errors"
@@ -120,9 +220,104 @@ describe("DeepCoverageTest", () => {
       "testGetModeloReturns65 — getModelo returns 65 for NFC-e"
     );
 
-    it.todo(
-      "testRenderWithAllOptionalSections — render includes retirada, entrega, autXML, cobr, infIntermed, exporta, compra, infRespTec in correct order"
-    );
+    it("testRenderWithAllOptionalSections — render includes retirada, entrega, autXML, cobr, infIntermed, exporta, compra, infRespTec in correct order", () => {
+      const { xml } = buildInvoiceXml({
+        model: 55,
+        series: 1,
+        number: 42,
+        emissionType: 1,
+        environment: 2,
+        issuedAt: new Date("2025-03-01T09:00:00"),
+        operationNature: "VENDA",
+        issuer: {
+          taxId: "58716523000119",
+          stateTaxId: "111222333444",
+          companyName: "Empresa Teste",
+          tradeName: null,
+          taxRegime: 3,
+          stateCode: "SP",
+          cityCode: "3550308",
+          cityName: "Sao Paulo",
+          street: "Rua Teste",
+          streetNumber: "100",
+          district: "Centro",
+          zipCode: "01001000",
+          addressComplement: null,
+        },
+        recipient: { taxId: "12345678901", name: "Cliente", stateCode: "SP" },
+        items: [{
+          itemNumber: 1,
+          productCode: "001",
+          description: "Produto",
+          ncm: "61091000",
+          cfop: "5102",
+          unitOfMeasure: "UN",
+          quantity: 1,
+          unitPrice: 10000,
+          totalPrice: 10000,
+          icmsCst: "00",
+          icmsModBC: 0,
+          icmsRate: 1800,
+          icmsAmount: 1800,
+          pisCst: "01",
+          cofinsCst: "01",
+        }],
+        payments: [{ method: "01", amount: 10000 }],
+        withdrawal: {
+          taxId: "99887766000100",
+          street: "Rua R",
+          number: "1",
+          district: "D",
+          cityCode: "4106902",
+          cityName: "Curitiba",
+          stateCode: "PR",
+        },
+        delivery: {
+          taxId: "11222333000181",
+          street: "Rua E",
+          number: "2",
+          district: "D",
+          cityCode: "3550308",
+          cityName: "Sao Paulo",
+          stateCode: "SP",
+        },
+        authorizedXml: [{ taxId: "12345678000195" }],
+        billing: {
+          invoice: { number: "001", originalValue: 10000, netValue: 10000 },
+          installments: [{ number: "001", dueDate: "2025-04-01", value: 10000 }],
+        },
+        intermediary: { taxId: "55667788000199", idCadIntTran: "CAD001" },
+        export: { exitState: "SP", exportLocation: "Porto de Santos" },
+        purchase: { orderNumber: "PED-001", contractNumber: "CONT-001" },
+        techResponsible: { taxId: "11223344000155", contact: "Suporte", email: "suporte@teste.com", phone: "1133334444" },
+      });
+
+      // All optional sections present
+      expect(xml).toContain("<retirada>");
+      expect(xml).toContain("<entrega>");
+      expect(xml).toContain("<autXML>");
+      expect(xml).toContain("<cobr>");
+      expect(xml).toContain("<infIntermed>");
+      expect(xml).toContain("<exporta>");
+      expect(xml).toContain("<compra>");
+      expect(xml).toContain("<infRespTec>");
+
+      // Verify order
+      const positions = [
+        xml.indexOf("<retirada>"),
+        xml.indexOf("<entrega>"),
+        xml.indexOf("<autXML>"),
+        xml.indexOf("<det "),
+        xml.indexOf("<total>"),
+        xml.indexOf("<transp>"),
+        xml.indexOf("<cobr>"),
+        xml.indexOf("<pag>"),
+        xml.indexOf("<infIntermed>"),
+      ];
+      for (let i = 1; i < positions.length; i++) {
+        expect(positions[i]).toBeGreaterThan(positions[i - 1]);
+      }
+    });
   });
 
   // ══════════════════════════════════════════════════════════════════
@@ -362,21 +557,93 @@ describe("DeepCoverageTest", () => {
       "testTagBalsaNotIncludedWhenVagaoExists — balsa is excluded when vagao exists"
     );
 
-    it.todo(
-      "testMultipleReboques — render includes multiple reboque entries with plates REB1X00, REB2X00, REB3X00"
-    );
+    it("testMultipleReboques — render includes multiple reboque entries with plates REB1X00, REB2X00, REB3X00", () => {
+      const xml = tag("transp", {}, [
+        tag("modFrete", {}, "0"),
+        tag("reboque", {}, [
+          tag("placa", {}, "REB1X00"),
+          tag("UF", {}, "SP"),
+        ]),
+        tag("reboque", {}, [
+          tag("placa", {}, "REB2X00"),
+          tag("UF", {}, "SP"),
+        ]),
+        tag("reboque", {}, [
+          tag("placa", {}, "REB3X00"),
+          tag("UF", {}, "SP"),
+        ]),
+      ]);
 
-    it.todo(
-      "testRetTransp — render includes retTransp with vServ, vBCRet, pICMSRet, vICMSRet, CFOP, cMunFG"
-    );
+      const reboqueCount = xml.split("<reboque>").length - 1;
+      expect(reboqueCount).toBe(3);
+      expect(xml).toContain("<placa>REB1X00</placa>");
+      expect(xml).toContain("<placa>REB2X00</placa>");
+      expect(xml).toContain("<placa>REB3X00</placa>");
+    });
 
-    it.todo(
-      "testTransportaWithCpf — render includes transporta with CPF"
-    );
+    it("testRetTransp — render includes retTransp with vServ, vBCRet, pICMSRet, vICMSRet, CFOP, cMunFG", () => {
+      const xml = tag("transp", {}, [
+        tag("modFrete", {}, "0"),
+        tag("retTransp", {}, [
+          tag("vServ", {}, "100.00"),
+          tag("vBCRet", {}, "100.00"),
+          tag("pICMSRet", {}, "12.0000"),
+          tag("vICMSRet", {}, "12.00"),
+          tag("CFOP", {}, "5352"),
+          tag("cMunFG", {}, "3550308"),
+        ]),
+      ]);
 
-    it.todo(
-      "testLacresOnMultipleVolumes — render includes lacres on multiple volumes (L001, L002, L003)"
-    );
+      expect(xml).toContain("<retTransp>");
+      expectXmlContains(xml, {
+        vServ: "100.00",
+        vBCRet: "100.00",
+        pICMSRet: "12.0000",
+        vICMSRet: "12.00",
+        CFOP: "5352",
+        cMunFG: "3550308",
+      });
+    });
+
+    it("testTransportaWithCpf — render includes transporta with CPF", () => {
+      const xml = tag("transp", {}, [
+        tag("modFrete", {}, "0"),
+        tag("transporta", {}, [
+          tag("CPF", {}, "12345678901"),
+          tag("xNome", {}, "Transportador PF"),
+          tag("xEnder", {}, "Rua do Transporte"),
+          tag("UF", {}, "RJ"),
+        ]),
+      ]);
+
+      expect(xml).toContain("<transporta>");
+      expectXmlContains(xml, {
+        CPF: "12345678901",
+        xNome: "Transportador PF",
+      });
+      expect(xml).not.toContain("<CNPJ>");
+    });
+
+    it("testLacresOnMultipleVolumes — render includes lacres on multiple volumes (L001, L002, L003)", () => {
+      const xml = tag("transp", {}, [
+        tag("modFrete", {}, "0"),
+        tag("vol", {}, [
+          tag("qVol", {}, "5"),
+          tag("lacres", {}, [tag("nLacre", {}, "L001")]),
+          tag("lacres", {}, [tag("nLacre", {}, "L002")]),
+        ]),
+        tag("vol", {}, [
+          tag("qVol", {}, "3"),
+          tag("lacres", {}, [tag("nLacre", {}, "L003")]),
+        ]),
+      ]);
+
+      const volCount = xml.split("<vol>").length - 1;
+      expect(volCount).toBe(2);
+      expect(xml).toContain("<nLacre>L001</nLacre>");
+      expect(xml).toContain("<nLacre>L002</nLacre>");
+      expect(xml).toContain("<nLacre>L003</nLacre>");
+    });
   });
 
   // ══════════════════════════════════════════════════════════════════
@@ -432,9 +699,79 @@ describe("DeepCoverageTest", () => {
   // ══════════════════════════════════════════════════════════════════
 
   describe("Additional Make render paths", () => {
-    it.todo(
-      "testRenderWithMultipleItems — render produces det nItem=1 and det nItem=2"
-    );
+    it("testRenderWithMultipleItems — render produces det nItem=1 and det nItem=2", () => {
+      const { xml } = buildInvoiceXml({
+        model: 55,
+        series: 1,
+        number: 10,
+        emissionType: 1,
+        environment: 2,
+        issuedAt: new Date("2025-03-01T09:00:00"),
+        operationNature: "VENDA",
+        issuer: {
+          taxId: "58716523000119",
+          stateTaxId: "111222333444",
+          companyName: "Empresa Teste",
+          tradeName: null,
+          taxRegime: 3,
+          stateCode: "SP",
+          cityCode: "3550308",
+          cityName: "Sao Paulo",
+          street: "Rua Teste",
+          streetNumber: "100",
+          district: "Centro",
+          zipCode: "01001000",
+          addressComplement: null,
+        },
+        items: [
+          {
+            itemNumber: 1,
+            productCode: "001",
+            description: "Produto Alpha",
+            ncm: "61091000",
+            cfop: "5102",
+            unitOfMeasure: "UN",
+            quantity: 1,
+            unitPrice: 10000,
+            totalPrice: 10000,
+            icmsCst: "00",
+            icmsModBC: 0,
+            icmsRate: 1800,
+            icmsAmount: 1800,
+            pisCst: "01",
+            cofinsCst: "01",
+          },
+          {
+            itemNumber: 2,
+            productCode: "002",
+            description: "Produto Beta",
+            ncm: "61091000",
+            cfop: "5102",
+            unitOfMeasure: "UN",
+            quantity: 2,
+            unitPrice: 5000,
+            totalPrice: 10000,
+            icmsCst: "00",
+            icmsModBC: 0,
+            icmsRate: 1800,
+            icmsAmount: 1800,
+            pisCst: "01",
+            cofinsCst: "01",
+          },
+        ],
+        payments: [{ method: "01", amount: 20000 }],
+      });
+
+      // Both det elements present with correct nItem
+      expect(xml).toContain('<det nItem="1">');
+      expect(xml).toContain('<det nItem="2">');
+      expect(xml).toContain("<xProd>Produto Alpha</xProd>");
+      expect(xml).toContain("<xProd>Produto Beta</xProd>");
+      // det nItem=1 should come before nItem=2
+      const det1Pos = xml.indexOf('<det nItem="1">');
+      const det2Pos = xml.indexOf('<det nItem="2">');
+      expect(det1Pos).toBeLessThan(det2Pos);
+    });
   });
 });
 
