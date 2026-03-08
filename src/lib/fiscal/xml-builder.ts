@@ -152,7 +152,7 @@ function buildEmit(data: InvoiceBuildData): string {
         : []),
       tag("xBairro", {}, data.issuer.district),
       tag("cMun", {}, data.issuer.cityCode),
-      tag("xMun", {}, ""), // City name (filled by caller or lookup)
+      tag("xMun", {}, data.issuer.cityName),
       tag("UF", {}, data.issuer.stateCode),
       tag("CEP", {}, data.issuer.zipCode),
       tag("cPais", {}, "1058"),

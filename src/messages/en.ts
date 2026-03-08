@@ -281,6 +281,7 @@ const messages = {
     address: "Address",
     stateCode: "State (UF)",
     cityCode: "City Code (IBGE)",
+    cityName: "City Name",
     street: "Street",
     streetNumber: "Number",
     district: "District",

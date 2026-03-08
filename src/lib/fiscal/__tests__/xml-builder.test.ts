@@ -121,6 +121,7 @@ describe("buildInvoiceXml()", () => {
       taxRegime: 1,
       stateCode: "SP",
       cityCode: "3550308",
+      cityName: "Sao Paulo",
       street: "Av Paulista",
       streetNumber: "1000",
       district: "Bela Vista",

@@ -112,6 +112,7 @@ export const fiscalSettings = pgTable("fiscal_settings", {
   // Address
   state_code: varchar("state_code", { length: 2 }).notNull(), // UF
   city_code: varchar("city_code", { length: 7 }).notNull(), // IBGE code
+  city_name: varchar("city_name", { length: 100 }).notNull(),
   street: varchar("street", { length: 255 }).notNull(),
   street_number: varchar("street_number", { length: 10 }).notNull(),
   district: varchar("district", { length: 100 }).notNull(),

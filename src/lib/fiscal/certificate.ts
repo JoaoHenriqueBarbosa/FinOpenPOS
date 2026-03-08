@@ -95,7 +95,7 @@ function extractCertFromPfx(pfxBuffer: Buffer, passphrase: string): string {
   require("node:fs").writeFileSync(tmpPfx, pfxBuffer);
   try {
     const certPem = execSync(
-      `openssl pkcs12 -in ${tmpPfx} -clcerts -nokeys -passin pass:${passphrase} 2>/dev/null`,
+      `openssl pkcs12 -in ${tmpPfx} -clcerts -nokeys -passin pass:${passphrase} -legacy 2>/dev/null`,
       { encoding: "utf-8" }
     );
     const match = certPem.match(
@@ -119,7 +119,7 @@ function extractKeyFromPfx(pfxBuffer: Buffer, passphrase: string): string {
   require("node:fs").writeFileSync(tmpPfx, pfxBuffer);
   try {
     const keyPem = execSync(
-      `openssl pkcs12 -in ${tmpPfx} -nocerts -nodes -passin pass:${passphrase} 2>/dev/null`,
+      `openssl pkcs12 -in ${tmpPfx} -nocerts -nodes -passin pass:${passphrase} -legacy 2>/dev/null`,
       { encoding: "utf-8" }
     );
     const match = keyPem.match(
