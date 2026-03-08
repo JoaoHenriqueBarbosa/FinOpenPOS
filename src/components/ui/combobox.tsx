@@ -23,15 +23,19 @@ interface ComboboxProps {
   items: { id: number | string; name: string }[];
   placeholder: string;
   onSelect: (id: number | string) => void;
+  /** Controlled display value — shows this in the trigger button */
+  value?: string;
   noSelect?: boolean;
   className?: string;
 }
 
-export function Combobox({ items, placeholder, onSelect, noSelect, className }: ComboboxProps) {
+export function Combobox({ items, placeholder, onSelect, value: controlledValue, noSelect, className }: ComboboxProps) {
   const [open, setOpen] = useState(false);
-  const [value, setValue] = useState("");
+  const [internalValue, setInternalValue] = useState("");
   const [popoverWidth, setPopoverWidth] = useState(0);
   const tc = useTranslations("common");
+
+  const displayValue = controlledValue ?? internalValue;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -40,14 +44,14 @@ export function Combobox({ items, placeholder, onSelect, noSelect, className }: 
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={cn("w-full justify-between", className)}
+          className={cn("w-full justify-between font-normal", !displayValue && "text-muted-foreground", className)}
           ref={(element) => {
             if (element) {
               setPopoverWidth(element.offsetWidth);
             }
           }}
         >
-          {value || placeholder}
+          <span className="truncate">{displayValue || placeholder}</span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -67,7 +71,7 @@ export function Combobox({ items, placeholder, onSelect, noSelect, className }: 
                     onSelect(item.id);
                     setOpen(false);
                     if (noSelect) return;
-                    setValue(item.name);
+                    setInternalValue(item.name);
                   }}
                 >
                   {item.name}
