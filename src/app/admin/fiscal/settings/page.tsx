@@ -205,21 +205,38 @@ export default function FiscalSettingsPage() {
         </CardHeader>
         <CardContent className="grid gap-4">
           <div className="grid gap-4 sm:grid-cols-3">
-            <form.Field name="state_code">
-              {(field) => (
-                <div className="space-y-2">
-                  <Label>{t("stateCode")}</Label>
-                  <Select value={field.state.value} onValueChange={(v) => { field.handleChange(v); setSelectedState(v); }}>
-                    <SelectTrigger><SelectValue placeholder="UF" /></SelectTrigger>
-                    <SelectContent>
-                      {["AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT","PA","PB","PE","PI","PR","RJ","RN","RO","RR","RS","SC","SE","SP","TO"].map((uf) => (
-                        <SelectItem key={uf} value={uf}>{uf}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+            <div className="space-y-2">
+              <Label>{t("stateCode")}</Label>
+              <Combobox
+                items={[
+                  { id: "AC", name: "AC - Acre" }, { id: "AL", name: "AL - Alagoas" },
+                  { id: "AM", name: "AM - Amazonas" }, { id: "AP", name: "AP - Amapá" },
+                  { id: "BA", name: "BA - Bahia" }, { id: "CE", name: "CE - Ceará" },
+                  { id: "DF", name: "DF - Distrito Federal" }, { id: "ES", name: "ES - Espírito Santo" },
+                  { id: "GO", name: "GO - Goiás" }, { id: "MA", name: "MA - Maranhão" },
+                  { id: "MG", name: "MG - Minas Gerais" }, { id: "MS", name: "MS - Mato Grosso do Sul" },
+                  { id: "MT", name: "MT - Mato Grosso" }, { id: "PA", name: "PA - Pará" },
+                  { id: "PB", name: "PB - Paraíba" }, { id: "PE", name: "PE - Pernambuco" },
+                  { id: "PI", name: "PI - Piauí" }, { id: "PR", name: "PR - Paraná" },
+                  { id: "RJ", name: "RJ - Rio de Janeiro" }, { id: "RN", name: "RN - Rio Grande do Norte" },
+                  { id: "RO", name: "RO - Rondônia" }, { id: "RR", name: "RR - Roraima" },
+                  { id: "RS", name: "RS - Rio Grande do Sul" }, { id: "SC", name: "SC - Santa Catarina" },
+                  { id: "SE", name: "SE - Sergipe" }, { id: "SP", name: "SP - São Paulo" },
+                  { id: "TO", name: "TO - Tocantins" },
+                ]}
+                placeholder={t("stateCode")}
+                onSelect={(id) => {
+                  const uf = String(id);
+                  form.setFieldValue("state_code", uf);
+                  setSelectedState(uf);
+                  form.setFieldValue("city_code", "");
+                  form.setFieldValue("city_name", "");
+                }}
+              />
+              {form.getFieldValue("state_code") && (
+                <p className="text-xs text-muted-foreground">{form.getFieldValue("state_code")}</p>
               )}
-            </form.Field>
+            </div>
             <div className="space-y-2">
               <Label>{t("cityName")}</Label>
               <Combobox
