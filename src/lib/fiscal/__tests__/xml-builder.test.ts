@@ -139,7 +139,7 @@ describe("buildInvoiceXml()", () => {
         quantity: 2,
         unitPrice: 1000,
         totalPrice: 2000,
-        icmsCst: "00",
+        icmsCst: "102",
         icmsRate: 0,
         icmsAmount: 0,
         pisCst: "99",

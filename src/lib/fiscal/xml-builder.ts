@@ -1,5 +1,7 @@
 import crypto from "node:crypto";
 import { STATE_CODES, NFE_NAMESPACE, NFE_VERSION, PAYMENT_TYPES } from "./constants";
+import { buildIcmsXml, createIcmsTotals, mergeIcmsTotals, type IcmsTotals } from "./tax-icms";
+import { buildPisXml, buildCofinsXml, buildIpiXml, buildIiXml } from "./tax-pis-cofins-ipi";
 import type {
   AccessKeyParams,
   InvoiceBuildData,
@@ -39,16 +41,31 @@ export function buildInvoiceXml(data: InvoiceBuildData): {
   const accessKey = buildAccessKey(accessKeyParams);
   const infNFeId = `NFe${accessKey}`;
 
-  // Calculate totals
-  const totalProducts = data.items.reduce((sum, item) => sum + item.totalPrice, 0);
-  const totalIcms = data.items.reduce((sum, item) => sum + item.icmsAmount, 0);
+  // Build items and accumulate tax totals
+  const icmsTotals = createIcmsTotals();
+  let totalProducts = 0;
+  let totalIpi = 0;
+  let totalPis = 0;
+  let totalCofins = 0;
+  let totalIi = 0;
+
+  const detElements = data.items.map((item) => {
+    totalProducts += item.totalPrice;
+    const detResult = buildDet(item, data);
+    mergeIcmsTotals(icmsTotals, detResult.icmsTotals);
+    totalIpi += detResult.vIPI;
+    totalPis += detResult.vPIS;
+    totalCofins += detResult.vCOFINS;
+    totalIi += detResult.vII;
+    return detResult.xml;
+  });
 
   const infNFe = tag("infNFe", { xmlns: NFE_NAMESPACE, versao: NFE_VERSION, Id: infNFeId }, [
     buildIde(data, stateIbge, numericCode, accessKey),
     buildEmit(data),
     ...(data.recipient ? [buildDest(data)] : []),
-    ...data.items.map((item) => buildDet(item, data.model)),
-    buildTotal(totalProducts, totalIcms),
+    ...detElements,
+    buildTotal(totalProducts, icmsTotals, { vIPI: totalIpi, vPIS: totalPis, vCOFINS: totalCofins, vII: totalIi }),
     buildTransp(),
     buildPag(data.payments),
     buildInfAdic(data),
@@ -195,107 +212,170 @@ function buildDest(data: InvoiceBuildData): string {
   ]);
 }
 
-function buildDet(item: InvoiceItemData, model: InvoiceModel): string {
-  const isSimples = true; // TODO: derive from tax regime
+interface DetResult {
+  xml: string;
+  icmsTotals: IcmsTotals;
+  vIPI: number;
+  vPIS: number;
+  vCOFINS: number;
+  vII: number;
+}
 
-  return tag("det", { nItem: String(item.itemNumber) }, [
+function buildDet(item: InvoiceItemData, data: InvoiceBuildData): DetResult {
+  // Build ICMS using the full tax module
+  const isSimples = data.issuer.taxRegime === 1 || data.issuer.taxRegime === 2;
+  const icmsResult = buildIcmsXml({
+    taxRegime: data.issuer.taxRegime,
+    orig: item.orig ?? "0",
+    CST: isSimples ? undefined : item.icmsCst,
+    CSOSN: isSimples ? (item.icmsCst || "102") : undefined,
+    modBC: item.icmsModBC != null ? String(item.icmsModBC) : undefined,
+    vBC: item.totalPrice,
+    pICMS: item.icmsRate,
+    vICMS: item.icmsAmount,
+    pRedBC: item.icmsRedBC,
+    modBCST: item.icmsModBCST != null ? String(item.icmsModBCST) : undefined,
+    pMVAST: item.icmsPMVAST,
+    pRedBCST: item.icmsRedBCST,
+    vBCST: item.icmsVBCST,
+    pICMSST: item.icmsPICMSST,
+    vICMSST: item.icmsVICMSST,
+    vICMSDeson: item.icmsVICMSDeson,
+    motDesICMS: item.icmsMotDesICMS != null ? String(item.icmsMotDesICMS) : undefined,
+    pFCP: item.icmsPFCP,
+    vFCP: item.icmsVFCP,
+    vBCFCP: item.icmsVBCFCP,
+    pFCPST: item.icmsPFCPST,
+    vFCPST: item.icmsVFCPST,
+    vBCFCPST: item.icmsVBCFCPST,
+    pCredSN: item.icmsPCredSN,
+    vCredICMSSN: item.icmsVCredICMSSN,
+    vICMSSubstituto: item.icmsVICMSSubstituto,
+  });
+
+  // Build PIS
+  const pisXml = buildPisXml({
+    CST: item.pisCst,
+    vBC: item.pisVBC ?? 0,
+    pPIS: item.pisPPIS ?? 0,
+    vPIS: item.pisVPIS ?? 0,
+    qBCProd: item.pisQBCProd,
+    vAliqProd: item.pisVAliqProd,
+  });
+
+  // Build COFINS
+  const cofinsXml = buildCofinsXml({
+    CST: item.cofinsCst,
+    vBC: item.cofinsVBC ?? 0,
+    pCOFINS: item.cofinsPCOFINS ?? 0,
+    vCOFINS: item.cofinsVCOFINS ?? 0,
+    qBCProd: item.cofinsQBCProd,
+    vAliqProd: item.cofinsVAliqProd,
+  });
+
+  // Build IPI (optional)
+  let ipiXml = "";
+  let vIPI = 0;
+  if (item.ipiCst) {
+    ipiXml = buildIpiXml({
+      CST: item.ipiCst,
+      cEnq: item.ipiCEnq ?? "999",
+      vBC: item.ipiVBC,
+      pIPI: item.ipiPIPI,
+      vIPI: item.ipiVIPI,
+      qUnid: item.ipiQUnid,
+      vUnid: item.ipiVUnid,
+    });
+    vIPI = item.ipiVIPI ?? 0;
+  }
+
+  // Build II (optional, import only)
+  let iiXml = "";
+  let vII = 0;
+  if (item.iiVBC) {
+    iiXml = buildIiXml({
+      vBC: item.iiVBC,
+      vDespAdu: item.iiVDespAdu ?? 0,
+      vII: item.iiVII ?? 0,
+      vIOF: item.iiVIOF ?? 0,
+    });
+    vII = item.iiVII ?? 0;
+  }
+
+  const xml = tag("det", { nItem: String(item.itemNumber) }, [
     tag("prod", {}, [
       tag("cProd", {}, item.productCode),
-      tag("cEAN", {}, "SEM GTIN"),
+      tag("cEAN", {}, item.cEAN ?? "SEM GTIN"),
       tag("xProd", {}, item.description),
       tag("NCM", {}, item.ncm),
+      ...(item.cest ? [tag("CEST", {}, item.cest)] : []),
       tag("CFOP", {}, item.cfop),
       tag("uCom", {}, item.unitOfMeasure),
       tag("qCom", {}, formatDecimal(item.quantity, 4)),
       tag("vUnCom", {}, formatCents(item.unitPrice, 10)),
       tag("vProd", {}, formatCents(item.totalPrice)),
-      tag("cEANTrib", {}, "SEM GTIN"),
+      tag("cEANTrib", {}, item.cEANTrib ?? "SEM GTIN"),
       tag("uTrib", {}, item.unitOfMeasure),
       tag("qTrib", {}, formatDecimal(item.quantity, 4)),
       tag("vUnTrib", {}, formatCents(item.unitPrice, 10)),
-      tag("indTot", {}, "1"), // 1=included in total
+      ...(item.vFrete ? [tag("vFrete", {}, formatCents(item.vFrete))] : []),
+      ...(item.vSeg ? [tag("vSeg", {}, formatCents(item.vSeg))] : []),
+      ...(item.vDesc ? [tag("vDesc", {}, formatCents(item.vDesc))] : []),
+      ...(item.vOutro ? [tag("vOutro", {}, formatCents(item.vOutro))] : []),
+      tag("indTot", {}, "1"),
     ]),
     tag("imposto", {}, [
-      buildIcms(item, isSimples),
-      buildPis(item),
-      buildCofins(item),
-    ]),
+      icmsResult.xml,
+      ipiXml,
+      pisXml,
+      cofinsXml,
+      iiXml,
+    ].filter(Boolean)),
   ]);
+
+  return {
+    xml,
+    icmsTotals: icmsResult.totals,
+    vIPI,
+    vPIS: item.pisVPIS ?? 0,
+    vCOFINS: item.cofinsVCOFINS ?? 0,
+    vII: vII,
+  };
 }
 
-function buildIcms(item: InvoiceItemData, isSimples: boolean): string {
-  if (isSimples) {
-    // Simples Nacional — CSOSN 102 (without credit)
-    return tag("ICMS", {}, [
-      tag("ICMSSN102", {}, [
-        tag("orig", {}, "0"), // 0=national
-        tag("CSOSN", {}, "102"),
-      ]),
-    ]);
-  }
-
-  return tag("ICMS", {}, [
-    tag("ICMS00", {}, [
-      tag("orig", {}, "0"),
-      tag("CST", {}, item.icmsCst),
-      tag("modBC", {}, "0"), // 0=margin value
-      tag("vBC", {}, formatCents(item.totalPrice)),
-      tag("pICMS", {}, formatDecimal(item.icmsRate / 100, 4)),
-      tag("vICMS", {}, formatCents(item.icmsAmount)),
-    ]),
-  ]);
+interface OtherTotals {
+  vIPI: number;
+  vPIS: number;
+  vCOFINS: number;
+  vII: number;
 }
 
-function buildPis(item: InvoiceItemData): string {
-  return tag("PIS", {}, [
-    tag("PISOutr", {}, [
-      tag("CST", {}, item.pisCst),
-      tag("vBC", {}, "0.00"),
-      tag("pPIS", {}, "0.0000"),
-      tag("vPIS", {}, "0.00"),
-    ]),
-  ]);
-}
-
-function buildCofins(item: InvoiceItemData): string {
-  return tag("COFINS", {}, [
-    tag("COFINSOutr", {}, [
-      tag("CST", {}, item.cofinsCst),
-      tag("vBC", {}, "0.00"),
-      tag("pCOFINS", {}, "0.0000"),
-      tag("vCOFINS", {}, "0.00"),
-    ]),
-  ]);
-}
-
-function buildTotal(totalProducts: number, totalIcms: number): string {
-  const vProd = formatCents(totalProducts);
-  const vICMS = formatCents(totalIcms);
-
+function buildTotal(totalProducts: number, icms: IcmsTotals, other: OtherTotals): string {
+  const vNF = totalProducts; // vNF = vProd - vDesc + vST + vFrete + vSeg + vOutro + vII + vIPI + vServ
   return tag("total", {}, [
     tag("ICMSTot", {}, [
-      tag("vBC", {}, totalIcms > 0 ? vProd : "0.00"),
-      tag("vICMS", {}, vICMS),
-      tag("vICMSDeson", {}, "0.00"),
-      tag("vFCPUFDest", {}, "0.00"),
-      tag("vICMSUFDest", {}, "0.00"),
-      tag("vICMSUFRemet", {}, "0.00"),
-      tag("vFCP", {}, "0.00"),
-      tag("vBCST", {}, "0.00"),
-      tag("vST", {}, "0.00"),
-      tag("vFCPST", {}, "0.00"),
-      tag("vFCPSTRet", {}, "0.00"),
-      tag("vProd", {}, vProd),
+      tag("vBC", {}, formatCents(icms.vBC)),
+      tag("vICMS", {}, formatCents(icms.vICMS)),
+      tag("vICMSDeson", {}, formatCents(icms.vICMSDeson)),
+      tag("vFCPUFDest", {}, formatCents(icms.vFCPUFDest)),
+      tag("vICMSUFDest", {}, formatCents(icms.vICMSUFDest)),
+      tag("vICMSUFRemet", {}, formatCents(icms.vICMSUFRemet)),
+      tag("vFCP", {}, formatCents(icms.vFCP)),
+      tag("vBCST", {}, formatCents(icms.vBCST)),
+      tag("vST", {}, formatCents(icms.vST)),
+      tag("vFCPST", {}, formatCents(icms.vFCPST)),
+      tag("vFCPSTRet", {}, formatCents(icms.vFCPSTRet)),
+      tag("vProd", {}, formatCents(totalProducts)),
       tag("vFrete", {}, "0.00"),
       tag("vSeg", {}, "0.00"),
       tag("vDesc", {}, "0.00"),
-      tag("vII", {}, "0.00"),
-      tag("vIPI", {}, "0.00"),
+      tag("vII", {}, formatCents(other.vII)),
+      tag("vIPI", {}, formatCents(other.vIPI)),
       tag("vIPIDevol", {}, "0.00"),
-      tag("vPIS", {}, "0.00"),
-      tag("vCOFINS", {}, "0.00"),
+      tag("vPIS", {}, formatCents(other.vPIS)),
+      tag("vCOFINS", {}, formatCents(other.vCOFINS)),
       tag("vOutro", {}, "0.00"),
-      tag("vNF", {}, vProd),
+      tag("vNF", {}, formatCents(vNF)),
     ]),
   ]);
 }

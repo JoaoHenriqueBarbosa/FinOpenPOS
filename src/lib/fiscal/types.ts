@@ -140,11 +140,66 @@ export interface InvoiceItemData {
   quantity: number; // actual quantity (will be formatted as 4 decimal)
   unitPrice: number; // in cents
   totalPrice: number; // in cents
+  // Product optional fields
+  cEAN?: string;
+  cEANTrib?: string;
+  cest?: string; // CEST code
+  vFrete?: number; // freight cents
+  vSeg?: number; // insurance cents
+  vDesc?: number; // discount cents
+  vOutro?: number; // other costs cents
+  // Origin
+  orig?: string; // 0=national, 1-8=imported variants
+  // ICMS fields (all optional, defaults handled by tax-icms module)
   icmsCst: string;
   icmsRate: number; // percentage x100 (e.g., 1800 = 18%)
   icmsAmount: number; // in cents
+  icmsModBC?: number;
+  icmsRedBC?: number; // reduction percentage x100
+  icmsModBCST?: number;
+  icmsPMVAST?: number; // MVA percentage x100
+  icmsRedBCST?: number;
+  icmsVBCST?: number;
+  icmsPICMSST?: number;
+  icmsVICMSST?: number;
+  icmsVICMSDeson?: number;
+  icmsMotDesICMS?: number;
+  icmsPFCP?: number;
+  icmsVFCP?: number;
+  icmsVBCFCP?: number;
+  icmsPFCPST?: number;
+  icmsVFCPST?: number;
+  icmsVBCFCPST?: number;
+  icmsPCredSN?: number; // Simples Nacional credit rate
+  icmsVCredICMSSN?: number; // Simples Nacional credit value
+  icmsVICMSSubstituto?: number;
+  // PIS fields
   pisCst: string;
+  pisVBC?: number;
+  pisPPIS?: number;
+  pisVPIS?: number;
+  pisQBCProd?: number;
+  pisVAliqProd?: number;
+  // COFINS fields
   cofinsCst: string;
+  cofinsVBC?: number;
+  cofinsPCOFINS?: number;
+  cofinsVCOFINS?: number;
+  cofinsQBCProd?: number;
+  cofinsVAliqProd?: number;
+  // IPI fields (optional)
+  ipiCst?: string;
+  ipiCEnq?: string;
+  ipiVBC?: number;
+  ipiPIPI?: number;
+  ipiVIPI?: number;
+  ipiQUnid?: number;
+  ipiVUnid?: number;
+  // II fields (optional, import only)
+  iiVBC?: number;
+  iiVDespAdu?: number;
+  iiVII?: number;
+  iiVIOF?: number;
 }
 
 /** Payment data */

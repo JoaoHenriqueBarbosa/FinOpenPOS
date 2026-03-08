@@ -45,4 +45,4 @@ next-env.d.ts
 /drizzle
 
 # playwright mcp
-.playwright-mcp/
+.playwright-mcp/.reference/
