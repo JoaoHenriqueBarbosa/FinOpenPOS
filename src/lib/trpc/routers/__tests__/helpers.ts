@@ -12,6 +12,7 @@ const TABLES: PgTable[] = [
   schema.orders,
   schema.orderItems,
   schema.transactions,
+  schema.cities,
   schema.fiscalSettings,
   schema.invoices,
   schema.invoiceItems,

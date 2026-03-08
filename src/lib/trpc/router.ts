@@ -8,6 +8,7 @@ import { paymentMethodsRouter } from "./routers/payment-methods";
 import { dashboardRouter } from "./routers/dashboard";
 import { fiscalSettingsRouter } from "./routers/fiscal-settings";
 import { fiscalRouter } from "./routers/fiscal";
+import { citiesRouter } from "./routers/cities";
 
 export const appRouter = router({
   products: productsRouter,
@@ -18,6 +19,7 @@ export const appRouter = router({
   dashboard: dashboardRouter,
   fiscalSettings: fiscalSettingsRouter,
   fiscal: fiscalRouter,
+  cities: citiesRouter,
 });
 
 export type AppRouter = typeof appRouter;
