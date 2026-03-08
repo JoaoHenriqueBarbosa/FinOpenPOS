@@ -31,54 +31,59 @@ import { useCrudMutation } from "@/hooks/use-crud-mutation";
 import { DataTable, TableActions, TableActionButton, type Column, type ExportColumn } from "@/components/ui/data-table";
 import { SearchFilter, type FilterOption } from "@/components/ui/search-filter";
 import type { RouterOutputs } from "@/lib/trpc/router";
+import { useTranslations, useLocale } from "next-intl";
+import { formatCurrency } from "@/lib/utils";
 
 type Product = RouterOutputs["products"]["list"][number];
-
-const productFormSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  description: z.string(),
-  price: z.number().min(0, "Price must be positive"),
-  in_stock: z.number().int().min(0, "Stock must be non-negative"),
-  category: z.string(),
-});
-
-const categoryFilterOptions: FilterOption[] = [
-  { label: "All", value: "all" },
-  { label: "Electronics", value: "electronics" },
-  { label: "Home", value: "home" },
-  { label: "Health", value: "health" },
-];
-
-const stockFilterOptions: FilterOption[] = [
-  { label: "All Stock", value: "all" },
-  { label: "In Stock", value: "in-stock", variant: "success" },
-  { label: "Out of Stock", value: "out-of-stock", variant: "danger" },
-];
-
-const columns: Column<Product>[] = [
-  { key: "name", header: "Product", sortable: true, className: "font-medium" },
-  { key: "description", header: "Description", hideOnMobile: true },
-  {
-    key: "price",
-    header: "Price",
-    sortable: true,
-    accessorFn: (row) => row.price,
-    render: (row) => `$${(row.price / 100).toFixed(2)}`,
-  },
-  { key: "in_stock", header: "Stock", sortable: true },
-];
-
-const exportColumns: ExportColumn<Product>[] = [
-  { key: "name", header: "Name", getValue: (p) => p.name },
-  { key: "description", header: "Description", getValue: (p) => p.description ?? "" },
-  { key: "price", header: "Price", getValue: (p) => (p.price / 100).toFixed(2) },
-  { key: "in_stock", header: "Stock", getValue: (p) => p.in_stock },
-  { key: "category", header: "Category", getValue: (p) => p.category ?? "" },
-];
 
 export default function Products() {
   const trpc = useTRPC();
   const { data: products = [], isLoading } = useQuery(trpc.products.list.queryOptions());
+  const t = useTranslations("products");
+  const tc = useTranslations("common");
+  const locale = useLocale();
+
+  const productFormSchema = z.object({
+    name: z.string().min(1, t("nameRequired")),
+    description: z.string(),
+    price: z.number().min(0, t("priceMustBePositive")),
+    in_stock: z.number().int().min(0, t("stockMustBeNonNegative")),
+    category: z.string(),
+  });
+
+  const categoryFilterOptions: FilterOption[] = [
+    { label: tc("all"), value: "all" },
+    { label: t("electronics"), value: "electronics" },
+    { label: t("home"), value: "home" },
+    { label: t("health"), value: "health" },
+  ];
+
+  const stockFilterOptions: FilterOption[] = [
+    { label: t("allStock"), value: "all" },
+    { label: t("inStock"), value: "in-stock", variant: "success" },
+    { label: t("outOfStock"), value: "out-of-stock", variant: "danger" },
+  ];
+
+  const columns: Column<Product>[] = [
+    { key: "name", header: t("product"), sortable: true, className: "font-medium" },
+    { key: "description", header: tc("description"), hideOnMobile: true },
+    {
+      key: "price",
+      header: tc("price"),
+      sortable: true,
+      accessorFn: (row) => row.price,
+      render: (row) => formatCurrency(row.price, locale),
+    },
+    { key: "in_stock", header: t("stock"), sortable: true },
+  ];
+
+  const exportColumns: ExportColumn<Product>[] = [
+    { key: "name", header: tc("name"), getValue: (p) => p.name },
+    { key: "description", header: tc("description"), getValue: (p) => p.description ?? "" },
+    { key: "price", header: tc("price"), getValue: (p) => (p.price / 100).toFixed(2) },
+    { key: "in_stock", header: t("stock"), getValue: (p) => p.in_stock },
+    { key: "category", header: tc("category"), getValue: (p) => p.category ?? "" },
+  ];
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -94,24 +99,24 @@ export default function Products() {
   const createMutation = useCrudMutation({
     mutationOptions: trpc.products.create.mutationOptions(),
     invalidateKeys,
-    successMessage: "Product created",
-    errorMessage: "Failed to create product",
+    successMessage: t("created"),
+    errorMessage: t("createError"),
     onSuccess: () => setIsDialogOpen(false),
   });
 
   const updateMutation = useCrudMutation({
     mutationOptions: trpc.products.update.mutationOptions(),
     invalidateKeys,
-    successMessage: "Product updated",
-    errorMessage: "Failed to update product",
+    successMessage: t("updated"),
+    errorMessage: t("updateError"),
     onSuccess: () => setIsDialogOpen(false),
   });
 
   const deleteMutation = useCrudMutation({
     mutationOptions: trpc.products.delete.mutationOptions(),
     invalidateKeys,
-    successMessage: "Product deleted",
-    errorMessage: "Failed to delete product",
+    successMessage: t("deleted"),
+    errorMessage: t("deleteError"),
   });
 
   const form = useForm({
@@ -171,11 +176,11 @@ export default function Products() {
 
   const actionsColumn: Column<Product> = {
     key: "actions",
-    header: "Actions",
+    header: tc("actions"),
     render: (row) => (
       <TableActions>
-        <TableActionButton onClick={() => openEdit(row)} icon={<FilePenIcon className="w-4 h-4" />} label="Edit" />
-        <TableActionButton variant="danger" onClick={() => { setDeleteId(row.id); setIsDeleteOpen(true); }} icon={<TrashIcon className="w-4 h-4" />} label="Delete" />
+        <TableActionButton onClick={() => openEdit(row)} icon={<FilePenIcon className="w-4 h-4" />} label={tc("edit")} />
+        <TableActionButton variant="danger" onClick={() => { setDeleteId(row.id); setIsDeleteOpen(true); }} icon={<TrashIcon className="w-4 h-4" />} label={tc("delete")} />
       </TableActions>
     ),
   };
@@ -198,14 +203,14 @@ export default function Products() {
           <SearchFilter
             search={searchTerm}
             onSearchChange={setSearchTerm}
-            searchPlaceholder="Search products..."
+            searchPlaceholder={t("searchPlaceholder")}
             filters={[
               { options: categoryFilterOptions, value: categoryFilter, onChange: setCategoryFilter },
               { options: stockFilterOptions, value: stockFilter, onChange: setStockFilter },
             ]}
           >
             <Button size="sm" onClick={openCreate}>
-              <PlusIcon className="w-4 h-4 mr-2" />Add Product
+              <PlusIcon className="w-4 h-4 mr-2" />{t("addProduct")}
             </Button>
           </SearchFilter>
         </CardHeader>
@@ -215,7 +220,7 @@ export default function Products() {
             columns={[...columns, actionsColumn]}
             exportColumns={exportColumns}
             exportFilename="products"
-            emptyMessage="No products found."
+            emptyMessage={t("noProducts")}
             emptyIcon={<PackageIcon className="w-8 h-8" />}
             defaultSort={[{ id: "name", desc: false }]}
           />
@@ -225,8 +230,8 @@ export default function Products() {
       <Dialog open={isDialogOpen} onOpenChange={(open) => { if (!open) setIsDialogOpen(false); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{isEditing ? "Edit Product" : "Add New Product"}</DialogTitle>
-            <DialogDescription>{isEditing ? "Edit the details of the product." : "Enter the details of the new product."}</DialogDescription>
+            <DialogTitle>{isEditing ? t("editProduct") : t("addNewProduct")}</DialogTitle>
+            <DialogDescription>{isEditing ? t("editDescription") : t("addDescription")}</DialogDescription>
           </DialogHeader>
           <form
             onSubmit={(e) => {
@@ -239,7 +244,7 @@ export default function Products() {
               <form.Field name="name">
                 {(field) => (
                   <div className="flex flex-col sm:grid sm:grid-cols-4 sm:items-center gap-2 sm:gap-4">
-                    <Label htmlFor="name" className="sm:text-right">Name</Label>
+                    <Label htmlFor="name" className="sm:text-right">{tc("name")}</Label>
                     <div className="col-span-3">
                       <Input
                         id="name"
@@ -255,7 +260,7 @@ export default function Products() {
               <form.Field name="description">
                 {(field) => (
                   <div className="flex flex-col sm:grid sm:grid-cols-4 sm:items-center gap-2 sm:gap-4">
-                    <Label htmlFor="description" className="sm:text-right">Description</Label>
+                    <Label htmlFor="description" className="sm:text-right">{tc("description")}</Label>
                     <Input id="description" value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} className="col-span-3" />
                   </div>
                 )}
@@ -263,7 +268,7 @@ export default function Products() {
               <form.Field name="price">
                 {(field) => (
                   <div className="flex flex-col sm:grid sm:grid-cols-4 sm:items-center gap-2 sm:gap-4">
-                    <Label htmlFor="price" className="sm:text-right">Price</Label>
+                    <Label htmlFor="price" className="sm:text-right">{tc("price")}</Label>
                     <div className="col-span-3">
                       <Input
                         id="price"
@@ -281,7 +286,7 @@ export default function Products() {
               <form.Field name="in_stock">
                 {(field) => (
                   <div className="flex flex-col sm:grid sm:grid-cols-4 sm:items-center gap-2 sm:gap-4">
-                    <Label htmlFor="in_stock" className="sm:text-right">In Stock</Label>
+                    <Label htmlFor="in_stock" className="sm:text-right">{t("inStock")}</Label>
                     <div className="col-span-3">
                       <Input
                         id="in_stock"
@@ -298,14 +303,14 @@ export default function Products() {
               <form.Field name="category">
                 {(field) => (
                   <div className="flex flex-col sm:grid sm:grid-cols-4 sm:items-center gap-2 sm:gap-4">
-                    <Label htmlFor="category" className="sm:text-right">Category</Label>
+                    <Label htmlFor="category" className="sm:text-right">{tc("category")}</Label>
                     <Select value={field.state.value} onValueChange={(value) => field.handleChange(value)}>
-                      <SelectTrigger className="col-span-3"><SelectValue placeholder="Select a category" /></SelectTrigger>
+                      <SelectTrigger className="col-span-3"><SelectValue placeholder={t("selectCategory")} /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="electronics">Electronics</SelectItem>
-                        <SelectItem value="clothing">Clothing</SelectItem>
-                        <SelectItem value="books">Books</SelectItem>
-                        <SelectItem value="home">Home</SelectItem>
+                        <SelectItem value="electronics">{t("electronics")}</SelectItem>
+                        <SelectItem value="clothing">{t("clothing")}</SelectItem>
+                        <SelectItem value="books">{t("books")}</SelectItem>
+                        <SelectItem value="home">{t("home")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -316,7 +321,7 @@ export default function Products() {
               <form.Subscribe selector={(state) => state.isSubmitting}>
                 {(isSubmitting) => (
                   <Button type="submit" disabled={isSubmitting || createMutation.isPending || updateMutation.isPending}>
-                    {isEditing ? "Update Product" : "Add Product"}
+                    {isEditing ? t("updateProduct") : t("addProduct")}
                   </Button>
                 )}
               </form.Subscribe>
@@ -325,7 +330,7 @@ export default function Products() {
         </DialogContent>
       </Dialog>
 
-      <DeleteConfirmationDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen} onConfirm={handleDelete} description="Are you sure you want to delete this product? This action cannot be undone." />
+      <DeleteConfirmationDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen} onConfirm={handleDelete} description={t("deleteMessage")} />
     </>
   );
 }

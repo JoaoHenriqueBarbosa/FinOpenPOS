@@ -32,32 +32,35 @@ import {
   XIcon,
   type LucideIcon,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { LocaleSwitcher } from "@/components/locale-switcher";
 
 import { logout } from "@/app/login/actions";
 
 interface NavItem {
   href: string;
-  label: string;
+  labelKey: "dashboard" | "cashier" | "products" | "customers" | "orders" | "paymentMethods" | "pos";
   icon: LucideIcon;
 }
 
 const navItems: NavItem[] = [
-  { href: "/admin", label: "Dashboard", icon: LayoutDashboardIcon },
-  { href: "/admin/cashier", label: "Cashier", icon: DollarSignIcon },
-  { href: "/admin/products", label: "Products", icon: PackageIcon },
-  { href: "/admin/customers", label: "Customers", icon: UsersIcon },
-  { href: "/admin/orders", label: "Orders", icon: ShoppingBagIcon },
-  { href: "/admin/payment-methods", label: "Payment Methods", icon: CreditCardIcon },
-  { href: "/admin/pos", label: "Point of Sale", icon: ShoppingCartIcon },
+  { href: "/admin", labelKey: "dashboard", icon: LayoutDashboardIcon },
+  { href: "/admin/cashier", labelKey: "cashier", icon: DollarSignIcon },
+  { href: "/admin/products", labelKey: "products", icon: PackageIcon },
+  { href: "/admin/customers", labelKey: "customers", icon: UsersIcon },
+  { href: "/admin/orders", labelKey: "orders", icon: ShoppingBagIcon },
+  { href: "/admin/payment-methods", labelKey: "paymentMethods", icon: CreditCardIcon },
+  { href: "/admin/pos", labelKey: "pos", icon: ShoppingCartIcon },
 ];
-
-const pageNames: Record<string, string> = Object.fromEntries(
-  navItems.map((item) => [item.href, item.label])
-);
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const t = useTranslations("nav");
+
+  const pageNames: Record<string, string> = Object.fromEntries(
+    navItems.map((item) => [item.href, t(item.labelKey)])
+  );
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-muted/40">
@@ -69,17 +72,18 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           onClick={() => setMobileMenuOpen(true)}
         >
           <MenuIcon className="h-5 w-5" />
-          <span className="sr-only">Open menu</span>
+          <span className="sr-only">{t("openMenu")}</span>
         </Button>
         <Link
           href="/admin"
           className="hidden sm:flex items-center gap-2 text-lg font-semibold"
         >
           <Package2Icon className="h-6 w-6" />
-          <span className="sr-only">Admin Panel</span>
+          <span className="sr-only">{t("adminPanel")}</span>
         </Link>
         <h1 className="text-lg sm:text-xl font-bold truncate">{pageNames[pathname]}</h1>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <LocaleSwitcher />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -97,12 +101,12 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel>My Account</DropdownMenuLabel>
+              <DropdownMenuLabel>{t("myAccount")}</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>Settings</DropdownMenuItem>
-              <DropdownMenuItem>Support</DropdownMenuItem>
+              <DropdownMenuItem>{t("settings")}</DropdownMenuItem>
+              <DropdownMenuItem>{t("support")}</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => logout()}>Logout</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => logout()}>{t("logout")}</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -133,7 +137,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                 <XIcon className="h-5 w-5" />
               </Button>
             </div>
-            {navItems.map(({ href, label, icon: Icon }) => (
+            {navItems.map(({ href, labelKey, icon: Icon }) => (
               <Link
                 key={href}
                 href={href}
@@ -145,7 +149,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                 }`}
               >
                 <Icon className="h-5 w-5 shrink-0" />
-                {label}
+                {t(labelKey)}
               </Link>
             ))}
           </nav>
@@ -156,7 +160,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
         <aside className="fixed mt-[56px] inset-y-0 left-0 z-10 hidden w-14 flex-col border-r bg-background sm:flex">
           <nav className="flex flex-col items-center gap-4 px-2 sm:py-5">
             <TooltipProvider>
-              {navItems.map(({ href, label, icon: Icon }) => (
+              {navItems.map(({ href, labelKey, icon: Icon }) => (
                 <Tooltip key={href}>
                   <TooltipTrigger asChild>
                     <Link
@@ -168,10 +172,10 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                       } transition-colors hover:text-foreground md:h-8 md:w-8`}
                     >
                       <Icon className="h-5 w-5" />
-                      <span className="sr-only">{label}</span>
+                      <span className="sr-only">{t(labelKey)}</span>
                     </Link>
                   </TooltipTrigger>
-                  <TooltipContent side="right">{label}</TooltipContent>
+                  <TooltipContent side="right">{t(labelKey)}</TooltipContent>
                 </Tooltip>
               ))}
             </TooltipProvider>

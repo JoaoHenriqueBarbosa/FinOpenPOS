@@ -19,69 +19,75 @@ import { useCrudMutation } from "@/hooks/use-crud-mutation";
 import { DataTable, TableActions, TableActionButton, type Column, type ExportColumn } from "@/components/ui/data-table";
 import { SearchFilter, type FilterOption } from "@/components/ui/search-filter";
 import type { RouterOutputs } from "@/lib/trpc/router";
+import { useTranslations, useLocale } from "next-intl";
+import { formatCurrency } from "@/lib/utils";
 
 type Order = RouterOutputs["orders"]["list"][number];
 type OrderStatus = "completed" | "pending" | "cancelled";
 
-const orderEditSchema = z.object({
-  total: z.string().min(1, "Total is required"),
-  status: z.enum(["completed", "pending", "cancelled"]),
-});
-
-const statusFilterOptions: FilterOption[] = [
-  { label: "All", value: "all" },
-  { label: "Completed", value: "completed", variant: "success" },
-  { label: "Pending", value: "pending", variant: "warning" },
-  { label: "Cancelled", value: "cancelled", variant: "danger" },
-];
-
-const tableColumns: Column<Order>[] = [
-  { key: "id", header: "Order ID", sortable: true },
-  {
-    key: "customer",
-    header: "Customer",
-    sortable: true,
-    accessorFn: (row) => row.customer?.name ?? "",
-    render: (row) => row.customer?.name ?? "",
-  },
-  {
-    key: "total_amount",
-    header: "Total",
-    sortable: true,
-    accessorFn: (row) => row.total_amount,
-    render: (row) => `$${(row.total_amount / 100).toFixed(2)}`,
-  },
-  {
-    key: "status",
-    header: "Status",
-    sortable: true,
-    render: (row) => {
-      const s = row.status ?? "pending";
-      const color = s === "completed" ? "text-green-600" : s === "cancelled" ? "text-red-600" : "text-yellow-600";
-      return <span className={color}>{s.charAt(0).toUpperCase() + s.slice(1)}</span>;
-    },
-  },
-  {
-    key: "created_at",
-    header: "Date",
-    sortable: true,
-    hideOnMobile: true,
-    accessorFn: (row) => row.created_at ? new Date(row.created_at).getTime() : 0,
-    render: (row) => row.created_at ? new Date(row.created_at).toLocaleDateString() : "",
-  },
-];
-
-const exportColumns: ExportColumn<Order>[] = [
-  { key: "id", header: "Order ID", getValue: (o) => o.id },
-  { key: "customer", header: "Customer", getValue: (o) => o.customer?.name ?? "" },
-  { key: "total", header: "Total", getValue: (o) => (o.total_amount / 100).toFixed(2) },
-  { key: "status", header: "Status", getValue: (o) => o.status ?? "pending" },
-  { key: "date", header: "Date", getValue: (o) => o.created_at ? new Date(o.created_at).toLocaleDateString() : "" },
-];
-
 export default function OrdersPage() {
   const trpc = useTRPC();
   const { data: orders = [], isLoading, error } = useQuery(trpc.orders.list.queryOptions());
+  const t = useTranslations("orders");
+  const tc = useTranslations("common");
+  const locale = useLocale();
+
+  const orderEditSchema = z.object({
+    total: z.string().min(1, t("totalRequired")),
+    status: z.enum(["completed", "pending", "cancelled"]),
+  });
+
+  const statusFilterOptions: FilterOption[] = [
+    { label: tc("all"), value: "all" },
+    { label: tc("completed"), value: "completed", variant: "success" },
+    { label: tc("pending"), value: "pending", variant: "warning" },
+    { label: tc("cancelled"), value: "cancelled", variant: "danger" },
+  ];
+
+  const tableColumns: Column<Order>[] = [
+    { key: "id", header: t("orderId"), sortable: true },
+    {
+      key: "customer",
+      header: t("customer"),
+      sortable: true,
+      accessorFn: (row) => row.customer?.name ?? "",
+      render: (row) => row.customer?.name ?? "",
+    },
+    {
+      key: "total_amount",
+      header: tc("total"),
+      sortable: true,
+      accessorFn: (row) => row.total_amount,
+      render: (row) => formatCurrency(row.total_amount, locale),
+    },
+    {
+      key: "status",
+      header: tc("status"),
+      sortable: true,
+      render: (row) => {
+        const s = row.status ?? "pending";
+        const color = s === "completed" ? "text-green-600" : s === "cancelled" ? "text-red-600" : "text-yellow-600";
+        const label = s === "completed" ? tc("completed") : s === "cancelled" ? tc("cancelled") : tc("pending");
+        return <span className={color}>{label}</span>;
+      },
+    },
+    {
+      key: "created_at",
+      header: tc("date"),
+      sortable: true,
+      hideOnMobile: true,
+      accessorFn: (row) => row.created_at ? new Date(row.created_at).getTime() : 0,
+      render: (row) => row.created_at ? new Date(row.created_at).toLocaleDateString() : "",
+    },
+  ];
+
+  const exportColumns: ExportColumn<Order>[] = [
+    { key: "id", header: t("orderId"), getValue: (o) => o.id },
+    { key: "customer", header: t("customer"), getValue: (o) => o.customer?.name ?? "" },
+    { key: "total", header: tc("total"), getValue: (o) => (o.total_amount / 100).toFixed(2) },
+    { key: "status", header: tc("status"), getValue: (o) => o.status ?? "pending" },
+    { key: "date", header: tc("date"), getValue: (o) => o.created_at ? new Date(o.created_at).toLocaleDateString() : "" },
+  ];
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -96,16 +102,16 @@ export default function OrdersPage() {
   const updateMutation = useCrudMutation({
     mutationOptions: trpc.orders.update.mutationOptions(),
     invalidateKeys,
-    successMessage: "Order updated",
-    errorMessage: "Failed to update order",
+    successMessage: t("updated"),
+    errorMessage: t("updateError"),
     onSuccess: () => setIsDialogOpen(false),
   });
 
   const deleteMutation = useCrudMutation({
     mutationOptions: trpc.orders.delete.mutationOptions(),
     invalidateKeys,
-    successMessage: "Order deleted",
-    errorMessage: "Failed to delete order",
+    successMessage: t("deleted"),
+    errorMessage: t("deleteError"),
   });
 
   const form = useForm({
@@ -151,13 +157,13 @@ export default function OrdersPage() {
 
   const actionsColumn: Column<Order> = {
     key: "actions",
-    header: "Actions",
+    header: tc("actions"),
     render: (row) => (
       <TableActions>
-        <TableActionButton onClick={() => openEdit(row)} icon={<FilePenIcon className="w-4 h-4" />} label="Edit" />
-        <TableActionButton variant="danger" onClick={() => { setDeleteId(row.id); setIsDeleteOpen(true); }} icon={<TrashIcon className="w-4 h-4" />} label="Delete" />
+        <TableActionButton onClick={() => openEdit(row)} icon={<FilePenIcon className="w-4 h-4" />} label={tc("edit")} />
+        <TableActionButton variant="danger" onClick={() => { setDeleteId(row.id); setIsDeleteOpen(true); }} icon={<TrashIcon className="w-4 h-4" />} label={tc("delete")} />
         <Link href={`/admin/orders/${row.id}`} prefetch={false} onClick={(e) => e.stopPropagation()}>
-          <Button size="icon" variant="ghost"><EyeIcon className="w-4 h-4" /><span className="sr-only">View</span></Button>
+          <Button size="icon" variant="ghost"><EyeIcon className="w-4 h-4" /><span className="sr-only">{tc("view")}</span></Button>
         </Link>
       </TableActions>
     ),
@@ -180,7 +186,7 @@ export default function OrdersPage() {
         <SearchFilter
           search={searchTerm}
           onSearchChange={setSearchTerm}
-          searchPlaceholder="Search orders..."
+          searchPlaceholder={t("searchPlaceholder")}
           filters={[{ options: statusFilterOptions, value: statusFilter, onChange: setStatusFilter }]}
         />
       </CardHeader>
@@ -190,7 +196,7 @@ export default function OrdersPage() {
           columns={[...tableColumns, actionsColumn]}
           exportColumns={exportColumns}
           exportFilename="orders"
-          emptyMessage="No orders found."
+          emptyMessage={t("noOrders")}
           emptyIcon={<ShoppingCartIcon className="w-8 h-8" />}
           defaultSort={[{ id: "created_at", desc: true }]}
         />
@@ -198,7 +204,7 @@ export default function OrdersPage() {
 
       <Dialog open={isDialogOpen} onOpenChange={(open) => { if (!open) setIsDialogOpen(false); }}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Edit Order</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t("editOrder")}</DialogTitle></DialogHeader>
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -208,13 +214,13 @@ export default function OrdersPage() {
           >
             <div className="grid gap-4 py-4">
               <div className="flex flex-col sm:grid sm:grid-cols-4 sm:items-center gap-2 sm:gap-4">
-                <Label htmlFor="customerName">Customer</Label>
+                <Label htmlFor="customerName">{t("customer")}</Label>
                 <Input id="customerName" value={editCustomerName} disabled className="col-span-3" />
               </div>
               <form.Field name="total">
                 {(field) => (
                   <div className="flex flex-col sm:grid sm:grid-cols-4 sm:items-center gap-2 sm:gap-4">
-                    <Label htmlFor="total">Total</Label>
+                    <Label htmlFor="total">{tc("total")}</Label>
                     <div className="col-span-3">
                       <Input id="total" type="number" value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} error={field.state.meta.errors.length > 0 ? field.state.meta.errors.map(e => e?.message ?? e).join(", ") : undefined} />
                     </div>
@@ -224,13 +230,13 @@ export default function OrdersPage() {
               <form.Field name="status">
                 {(field) => (
                   <div className="flex flex-col sm:grid sm:grid-cols-4 sm:items-center gap-2 sm:gap-4">
-                    <Label htmlFor="status">Status</Label>
+                    <Label htmlFor="status">{tc("status")}</Label>
                     <Select value={field.state.value} onValueChange={(value) => field.handleChange(value as OrderStatus)}>
-                      <SelectTrigger id="status" className="col-span-3"><SelectValue placeholder="Select status" /></SelectTrigger>
+                      <SelectTrigger id="status" className="col-span-3"><SelectValue placeholder={t("selectStatus")} /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="completed">Completed</SelectItem>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="cancelled">Cancelled</SelectItem>
+                        <SelectItem value="completed">{tc("completed")}</SelectItem>
+                        <SelectItem value="pending">{tc("pending")}</SelectItem>
+                        <SelectItem value="cancelled">{tc("cancelled")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -238,14 +244,14 @@ export default function OrdersPage() {
               </form.Field>
             </div>
             <DialogFooter>
-              <Button variant="secondary" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={updateMutation.isPending}>Update Order</Button>
+              <Button variant="secondary" onClick={() => setIsDialogOpen(false)}>{tc("cancel")}</Button>
+              <Button type="submit" disabled={updateMutation.isPending}>{t("updateOrder")}</Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      <DeleteConfirmationDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen} onConfirm={handleDelete} description="Are you sure you want to delete this order? This action cannot be undone." />
+      <DeleteConfirmationDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen} onConfirm={handleDelete} description={t("deleteMessage")} />
     </Card>
   );
 }
