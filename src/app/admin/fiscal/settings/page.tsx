@@ -17,6 +17,23 @@ import { useTRPC } from "@/lib/trpc/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 
+const STATE_OPTIONS = [
+  { id: "AC", name: "AC - Acre" }, { id: "AL", name: "AL - Alagoas" },
+  { id: "AM", name: "AM - Amazonas" }, { id: "AP", name: "AP - Amapá" },
+  { id: "BA", name: "BA - Bahia" }, { id: "CE", name: "CE - Ceará" },
+  { id: "DF", name: "DF - Distrito Federal" }, { id: "ES", name: "ES - Espírito Santo" },
+  { id: "GO", name: "GO - Goiás" }, { id: "MA", name: "MA - Maranhão" },
+  { id: "MG", name: "MG - Minas Gerais" }, { id: "MS", name: "MS - Mato Grosso do Sul" },
+  { id: "MT", name: "MT - Mato Grosso" }, { id: "PA", name: "PA - Pará" },
+  { id: "PB", name: "PB - Paraíba" }, { id: "PE", name: "PE - Pernambuco" },
+  { id: "PI", name: "PI - Piauí" }, { id: "PR", name: "PR - Paraná" },
+  { id: "RJ", name: "RJ - Rio de Janeiro" }, { id: "RN", name: "RN - Rio Grande do Norte" },
+  { id: "RO", name: "RO - Rondônia" }, { id: "RR", name: "RR - Roraima" },
+  { id: "RS", name: "RS - Rio Grande do Sul" }, { id: "SC", name: "SC - Santa Catarina" },
+  { id: "SE", name: "SE - Sergipe" }, { id: "SP", name: "SP - São Paulo" },
+  { id: "TO", name: "TO - Tocantins" },
+];
+
 export default function FiscalSettingsPage() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -249,57 +266,47 @@ export default function FiscalSettingsPage() {
                 </div>
               )}
             </form.Field>
-            <div className="space-y-2">
-              <Label>{t("stateCode")}</Label>
-              <Combobox
-                items={[
-                  { id: "AC", name: "AC - Acre" }, { id: "AL", name: "AL - Alagoas" },
-                  { id: "AM", name: "AM - Amazonas" }, { id: "AP", name: "AP - Amapá" },
-                  { id: "BA", name: "BA - Bahia" }, { id: "CE", name: "CE - Ceará" },
-                  { id: "DF", name: "DF - Distrito Federal" }, { id: "ES", name: "ES - Espírito Santo" },
-                  { id: "GO", name: "GO - Goiás" }, { id: "MA", name: "MA - Maranhão" },
-                  { id: "MG", name: "MG - Minas Gerais" }, { id: "MS", name: "MS - Mato Grosso do Sul" },
-                  { id: "MT", name: "MT - Mato Grosso" }, { id: "PA", name: "PA - Pará" },
-                  { id: "PB", name: "PB - Paraíba" }, { id: "PE", name: "PE - Pernambuco" },
-                  { id: "PI", name: "PI - Piauí" }, { id: "PR", name: "PR - Paraná" },
-                  { id: "RJ", name: "RJ - Rio de Janeiro" }, { id: "RN", name: "RN - Rio Grande do Norte" },
-                  { id: "RO", name: "RO - Rondônia" }, { id: "RR", name: "RR - Roraima" },
-                  { id: "RS", name: "RS - Rio Grande do Sul" }, { id: "SC", name: "SC - Santa Catarina" },
-                  { id: "SE", name: "SE - Sergipe" }, { id: "SP", name: "SP - São Paulo" },
-                  { id: "TO", name: "TO - Tocantins" },
-                ]}
-                placeholder={t("stateCode")}
-                onSelect={(id) => {
-                  const uf = String(id);
-                  form.setFieldValue("state_code", uf);
-                  setSelectedState(uf);
-                  form.setFieldValue("city_code", "");
-                  form.setFieldValue("city_name", "");
-                }}
-              />
-              {form.getFieldValue("state_code") && (
-                <p className="text-xs text-muted-foreground">{form.getFieldValue("state_code")}</p>
+            <form.Field name="state_code">
+              {(field) => {
+                const stateItem = STATE_OPTIONS.find((s) => s.id === field.state.value);
+                return (
+                  <div className="space-y-2">
+                    <Label>{t("stateCode")}</Label>
+                    <Combobox
+                      items={STATE_OPTIONS}
+                      placeholder={t("stateCode")}
+                      value={stateItem?.name}
+                      onSelect={(id) => {
+                        const uf = String(id);
+                        field.handleChange(uf);
+                        setSelectedState(uf);
+                        form.setFieldValue("city_code", "");
+                        form.setFieldValue("city_name", "");
+                      }}
+                    />
+                  </div>
+                );
+              }}
+            </form.Field>
+            <form.Field name="city_name">
+              {(field) => (
+                <div className="space-y-2">
+                  <Label>{t("cityName")}</Label>
+                  <Combobox
+                    items={citiesData.map((c) => ({ id: c.id, name: c.name }))}
+                    placeholder={t("cityName")}
+                    value={field.state.value || undefined}
+                    onSelect={(id) => {
+                      const city = citiesData.find((c) => c.id === id);
+                      if (city) {
+                        form.setFieldValue("city_code", String(city.id));
+                        field.handleChange(city.name);
+                      }
+                    }}
+                  />
+                </div>
               )}
-            </div>
-            <div className="space-y-2">
-              <Label>{t("cityName")}</Label>
-              <Combobox
-                items={citiesData.map((c) => ({ id: c.id, name: c.name }))}
-                placeholder={t("cityName")}
-                onSelect={(id) => {
-                  const city = citiesData.find((c) => c.id === id);
-                  if (city) {
-                    form.setFieldValue("city_code", String(city.id));
-                    form.setFieldValue("city_name", city.name);
-                  }
-                }}
-              />
-              {form.getFieldValue("city_name") && (
-                <p className="text-xs text-muted-foreground">
-                  {form.getFieldValue("city_name")} ({form.getFieldValue("city_code")})
-                </p>
-              )}
-            </div>
+            </form.Field>
           </div>
           <div className="grid gap-4 sm:grid-cols-4">
             <form.Field name="street">
