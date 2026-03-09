@@ -1488,12 +1488,12 @@ describe("tagICMSST — ported from test_tagICMSST", () => {
 describe("tagICMSSN — ported from test_tagICMSSN_*", () => {
   it("test_tagICMSSN_101 — ICMSSN101 with credit", () => {
     // PHP: orig=0, CSOSN=101, pCredSN=3, vCredICMSSN=4
-    // pCredSN=3 → fc(300,2)="3.00", vCredICMSSN=4 → fc(400)="4.00"
+    // pCredSN=3 → fc(300,4)="3.0000" (TDec_0302a04: 2-4dp), vCredICMSSN=4 → fc(400)="4.00"
     const { xml } = buildIcmsXml({
       taxRegime: 1,
       orig: "0",
       CSOSN: "101",
-      pCredSN: 300,         // "3.00"
+      pCredSN: 300,         // "3.0000"
       vCredICMSSN: 400,     // "4.00"
     });
 
@@ -1502,7 +1502,7 @@ describe("tagICMSSN — ported from test_tagICMSSN_*", () => {
     expectXmlContains(xml, {
       orig: "0",
       CSOSN: "101",
-      pCredSN: "3.00",
+      pCredSN: "3.0000",
       vCredICMSSN: "4.00",
     });
   });

@@ -599,7 +599,7 @@ function calcCst51(d: IcmsData, t: IcmsTotals): CstResult {
     optionalField("vBCFCP", formatCentsOrNull(d.vBCFCP)),
     optionalField("pFCP", formatCentsOrNull(d.pFCP, 4)),
     optionalField("vFCP", formatCentsOrNull(d.vFCP)),
-    optionalField("pFCPDif", formatCentsOrNull(d.pFCPDif)),
+    optionalField("pFCPDif", formatCentsOrNull(d.pFCPDif, 4)),
     optionalField("vFCPDif", formatCentsOrNull(d.vFCPDif)),
     optionalField("vFCPEfet", formatCentsOrNull(d.vFCPEfet)),
   ]) };
@@ -704,7 +704,7 @@ function calcCst90(d: IcmsData, t: IcmsTotals): CstResult {
     optionalField("cBenefRBC", d.cBenefRBC),
     optionalField("pICMS", formatCentsOrNull(d.pICMS, 4)),
     optionalField("vICMSOp", formatCentsOrNull(d.vICMSOp)),
-    optionalField("pDif", formatCentsOrNull(d.pDif)),
+    optionalField("pDif", formatCentsOrNull(d.pDif, 4)),
     optionalField("vICMSDif", formatCentsOrNull(d.vICMSDif)),
     optionalField("vICMS", formatCentsOrNull(d.vICMS)),
     ...fcpFields(d),
@@ -758,7 +758,7 @@ function calcCsosn101(d: IcmsData, _t: IcmsTotals): CstResult {
   return { variantTag: "ICMSSN101", fields: filterFields([
     requiredField("orig", d.orig),
     requiredField("CSOSN", d.CSOSN),
-    requiredField("pCredSN", formatCentsOrNull(d.pCredSN, 2)),
+    requiredField("pCredSN", formatCentsOrNull(d.pCredSN, 4)),
     requiredField("vCredICMSSN", formatCentsOrNull(d.vCredICMSSN)),
   ]) };
 }
