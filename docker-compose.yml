@@ -7,7 +7,7 @@ services:
         - NEXT_PUBLIC_DOCS_URL=https://fin-open-pos.johnenrique.tech/docs
         - NEXT_PUBLIC_API_DOCS_URL=https://fin-open-pos.johnenrique.tech/app/api/docs
     ports:
-      - "80:80"
+      - "3111:3111"
     environment:
       - NODE_ENV=production
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-dev-secret-key-change-in-production}
