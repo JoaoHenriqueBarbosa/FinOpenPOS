@@ -96,7 +96,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                 className="overflow-hidden rounded-full shrink-0"
               >
                 <Image
-                  src="/placeholder-user.jpg"
+                  src={`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/placeholder-user.jpg`}
                   width={36}
                   height={36}
                   alt="Avatar"

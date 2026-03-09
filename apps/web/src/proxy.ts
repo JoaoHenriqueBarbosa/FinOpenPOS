@@ -5,12 +5,19 @@ export async function proxy(request: NextRequest) {
   const sessionCookie = getSessionCookie(request);
   const { pathname } = request.nextUrl;
 
+  // Redirect root to landing page if not using basePath (direct access)
+  if (pathname === "/" && process.env.BASE_URL && process.env.BASE_URL !== "http://localhost" && !process.env.BASE_PATH) {
+    return NextResponse.redirect(process.env.BASE_URL);
+  }
+
   if (
     !sessionCookie &&
     !pathname.startsWith("/login") &&
     !pathname.startsWith("/signup") &&
     !pathname.startsWith("/auth") &&
-    !pathname.startsWith("/api/auth")
+    !pathname.startsWith("/api/auth") &&
+    !pathname.startsWith("/api/docs") &&
+    !pathname.startsWith("/api/openapi.json")
   ) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";

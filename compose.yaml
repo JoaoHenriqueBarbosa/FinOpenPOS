@@ -3,7 +3,8 @@ services:
     build: .
     environment:
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
-      - BETTER_AUTH_URL=${BETTER_AUTH_URL}
+      - BASE_URL=${BASE_URL:-http://localhost}
+      - NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL:-http://localhost}
       - PORT=3111
     ports:
       - "3111:3111"
