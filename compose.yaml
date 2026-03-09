@@ -8,7 +8,7 @@ services:
     ports:
       - "3111:3111"
     volumes:
-      - pglite_data:/app/data/pglite
+      - pglite_data:/app/apps/web/data/pglite
     restart: unless-stopped
 
 volumes:

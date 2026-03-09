@@ -1,0 +1,24 @@
+{
+  "name": "@finopenpos/auth",
+  "type": "module",
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./*": {
+      "default": "./src/*.ts"
+    }
+  },
+  "scripts": {},
+  "dependencies": {
+    "@finopenpos/db": "workspace:*",
+    "@finopenpos/env": "workspace:*",
+    "better-auth": "catalog:",
+    "dotenv": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@finopenpos/config": "workspace:*",
+    "typescript": "^5"
+  }
+}

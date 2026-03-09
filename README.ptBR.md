@@ -442,72 +442,11 @@ erDiagram
         timestamp created_at
     }
 
-    fiscal_settings {
-        serial id PK
-        varchar user_uid UK
-        varchar company_name
-        varchar tax_id
-        varchar state_code
-        integer environment
-        bytea certificate_pfx
-        varchar csc_id
-        varchar csc_token
-        integer next_nfe_number
-        integer next_nfce_number
-    }
-
-    invoices {
-        serial id PK
-        integer order_id FK
-        integer model
-        integer series
-        integer number
-        varchar access_key
-        varchar status
-        text request_xml
-        text protocol_xml
-        integer total_amount
-        varchar user_uid
-        timestamp authorized_at
-    }
-
-    invoice_items {
-        serial id PK
-        integer invoice_id FK
-        integer product_id FK
-        integer item_number
-        varchar ncm
-        varchar cfop
-        integer quantity
-        integer unit_price
-        integer total_price
-    }
-
-    invoice_events {
-        serial id PK
-        integer invoice_id FK
-        varchar event_type
-        integer status_code
-        text reason
-        text request_xml
-        timestamp created_at
-    }
-
-    cities {
-        integer id PK
-        varchar name
-        varchar state_code
-    }
-
-    customers |o--o{ orders : "tem"
-    orders |o--o{ order_items : "contem"
-    products |o--o{ order_items : "referencia"
-    orders |o--o{ transactions : "gera"
-    payment_methods |o--o{ transactions : "usa"
-    orders |o--o{ invoices : "gera"
-    invoices |o--o{ invoice_items : "contem"
-    invoices |o--o{ invoice_events : "registra"
-    products |o--o{ invoice_items : "referencia"
+    customers |o--o{ orders : "has"
+    orders |o--o{ order_items : "contains"
+    products |o--o{ order_items : "references"
+    orders |o--o{ transactions : "generates"
+    payment_methods |o--o{ transactions : "uses"
 ```
 
 <!-- ER_END -->
