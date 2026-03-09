@@ -20,23 +20,14 @@
  */
 
 import { formatCentsOrNull } from "./format-utils";
-import { tag } from "./xml-builder";
-
-// ── Formatting helpers ──────────────────────────────────────────────────────
-
-/** Conditionally emit an XML tag only when `value` is not null/undefined. */
-function optionalTag(name: string, value: string | null | undefined): string | null {
-  if (value === null || value === undefined) return null;
-  return tag(name, {}, value);
-}
-
-/** Emit an XML tag; throws if value is null (for required fields). */
-function requiredTag(name: string, value: string | null | undefined): string {
-  if (value === null || value === undefined) {
-    throw new Error(`Required ICMS field "${name}" is missing`);
-  }
-  return tag(name, {}, value);
-}
+import {
+  type TaxElement,
+  type TaxField,
+  optionalField,
+  requiredField,
+  filterFields,
+  serializeTaxElement,
+} from "./tax-element";
 
 /** Accumulate a value into a totals field (in cents). */
 function accum(current: number, value: number | undefined | null): number {
@@ -221,22 +212,38 @@ export function createIcmsTotals(): IcmsTotals {
  * Returns the XML string (the `<ICMS>` element) and accumulated totals.
  * Callers should merge totals across items using `mergeIcmsTotals()`.
  */
-export function buildIcmsXml(data: IcmsData): { xml: string; totals: IcmsTotals } {
+/**
+ * Calculate ICMS for a single item (domain logic, no XML dependency).
+ * Returns structured TaxElement + accumulated totals.
+ */
+export function calculateIcms(data: IcmsData): { element: TaxElement; totals: IcmsTotals } {
   const totals = createIcmsTotals();
 
   if (data.taxRegime === 1 || data.taxRegime === 2) {
-    // Simples Nacional — use CSOSN
     const csosn = data.CSOSN;
     if (!csosn) throw new Error("CSOSN is required for Simples Nacional tax regime");
-    const inner = buildCsosn(data, totals);
-    return { xml: tag("ICMS", {}, [inner]), totals };
+    const inner = calculateCsosn(data, totals);
+    return {
+      element: { outerTag: "ICMS", outerFields: [], variantTag: inner.variantTag, fields: inner.fields },
+      totals,
+    };
   }
 
-  // Regime Normal — use CST
   const cst = data.CST;
   if (!cst) throw new Error("CST is required for Normal tax regime");
-  const inner = buildCst(data, totals);
-  return { xml: tag("ICMS", {}, [inner]), totals };
+  const inner = calculateCst(data, totals);
+  return {
+    element: { outerTag: "ICMS", outerFields: [], variantTag: inner.variantTag, fields: inner.fields },
+    totals,
+  };
+}
+
+/**
+ * Build ICMS XML string (backward-compatible wrapper).
+ */
+export function buildIcmsXml(data: IcmsData): { xml: string; totals: IcmsTotals } {
+  const { element, totals } = calculateIcms(data);
+  return { xml: serializeTaxElement(element), totals };
 }
 
 /**
@@ -250,32 +257,32 @@ export function buildIcmsPartXml(data: IcmsData): { xml: string; totals: IcmsTot
   totals.vBCST = accum(totals.vBCST, data.vBCST);
   totals.vST = accum(totals.vST, data.vICMSST);
 
-  const children = filterNulls([
-    requiredTag("orig", data.orig),
-    requiredTag("CST", data.CST),
-    requiredTag("modBC", data.modBC),
-    requiredTag("vBC", formatCentsOrNull(data.vBC)),
-    optionalTag("pRedBC", formatCentsOrNull(data.pRedBC, 4)),
-    requiredTag("pICMS", formatCentsOrNull(data.pICMS, 4)),
-    requiredTag("vICMS", formatCentsOrNull(data.vICMS)),
-    requiredTag("modBCST", data.modBCST),
-    optionalTag("pMVAST", formatCentsOrNull(data.pMVAST, 4)),
-    optionalTag("pRedBCST", formatCentsOrNull(data.pRedBCST, 4)),
-    requiredTag("vBCST", formatCentsOrNull(data.vBCST)),
-    requiredTag("pICMSST", formatCentsOrNull(data.pICMSST, 4)),
-    requiredTag("vICMSST", formatCentsOrNull(data.vICMSST)),
-    optionalTag("vBCFCPST", formatCentsOrNull(data.vBCFCPST)),
-    optionalTag("pFCPST", formatCentsOrNull(data.pFCPST, 4)),
-    optionalTag("vFCPST", formatCentsOrNull(data.vFCPST)),
-    requiredTag("pBCOp", formatCentsOrNull(data.pBCOp, 4)),
-    requiredTag("UFST", data.UFST),
-    optionalTag("vICMSDeson", formatCentsOrNull(data.vICMSDeson)),
-    optionalTag("motDesICMS", data.motDesICMS),
-    optionalTag("indDeduzDeson", data.indDeduzDeson),
+  const fields = filterFields([
+    requiredField("orig", data.orig),
+    requiredField("CST", data.CST),
+    requiredField("modBC", data.modBC),
+    requiredField("vBC", formatCentsOrNull(data.vBC)),
+    optionalField("pRedBC", formatCentsOrNull(data.pRedBC, 4)),
+    requiredField("pICMS", formatCentsOrNull(data.pICMS, 4)),
+    requiredField("vICMS", formatCentsOrNull(data.vICMS)),
+    requiredField("modBCST", data.modBCST),
+    optionalField("pMVAST", formatCentsOrNull(data.pMVAST, 4)),
+    optionalField("pRedBCST", formatCentsOrNull(data.pRedBCST, 4)),
+    requiredField("vBCST", formatCentsOrNull(data.vBCST)),
+    requiredField("pICMSST", formatCentsOrNull(data.pICMSST, 4)),
+    requiredField("vICMSST", formatCentsOrNull(data.vICMSST)),
+    optionalField("vBCFCPST", formatCentsOrNull(data.vBCFCPST)),
+    optionalField("pFCPST", formatCentsOrNull(data.pFCPST, 4)),
+    optionalField("vFCPST", formatCentsOrNull(data.vFCPST)),
+    requiredField("pBCOp", formatCentsOrNull(data.pBCOp, 4)),
+    requiredField("UFST", data.UFST),
+    optionalField("vICMSDeson", formatCentsOrNull(data.vICMSDeson)),
+    optionalField("motDesICMS", data.motDesICMS),
+    optionalField("indDeduzDeson", data.indDeduzDeson),
   ]);
 
-  const inner = tag("ICMSPart", {}, children);
-  return { xml: tag("ICMS", {}, [inner]), totals };
+  const element: TaxElement = { outerTag: "ICMS", outerFields: [], variantTag: "ICMSPart", fields };
+  return { xml: serializeTaxElement(element), totals };
 }
 
 /**
@@ -286,26 +293,26 @@ export function buildIcmsStXml(data: IcmsData): { xml: string; totals: IcmsTotal
   const totals = createIcmsTotals();
   totals.vFCPSTRet = accum(totals.vFCPSTRet, data.vFCPSTRet);
 
-  const children = filterNulls([
-    requiredTag("orig", data.orig),
-    requiredTag("CST", data.CST),
-    requiredTag("vBCSTRet", formatCentsOrNull(data.vBCSTRet)),
-    optionalTag("pST", formatCentsOrNull(data.pST, 4)),
-    optionalTag("vICMSSubstituto", formatCentsOrNull(data.vICMSSubstituto)),
-    requiredTag("vICMSSTRet", formatCentsOrNull(data.vICMSSTRet)),
-    optionalTag("vBCFCPSTRet", formatCentsOrNull(data.vBCFCPSTRet)),
-    optionalTag("pFCPSTRet", formatCentsOrNull(data.pFCPSTRet, 4)),
-    optionalTag("vFCPSTRet", formatCentsOrNull(data.vFCPSTRet)),
-    requiredTag("vBCSTDest", formatCentsOrNull(data.vBCSTDest)),
-    requiredTag("vICMSSTDest", formatCentsOrNull(data.vICMSSTDest)),
-    optionalTag("pRedBCEfet", formatCentsOrNull(data.pRedBCEfet, 4)),
-    optionalTag("vBCEfet", formatCentsOrNull(data.vBCEfet)),
-    optionalTag("pICMSEfet", formatCentsOrNull(data.pICMSEfet, 4)),
-    optionalTag("vICMSEfet", formatCentsOrNull(data.vICMSEfet)),
+  const fields = filterFields([
+    requiredField("orig", data.orig),
+    requiredField("CST", data.CST),
+    requiredField("vBCSTRet", formatCentsOrNull(data.vBCSTRet)),
+    optionalField("pST", formatCentsOrNull(data.pST, 4)),
+    optionalField("vICMSSubstituto", formatCentsOrNull(data.vICMSSubstituto)),
+    requiredField("vICMSSTRet", formatCentsOrNull(data.vICMSSTRet)),
+    optionalField("vBCFCPSTRet", formatCentsOrNull(data.vBCFCPSTRet)),
+    optionalField("pFCPSTRet", formatCentsOrNull(data.pFCPSTRet, 4)),
+    optionalField("vFCPSTRet", formatCentsOrNull(data.vFCPSTRet)),
+    requiredField("vBCSTDest", formatCentsOrNull(data.vBCSTDest)),
+    requiredField("vICMSSTDest", formatCentsOrNull(data.vICMSSTDest)),
+    optionalField("pRedBCEfet", formatCentsOrNull(data.pRedBCEfet, 4)),
+    optionalField("vBCEfet", formatCentsOrNull(data.vBCEfet)),
+    optionalField("pICMSEfet", formatCentsOrNull(data.pICMSEfet, 4)),
+    optionalField("vICMSEfet", formatCentsOrNull(data.vICMSEfet)),
   ]);
 
-  const inner = tag("ICMSST", {}, children);
-  return { xml: tag("ICMS", {}, [inner]), totals };
+  const element: TaxElement = { outerTag: "ICMS", outerFields: [], variantTag: "ICMSST", fields };
+  return { xml: serializeTaxElement(element), totals };
 }
 
 /**
@@ -318,19 +325,20 @@ export function buildIcmsUfDestXml(data: IcmsData): { xml: string; totals: IcmsT
   totals.vFCPUFDest = accum(totals.vFCPUFDest, data.vFCPUFDest);
   totals.vICMSUFRemet = accum(totals.vICMSUFRemet, data.vICMSUFRemet);
 
-  const children = filterNulls([
-    requiredTag("vBCUFDest", formatCentsOrNull(data.vBCUFDest)),
-    optionalTag("vBCFCPUFDest", formatCentsOrNull(data.vBCFCPUFDest)),
-    optionalTag("pFCPUFDest", formatCentsOrNull(data.pFCPUFDest, 4)),
-    requiredTag("pICMSUFDest", formatCentsOrNull(data.pICMSUFDest, 4)),
-    requiredTag("pICMSInter", formatCentsOrNull(data.pICMSInter, 2)),
-    requiredTag("pICMSInterPart", "100.0000"),
-    optionalTag("vFCPUFDest", formatCentsOrNull(data.vFCPUFDest)),
-    requiredTag("vICMSUFDest", formatCentsOrNull(data.vICMSUFDest)),
-    requiredTag("vICMSUFRemet", formatCentsOrNull(data.vICMSUFRemet ?? 0)),
+  const fields = filterFields([
+    requiredField("vBCUFDest", formatCentsOrNull(data.vBCUFDest)),
+    optionalField("vBCFCPUFDest", formatCentsOrNull(data.vBCFCPUFDest)),
+    optionalField("pFCPUFDest", formatCentsOrNull(data.pFCPUFDest, 4)),
+    requiredField("pICMSUFDest", formatCentsOrNull(data.pICMSUFDest, 4)),
+    requiredField("pICMSInter", formatCentsOrNull(data.pICMSInter, 2)),
+    requiredField("pICMSInterPart", "100.0000"),
+    optionalField("vFCPUFDest", formatCentsOrNull(data.vFCPUFDest)),
+    requiredField("vICMSUFDest", formatCentsOrNull(data.vICMSUFDest)),
+    requiredField("vICMSUFRemet", formatCentsOrNull(data.vICMSUFRemet ?? 0)),
   ]);
 
-  return { xml: tag("ICMSUFDest", {}, children), totals };
+  const element: TaxElement = { outerTag: null, outerFields: [], variantTag: "ICMSUFDest", fields };
+  return { xml: serializeTaxElement(element), totals };
 }
 
 /**
@@ -358,75 +366,80 @@ export function mergeIcmsTotals(target: IcmsTotals, source: IcmsTotals): void {
 
 // ── CST builders (regime Normal) ────────────────────────────────────────────
 
-function buildCst(data: IcmsData, totals: IcmsTotals): string {
+interface CstResult {
+  variantTag: string;
+  fields: TaxField[];
+}
+
+function calculateCst(data: IcmsData, totals: IcmsTotals): CstResult {
   switch (data.CST) {
     case "00":
-      return buildCst00(data, totals);
+      return calcCst00(data, totals);
     case "02":
-      return buildCst02(data, totals);
+      return calcCst02(data, totals);
     case "10":
-      return buildCst10(data, totals);
+      return calcCst10(data, totals);
     case "15":
-      return buildCst15(data, totals);
+      return calcCst15(data, totals);
     case "20":
-      return buildCst20(data, totals);
+      return calcCst20(data, totals);
     case "30":
-      return buildCst30(data, totals);
+      return calcCst30(data, totals);
     case "40":
     case "41":
     case "50":
-      return buildCst40(data, totals);
+      return calcCst40(data, totals);
     case "51":
-      return buildCst51(data, totals);
+      return calcCst51(data, totals);
     case "53":
-      return buildCst53(data, totals);
+      return calcCst53(data, totals);
     case "60":
-      return buildCst60(data, totals);
+      return calcCst60(data, totals);
     case "61":
-      return buildCst61(data, totals);
+      return calcCst61(data, totals);
     case "70":
-      return buildCst70(data, totals);
+      return calcCst70(data, totals);
     case "90":
-      return buildCst90(data, totals);
+      return calcCst90(data, totals);
     default:
       throw new Error(`Unsupported ICMS CST: ${data.CST}`);
   }
 }
 
 /** CST 00 — Tributada integralmente */
-function buildCst00(d: IcmsData, t: IcmsTotals): string {
+function calcCst00(d: IcmsData, t: IcmsTotals): CstResult {
   t.vBC = accum(t.vBC, d.vBC);
   t.vICMS = accum(t.vICMS, d.vICMS);
   t.vFCP = accum(t.vFCP, d.vFCP);
 
-  return tag("ICMS00", {}, filterNulls([
-    requiredTag("orig", d.orig),
-    requiredTag("CST", d.CST),
-    requiredTag("modBC", d.modBC),
-    requiredTag("vBC", formatCentsOrNull(d.vBC)),
-    requiredTag("pICMS", formatCentsOrNull(d.pICMS, 4)),
-    requiredTag("vICMS", formatCentsOrNull(d.vICMS)),
-    optionalTag("pFCP", formatCentsOrNull(d.pFCP, 4)),
-    optionalTag("vFCP", formatCentsOrNull(d.vFCP)),
-  ]));
+  return { variantTag: "ICMS00", fields: filterFields([
+    requiredField("orig", d.orig),
+    requiredField("CST", d.CST),
+    requiredField("modBC", d.modBC),
+    requiredField("vBC", formatCentsOrNull(d.vBC)),
+    requiredField("pICMS", formatCentsOrNull(d.pICMS, 4)),
+    requiredField("vICMS", formatCentsOrNull(d.vICMS)),
+    optionalField("pFCP", formatCentsOrNull(d.pFCP, 4)),
+    optionalField("vFCP", formatCentsOrNull(d.vFCP)),
+  ]) };
 }
 
 /** CST 02 — Tributacao monofasica propria sobre combustiveis */
-function buildCst02(d: IcmsData, t: IcmsTotals): string {
+function calcCst02(d: IcmsData, t: IcmsTotals): CstResult {
   t.qBCMono = accum(t.qBCMono, d.qBCMono);
   t.vICMSMono = accum(t.vICMSMono, d.vICMSMono);
 
-  return tag("ICMS02", {}, filterNulls([
-    requiredTag("orig", d.orig),
-    requiredTag("CST", d.CST),
-    optionalTag("qBCMono", formatCentsOrNull(d.qBCMono, 4)),
-    requiredTag("adRemICMS", formatCentsOrNull(d.adRemICMS, 4)),
-    requiredTag("vICMSMono", formatCentsOrNull(d.vICMSMono)),
-  ]));
+  return { variantTag: "ICMS02", fields: filterFields([
+    requiredField("orig", d.orig),
+    requiredField("CST", d.CST),
+    optionalField("qBCMono", formatCentsOrNull(d.qBCMono, 4)),
+    requiredField("adRemICMS", formatCentsOrNull(d.adRemICMS, 4)),
+    requiredField("vICMSMono", formatCentsOrNull(d.vICMSMono)),
+  ]) };
 }
 
 /** CST 10 — Tributada e com cobranca do ICMS por ST */
-function buildCst10(d: IcmsData, t: IcmsTotals): string {
+function calcCst10(d: IcmsData, t: IcmsTotals): CstResult {
   t.vBC = accum(t.vBC, d.vBC);
   t.vICMS = accum(t.vICMS, d.vICMS);
   t.vBCST = accum(t.vBCST, d.vBCST);
@@ -434,201 +447,201 @@ function buildCst10(d: IcmsData, t: IcmsTotals): string {
   t.vFCPST = accum(t.vFCPST, d.vFCPST);
   t.vFCP = accum(t.vFCP, d.vFCP);
 
-  return tag("ICMS10", {}, filterNulls([
-    requiredTag("orig", d.orig),
-    requiredTag("CST", d.CST),
-    requiredTag("modBC", d.modBC),
-    requiredTag("vBC", formatCentsOrNull(d.vBC)),
-    requiredTag("pICMS", formatCentsOrNull(d.pICMS, 4)),
-    requiredTag("vICMS", formatCentsOrNull(d.vICMS)),
-    optionalTag("vBCFCP", formatCentsOrNull(d.vBCFCP)),
-    optionalTag("pFCP", formatCentsOrNull(d.pFCP, 4)),
-    optionalTag("vFCP", formatCentsOrNull(d.vFCP)),
-    requiredTag("modBCST", d.modBCST),
-    optionalTag("pMVAST", formatCentsOrNull(d.pMVAST, 4)),
-    optionalTag("pRedBCST", formatCentsOrNull(d.pRedBCST, 4)),
-    requiredTag("vBCST", formatCentsOrNull(d.vBCST)),
-    requiredTag("pICMSST", formatCentsOrNull(d.pICMSST, 4)),
-    requiredTag("vICMSST", formatCentsOrNull(d.vICMSST)),
-    optionalTag("vBCFCPST", formatCentsOrNull(d.vBCFCPST)),
-    optionalTag("pFCPST", formatCentsOrNull(d.pFCPST, 4)),
-    optionalTag("vFCPST", formatCentsOrNull(d.vFCPST)),
-    optionalTag("vICMSSTDeson", formatCentsOrNull(d.vICMSSTDeson)),
-    optionalTag("motDesICMSST", d.motDesICMSST),
-  ]));
+  return { variantTag: "ICMS10", fields: filterFields([
+    requiredField("orig", d.orig),
+    requiredField("CST", d.CST),
+    requiredField("modBC", d.modBC),
+    requiredField("vBC", formatCentsOrNull(d.vBC)),
+    requiredField("pICMS", formatCentsOrNull(d.pICMS, 4)),
+    requiredField("vICMS", formatCentsOrNull(d.vICMS)),
+    optionalField("vBCFCP", formatCentsOrNull(d.vBCFCP)),
+    optionalField("pFCP", formatCentsOrNull(d.pFCP, 4)),
+    optionalField("vFCP", formatCentsOrNull(d.vFCP)),
+    requiredField("modBCST", d.modBCST),
+    optionalField("pMVAST", formatCentsOrNull(d.pMVAST, 4)),
+    optionalField("pRedBCST", formatCentsOrNull(d.pRedBCST, 4)),
+    requiredField("vBCST", formatCentsOrNull(d.vBCST)),
+    requiredField("pICMSST", formatCentsOrNull(d.pICMSST, 4)),
+    requiredField("vICMSST", formatCentsOrNull(d.vICMSST)),
+    optionalField("vBCFCPST", formatCentsOrNull(d.vBCFCPST)),
+    optionalField("pFCPST", formatCentsOrNull(d.pFCPST, 4)),
+    optionalField("vFCPST", formatCentsOrNull(d.vFCPST)),
+    optionalField("vICMSSTDeson", formatCentsOrNull(d.vICMSSTDeson)),
+    optionalField("motDesICMSST", d.motDesICMSST),
+  ]) };
 }
 
 /** CST 15 — Tributacao monofasica propria e com responsabilidade pela retencao sobre combustiveis */
-function buildCst15(d: IcmsData, t: IcmsTotals): string {
+function calcCst15(d: IcmsData, t: IcmsTotals): CstResult {
   t.qBCMono = accum(t.qBCMono, d.qBCMono);
   t.vICMSMono = accum(t.vICMSMono, d.vICMSMono);
   t.qBCMonoReten = accum(t.qBCMonoReten, d.qBCMonoReten);
   t.vICMSMonoReten = accum(t.vICMSMonoReten, d.vICMSMonoReten);
 
-  const children = filterNulls([
-    requiredTag("orig", d.orig),
-    requiredTag("CST", d.CST),
-    optionalTag("qBCMono", formatCentsOrNull(d.qBCMono, 4)),
-    requiredTag("adRemICMS", formatCentsOrNull(d.adRemICMS, 4)),
-    requiredTag("vICMSMono", formatCentsOrNull(d.vICMSMono)),
-    optionalTag("qBCMonoReten", formatCentsOrNull(d.qBCMonoReten, 4)),
-    requiredTag("adRemICMSReten", formatCentsOrNull(d.adRemICMSReten, 4)),
-    requiredTag("vICMSMonoReten", formatCentsOrNull(d.vICMSMonoReten)),
+  const fields = filterFields([
+    requiredField("orig", d.orig),
+    requiredField("CST", d.CST),
+    optionalField("qBCMono", formatCentsOrNull(d.qBCMono, 4)),
+    requiredField("adRemICMS", formatCentsOrNull(d.adRemICMS, 4)),
+    requiredField("vICMSMono", formatCentsOrNull(d.vICMSMono)),
+    optionalField("qBCMonoReten", formatCentsOrNull(d.qBCMonoReten, 4)),
+    requiredField("adRemICMSReten", formatCentsOrNull(d.adRemICMSReten, 4)),
+    requiredField("vICMSMonoReten", formatCentsOrNull(d.vICMSMonoReten)),
   ]);
 
   if (d.pRedAdRem != null) {
-    children.push(requiredTag("pRedAdRem", formatCentsOrNull(d.pRedAdRem)));
-    children.push(requiredTag("motRedAdRem", d.motRedAdRem));
+    fields.push(requiredField("pRedAdRem", formatCentsOrNull(d.pRedAdRem)));
+    fields.push(requiredField("motRedAdRem", d.motRedAdRem));
   }
 
-  return tag("ICMS15", {}, children);
+  return { variantTag: "ICMS15", fields };
 }
 
 /** CST 20 — Com reducao de base de calculo */
-function buildCst20(d: IcmsData, t: IcmsTotals): string {
+function calcCst20(d: IcmsData, t: IcmsTotals): CstResult {
   t.vICMSDeson = accum(t.vICMSDeson, d.vICMSDeson);
   t.vBC = accum(t.vBC, d.vBC);
   t.vICMS = accum(t.vICMS, d.vICMS);
   t.vFCP = accum(t.vFCP, d.vFCP);
 
-  return tag("ICMS20", {}, filterNulls([
-    requiredTag("orig", d.orig),
-    requiredTag("CST", d.CST),
-    requiredTag("modBC", d.modBC),
-    requiredTag("pRedBC", formatCentsOrNull(d.pRedBC, 4)),
-    requiredTag("vBC", formatCentsOrNull(d.vBC)),
-    requiredTag("pICMS", formatCentsOrNull(d.pICMS, 4)),
-    requiredTag("vICMS", formatCentsOrNull(d.vICMS)),
-    optionalTag("vBCFCP", formatCentsOrNull(d.vBCFCP)),
-    optionalTag("pFCP", formatCentsOrNull(d.pFCP, 4)),
-    optionalTag("vFCP", formatCentsOrNull(d.vFCP)),
-    optionalTag("vICMSDeson", formatCentsOrNull(d.vICMSDeson)),
-    optionalTag("motDesICMS", d.motDesICMS),
-    optionalTag("indDeduzDeson", d.indDeduzDeson),
-  ]));
+  return { variantTag: "ICMS20", fields: filterFields([
+    requiredField("orig", d.orig),
+    requiredField("CST", d.CST),
+    requiredField("modBC", d.modBC),
+    requiredField("pRedBC", formatCentsOrNull(d.pRedBC, 4)),
+    requiredField("vBC", formatCentsOrNull(d.vBC)),
+    requiredField("pICMS", formatCentsOrNull(d.pICMS, 4)),
+    requiredField("vICMS", formatCentsOrNull(d.vICMS)),
+    optionalField("vBCFCP", formatCentsOrNull(d.vBCFCP)),
+    optionalField("pFCP", formatCentsOrNull(d.pFCP, 4)),
+    optionalField("vFCP", formatCentsOrNull(d.vFCP)),
+    optionalField("vICMSDeson", formatCentsOrNull(d.vICMSDeson)),
+    optionalField("motDesICMS", d.motDesICMS),
+    optionalField("indDeduzDeson", d.indDeduzDeson),
+  ]) };
 }
 
 /** CST 30 — Isenta ou nao tributada e com cobranca do ICMS por ST */
-function buildCst30(d: IcmsData, t: IcmsTotals): string {
+function calcCst30(d: IcmsData, t: IcmsTotals): CstResult {
   t.vICMSDeson = accum(t.vICMSDeson, d.vICMSDeson);
   t.vBCST = accum(t.vBCST, d.vBCST);
   t.vST = accum(t.vST, d.vICMSST);
   t.vFCPST = accum(t.vFCPST, d.vFCPST);
 
-  return tag("ICMS30", {}, filterNulls([
-    requiredTag("orig", d.orig),
-    requiredTag("CST", d.CST),
-    requiredTag("modBCST", d.modBCST),
-    optionalTag("pMVAST", formatCentsOrNull(d.pMVAST, 4)),
-    optionalTag("pRedBCST", formatCentsOrNull(d.pRedBCST, 4)),
-    requiredTag("vBCST", formatCentsOrNull(d.vBCST)),
-    requiredTag("pICMSST", formatCentsOrNull(d.pICMSST, 4)),
-    requiredTag("vICMSST", formatCentsOrNull(d.vICMSST)),
-    optionalTag("vBCFCPST", formatCentsOrNull(d.vBCFCPST)),
-    optionalTag("pFCPST", formatCentsOrNull(d.pFCPST, 4)),
-    optionalTag("vFCPST", formatCentsOrNull(d.vFCPST)),
-    optionalTag("vICMSDeson", formatCentsOrNull(d.vICMSDeson)),
-    optionalTag("motDesICMS", d.motDesICMS),
-    optionalTag("indDeduzDeson", d.indDeduzDeson),
-  ]));
+  return { variantTag: "ICMS30", fields: filterFields([
+    requiredField("orig", d.orig),
+    requiredField("CST", d.CST),
+    requiredField("modBCST", d.modBCST),
+    optionalField("pMVAST", formatCentsOrNull(d.pMVAST, 4)),
+    optionalField("pRedBCST", formatCentsOrNull(d.pRedBCST, 4)),
+    requiredField("vBCST", formatCentsOrNull(d.vBCST)),
+    requiredField("pICMSST", formatCentsOrNull(d.pICMSST, 4)),
+    requiredField("vICMSST", formatCentsOrNull(d.vICMSST)),
+    optionalField("vBCFCPST", formatCentsOrNull(d.vBCFCPST)),
+    optionalField("pFCPST", formatCentsOrNull(d.pFCPST, 4)),
+    optionalField("vFCPST", formatCentsOrNull(d.vFCPST)),
+    optionalField("vICMSDeson", formatCentsOrNull(d.vICMSDeson)),
+    optionalField("motDesICMS", d.motDesICMS),
+    optionalField("indDeduzDeson", d.indDeduzDeson),
+  ]) };
 }
 
 /** CST 40/41/50 — Isenta / Nao tributada / Suspensao */
-function buildCst40(d: IcmsData, t: IcmsTotals): string {
+function calcCst40(d: IcmsData, t: IcmsTotals): CstResult {
   t.vICMSDeson = accum(t.vICMSDeson, d.vICMSDeson);
 
-  return tag("ICMS40", {}, filterNulls([
-    requiredTag("orig", d.orig),
-    requiredTag("CST", d.CST),
-    optionalTag("vICMSDeson", formatCentsOrNull(d.vICMSDeson)),
-    optionalTag("motDesICMS", d.motDesICMS),
-    optionalTag("indDeduzDeson", d.indDeduzDeson),
-  ]));
+  return { variantTag: "ICMS40", fields: filterFields([
+    requiredField("orig", d.orig),
+    requiredField("CST", d.CST),
+    optionalField("vICMSDeson", formatCentsOrNull(d.vICMSDeson)),
+    optionalField("motDesICMS", d.motDesICMS),
+    optionalField("indDeduzDeson", d.indDeduzDeson),
+  ]) };
 }
 
 /** CST 51 — Diferimento */
-function buildCst51(d: IcmsData, t: IcmsTotals): string {
+function calcCst51(d: IcmsData, t: IcmsTotals): CstResult {
   t.vBC = accum(t.vBC, d.vBC);
   t.vICMS = accum(t.vICMS, d.vICMS);
   t.vFCP = accum(t.vFCP, d.vFCP);
 
-  return tag("ICMS51", {}, filterNulls([
-    requiredTag("orig", d.orig),
-    requiredTag("CST", d.CST),
-    optionalTag("modBC", d.modBC),
-    optionalTag("pRedBC", formatCentsOrNull(d.pRedBC, 4)),
-    optionalTag("cBenefRBC", d.cBenefRBC),
-    optionalTag("vBC", formatCentsOrNull(d.vBC)),
-    optionalTag("pICMS", formatCentsOrNull(d.pICMS, 4)),
-    optionalTag("vICMSOp", formatCentsOrNull(d.vICMSOp)),
-    optionalTag("pDif", formatCentsOrNull(d.pDif, 4)),
-    optionalTag("vICMSDif", formatCentsOrNull(d.vICMSDif)),
-    optionalTag("vICMS", formatCentsOrNull(d.vICMS)),
-    optionalTag("vBCFCP", formatCentsOrNull(d.vBCFCP)),
-    optionalTag("pFCP", formatCentsOrNull(d.pFCP, 4)),
-    optionalTag("vFCP", formatCentsOrNull(d.vFCP)),
-    optionalTag("pFCPDif", formatCentsOrNull(d.pFCPDif)),
-    optionalTag("vFCPDif", formatCentsOrNull(d.vFCPDif)),
-    optionalTag("vFCPEfet", formatCentsOrNull(d.vFCPEfet)),
-  ]));
+  return { variantTag: "ICMS51", fields: filterFields([
+    requiredField("orig", d.orig),
+    requiredField("CST", d.CST),
+    optionalField("modBC", d.modBC),
+    optionalField("pRedBC", formatCentsOrNull(d.pRedBC, 4)),
+    optionalField("cBenefRBC", d.cBenefRBC),
+    optionalField("vBC", formatCentsOrNull(d.vBC)),
+    optionalField("pICMS", formatCentsOrNull(d.pICMS, 4)),
+    optionalField("vICMSOp", formatCentsOrNull(d.vICMSOp)),
+    optionalField("pDif", formatCentsOrNull(d.pDif, 4)),
+    optionalField("vICMSDif", formatCentsOrNull(d.vICMSDif)),
+    optionalField("vICMS", formatCentsOrNull(d.vICMS)),
+    optionalField("vBCFCP", formatCentsOrNull(d.vBCFCP)),
+    optionalField("pFCP", formatCentsOrNull(d.pFCP, 4)),
+    optionalField("vFCP", formatCentsOrNull(d.vFCP)),
+    optionalField("pFCPDif", formatCentsOrNull(d.pFCPDif)),
+    optionalField("vFCPDif", formatCentsOrNull(d.vFCPDif)),
+    optionalField("vFCPEfet", formatCentsOrNull(d.vFCPEfet)),
+  ]) };
 }
 
 /** CST 53 — Tributacao monofasica sobre combustiveis com recolhimento diferido */
-function buildCst53(d: IcmsData, t: IcmsTotals): string {
+function calcCst53(d: IcmsData, t: IcmsTotals): CstResult {
   t.qBCMono = accum(t.qBCMono, d.qBCMono);
   t.vICMSMono = accum(t.vICMSMono, d.vICMSMono);
   t.qBCMonoReten = accum(t.qBCMonoReten, d.qBCMonoReten);
   t.vICMSMonoReten = accum(t.vICMSMonoReten, d.vICMSMonoReten);
 
-  return tag("ICMS53", {}, filterNulls([
-    requiredTag("orig", d.orig),
-    requiredTag("CST", d.CST),
-    optionalTag("qBCMono", formatCentsOrNull(d.qBCMono, 4)),
-    optionalTag("adRemICMS", formatCentsOrNull(d.adRemICMS, 4)),
-    optionalTag("vICMSMonoOp", formatCentsOrNull(d.vICMSMonoOp)),
-    optionalTag("pDif", formatCentsOrNull(d.pDif, 4)),
-    optionalTag("vICMSMonoDif", formatCentsOrNull(d.vICMSMonoDif)),
-    optionalTag("vICMSMono", formatCentsOrNull(d.vICMSMono)),
-  ]));
+  return { variantTag: "ICMS53", fields: filterFields([
+    requiredField("orig", d.orig),
+    requiredField("CST", d.CST),
+    optionalField("qBCMono", formatCentsOrNull(d.qBCMono, 4)),
+    optionalField("adRemICMS", formatCentsOrNull(d.adRemICMS, 4)),
+    optionalField("vICMSMonoOp", formatCentsOrNull(d.vICMSMonoOp)),
+    optionalField("pDif", formatCentsOrNull(d.pDif, 4)),
+    optionalField("vICMSMonoDif", formatCentsOrNull(d.vICMSMonoDif)),
+    optionalField("vICMSMono", formatCentsOrNull(d.vICMSMono)),
+  ]) };
 }
 
 /** CST 60 — ICMS cobrado anteriormente por ST */
-function buildCst60(d: IcmsData, t: IcmsTotals): string {
+function calcCst60(d: IcmsData, t: IcmsTotals): CstResult {
   t.vFCPSTRet = accum(t.vFCPSTRet, d.vFCPSTRet);
 
-  return tag("ICMS60", {}, filterNulls([
-    requiredTag("orig", d.orig),
-    requiredTag("CST", d.CST),
-    optionalTag("vBCSTRet", formatCentsOrNull(d.vBCSTRet)),
-    optionalTag("pST", formatCentsOrNull(d.pST, 4)),
-    optionalTag("vICMSSubstituto", formatCentsOrNull(d.vICMSSubstituto)),
-    optionalTag("vICMSSTRet", formatCentsOrNull(d.vICMSSTRet)),
-    optionalTag("vBCFCPSTRet", formatCentsOrNull(d.vBCFCPSTRet)),
-    optionalTag("pFCPSTRet", formatCentsOrNull(d.pFCPSTRet, 4)),
-    optionalTag("vFCPSTRet", formatCentsOrNull(d.vFCPSTRet)),
-    optionalTag("pRedBCEfet", formatCentsOrNull(d.pRedBCEfet, 4)),
-    optionalTag("vBCEfet", formatCentsOrNull(d.vBCEfet)),
-    optionalTag("pICMSEfet", formatCentsOrNull(d.pICMSEfet, 4)),
-    optionalTag("vICMSEfet", formatCentsOrNull(d.vICMSEfet)),
-  ]));
+  return { variantTag: "ICMS60", fields: filterFields([
+    requiredField("orig", d.orig),
+    requiredField("CST", d.CST),
+    optionalField("vBCSTRet", formatCentsOrNull(d.vBCSTRet)),
+    optionalField("pST", formatCentsOrNull(d.pST, 4)),
+    optionalField("vICMSSubstituto", formatCentsOrNull(d.vICMSSubstituto)),
+    optionalField("vICMSSTRet", formatCentsOrNull(d.vICMSSTRet)),
+    optionalField("vBCFCPSTRet", formatCentsOrNull(d.vBCFCPSTRet)),
+    optionalField("pFCPSTRet", formatCentsOrNull(d.pFCPSTRet, 4)),
+    optionalField("vFCPSTRet", formatCentsOrNull(d.vFCPSTRet)),
+    optionalField("pRedBCEfet", formatCentsOrNull(d.pRedBCEfet, 4)),
+    optionalField("vBCEfet", formatCentsOrNull(d.vBCEfet)),
+    optionalField("pICMSEfet", formatCentsOrNull(d.pICMSEfet, 4)),
+    optionalField("vICMSEfet", formatCentsOrNull(d.vICMSEfet)),
+  ]) };
 }
 
 /** CST 61 — Tributacao monofasica sobre combustiveis cobrada anteriormente */
-function buildCst61(d: IcmsData, t: IcmsTotals): string {
+function calcCst61(d: IcmsData, t: IcmsTotals): CstResult {
   t.qBCMonoRet = accum(t.qBCMonoRet, d.qBCMonoRet);
   t.vICMSMonoRet = accum(t.vICMSMonoRet, d.vICMSMonoRet);
 
-  return tag("ICMS61", {}, filterNulls([
-    requiredTag("orig", d.orig),
-    requiredTag("CST", d.CST),
-    optionalTag("qBCMonoRet", formatCentsOrNull(d.qBCMonoRet, 4)),
-    requiredTag("adRemICMSRet", formatCentsOrNull(d.adRemICMSRet, 4)),
-    requiredTag("vICMSMonoRet", formatCentsOrNull(d.vICMSMonoRet)),
-  ]));
+  return { variantTag: "ICMS61", fields: filterFields([
+    requiredField("orig", d.orig),
+    requiredField("CST", d.CST),
+    optionalField("qBCMonoRet", formatCentsOrNull(d.qBCMonoRet, 4)),
+    requiredField("adRemICMSRet", formatCentsOrNull(d.adRemICMSRet, 4)),
+    requiredField("vICMSMonoRet", formatCentsOrNull(d.vICMSMonoRet)),
+  ]) };
 }
 
 /** CST 70 — Reducao de BC e cobranca do ICMS por ST */
-function buildCst70(d: IcmsData, t: IcmsTotals): string {
+function calcCst70(d: IcmsData, t: IcmsTotals): CstResult {
   t.vICMSDeson = accum(t.vICMSDeson, d.vICMSDeson);
   t.vBC = accum(t.vBC, d.vBC);
   t.vICMS = accum(t.vICMS, d.vICMS);
@@ -637,36 +650,36 @@ function buildCst70(d: IcmsData, t: IcmsTotals): string {
   t.vFCPST = accum(t.vFCPST, d.vFCPST);
   t.vFCP = accum(t.vFCP, d.vFCP);
 
-  return tag("ICMS70", {}, filterNulls([
-    requiredTag("orig", d.orig),
-    requiredTag("CST", d.CST),
-    requiredTag("modBC", d.modBC),
-    requiredTag("pRedBC", formatCentsOrNull(d.pRedBC, 4)),
-    requiredTag("vBC", formatCentsOrNull(d.vBC)),
-    requiredTag("pICMS", formatCentsOrNull(d.pICMS, 4)),
-    requiredTag("vICMS", formatCentsOrNull(d.vICMS)),
-    optionalTag("vBCFCP", formatCentsOrNull(d.vBCFCP)),
-    optionalTag("pFCP", formatCentsOrNull(d.pFCP, 4)),
-    optionalTag("vFCP", formatCentsOrNull(d.vFCP)),
-    requiredTag("modBCST", d.modBCST),
-    optionalTag("pMVAST", formatCentsOrNull(d.pMVAST, 4)),
-    optionalTag("pRedBCST", formatCentsOrNull(d.pRedBCST, 4)),
-    requiredTag("vBCST", formatCentsOrNull(d.vBCST)),
-    requiredTag("pICMSST", formatCentsOrNull(d.pICMSST, 4)),
-    requiredTag("vICMSST", formatCentsOrNull(d.vICMSST)),
-    optionalTag("vBCFCPST", formatCentsOrNull(d.vBCFCPST)),
-    optionalTag("pFCPST", formatCentsOrNull(d.pFCPST, 4)),
-    optionalTag("vFCPST", formatCentsOrNull(d.vFCPST)),
-    optionalTag("vICMSDeson", formatCentsOrNull(d.vICMSDeson)),
-    optionalTag("motDesICMS", d.motDesICMS),
-    optionalTag("indDeduzDeson", d.indDeduzDeson),
-    optionalTag("vICMSSTDeson", formatCentsOrNull(d.vICMSSTDeson)),
-    optionalTag("motDesICMSST", d.motDesICMSST),
-  ]));
+  return { variantTag: "ICMS70", fields: filterFields([
+    requiredField("orig", d.orig),
+    requiredField("CST", d.CST),
+    requiredField("modBC", d.modBC),
+    requiredField("pRedBC", formatCentsOrNull(d.pRedBC, 4)),
+    requiredField("vBC", formatCentsOrNull(d.vBC)),
+    requiredField("pICMS", formatCentsOrNull(d.pICMS, 4)),
+    requiredField("vICMS", formatCentsOrNull(d.vICMS)),
+    optionalField("vBCFCP", formatCentsOrNull(d.vBCFCP)),
+    optionalField("pFCP", formatCentsOrNull(d.pFCP, 4)),
+    optionalField("vFCP", formatCentsOrNull(d.vFCP)),
+    requiredField("modBCST", d.modBCST),
+    optionalField("pMVAST", formatCentsOrNull(d.pMVAST, 4)),
+    optionalField("pRedBCST", formatCentsOrNull(d.pRedBCST, 4)),
+    requiredField("vBCST", formatCentsOrNull(d.vBCST)),
+    requiredField("pICMSST", formatCentsOrNull(d.pICMSST, 4)),
+    requiredField("vICMSST", formatCentsOrNull(d.vICMSST)),
+    optionalField("vBCFCPST", formatCentsOrNull(d.vBCFCPST)),
+    optionalField("pFCPST", formatCentsOrNull(d.pFCPST, 4)),
+    optionalField("vFCPST", formatCentsOrNull(d.vFCPST)),
+    optionalField("vICMSDeson", formatCentsOrNull(d.vICMSDeson)),
+    optionalField("motDesICMS", d.motDesICMS),
+    optionalField("indDeduzDeson", d.indDeduzDeson),
+    optionalField("vICMSSTDeson", formatCentsOrNull(d.vICMSSTDeson)),
+    optionalField("motDesICMSST", d.motDesICMSST),
+  ]) };
 }
 
 /** CST 90 — Outros */
-function buildCst90(d: IcmsData, t: IcmsTotals): string {
+function calcCst90(d: IcmsData, t: IcmsTotals): CstResult {
   t.vICMSDeson = accum(t.vICMSDeson, d.vICMSDeson);
   t.vBC = accum(t.vBC, d.vBC);
   t.vICMS = accum(t.vICMS, d.vICMS);
@@ -675,181 +688,175 @@ function buildCst90(d: IcmsData, t: IcmsTotals): string {
   t.vFCPST = accum(t.vFCPST, d.vFCPST);
   t.vFCP = accum(t.vFCP, d.vFCP);
 
-  return tag("ICMS90", {}, filterNulls([
-    requiredTag("orig", d.orig),
-    requiredTag("CST", d.CST),
-    optionalTag("modBC", d.modBC),
-    optionalTag("vBC", formatCentsOrNull(d.vBC)),
-    optionalTag("pRedBC", formatCentsOrNull(d.pRedBC, 4)),
-    optionalTag("cBenefRBC", d.cBenefRBC),
-    optionalTag("pICMS", formatCentsOrNull(d.pICMS, 4)),
-    optionalTag("vICMSOp", formatCentsOrNull(d.vICMSOp)),
-    optionalTag("pDif", formatCentsOrNull(d.pDif)),
-    optionalTag("vICMSDif", formatCentsOrNull(d.vICMSDif)),
-    optionalTag("vICMS", formatCentsOrNull(d.vICMS)),
-    optionalTag("vBCFCP", formatCentsOrNull(d.vBCFCP)),
-    optionalTag("pFCP", formatCentsOrNull(d.pFCP, 4)),
-    optionalTag("vFCP", formatCentsOrNull(d.vFCP)),
-    optionalTag("pFCPDif", formatCentsOrNull(d.pFCPDif, 4)),
-    optionalTag("vFCPDif", formatCentsOrNull(d.vFCPDif)),
-    optionalTag("vFCPEfet", formatCentsOrNull(d.vFCPEfet)),
-    optionalTag("modBCST", d.modBCST),
-    optionalTag("pMVAST", formatCentsOrNull(d.pMVAST, 4)),
-    optionalTag("pRedBCST", formatCentsOrNull(d.pRedBCST, 4)),
-    optionalTag("vBCST", formatCentsOrNull(d.vBCST)),
-    optionalTag("pICMSST", formatCentsOrNull(d.pICMSST, 4)),
-    optionalTag("vICMSST", formatCentsOrNull(d.vICMSST)),
-    optionalTag("vBCFCPST", formatCentsOrNull(d.vBCFCPST)),
-    optionalTag("pFCPST", formatCentsOrNull(d.pFCPST, 4)),
-    optionalTag("vFCPST", formatCentsOrNull(d.vFCPST)),
-    optionalTag("vICMSDeson", formatCentsOrNull(d.vICMSDeson)),
-    optionalTag("motDesICMS", d.motDesICMS),
-    optionalTag("indDeduzDeson", d.indDeduzDeson),
-    optionalTag("vICMSSTDeson", formatCentsOrNull(d.vICMSSTDeson)),
-    optionalTag("motDesICMSST", d.motDesICMSST),
-  ]));
+  return { variantTag: "ICMS90", fields: filterFields([
+    requiredField("orig", d.orig),
+    requiredField("CST", d.CST),
+    optionalField("modBC", d.modBC),
+    optionalField("vBC", formatCentsOrNull(d.vBC)),
+    optionalField("pRedBC", formatCentsOrNull(d.pRedBC, 4)),
+    optionalField("cBenefRBC", d.cBenefRBC),
+    optionalField("pICMS", formatCentsOrNull(d.pICMS, 4)),
+    optionalField("vICMSOp", formatCentsOrNull(d.vICMSOp)),
+    optionalField("pDif", formatCentsOrNull(d.pDif)),
+    optionalField("vICMSDif", formatCentsOrNull(d.vICMSDif)),
+    optionalField("vICMS", formatCentsOrNull(d.vICMS)),
+    optionalField("vBCFCP", formatCentsOrNull(d.vBCFCP)),
+    optionalField("pFCP", formatCentsOrNull(d.pFCP, 4)),
+    optionalField("vFCP", formatCentsOrNull(d.vFCP)),
+    optionalField("pFCPDif", formatCentsOrNull(d.pFCPDif, 4)),
+    optionalField("vFCPDif", formatCentsOrNull(d.vFCPDif)),
+    optionalField("vFCPEfet", formatCentsOrNull(d.vFCPEfet)),
+    optionalField("modBCST", d.modBCST),
+    optionalField("pMVAST", formatCentsOrNull(d.pMVAST, 4)),
+    optionalField("pRedBCST", formatCentsOrNull(d.pRedBCST, 4)),
+    optionalField("vBCST", formatCentsOrNull(d.vBCST)),
+    optionalField("pICMSST", formatCentsOrNull(d.pICMSST, 4)),
+    optionalField("vICMSST", formatCentsOrNull(d.vICMSST)),
+    optionalField("vBCFCPST", formatCentsOrNull(d.vBCFCPST)),
+    optionalField("pFCPST", formatCentsOrNull(d.pFCPST, 4)),
+    optionalField("vFCPST", formatCentsOrNull(d.vFCPST)),
+    optionalField("vICMSDeson", formatCentsOrNull(d.vICMSDeson)),
+    optionalField("motDesICMS", d.motDesICMS),
+    optionalField("indDeduzDeson", d.indDeduzDeson),
+    optionalField("vICMSSTDeson", formatCentsOrNull(d.vICMSSTDeson)),
+    optionalField("motDesICMSST", d.motDesICMSST),
+  ]) };
 }
 
 // ── CSOSN builders (Simples Nacional) ───────────────────────────────────────
 
-function buildCsosn(data: IcmsData, totals: IcmsTotals): string {
+function calculateCsosn(data: IcmsData, totals: IcmsTotals): CstResult {
   // Generic SN totals
   totals.vFCPST = accum(totals.vFCPST, data.vFCPST);
   totals.vFCPSTRet = accum(totals.vFCPSTRet, data.vFCPSTRet);
 
   switch (data.CSOSN) {
     case "101":
-      return buildCsosn101(data, totals);
+      return calcCsosn101(data, totals);
     case "102":
     case "103":
     case "300":
     case "400":
-      return buildCsosn102(data, totals);
+      return calcCsosn102(data, totals);
     case "201":
-      return buildCsosn201(data, totals);
+      return calcCsosn201(data, totals);
     case "202":
     case "203":
-      return buildCsosn202(data, totals);
+      return calcCsosn202(data, totals);
     case "500":
-      return buildCsosn500(data, totals);
+      return calcCsosn500(data, totals);
     case "900":
-      return buildCsosn900(data, totals);
+      return calcCsosn900(data, totals);
     default:
       throw new Error(`Unsupported ICMS CSOSN: ${data.CSOSN}`);
   }
 }
 
 /** CSOSN 101 — Tributada pelo Simples Nacional com permissao de credito */
-function buildCsosn101(d: IcmsData, _t: IcmsTotals): string {
-  return tag("ICMSSN101", {}, filterNulls([
-    requiredTag("orig", d.orig),
-    requiredTag("CSOSN", d.CSOSN),
-    requiredTag("pCredSN", formatCentsOrNull(d.pCredSN, 2)),
-    requiredTag("vCredICMSSN", formatCentsOrNull(d.vCredICMSSN)),
-  ]));
+function calcCsosn101(d: IcmsData, _t: IcmsTotals): CstResult {
+  return { variantTag: "ICMSSN101", fields: filterFields([
+    requiredField("orig", d.orig),
+    requiredField("CSOSN", d.CSOSN),
+    requiredField("pCredSN", formatCentsOrNull(d.pCredSN, 2)),
+    requiredField("vCredICMSSN", formatCentsOrNull(d.vCredICMSSN)),
+  ]) };
 }
 
 /** CSOSN 102/103/300/400 — Tributada sem permissao de credito / Imune / Nao tributada */
-function buildCsosn102(d: IcmsData, _t: IcmsTotals): string {
-  return tag("ICMSSN102", {}, filterNulls([
-    optionalTag("orig", d.orig), // may be null for CRT=4
-    requiredTag("CSOSN", d.CSOSN),
-  ]));
+function calcCsosn102(d: IcmsData, _t: IcmsTotals): CstResult {
+  return { variantTag: "ICMSSN102", fields: filterFields([
+    optionalField("orig", d.orig), // may be null for CRT=4
+    requiredField("CSOSN", d.CSOSN),
+  ]) };
 }
 
 /** CSOSN 201 — Tributada com permissao de credito e com cobranca do ICMS por ST */
-function buildCsosn201(d: IcmsData, t: IcmsTotals): string {
+function calcCsosn201(d: IcmsData, t: IcmsTotals): CstResult {
   t.vBCST = accum(t.vBCST, d.vBCST);
   t.vST = accum(t.vST, d.vICMSST);
 
-  return tag("ICMSSN201", {}, filterNulls([
-    requiredTag("orig", d.orig),
-    requiredTag("CSOSN", d.CSOSN),
-    requiredTag("modBCST", d.modBCST),
-    optionalTag("pMVAST", formatCentsOrNull(d.pMVAST, 4)),
-    optionalTag("pRedBCST", formatCentsOrNull(d.pRedBCST, 4)),
-    requiredTag("vBCST", formatCentsOrNull(d.vBCST)),
-    requiredTag("pICMSST", formatCentsOrNull(d.pICMSST, 4)),
-    requiredTag("vICMSST", formatCentsOrNull(d.vICMSST)),
-    optionalTag("vBCFCPST", formatCentsOrNull(d.vBCFCPST)),
-    optionalTag("pFCPST", formatCentsOrNull(d.pFCPST, 4)),
-    optionalTag("vFCPST", formatCentsOrNull(d.vFCPST)),
-    optionalTag("pCredSN", formatCentsOrNull(d.pCredSN, 4)),
-    optionalTag("vCredICMSSN", formatCentsOrNull(d.vCredICMSSN)),
-  ]));
+  return { variantTag: "ICMSSN201", fields: filterFields([
+    requiredField("orig", d.orig),
+    requiredField("CSOSN", d.CSOSN),
+    requiredField("modBCST", d.modBCST),
+    optionalField("pMVAST", formatCentsOrNull(d.pMVAST, 4)),
+    optionalField("pRedBCST", formatCentsOrNull(d.pRedBCST, 4)),
+    requiredField("vBCST", formatCentsOrNull(d.vBCST)),
+    requiredField("pICMSST", formatCentsOrNull(d.pICMSST, 4)),
+    requiredField("vICMSST", formatCentsOrNull(d.vICMSST)),
+    optionalField("vBCFCPST", formatCentsOrNull(d.vBCFCPST)),
+    optionalField("pFCPST", formatCentsOrNull(d.pFCPST, 4)),
+    optionalField("vFCPST", formatCentsOrNull(d.vFCPST)),
+    optionalField("pCredSN", formatCentsOrNull(d.pCredSN, 4)),
+    optionalField("vCredICMSSN", formatCentsOrNull(d.vCredICMSSN)),
+  ]) };
 }
 
 /** CSOSN 202/203 — Tributada sem permissao de credito e com cobranca do ICMS por ST */
-function buildCsosn202(d: IcmsData, t: IcmsTotals): string {
+function calcCsosn202(d: IcmsData, t: IcmsTotals): CstResult {
   t.vBCST = accum(t.vBCST, d.vBCST);
   t.vST = accum(t.vST, d.vICMSST);
 
-  return tag("ICMSSN202", {}, filterNulls([
-    requiredTag("orig", d.orig),
-    requiredTag("CSOSN", d.CSOSN),
-    requiredTag("modBCST", d.modBCST),
-    optionalTag("pMVAST", formatCentsOrNull(d.pMVAST, 4)),
-    optionalTag("pRedBCST", formatCentsOrNull(d.pRedBCST, 4)),
-    requiredTag("vBCST", formatCentsOrNull(d.vBCST)),
-    requiredTag("pICMSST", formatCentsOrNull(d.pICMSST, 4)),
-    requiredTag("vICMSST", formatCentsOrNull(d.vICMSST)),
-    optionalTag("vBCFCPST", formatCentsOrNull(d.vBCFCPST)),
-    optionalTag("pFCPST", formatCentsOrNull(d.pFCPST, 4)),
-    optionalTag("vFCPST", formatCentsOrNull(d.vFCPST)),
-  ]));
+  return { variantTag: "ICMSSN202", fields: filterFields([
+    requiredField("orig", d.orig),
+    requiredField("CSOSN", d.CSOSN),
+    requiredField("modBCST", d.modBCST),
+    optionalField("pMVAST", formatCentsOrNull(d.pMVAST, 4)),
+    optionalField("pRedBCST", formatCentsOrNull(d.pRedBCST, 4)),
+    requiredField("vBCST", formatCentsOrNull(d.vBCST)),
+    requiredField("pICMSST", formatCentsOrNull(d.pICMSST, 4)),
+    requiredField("vICMSST", formatCentsOrNull(d.vICMSST)),
+    optionalField("vBCFCPST", formatCentsOrNull(d.vBCFCPST)),
+    optionalField("pFCPST", formatCentsOrNull(d.pFCPST, 4)),
+    optionalField("vFCPST", formatCentsOrNull(d.vFCPST)),
+  ]) };
 }
 
 /** CSOSN 500 — ICMS cobrado anteriormente por ST ou por antecipacao */
-function buildCsosn500(d: IcmsData, _t: IcmsTotals): string {
-  return tag("ICMSSN500", {}, filterNulls([
-    requiredTag("orig", d.orig),
-    requiredTag("CSOSN", d.CSOSN),
-    optionalTag("vBCSTRet", formatCentsOrNull(d.vBCSTRet)),
-    optionalTag("pST", formatCentsOrNull(d.pST, 4)),
-    optionalTag("vICMSSubstituto", formatCentsOrNull(d.vICMSSubstituto)),
-    optionalTag("vICMSSTRet", formatCentsOrNull(d.vICMSSTRet)),
-    optionalTag("vBCFCPSTRet", formatCentsOrNull(d.vBCFCPSTRet, 2)),
-    optionalTag("pFCPSTRet", formatCentsOrNull(d.pFCPSTRet, 4)),
-    optionalTag("vFCPSTRet", formatCentsOrNull(d.vFCPSTRet)),
-    optionalTag("pRedBCEfet", formatCentsOrNull(d.pRedBCEfet, 4)),
-    optionalTag("vBCEfet", formatCentsOrNull(d.vBCEfet)),
-    optionalTag("pICMSEfet", formatCentsOrNull(d.pICMSEfet, 4)),
-    optionalTag("vICMSEfet", formatCentsOrNull(d.vICMSEfet)),
-  ]));
+function calcCsosn500(d: IcmsData, _t: IcmsTotals): CstResult {
+  return { variantTag: "ICMSSN500", fields: filterFields([
+    requiredField("orig", d.orig),
+    requiredField("CSOSN", d.CSOSN),
+    optionalField("vBCSTRet", formatCentsOrNull(d.vBCSTRet)),
+    optionalField("pST", formatCentsOrNull(d.pST, 4)),
+    optionalField("vICMSSubstituto", formatCentsOrNull(d.vICMSSubstituto)),
+    optionalField("vICMSSTRet", formatCentsOrNull(d.vICMSSTRet)),
+    optionalField("vBCFCPSTRet", formatCentsOrNull(d.vBCFCPSTRet, 2)),
+    optionalField("pFCPSTRet", formatCentsOrNull(d.pFCPSTRet, 4)),
+    optionalField("vFCPSTRet", formatCentsOrNull(d.vFCPSTRet)),
+    optionalField("pRedBCEfet", formatCentsOrNull(d.pRedBCEfet, 4)),
+    optionalField("vBCEfet", formatCentsOrNull(d.vBCEfet)),
+    optionalField("pICMSEfet", formatCentsOrNull(d.pICMSEfet, 4)),
+    optionalField("vICMSEfet", formatCentsOrNull(d.vICMSEfet)),
+  ]) };
 }
 
 /** CSOSN 900 — Outros */
-function buildCsosn900(d: IcmsData, t: IcmsTotals): string {
+function calcCsosn900(d: IcmsData, t: IcmsTotals): CstResult {
   t.vBC = accum(t.vBC, d.vBC);
   t.vICMS = accum(t.vICMS, d.vICMS);
   t.vBCST = accum(t.vBCST, d.vBCST);
   t.vST = accum(t.vST, d.vICMSST);
 
-  return tag("ICMSSN900", {}, filterNulls([
-    optionalTag("orig", d.orig), // may be null for CRT=4
-    requiredTag("CSOSN", d.CSOSN),
-    optionalTag("modBC", d.modBC),
-    optionalTag("vBC", formatCentsOrNull(d.vBC)),
-    optionalTag("pRedBC", formatCentsOrNull(d.pRedBC, 4)),
-    optionalTag("pICMS", formatCentsOrNull(d.pICMS, 4)),
-    optionalTag("vICMS", formatCentsOrNull(d.vICMS)),
-    optionalTag("modBCST", d.modBCST),
-    optionalTag("pMVAST", formatCentsOrNull(d.pMVAST, 4)),
-    optionalTag("pRedBCST", formatCentsOrNull(d.pRedBCST, 4)),
-    optionalTag("vBCST", formatCentsOrNull(d.vBCST)),
-    optionalTag("pICMSST", formatCentsOrNull(d.pICMSST, 4)),
-    optionalTag("vICMSST", formatCentsOrNull(d.vICMSST)),
-    optionalTag("vBCFCPST", formatCentsOrNull(d.vBCFCPST)),
-    optionalTag("pFCPST", formatCentsOrNull(d.pFCPST, 4)),
-    optionalTag("vFCPST", formatCentsOrNull(d.vFCPST)),
-    optionalTag("pCredSN", formatCentsOrNull(d.pCredSN, 4)),
-    optionalTag("vCredICMSSN", formatCentsOrNull(d.vCredICMSSN)),
-  ]));
+  return { variantTag: "ICMSSN900", fields: filterFields([
+    optionalField("orig", d.orig), // may be null for CRT=4
+    requiredField("CSOSN", d.CSOSN),
+    optionalField("modBC", d.modBC),
+    optionalField("vBC", formatCentsOrNull(d.vBC)),
+    optionalField("pRedBC", formatCentsOrNull(d.pRedBC, 4)),
+    optionalField("pICMS", formatCentsOrNull(d.pICMS, 4)),
+    optionalField("vICMS", formatCentsOrNull(d.vICMS)),
+    optionalField("modBCST", d.modBCST),
+    optionalField("pMVAST", formatCentsOrNull(d.pMVAST, 4)),
+    optionalField("pRedBCST", formatCentsOrNull(d.pRedBCST, 4)),
+    optionalField("vBCST", formatCentsOrNull(d.vBCST)),
+    optionalField("pICMSST", formatCentsOrNull(d.pICMSST, 4)),
+    optionalField("vICMSST", formatCentsOrNull(d.vICMSST)),
+    optionalField("vBCFCPST", formatCentsOrNull(d.vBCFCPST)),
+    optionalField("pFCPST", formatCentsOrNull(d.pFCPST, 4)),
+    optionalField("vFCPST", formatCentsOrNull(d.vFCPST)),
+    optionalField("pCredSN", formatCentsOrNull(d.pCredSN, 4)),
+    optionalField("vCredICMSSN", formatCentsOrNull(d.vCredICMSSN)),
+  ]) };
 }
 
-// ── Utilities ───────────────────────────────────────────────────────────────
-
-/** Remove null entries from an array of optional tag results. */
-function filterNulls(arr: (string | null)[]): string[] {
-  return arr.filter((x): x is string => x !== null);
-}

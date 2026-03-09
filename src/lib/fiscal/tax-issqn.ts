@@ -1,5 +1,12 @@
 import { formatCents, formatRate } from "./format-utils";
-import { tag } from "./xml-builder";
+import {
+  type TaxElement,
+  type TaxField,
+  requiredField,
+  optionalField,
+  filterFields,
+  serializeTaxElement,
+} from "./tax-element";
 
 /**
  * ISSQN (ISS - Imposto Sobre Serviços) data.
@@ -58,13 +65,12 @@ export function createIssqnTotals(): IssqnTotals {
 }
 
 /**
- * Build ISSQN XML element and accumulate totals.
- * Goes inside <imposto> as an alternative to ICMS (services vs goods).
+ * Calculate ISSQN tax element and accumulate totals (domain logic, no XML).
  */
-export function buildIssqnXml(
+export function calculateIssqn(
   data: IssqnData,
   totals?: IssqnTotals
-): string {
+): TaxElement {
   // Accumulate totals only when vBC > 0 (matching PHP behavior)
   if (totals && data.vBC > 0) {
     totals.vBC += data.vBC;
@@ -76,44 +82,61 @@ export function buildIssqnXml(
     totals.vDescCond += data.vDescCond ?? 0;
   }
 
-  const children: string[] = [
-    tag("vBC", {}, formatCents(data.vBC)),
-    tag("vAliq", {}, formatRate(data.vAliq)),
-    tag("vISSQN", {}, formatCents(data.vISSQN)),
-    tag("cMunFG", {}, data.cMunFG),
-    tag("cListServ", {}, data.cListServ),
+  const fields: Array<TaxField | null> = [
+    requiredField("vBC", formatCents(data.vBC)),
+    requiredField("vAliq", formatRate(data.vAliq)),
+    requiredField("vISSQN", formatCents(data.vISSQN)),
+    requiredField("cMunFG", data.cMunFG),
+    requiredField("cListServ", data.cListServ),
+    optionalField("vDeducao", data.vDeducao != null ? formatCents(data.vDeducao) : null),
+    optionalField("vOutro", data.vOutro != null ? formatCents(data.vOutro) : null),
+    optionalField("vDescIncond", data.vDescIncond != null ? formatCents(data.vDescIncond) : null),
+    optionalField("vDescCond", data.vDescCond != null ? formatCents(data.vDescCond) : null),
+    optionalField("vISSRet", data.vISSRet != null ? formatCents(data.vISSRet) : null),
+    requiredField("indISS", data.indISS),
+    optionalField("cServico", data.cServico ?? null),
+    optionalField("cMun", data.cMun ?? null),
+    optionalField("cPais", data.cPais ?? null),
+    optionalField("nProcesso", data.nProcesso ?? null),
+    requiredField("indIncentivo", data.indIncentivo),
   ];
 
-  if (data.vDeducao != null) children.push(tag("vDeducao", {}, formatCents(data.vDeducao)));
-  if (data.vOutro != null) children.push(tag("vOutro", {}, formatCents(data.vOutro)));
-  if (data.vDescIncond != null) children.push(tag("vDescIncond", {}, formatCents(data.vDescIncond)));
-  if (data.vDescCond != null) children.push(tag("vDescCond", {}, formatCents(data.vDescCond)));
-  if (data.vISSRet != null) children.push(tag("vISSRet", {}, formatCents(data.vISSRet)));
-
-  children.push(tag("indISS", {}, data.indISS));
-
-  if (data.cServico) children.push(tag("cServico", {}, data.cServico));
-  if (data.cMun) children.push(tag("cMun", {}, data.cMun));
-  if (data.cPais) children.push(tag("cPais", {}, data.cPais));
-  if (data.nProcesso) children.push(tag("nProcesso", {}, data.nProcesso));
-
-  children.push(tag("indIncentivo", {}, data.indIncentivo));
-
-  return tag("ISSQN", {}, children);
+  return {
+    outerTag: null,
+    outerFields: [],
+    variantTag: "ISSQN",
+    fields: filterFields(fields),
+  };
 }
 
 /**
- * Build impostoDevol XML element.
- * Goes inside <det> after <imposto>, for returned merchandise.
+ * Build ISSQN XML string and accumulate totals (backward-compatible wrapper).
+ */
+export function buildIssqnXml(
+  data: IssqnData,
+  totals?: IssqnTotals
+): string {
+  return serializeTaxElement(calculateIssqn(data, totals));
+}
+
+/**
+ * Calculate impostoDevol element (domain logic, no XML).
  *
  * @param pDevol - Percentage returned (0-100), stored as hundredths (10000 = 100.00%)
  * @param vIPIDevol - IPI value returned in cents
  */
+export function calculateImpostoDevol(pDevol: number, vIPIDevol: number): TaxElement {
+  return {
+    outerTag: "impostoDevol",
+    outerFields: [{ name: "pDevol", value: (pDevol / 100).toFixed(2) }],
+    variantTag: "IPI",
+    fields: [{ name: "vIPIDevol", value: formatCents(vIPIDevol) }],
+  };
+}
+
+/**
+ * Build impostoDevol XML string (backward-compatible wrapper).
+ */
 export function buildImpostoDevol(pDevol: number, vIPIDevol: number): string {
-  return tag("impostoDevol", {}, [
-    tag("pDevol", {}, (pDevol / 100).toFixed(2)),
-    tag("IPI", {}, [
-      tag("vIPIDevol", {}, formatCents(vIPIDevol)),
-    ]),
-  ]);
+  return serializeTaxElement(calculateImpostoDevol(pDevol, vIPIDevol));
 }
