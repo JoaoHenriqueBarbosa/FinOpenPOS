@@ -1,0 +1,18 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_DOCS_URL=https://fin-open-pos.johnenrique.tech/docs
+        - NEXT_PUBLIC_API_DOCS_URL=https://fin-open-pos.johnenrique.tech/app/api/docs
+    ports:
+      - "80:80"
+    environment:
+      - NODE_ENV=production
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-dev-secret-key-change-in-production}
+      - BETTER_AUTH_URL=https://fin-open-pos.johnenrique.tech/app
+      - LANDING_URL=https://fin-open-pos.johnenrique.tech
+      - NEXT_PUBLIC_DOCS_URL=https://fin-open-pos.johnenrique.tech/docs
+      - NEXT_PUBLIC_API_DOCS_URL=https://fin-open-pos.johnenrique.tech/app/api/docs
+    restart: unless-stopped

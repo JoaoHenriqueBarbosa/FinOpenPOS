@@ -30,6 +30,7 @@
     "check-types": "turbo check-types",
     "dev:web": "turbo -F web dev",
     "dev:docs": "turbo -F docs dev",
+		"dev:www": "turbo -F @finopenpos/www dev",
     "db:push": "turbo -F @finopenpos/db db:push",
     "db:studio": "turbo -F @finopenpos/db db:studio",
     "db:generate": "turbo -F @finopenpos/db db:generate",
