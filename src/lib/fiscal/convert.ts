@@ -8,6 +8,7 @@
 import { isValidTxt } from "./valid-txt";
 import { getStructureByVersionString } from "./txt-structures";
 import { NFE_NAMESPACE, NFE_VERSION } from "./constants";
+import { escapeXml } from "./xml-utils";
 
 // ── Layout constants ────────────────────────────────────────────────────────
 
@@ -677,14 +678,7 @@ function addChild(arr: string[], name: string, value: string | undefined): void 
   }
 }
 
-function escapeXml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
+// escapeXml imported from ./xml-utils
 
 // ── Clean Parser Implementation ─────────────────────────────────────────────
 

@@ -36,6 +36,15 @@ import type {
   ContingencyType,
 } from "./types";
 
+/** Load fiscal settings and validate certificate is configured. */
+async function loadValidatedSettings(userUid: string): Promise<FiscalSettings> {
+  const settings = await loadFiscalSettings(userUid);
+  if (!settings || !settings.certificatePfx || !settings.certificatePassword) {
+    throw new Error("Fiscal settings or certificate not configured");
+  }
+  return settings;
+}
+
 /**
  * Issue an NFC-e (model 65) or NF-e (model 55) for a given order.
  *
@@ -143,10 +152,7 @@ export async function checkSefazStatus(userUid: string): Promise<{
   statusMessage: string;
   averageTime?: number;
 }> {
-  const settings = await loadFiscalSettings(userUid);
-  if (!settings || !settings.certificatePfx || !settings.certificatePassword) {
-    throw new Error("Fiscal settings or certificate not configured");
-  }
+  const settings = await loadValidatedSettings(userUid);
 
   const url = getSefazUrl(
     settings.stateCode,
@@ -194,10 +200,7 @@ export async function cancelInvoice(
     throw new Error("Invoice missing access key or protocol number");
   }
 
-  const settings = await loadFiscalSettings(userUid);
-  if (!settings || !settings.certificatePfx || !settings.certificatePassword) {
-    throw new Error("Fiscal settings not configured");
-  }
+  const settings = await loadValidatedSettings(userUid);
 
   const cancellationXml = buildCancellationXml(
     invoice.access_key,
@@ -264,10 +267,7 @@ export async function voidNumberRange(
     throw new Error("Voiding reason must have at least 15 characters");
   }
 
-  const settings = await loadFiscalSettings(userUid);
-  if (!settings || !settings.certificatePfx || !settings.certificatePassword) {
-    throw new Error("Fiscal settings not configured");
-  }
+  const settings = await loadValidatedSettings(userUid);
 
   const year = new Date().getFullYear();
   const voidingXml = buildVoidingXml(
@@ -333,10 +333,7 @@ export async function syncPendingInvoices(userUid: string): Promise<{
   authorized: number;
   failed: number;
 }> {
-  const settings = await loadFiscalSettings(userUid);
-  if (!settings || !settings.certificatePfx || !settings.certificatePassword) {
-    throw new Error("Fiscal settings not configured");
-  }
+  const settings = await loadValidatedSettings(userUid);
 
   const pending = await findPendingInvoices(userUid);
 

@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2Icon, CheckCircleIcon, XCircleIcon, ShieldCheckIcon } from "lucide-react";
 import { Combobox } from "@/components/ui/combobox";
+import { FormTextField } from "@/components/ui/form-text-field";
 import { toast } from "sonner";
 import { useTRPC } from "@/lib/trpc/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -186,38 +187,18 @@ export default function FiscalSettingsPage() {
         <CardContent className="grid gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <form.Field name="company_name">
-              {(field) => (
-                <div className="space-y-2">
-                  <Label>{t("companyName")}</Label>
-                  <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} />
-                </div>
-              )}
+              {(field) => <FormTextField field={field} label={t("companyName")} />}
             </form.Field>
             <form.Field name="trade_name">
-              {(field) => (
-                <div className="space-y-2">
-                  <Label>{t("tradeName")}</Label>
-                  <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} />
-                </div>
-              )}
+              {(field) => <FormTextField field={field} label={t("tradeName")} />}
             </form.Field>
           </div>
           <div className="grid gap-4 sm:grid-cols-3">
             <form.Field name="tax_id">
-              {(field) => (
-                <div className="space-y-2">
-                  <Label>{t("taxId")}</Label>
-                  <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} maxLength={14} placeholder="00000000000000" />
-                </div>
-              )}
+              {(field) => <FormTextField field={field} label={t("taxId")} maxLength={14} placeholder="00000000000000" />}
             </form.Field>
             <form.Field name="state_tax_id">
-              {(field) => (
-                <div className="space-y-2">
-                  <Label>{t("stateTaxId")}</Label>
-                  <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} />
-                </div>
-              )}
+              {(field) => <FormTextField field={field} label={t("stateTaxId")} />}
             </form.Field>
             <form.Field name="tax_regime">
               {(field) => (
@@ -318,29 +299,14 @@ export default function FiscalSettingsPage() {
               )}
             </form.Field>
             <form.Field name="street_number">
-              {(field) => (
-                <div className="space-y-2">
-                  <Label>{t("streetNumber")}</Label>
-                  <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} />
-                </div>
-              )}
+              {(field) => <FormTextField field={field} label={t("streetNumber")} />}
             </form.Field>
             <form.Field name="district">
-              {(field) => (
-                <div className="space-y-2">
-                  <Label>{t("district")}</Label>
-                  <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} />
-                </div>
-              )}
+              {(field) => <FormTextField field={field} label={t("district")} />}
             </form.Field>
           </div>
           <form.Field name="address_complement">
-            {(field) => (
-              <div className="space-y-2">
-                <Label>{t("addressComplement")}</Label>
-                <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} />
-              </div>
-            )}
+            {(field) => <FormTextField field={field} label={t("addressComplement")} />}
           </form.Field>
         </CardContent>
       </Card>
@@ -393,20 +359,10 @@ export default function FiscalSettingsPage() {
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
           <form.Field name="csc_id">
-            {(field) => (
-              <div className="space-y-2">
-                <Label>{t("cscId")}</Label>
-                <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} />
-              </div>
-            )}
+            {(field) => <FormTextField field={field} label={t("cscId")} />}
           </form.Field>
           <form.Field name="csc_token">
-            {(field) => (
-              <div className="space-y-2">
-                <Label>{t("cscToken")}</Label>
-                <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} />
-              </div>
-            )}
+            {(field) => <FormTextField field={field} label={t("cscToken")} />}
           </form.Field>
         </CardContent>
       </Card>
@@ -446,12 +402,7 @@ export default function FiscalSettingsPage() {
             </div>
           </div>
           <form.Field name="certificate_password">
-            {(field) => (
-              <div className="space-y-2">
-                <Label>{t("certificatePassword")}</Label>
-                <Input type="password" value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} />
-              </div>
-            )}
+            {(field) => <FormTextField field={field} label={t("certificatePassword")} type="password" />}
           </form.Field>
           <Button type="button" variant="outline" onClick={() => testMutation.mutate()} disabled={testMutation.isPending}>
             {testMutation.isPending && <Loader2Icon className="h-4 w-4 animate-spin mr-2" />}
@@ -467,44 +418,19 @@ export default function FiscalSettingsPage() {
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-3">
           <form.Field name="default_ncm">
-            {(field) => (
-              <div className="space-y-2">
-                <Label>{t("defaultNcm")}</Label>
-                <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} maxLength={8} />
-              </div>
-            )}
+            {(field) => <FormTextField field={field} label={t("defaultNcm")} maxLength={8} />}
           </form.Field>
           <form.Field name="default_cfop">
-            {(field) => (
-              <div className="space-y-2">
-                <Label>{t("defaultCfop")}</Label>
-                <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} maxLength={4} />
-              </div>
-            )}
+            {(field) => <FormTextField field={field} label={t("defaultCfop")} maxLength={4} />}
           </form.Field>
           <form.Field name="default_icms_cst">
-            {(field) => (
-              <div className="space-y-2">
-                <Label>{t("defaultIcmsCst")}</Label>
-                <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} maxLength={3} />
-              </div>
-            )}
+            {(field) => <FormTextField field={field} label={t("defaultIcmsCst")} maxLength={3} />}
           </form.Field>
           <form.Field name="default_pis_cst">
-            {(field) => (
-              <div className="space-y-2">
-                <Label>{t("defaultPisCst")}</Label>
-                <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} maxLength={2} />
-              </div>
-            )}
+            {(field) => <FormTextField field={field} label={t("defaultPisCst")} maxLength={2} />}
           </form.Field>
           <form.Field name="default_cofins_cst">
-            {(field) => (
-              <div className="space-y-2">
-                <Label>{t("defaultCofinsCst")}</Label>
-                <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} maxLength={2} />
-              </div>
-            )}
+            {(field) => <FormTextField field={field} label={t("defaultCofinsCst")} maxLength={2} />}
           </form.Field>
         </CardContent>
       </Card>

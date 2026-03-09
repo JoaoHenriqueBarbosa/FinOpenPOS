@@ -1,6 +1,8 @@
 import { STATE_IBGE_CODES } from "./state-codes";
 import { NFE_NAMESPACE, NFE_VERSION, PAYMENT_TYPES } from "./constants";
 import { formatCents, formatDecimal } from "./format-utils";
+import { tag, escapeXml } from "./xml-utils";
+export { tag, escapeXml } from "./xml-utils";
 import { buildIcmsXml, createIcmsTotals, mergeIcmsTotals, type IcmsTotals } from "./tax-icms";
 import { buildPisXml, buildCofinsXml, buildIpiXml, buildIiXml } from "./tax-pis-cofins-ipi";
 import { TaxId } from "./value-objects/tax-id";
@@ -133,25 +135,37 @@ function buildIde(
   ]);
 }
 
+/** Build address child tags (xLgr … xPais). */
+function buildAddressFields(a: {
+  street: string; number: string; complement?: string;
+  district: string; cityCode: string; cityName: string;
+  stateCode: string; zipCode?: string; includeCountry?: boolean;
+}): string[] {
+  return [
+    tag("xLgr", {}, a.street),
+    tag("nro", {}, a.number),
+    ...(a.complement ? [tag("xCpl", {}, a.complement)] : []),
+    tag("xBairro", {}, a.district),
+    tag("cMun", {}, a.cityCode),
+    tag("xMun", {}, a.cityName),
+    tag("UF", {}, a.stateCode),
+    ...(a.zipCode ? [tag("CEP", {}, a.zipCode)] : []),
+    ...(a.includeCountry ? [tag("cPais", {}, "1058"), tag("xPais", {}, "Brasil")] : []),
+  ];
+}
+
 function buildEmit(data: InvoiceBuildData): string {
   return tag("emit", {}, [
     tag("CNPJ", {}, data.issuer.taxId),
     tag("xNome", {}, data.issuer.companyName),
     ...(data.issuer.tradeName ? [tag("xFant", {}, data.issuer.tradeName)] : []),
-    tag("enderEmit", {}, [
-      tag("xLgr", {}, data.issuer.street),
-      tag("nro", {}, data.issuer.streetNumber),
-      ...(data.issuer.addressComplement
-        ? [tag("xCpl", {}, data.issuer.addressComplement)]
-        : []),
-      tag("xBairro", {}, data.issuer.district),
-      tag("cMun", {}, data.issuer.cityCode),
-      tag("xMun", {}, data.issuer.cityName),
-      tag("UF", {}, data.issuer.stateCode),
-      tag("CEP", {}, data.issuer.zipCode),
-      tag("cPais", {}, "1058"),
-      tag("xPais", {}, "Brasil"),
-    ]),
+    tag("enderEmit", {}, buildAddressFields({
+      street: data.issuer.street, number: data.issuer.streetNumber,
+      complement: data.issuer.addressComplement, district: data.issuer.district,
+      cityCode: data.issuer.cityCode, cityName: data.issuer.cityName,
+      stateCode: data.issuer.stateCode, zipCode: data.issuer.zipCode,
+      includeCountry: true,
+    })),
     tag("IE", {}, data.issuer.stateTaxId),
     tag("CRT", {}, String(data.issuer.taxRegime)),
   ]);
@@ -464,15 +478,18 @@ function buildTotal(totalProducts: number, icms: IcmsTotals, other: OtherTotals,
   ];
 
   if (retTrib) {
-    const retChildren: string[] = [];
-    if (retTrib.vRetPIS != null) retChildren.push(tag("vRetPIS", {}, formatCents(retTrib.vRetPIS)));
-    if (retTrib.vRetCOFINS != null) retChildren.push(tag("vRetCOFINS", {}, formatCents(retTrib.vRetCOFINS)));
-    if (retTrib.vRetCSLL != null) retChildren.push(tag("vRetCSLL", {}, formatCents(retTrib.vRetCSLL)));
-    if (retTrib.vBCIRRF != null) retChildren.push(tag("vBCIRRF", {}, formatCents(retTrib.vBCIRRF)));
-    if (retTrib.vIRRF != null) retChildren.push(tag("vIRRF", {}, formatCents(retTrib.vIRRF)));
-    if (retTrib.vBCRetPrev != null) retChildren.push(tag("vBCRetPrev", {}, formatCents(retTrib.vBCRetPrev)));
-    if (retTrib.vRetPrev != null) retChildren.push(tag("vRetPrev", {}, formatCents(retTrib.vRetPrev)));
-    totalChildren.push(tag("retTrib", {}, retChildren));
+    const optCentsTag = (name: string, v: number | undefined | null) =>
+      v != null ? tag(name, {}, formatCents(v)) : "";
+    const retChildren = [
+      optCentsTag("vRetPIS", retTrib.vRetPIS),
+      optCentsTag("vRetCOFINS", retTrib.vRetCOFINS),
+      optCentsTag("vRetCSLL", retTrib.vRetCSLL),
+      optCentsTag("vBCIRRF", retTrib.vBCIRRF),
+      optCentsTag("vIRRF", retTrib.vIRRF),
+      optCentsTag("vBCRetPrev", retTrib.vBCRetPrev),
+      optCentsTag("vRetPrev", retTrib.vRetPrev),
+    ].filter(Boolean);
+    if (retChildren.length) totalChildren.push(tag("retTrib", {}, retChildren));
   }
 
   return tag("total", {}, totalChildren);
@@ -525,37 +542,19 @@ function buildReferences(
 
 function buildWithdrawal(w: NonNullable<InvoiceBuildData["withdrawal"]>): string {
   const tid = new TaxId(w.taxId);
-  const taxIdTag = tag(tid.tagName(), {}, tid.padded());
-
   return tag("retirada", {}, [
-    taxIdTag,
+    tag(tid.tagName(), {}, tid.padded()),
     ...(w.name ? [tag("xNome", {}, w.name)] : []),
-    tag("xLgr", {}, w.street),
-    tag("nro", {}, w.number),
-    ...(w.complement ? [tag("xCpl", {}, w.complement)] : []),
-    tag("xBairro", {}, w.district),
-    tag("cMun", {}, w.cityCode),
-    tag("xMun", {}, w.cityName),
-    tag("UF", {}, w.stateCode),
-    ...(w.zipCode ? [tag("CEP", {}, w.zipCode)] : []),
+    ...buildAddressFields(w),
   ]);
 }
 
 function buildDelivery(d: NonNullable<InvoiceBuildData["delivery"]>): string {
   const tid = new TaxId(d.taxId);
-  const taxIdTag = tag(tid.tagName(), {}, tid.padded());
-
   return tag("entrega", {}, [
-    taxIdTag,
+    tag(tid.tagName(), {}, tid.padded()),
     ...(d.name ? [tag("xNome", {}, d.name)] : []),
-    tag("xLgr", {}, d.street),
-    tag("nro", {}, d.number),
-    ...(d.complement ? [tag("xCpl", {}, d.complement)] : []),
-    tag("xBairro", {}, d.district),
-    tag("cMun", {}, d.cityCode),
-    tag("xMun", {}, d.cityName),
-    tag("UF", {}, d.stateCode),
-    ...(d.zipCode ? [tag("CEP", {}, d.zipCode)] : []),
+    ...buildAddressFields(d),
   ]);
 }
 
@@ -845,35 +844,7 @@ function buildExport(
 
 // ── Utility functions ───────────────────────────────────────────────────────
 
-/**
- * Build an XML tag with optional attributes and children.
- */
-export function tag(
-  name: string,
-  attrs: Record<string, string> = {},
-  children?: string | string[]
-): string {
-  const attrStr = Object.entries(attrs)
-    .map(([k, v]) => ` ${k}="${escapeXml(v)}"`)
-    .join("");
-
-  if (children === undefined || children === "") {
-    return `<${name}${attrStr}></${name}>`;
-  }
-
-  const content = Array.isArray(children) ? children.join("") : escapeXml(children);
-  return `<${name}${attrStr}>${content}</${name}>`;
-}
-
-/** Escape special XML characters in text content */
-function escapeXml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
+// tag() and escapeXml() imported from ./xml-utils
 
 /** Generate 8-digit random numeric code */
 function generateNumericCode(): string {

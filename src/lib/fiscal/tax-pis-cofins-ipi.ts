@@ -126,176 +126,169 @@ const PIS_COFINS_OUTR_CSTS = new Set([
 
 const IPI_TRIB_CSTS = new Set(["00", "49", "50", "99"]);
 
-// ── PIS ─────────────────────────────────────────────────────────────────────
+// ── Contribution tax (PIS / COFINS) generic engine ─────────────────────────
+//
+// PIS and COFINS are two variants of the same "contribuição social" domain
+// concept. They share identical calculation logic — only the XML tag names
+// and field names differ.  A ContributionTaxConfig captures those differences
+// so a single set of private functions handles both taxes.
 
-/**
- * Build `<PIS>` XML group (Q01) for a det item.
- *
- * Routes to the correct child tag based on CST:
- * - PISAliq  (CST 01, 02)
- * - PISQtde  (CST 03)
- * - PISNT    (CST 04-09)
- * - PISOutr  (CST 49, 50-75, 98, 99)
- */
-export function calculatePis(data: PisData): TaxElement {
+interface ContributionTaxConfig {
+  taxName: string;      // "PIS" | "COFINS"
+  rateField: string;    // "pPIS" | "pCOFINS"
+  valueField: string;   // "vPIS" | "vCOFINS"
+  stTag: string;        // "PISST" | "COFINSST"
+  stIndicator: string;  // "indSomaPISST" | "indSomaCOFINSST"
+}
+
+const PIS_CONFIG: ContributionTaxConfig = {
+  taxName: "PIS", rateField: "pPIS", valueField: "vPIS",
+  stTag: "PISST", stIndicator: "indSomaPISST",
+};
+
+const COFINS_CONFIG: ContributionTaxConfig = {
+  taxName: "COFINS", rateField: "pCOFINS", valueField: "vCOFINS",
+  stTag: "COFINSST", stIndicator: "indSomaCOFINSST",
+};
+
+interface ContributionTaxInput {
+  CST: string;
+  vBC?: number;
+  rate?: number;
+  value?: number;
+  qBCProd?: number;
+  vAliqProd?: number;
+}
+
+interface ContributionTaxStInput {
+  vBC?: number;
+  rate?: number;
+  qBCProd?: number;
+  vAliqProd?: number;
+  value: number;
+  stIndicator?: number;
+}
+
+function calculateContributionTax(
+  d: ContributionTaxInput,
+  cfg: ContributionTaxConfig,
+): TaxElement {
   let variantTag: string;
   let fields: TaxField[];
 
-  if (PIS_COFINS_ALIQ_CSTS.has(data.CST)) {
-    variantTag = "PISAliq";
+  if (PIS_COFINS_ALIQ_CSTS.has(d.CST)) {
+    variantTag = `${cfg.taxName}Aliq`;
     fields = [
-      { name: "CST", value: data.CST },
-      { name: "vBC", value: formatCentsOrZero(data.vBC) },
-      { name: "pPIS", value: formatRate4OrZero(data.pPIS) },
-      { name: "vPIS", value: formatCentsOrZero(data.vPIS) },
+      { name: "CST", value: d.CST },
+      { name: "vBC", value: formatCentsOrZero(d.vBC) },
+      { name: cfg.rateField, value: formatRate4OrZero(d.rate) },
+      { name: cfg.valueField, value: formatCentsOrZero(d.value) },
     ];
-  } else if (PIS_COFINS_QTDE_CSTS.has(data.CST)) {
-    variantTag = "PISQtde";
+  } else if (PIS_COFINS_QTDE_CSTS.has(d.CST)) {
+    variantTag = `${cfg.taxName}Qtde`;
     fields = [
-      { name: "CST", value: data.CST },
-      { name: "qBCProd", value: formatRate4OrZero(data.qBCProd) },
-      { name: "vAliqProd", value: formatRate4OrZero(data.vAliqProd) },
-      { name: "vPIS", value: formatCentsOrZero(data.vPIS) },
+      { name: "CST", value: d.CST },
+      { name: "qBCProd", value: formatRate4OrZero(d.qBCProd) },
+      { name: "vAliqProd", value: formatRate4OrZero(d.vAliqProd) },
+      { name: cfg.valueField, value: formatCentsOrZero(d.value) },
     ];
-  } else if (PIS_COFINS_NT_CSTS.has(data.CST)) {
-    variantTag = "PISNT";
-    fields = [{ name: "CST", value: data.CST }];
-  } else if (PIS_COFINS_OUTR_CSTS.has(data.CST)) {
-    variantTag = "PISOutr";
-    fields = calculatePisOutrFields(data);
+  } else if (PIS_COFINS_NT_CSTS.has(d.CST)) {
+    variantTag = `${cfg.taxName}NT`;
+    fields = [{ name: "CST", value: d.CST }];
+  } else if (PIS_COFINS_OUTR_CSTS.has(d.CST)) {
+    variantTag = `${cfg.taxName}Outr`;
+    fields = buildContributionOutrFields(d, cfg);
   } else {
-    variantTag = "PISNT";
-    fields = [{ name: "CST", value: data.CST }];
+    variantTag = `${cfg.taxName}NT`;
+    fields = [{ name: "CST", value: d.CST }];
   }
 
-  return { outerTag: "PIS", outerFields: [], variantTag, fields };
+  return { outerTag: cfg.taxName, outerFields: [], variantTag, fields };
+}
+
+function buildContributionOutrFields(
+  d: ContributionTaxInput,
+  cfg: ContributionTaxConfig,
+): TaxField[] {
+  const fields: TaxField[] = [{ name: "CST", value: d.CST }];
+
+  if (d.qBCProd != null) {
+    fields.push({ name: "qBCProd", value: formatRate4OrZero(d.qBCProd) });
+    fields.push({ name: "vAliqProd", value: formatRate4OrZero(d.vAliqProd) });
+  } else {
+    fields.push({ name: "vBC", value: formatCentsOrZero(d.vBC) });
+    fields.push({ name: cfg.rateField, value: formatRate4OrZero(d.rate) });
+  }
+
+  fields.push({ name: cfg.valueField, value: formatCentsOrZero(d.value) });
+  return fields;
+}
+
+function calculateContributionTaxSt(
+  d: ContributionTaxStInput,
+  cfg: ContributionTaxConfig,
+): TaxElement {
+  const fields: TaxField[] = [];
+
+  if (d.qBCProd != null) {
+    fields.push({ name: "qBCProd", value: formatRate4OrZero(d.qBCProd) });
+    fields.push({ name: "vAliqProd", value: formatRate4OrZero(d.vAliqProd) });
+  } else {
+    fields.push({ name: "vBC", value: formatCentsOrZero(d.vBC) });
+    fields.push({ name: cfg.rateField, value: formatRate4OrZero(d.rate) });
+  }
+
+  fields.push({ name: cfg.valueField, value: formatCentsOrZero(d.value) });
+
+  if (d.stIndicator != null) {
+    fields.push({ name: cfg.stIndicator, value: String(d.stIndicator) });
+  }
+
+  return { outerTag: null, outerFields: [], variantTag: cfg.stTag, fields };
+}
+
+// ── PIS (public API) ───────────────────────────────────────────────────────
+
+export function calculatePis(data: PisData): TaxElement {
+  return calculateContributionTax(
+    { CST: data.CST, vBC: data.vBC, rate: data.pPIS, value: data.vPIS, qBCProd: data.qBCProd, vAliqProd: data.vAliqProd },
+    PIS_CONFIG,
+  );
 }
 
 export function buildPisXml(data: PisData): string {
   return serializeTaxElement(calculatePis(data));
 }
 
-function calculatePisOutrFields(data: PisData): TaxField[] {
-  const fields: TaxField[] = [{ name: "CST", value: data.CST }];
-
-  if (data.qBCProd != null) {
-    fields.push({ name: "qBCProd", value: formatRate4OrZero(data.qBCProd) });
-    fields.push({ name: "vAliqProd", value: formatRate4OrZero(data.vAliqProd) });
-  } else {
-    fields.push({ name: "vBC", value: formatCentsOrZero(data.vBC) });
-    fields.push({ name: "pPIS", value: formatRate4OrZero(data.pPIS) });
-  }
-
-  fields.push({ name: "vPIS", value: formatCentsOrZero(data.vPIS) });
-  return fields;
-}
-
 export function calculatePisSt(data: PisStData): TaxElement {
-  const fields: TaxField[] = [];
-
-  if (data.qBCProd != null) {
-    fields.push({ name: "qBCProd", value: formatRate4OrZero(data.qBCProd) });
-    fields.push({ name: "vAliqProd", value: formatRate4OrZero(data.vAliqProd) });
-  } else {
-    fields.push({ name: "vBC", value: formatCentsOrZero(data.vBC) });
-    fields.push({ name: "pPIS", value: formatRate4OrZero(data.pPIS) });
-  }
-
-  fields.push({ name: "vPIS", value: formatCentsOrZero(data.vPIS) });
-
-  if (data.indSomaPISST != null) {
-    fields.push({ name: "indSomaPISST", value: String(data.indSomaPISST) });
-  }
-
-  return { outerTag: null, outerFields: [], variantTag: "PISST", fields };
+  return calculateContributionTaxSt(
+    { vBC: data.vBC, rate: data.pPIS, value: data.vPIS, qBCProd: data.qBCProd, vAliqProd: data.vAliqProd, stIndicator: data.indSomaPISST },
+    PIS_CONFIG,
+  );
 }
 
 export function buildPisStXml(data: PisStData): string {
   return serializeTaxElement(calculatePisSt(data));
 }
 
-// ── COFINS ──────────────────────────────────────────────────────────────────
+// ── COFINS (public API) ────────────────────────────────────────────────────
 
-/**
- * Build `<COFINS>` XML group (S01) for a det item.
- *
- * Routes to the correct child tag based on CST:
- * - COFINSAliq  (CST 01, 02)
- * - COFINSQtde  (CST 03)
- * - COFINSNT    (CST 04-09)
- * - COFINSOutr  (CST 49, 50-75, 98, 99)
- */
 export function calculateCofins(data: CofinsData): TaxElement {
-  let variantTag: string;
-  let fields: TaxField[];
-
-  if (PIS_COFINS_ALIQ_CSTS.has(data.CST)) {
-    variantTag = "COFINSAliq";
-    fields = [
-      { name: "CST", value: data.CST },
-      { name: "vBC", value: formatCentsOrZero(data.vBC) },
-      { name: "pCOFINS", value: formatRate4OrZero(data.pCOFINS) },
-      { name: "vCOFINS", value: formatCentsOrZero(data.vCOFINS) },
-    ];
-  } else if (PIS_COFINS_QTDE_CSTS.has(data.CST)) {
-    variantTag = "COFINSQtde";
-    fields = [
-      { name: "CST", value: data.CST },
-      { name: "qBCProd", value: formatRate4OrZero(data.qBCProd) },
-      { name: "vAliqProd", value: formatRate4OrZero(data.vAliqProd) },
-      { name: "vCOFINS", value: formatCentsOrZero(data.vCOFINS) },
-    ];
-  } else if (PIS_COFINS_NT_CSTS.has(data.CST)) {
-    variantTag = "COFINSNT";
-    fields = [{ name: "CST", value: data.CST }];
-  } else if (PIS_COFINS_OUTR_CSTS.has(data.CST)) {
-    variantTag = "COFINSOutr";
-    fields = calculateCofinsOutrFields(data);
-  } else {
-    variantTag = "COFINSNT";
-    fields = [{ name: "CST", value: data.CST }];
-  }
-
-  return { outerTag: "COFINS", outerFields: [], variantTag, fields };
+  return calculateContributionTax(
+    { CST: data.CST, vBC: data.vBC, rate: data.pCOFINS, value: data.vCOFINS, qBCProd: data.qBCProd, vAliqProd: data.vAliqProd },
+    COFINS_CONFIG,
+  );
 }
 
 export function buildCofinsXml(data: CofinsData): string {
   return serializeTaxElement(calculateCofins(data));
 }
 
-function calculateCofinsOutrFields(data: CofinsData): TaxField[] {
-  const fields: TaxField[] = [{ name: "CST", value: data.CST }];
-
-  if (data.qBCProd != null) {
-    fields.push({ name: "qBCProd", value: formatRate4OrZero(data.qBCProd) });
-    fields.push({ name: "vAliqProd", value: formatRate4OrZero(data.vAliqProd) });
-  } else {
-    fields.push({ name: "vBC", value: formatCentsOrZero(data.vBC) });
-    fields.push({ name: "pCOFINS", value: formatRate4OrZero(data.pCOFINS) });
-  }
-
-  fields.push({ name: "vCOFINS", value: formatCentsOrZero(data.vCOFINS) });
-  return fields;
-}
-
 export function calculateCofinsSt(data: CofinsStData): TaxElement {
-  const fields: TaxField[] = [];
-
-  if (data.qBCProd != null) {
-    fields.push({ name: "qBCProd", value: formatRate4OrZero(data.qBCProd) });
-    fields.push({ name: "vAliqProd", value: formatRate4OrZero(data.vAliqProd) });
-  } else {
-    fields.push({ name: "vBC", value: formatCentsOrZero(data.vBC) });
-    fields.push({ name: "pCOFINS", value: formatRate4OrZero(data.pCOFINS) });
-  }
-
-  fields.push({ name: "vCOFINS", value: formatCentsOrZero(data.vCOFINS) });
-
-  if (data.indSomaCOFINSST != null) {
-    fields.push({ name: "indSomaCOFINSST", value: String(data.indSomaCOFINSST) });
-  }
-
-  return { outerTag: null, outerFields: [], variantTag: "COFINSST", fields };
+  return calculateContributionTaxSt(
+    { vBC: data.vBC, rate: data.pCOFINS, value: data.vCOFINS, qBCProd: data.qBCProd, vAliqProd: data.vAliqProd, stIndicator: data.indSomaCOFINSST },
+    COFINS_CONFIG,
+  );
 }
 
 export function buildCofinsStXml(data: CofinsStData): string {

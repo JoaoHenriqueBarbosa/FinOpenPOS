@@ -6,6 +6,7 @@
  */
 
 import { XMLParser } from "fast-xml-parser";
+import { buildEventId, defaultLotId } from "./sefaz-event-types";
 import { STATE_IBGE_CODES } from "./state-codes";
 
 const xmlParser = new XMLParser({
@@ -136,12 +137,11 @@ export function buildEpecNfceXml(
   const tpEvento = "110140";
   const verEvento = "1.00";
   const nSeqEvento = 1;
-  const sSeqEvento = "01";
-  const eventId = `ID${tpEvento}${chNFe}${sSeqEvento}`;
+  const eventId = buildEventId(tpEvento, chNFe, nSeqEvento);
   const cOrgao = cOrgaoAutor;
   const descEvento = "EPEC";
   const dhEvento = new Date().toISOString().replace("Z", "-03:00");
-  const lote = Date.now().toString();
+  const lote = defaultLotId();
 
   return `<envEvento xmlns="http://www.portalfiscal.inf.br/nfe" versao="${verEvento}">`
     + `<idLote>${lote}</idLote>`
