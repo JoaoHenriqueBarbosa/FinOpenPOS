@@ -3,7 +3,7 @@ import { protectedProcedure, router } from "../init";
 import { db } from "@/lib/db";
 import { cities } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { lookupCep } from "@/lib/fiscal/cep-lookup";
+import { lookupCep } from "@finopenpos/fiscal/cep-lookup";
 
 const cepResultSchema = z.object({
   zip_code: z.string(),
