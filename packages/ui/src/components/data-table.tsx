@@ -16,10 +16,10 @@ import {
   TableHead,
   TableBody,
   TableCell,
-} from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
+} from "./table";
+import { Button } from "./button";
 import { ArrowUpDown, ArrowUp, ArrowDown, DownloadIcon, TrashIcon, FilePenIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "../lib/utils";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 

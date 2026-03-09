@@ -6,7 +6,7 @@ import {
   CardTitle,
   CardContent,
   CardDescription,
-} from "@/components/ui/card";
+} from "@finopenpos/ui/components/card";
 import {
   ChartTooltipContent,
   ChartTooltip,
@@ -14,7 +14,7 @@ import {
   ChartLegend,
   ChartLegendContent,
   type ChartConfig,
-} from "@/components/ui/chart";
+} from "@finopenpos/ui/components/chart";
 import {
   DollarSign,
   TrendingDown,
@@ -35,7 +35,7 @@ import {
   Label,
 } from "recharts";
 import { formatCurrency, formatShortDate } from "@/lib/utils";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Skeleton } from "@finopenpos/ui/components/skeleton";
 import { useTRPC } from "@/lib/trpc/client";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations, useLocale } from "next-intl";

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { Button } from "@finopenpos/ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -10,13 +10,13 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuItem,
-} from "@/components/ui/dropdown-menu";
+} from "@finopenpos/ui/components/dropdown-menu";
 import {
   TooltipProvider,
   Tooltip,
   TooltipTrigger,
   TooltipContent,
-} from "@/components/ui/tooltip";
+} from "@finopenpos/ui/components/tooltip";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
 import {
