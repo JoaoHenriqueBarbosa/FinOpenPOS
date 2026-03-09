@@ -10,6 +10,7 @@ COPY packages/auth/package.json ./packages/auth/
 COPY packages/config/package.json ./packages/config/
 COPY packages/db/package.json ./packages/db/
 COPY packages/env/package.json ./packages/env/
+COPY packages/fiscal/package.json ./packages/fiscal/
 COPY packages/ui/package.json ./packages/ui/
 RUN bun install --frozen-lockfile
 
