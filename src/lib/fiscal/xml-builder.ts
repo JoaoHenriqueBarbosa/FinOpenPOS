@@ -9,6 +9,7 @@ import type {
   PaymentData,
   InvoiceModel,
   EmissionType,
+  RetTribData,
 } from "./types";
 
 /**
@@ -68,7 +69,7 @@ export function buildInvoiceXml(data: InvoiceBuildData): {
     ...(data.delivery ? [buildDelivery(data.delivery)] : []),
     ...(data.authorizedXml ? data.authorizedXml.map((a) => buildAutXml(a)) : []),
     ...detElements,
-    buildTotal(totalProducts, icmsTotals, { vIPI: totalIpi, vPIS: totalPis, vCOFINS: totalCofins, vII: totalIi }),
+    buildTotal(totalProducts, icmsTotals, { vIPI: totalIpi, vPIS: totalPis, vCOFINS: totalCofins, vII: totalIi }, data.retTrib),
     buildTransp(data),
     ...(data.billing ? [buildCobr(data.billing)] : []),
     buildPag(data.payments, data.changeAmount, data.paymentCardDetails),
@@ -314,6 +315,113 @@ function buildDet(item: InvoiceItemData, data: InvoiceBuildData): DetResult {
     vII = item.iiVII ?? 0;
   }
 
+  // Build product-specific option elements (inside prod)
+  const prodOptions: string[] = [];
+
+  // rastro (batch tracking) — up to 500 per item
+  if (item.rastro) {
+    const rastros = item.rastro.slice(0, 500);
+    for (const r of rastros) {
+      prodOptions.push(
+        tag("rastro", {}, [
+          tag("nLote", {}, r.nLote),
+          tag("qLote", {}, formatDecimal(r.qLote, 3)),
+          tag("dFab", {}, r.dFab),
+          tag("dVal", {}, r.dVal),
+          ...(r.cAgreg ? [tag("cAgreg", {}, r.cAgreg)] : []),
+        ])
+      );
+    }
+  }
+
+  // CHOICE group: veicProd, med, arma, comb, nRECOPI (mutually exclusive)
+  if (item.veicProd) {
+    const v = item.veicProd;
+    prodOptions.push(
+      tag("veicProd", {}, [
+        tag("tpOp", {}, v.tpOp),
+        tag("chassi", {}, v.chassi),
+        tag("cCor", {}, v.cCor),
+        tag("xCor", {}, v.xCor),
+        tag("pot", {}, v.pot),
+        tag("cilin", {}, v.cilin),
+        tag("pesoL", {}, v.pesoL),
+        tag("pesoB", {}, v.pesoB),
+        tag("nSerie", {}, v.nSerie),
+        tag("tpComb", {}, v.tpComb),
+        tag("nMotor", {}, v.nMotor),
+        tag("CMT", {}, v.CMT),
+        tag("dist", {}, v.dist),
+        tag("anoMod", {}, v.anoMod),
+        tag("anoFab", {}, v.anoFab),
+        tag("tpPint", {}, v.tpPint),
+        tag("tpVeic", {}, v.tpVeic),
+        tag("espVeic", {}, v.espVeic),
+        tag("VIN", {}, v.VIN),
+        tag("condVeic", {}, v.condVeic),
+        tag("cMod", {}, v.cMod),
+        tag("cCorDENATRAN", {}, v.cCorDENATRAN),
+        tag("lota", {}, v.lota),
+        tag("tpRest", {}, v.tpRest),
+      ])
+    );
+  } else if (item.med) {
+    const m = item.med;
+    prodOptions.push(
+      tag("med", {}, [
+        ...(m.cProdANVISA ? [tag("cProdANVISA", {}, m.cProdANVISA)] : []),
+        ...(m.xMotivoIsencao ? [tag("xMotivoIsencao", {}, m.xMotivoIsencao)] : []),
+        tag("vPMC", {}, formatCents(m.vPMC)),
+      ])
+    );
+  } else if (item.arma) {
+    const arms = item.arma.slice(0, 500);
+    for (const a of arms) {
+      prodOptions.push(
+        tag("arma", {}, [
+          tag("tpArma", {}, a.tpArma),
+          tag("nSerie", {}, a.nSerie),
+          tag("nCano", {}, a.nCano),
+          tag("descr", {}, a.descr),
+        ])
+      );
+    }
+  } else if (item.nRECOPI) {
+    prodOptions.push(tag("nRECOPI", {}, item.nRECOPI));
+  }
+
+  // Build det-level elements (after imposto)
+  const detExtras: string[] = [];
+  if (item.infAdProd) {
+    detExtras.push(tag("infAdProd", {}, item.infAdProd));
+  }
+  if (item.obsItem) {
+    const obsChildren: string[] = [];
+    if (item.obsItem.obsCont) {
+      obsChildren.push(
+        tag("obsCont", { xCampo: item.obsItem.obsCont.xCampo }, [
+          tag("xTexto", {}, item.obsItem.obsCont.xTexto),
+        ])
+      );
+    }
+    if (item.obsItem.obsFisco) {
+      obsChildren.push(
+        tag("obsFisco", { xCampo: item.obsItem.obsFisco.xCampo }, [
+          tag("xTexto", {}, item.obsItem.obsFisco.xTexto),
+        ])
+      );
+    }
+    detExtras.push(tag("obsItem", {}, obsChildren));
+  }
+  if (item.dfeReferenciado) {
+    detExtras.push(
+      tag("DFeReferenciado", {}, [
+        tag("chaveAcesso", {}, item.dfeReferenciado.chaveAcesso),
+        ...(item.dfeReferenciado.nItem ? [tag("nItem", {}, item.dfeReferenciado.nItem)] : []),
+      ])
+    );
+  }
+
   const xml = tag("det", { nItem: String(item.itemNumber) }, [
     tag("prod", {}, [
       tag("cProd", {}, item.productCode),
@@ -335,6 +443,7 @@ function buildDet(item: InvoiceItemData, data: InvoiceBuildData): DetResult {
       ...(item.vDesc ? [tag("vDesc", {}, formatCents(item.vDesc))] : []),
       ...(item.vOutro ? [tag("vOutro", {}, formatCents(item.vOutro))] : []),
       tag("indTot", {}, "1"),
+      ...prodOptions,
     ]),
     tag("imposto", {}, [
       icmsResult.xml,
@@ -343,6 +452,7 @@ function buildDet(item: InvoiceItemData, data: InvoiceBuildData): DetResult {
       cofinsXml,
       iiXml,
     ].filter(Boolean)),
+    ...detExtras,
   ]);
 
   return {
@@ -362,9 +472,9 @@ interface OtherTotals {
   vII: number;
 }
 
-function buildTotal(totalProducts: number, icms: IcmsTotals, other: OtherTotals): string {
+function buildTotal(totalProducts: number, icms: IcmsTotals, other: OtherTotals, retTrib?: RetTribData): string {
   const vNF = totalProducts; // vNF = vProd - vDesc + vST + vFrete + vSeg + vOutro + vII + vIPI + vServ
-  return tag("total", {}, [
+  const totalChildren: string[] = [
     tag("ICMSTot", {}, [
       tag("vBC", {}, formatCents(icms.vBC)),
       tag("vICMS", {}, formatCents(icms.vICMS)),
@@ -389,7 +499,21 @@ function buildTotal(totalProducts: number, icms: IcmsTotals, other: OtherTotals)
       tag("vOutro", {}, "0.00"),
       tag("vNF", {}, formatCents(vNF)),
     ]),
-  ]);
+  ];
+
+  if (retTrib) {
+    const retChildren: string[] = [];
+    if (retTrib.vRetPIS != null) retChildren.push(tag("vRetPIS", {}, formatCents(retTrib.vRetPIS)));
+    if (retTrib.vRetCOFINS != null) retChildren.push(tag("vRetCOFINS", {}, formatCents(retTrib.vRetCOFINS)));
+    if (retTrib.vRetCSLL != null) retChildren.push(tag("vRetCSLL", {}, formatCents(retTrib.vRetCSLL)));
+    if (retTrib.vBCIRRF != null) retChildren.push(tag("vBCIRRF", {}, formatCents(retTrib.vBCIRRF)));
+    if (retTrib.vIRRF != null) retChildren.push(tag("vIRRF", {}, formatCents(retTrib.vIRRF)));
+    if (retTrib.vBCRetPrev != null) retChildren.push(tag("vBCRetPrev", {}, formatCents(retTrib.vBCRetPrev)));
+    if (retTrib.vRetPrev != null) retChildren.push(tag("vRetPrev", {}, formatCents(retTrib.vRetPrev)));
+    totalChildren.push(tag("retTrib", {}, retChildren));
+  }
+
+  return tag("total", {}, totalChildren);
 }
 
 function buildReferences(

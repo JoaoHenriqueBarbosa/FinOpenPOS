@@ -172,3 +172,112 @@ function extractDay(isoDate: string): string {
 function formatValue(value: string): string {
   return parseFloat(value).toFixed(2);
 }
+
+// ── putQRTag — Insert QR Code into NFC-e XML ─────────────────────────────────
+
+export interface PutQRTagParams {
+  /** Signed NFC-e XML string */
+  xml: string;
+  /** CSC token */
+  cscToken: string;
+  /** CSC ID (e.g. "000001") */
+  cscId: string;
+  /** QR Code version string (e.g. "200") */
+  version: string;
+  /** QR Code base URL */
+  qrCodeBaseUrl: string;
+  /** URL for chave consultation (urlChave) */
+  urlChave: string;
+}
+
+/**
+ * Insert QR Code and urlChave tags into a signed NFC-e XML.
+ *
+ * Ported from PHP NFePHP\NFe\Factories\QRCode::putQRTag().
+ * Creates an <infNFeSupl> element with <qrCode> and <urlChave> children,
+ * and inserts it before the <Signature> element in the NFe.
+ *
+ * @returns Modified XML string with infNFeSupl inserted
+ */
+export async function putQRTag(params: PutQRTagParams): Promise<string> {
+  const { xml, cscToken, cscId, version, qrCodeBaseUrl, urlChave } = params;
+
+  const ver = version.trim() || "200";
+  const token = cscToken.trim();
+  const tokenId = cscId.trim();
+  const urlqr = qrCodeBaseUrl.trim();
+  const urichave = urlChave.trim();
+
+  if (parseInt(ver) < 300) {
+    if (!token) {
+      throw new Error("CSC token is required");
+    }
+    if (!tokenId) {
+      throw new Error("CSC ID is required");
+    }
+  }
+  if (!urlqr) {
+    throw new Error("QR Code URL is required");
+  }
+
+  // Extract fields from XML
+  const chNFe = extractXmlTagAttr(xml, "infNFe", "Id")?.replace(/^NFe/, "") ?? "";
+  const tpAmb = extractXmlTagValue(xml, "tpAmb") ?? "";
+  const dhEmi = extractXmlTagValue(xml, "dhEmi") ?? "";
+  const tpEmis = parseInt(extractXmlTagValue(xml, "tpEmis") ?? "1");
+  const vNF = extractXmlTagValue(xml, "vNF") ?? "0.00";
+  const vICMS = extractXmlTagValue(xml, "vICMS") ?? "0.00";
+  const digestValue = extractXmlTagValue(xml, "DigestValue") ?? "";
+
+  // Determine destination document
+  const destBlock = xml.match(/<dest>([\s\S]*?)<\/dest>/)?.[1] ?? "";
+  const cDest = extractFirstValue(destBlock, ["CNPJ", "CPF", "idEstrangeiro"]) ?? "";
+
+  // Build QR Code URL
+  const qrcode = await buildNfceQrCodeUrl({
+    accessKey: chNFe,
+    version: (parseInt(ver) === 100 || parseInt(ver) === 200) ? 200 : 300,
+    environment: parseInt(tpAmb) as SefazEnvironment,
+    emissionType: tpEmis as EmissionType,
+    qrCodeBaseUrl: urlqr,
+    cscToken: token,
+    cscId: tokenId,
+    issuedAt: dhEmi,
+    totalValue: vNF,
+    totalIcms: vICMS,
+    digestValue: digestValue,
+    destDocument: cDest,
+  });
+
+  // Build infNFeSupl element
+  const infNFeSupl = `<infNFeSupl><qrCode>${qrcode}</qrCode><urlChave>${urichave}</urlChave></infNFeSupl>`;
+
+  // Insert before <Signature
+  const result = xml.replace(
+    /(<Signature\s)/,
+    `${infNFeSupl}<Signature `
+  );
+
+  return result;
+}
+
+/** Extract value of a simple XML tag from a string */
+function extractXmlTagValue(xml: string, tagName: string): string | undefined {
+  const match = xml.match(new RegExp(`<${tagName}>([^<]*)</${tagName}>`));
+  return match?.[1];
+}
+
+/** Extract an attribute value from an XML element */
+function extractXmlTagAttr(xml: string, tagName: string, attrName: string): string | undefined {
+  const match = xml.match(new RegExp(`<${tagName}[^>]*\\s${attrName}="([^"]*)"`, "s"));
+  return match?.[1];
+}
+
+/** Extract first matching tag value from a list of possible tag names */
+function extractFirstValue(xml: string, tagNames: string[]): string | undefined {
+  for (const tag of tagNames) {
+    const val = extractXmlTagValue(xml, tag);
+    if (val) return val;
+  }
+  return undefined;
+}

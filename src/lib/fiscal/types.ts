@@ -228,6 +228,8 @@ export interface InvoiceBuildData {
     taxId: string; // CNPJ
     idCadIntTran?: string;
   };
+  // Retained taxes (retTrib inside total)
+  retTrib?: RetTribData;
   // Tech responsible (infRespTec)
   techResponsible?: {
     taxId: string; // CNPJ
@@ -320,6 +322,91 @@ export interface InvoiceItemData {
   iiVDespAdu?: number;
   iiVII?: number;
   iiVIOF?: number;
+  // Product-specific options (inside <prod>)
+  rastro?: RastroData[];
+  veicProd?: VeicProdData;
+  med?: MedData;
+  arma?: ArmaData[];
+  nRECOPI?: string;
+  // Per-item additional info (inside <det>, after imposto)
+  infAdProd?: string;
+  obsItem?: ObsItemData;
+  dfeReferenciado?: DFeReferenciadoData;
+}
+
+/** Batch tracking (rastro) — up to 500 per item, inside prod */
+export interface RastroData {
+  nLote: string;
+  qLote: number; // quantity in lot (3 decimal)
+  dFab: string; // manufacture date YYYY-MM-DD
+  dVal: string; // expiration date YYYY-MM-DD
+  cAgreg?: string; // aggregation code (optional)
+}
+
+/** Vehicle details (veicProd) — inside prod */
+export interface VeicProdData {
+  tpOp: string;
+  chassi: string;
+  cCor: string;
+  xCor: string;
+  pot: string;
+  cilin: string;
+  pesoL: string;
+  pesoB: string;
+  nSerie: string;
+  tpComb: string;
+  nMotor: string;
+  CMT: string;
+  dist: string;
+  anoMod: string;
+  anoFab: string;
+  tpPint: string;
+  tpVeic: string;
+  espVeic: string;
+  VIN: string;
+  condVeic: string;
+  cMod: string;
+  cCorDENATRAN: string;
+  lota: string;
+  tpRest: string;
+}
+
+/** Medicine details (med) — inside prod */
+export interface MedData {
+  cProdANVISA?: string;
+  xMotivoIsencao?: string;
+  vPMC: number; // max consumer price in cents
+}
+
+/** Weapon details (arma) — inside prod, up to 500 per item */
+export interface ArmaData {
+  tpArma: string;
+  nSerie: string;
+  nCano: string;
+  descr: string;
+}
+
+/** Per-item observations (obsItem) — inside det */
+export interface ObsItemData {
+  obsCont?: { xCampo: string; xTexto: string };
+  obsFisco?: { xCampo: string; xTexto: string };
+}
+
+/** Referenced DFe per item (DFeReferenciado) — inside det, PL_010 schema */
+export interface DFeReferenciadoData {
+  chaveAcesso: string;
+  nItem?: string;
+}
+
+/** Retained taxes (retTrib) — inside total */
+export interface RetTribData {
+  vRetPIS?: number; // cents
+  vRetCOFINS?: number; // cents
+  vRetCSLL?: number; // cents
+  vBCIRRF?: number; // cents
+  vIRRF?: number; // cents
+  vBCRetPrev?: number; // cents
+  vRetPrev?: number; // cents
 }
 
 /** Payment data */

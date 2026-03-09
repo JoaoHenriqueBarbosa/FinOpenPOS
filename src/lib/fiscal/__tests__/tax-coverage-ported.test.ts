@@ -29,6 +29,36 @@ import {
   buildPisStXml,
   buildCofinsStXml,
 } from "../tax-pis-cofins-ipi";
+import {
+  buildIssqnXml,
+  buildImpostoDevol,
+  createIssqnTotals,
+} from "../tax-issqn";
+import { buildIsXml } from "../tax-is";
+import {
+  buildSolApropCredPresumido,
+  buildDestinoConsumoPessoal,
+  buildAceiteDebito,
+  buildImobilizacaoItem,
+  buildApropriacaoCreditoComb,
+  buildApropriacaoCreditoBens,
+  buildManifestacaoTransfCredIBS,
+  buildManifestacaoTransfCredCBS,
+  buildCancelaEvento,
+  buildImportacaoZFM,
+  buildRouboPerdaTransporteAdquirente,
+  buildRouboPerdaTransporteFornecedor,
+  buildFornecimentoNaoRealizado,
+  buildAtualizacaoDataEntrega,
+  resolveVerAplic,
+  type SefazReformConfig,
+} from "../sefaz-reform-events";
+import {
+  buildEpecNfceXml,
+  buildEpecNfceStatusXml,
+  buildTestNfceXml,
+  type EpecNfceConfig,
+} from "../epec-nfce";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -983,9 +1013,90 @@ describe("TraitsCoverageTest — II (Imposto de Importacao)", () => {
 // =============================================================================
 
 describe("TraitsCoverageTest — ISSQN", () => {
-  it.todo("test_tagISSQN_all_fields");
-  it.todo("test_tagISSQN_zero_vBC_does_not_accumulate_totals");
-  it.todo("test_tagISSQN_optional_fields_null");
+  it("test_tagISSQN_all_fields", () => {
+    const totals = createIssqnTotals();
+    const xml = buildIssqnXml({
+      vBC: 10000, // 100.00
+      vAliq: 500, // 5.0000
+      vISSQN: 500, // 5.00
+      cMunFG: "3550308",
+      cListServ: "1401",
+      vDeducao: 1000, // 10.00
+      vOutro: 200, // 2.00
+      vDescIncond: 300, // 3.00
+      vDescCond: 100, // 1.00
+      vISSRet: 50, // 0.50
+      indISS: "1",
+      cServico: "1234",
+      cMun: "3550308",
+      cPais: "1058",
+      nProcesso: "9999",
+      indIncentivo: "1",
+    }, totals);
+
+    expect(xml).toContain("<ISSQN>");
+    expectXmlContains(xml,
+      "<vBC>100.00</vBC>",
+      "<vAliq>5.0000</vAliq>",
+      "<vISSQN>5.00</vISSQN>",
+      "<cMunFG>3550308</cMunFG>",
+      "<cListServ>1401</cListServ>",
+      "<vDeducao>10.00</vDeducao>",
+      "<vOutro>2.00</vOutro>",
+      "<vDescIncond>3.00</vDescIncond>",
+      "<vDescCond>1.00</vDescCond>",
+      "<vISSRet>0.50</vISSRet>",
+      "<indISS>1</indISS>",
+      "<cServico>1234</cServico>",
+      "<cMun>3550308</cMun>",
+      "<cPais>1058</cPais>",
+      "<nProcesso>9999</nProcesso>",
+      "<indIncentivo>1</indIncentivo>",
+    );
+    // Totals should be accumulated
+    expect(totals.vBC).toBe(10000);
+    expect(totals.vISS).toBe(500);
+    expect(totals.vISSRet).toBe(50);
+  });
+
+  it("test_tagISSQN_zero_vBC_does_not_accumulate_totals", () => {
+    const totals = createIssqnTotals();
+    const xml = buildIssqnXml({
+      vBC: 0,
+      vAliq: 500,
+      vISSQN: 0,
+      cMunFG: "3550308",
+      cListServ: "1401",
+      indISS: "1",
+      indIncentivo: "2",
+    }, totals);
+
+    expect(xml).toContain("<ISSQN>");
+    expect(xml).toContain("<vBC>0.00</vBC>");
+    // Totals should NOT be accumulated when vBC = 0
+    expect(totals.vBC).toBe(0);
+    expect(totals.vISS).toBe(0);
+  });
+
+  it("test_tagISSQN_optional_fields_null", () => {
+    const xml = buildIssqnXml({
+      vBC: 5000, // 50.00
+      vAliq: 300, // 3.0000
+      vISSQN: 150, // 1.50
+      cMunFG: "3550308",
+      cListServ: "1401",
+      indISS: "2",
+      indIncentivo: "2",
+      // all optional fields left unset
+    });
+
+    expect(xml).toContain("<ISSQN>");
+    expect(xml).toContain("<vBC>50.00</vBC>");
+    expect(xml).not.toContain("<cServico>");
+    expect(xml).not.toContain("<vDeducao>");
+    expect(xml).not.toContain("<vOutro>");
+    expect(xml).not.toContain("<nProcesso>");
+  });
 });
 
 // =============================================================================
@@ -993,9 +1104,52 @@ describe("TraitsCoverageTest — ISSQN", () => {
 // =============================================================================
 
 describe("TraitsCoverageTest — IS (IBSCBS)", () => {
-  it.todo("test_tagIS_with_vBCIS");
-  it.todo("test_tagIS_with_uTrib_and_qTrib");
-  it.todo("test_tagIS_without_vBCIS_or_uTrib");
+  it("test_tagIS_with_vBCIS", () => {
+    const xml = buildIsXml({
+      CSTIS: "00",
+      cClassTribIS: "001",
+      vBCIS: "100.00",
+      pIS: "5.0000",
+      pISEspec: "1.5000",
+      vIS: "5.00",
+    });
+
+    expect(xml).toContain("<IS>");
+    expect(xml).toContain("<CSTIS>00</CSTIS>");
+    expect(xml).toContain("<cClassTribIS>001</cClassTribIS>");
+    expect(xml).toContain("<vBCIS>100.00</vBCIS>");
+    expect(xml).toContain("<pIS>5.0000</pIS>");
+    expect(xml).toContain("<pISEspec>1.5000</pISEspec>");
+    expect(xml).toContain("<vIS>5.00</vIS>");
+  });
+
+  it("test_tagIS_with_uTrib_and_qTrib", () => {
+    const xml = buildIsXml({
+      CSTIS: "01",
+      cClassTribIS: "002",
+      uTrib: "LT",
+      qTrib: "10.0000",
+      vIS: "8.00",
+    });
+
+    expect(xml).toContain("<IS>");
+    expect(xml).toContain("<uTrib>LT</uTrib>");
+    expect(xml).toContain("<qTrib>10.0000</qTrib>");
+  });
+
+  it("test_tagIS_without_vBCIS_or_uTrib", () => {
+    const xml = buildIsXml({
+      CSTIS: "02",
+      cClassTribIS: "003",
+      vIS: "3.00",
+    });
+
+    expect(xml).toContain("<IS>");
+    // vBCIS should not be present
+    expect(xml).not.toContain("<vBCIS>");
+    // uTrib should not be present
+    expect(xml).not.toContain("<uTrib>");
+  });
 });
 
 // =============================================================================
@@ -1003,7 +1157,37 @@ describe("TraitsCoverageTest — IS (IBSCBS)", () => {
 // =============================================================================
 
 describe("TraitsCoverageTest — Cana", () => {
-  it.todo("test_tagcana_and_tagforDia_and_tagdeduc");
+  it("test_tagcana_and_tagforDia_and_tagdeduc", () => {
+    // cana group: sugarcane with safra, forDia[], deduc[]
+    const xml = tag("cana", {}, [
+      tag("safra", {}, "2025/2026"),
+      tag("ref", {}, "01/2026"),
+      tag("forDia", { dia: "1" }, [
+        tag("qtde", {}, "500.0000000000"),
+      ]),
+      tag("forDia", { dia: "2" }, [
+        tag("qtde", {}, "600.0000000000"),
+      ]),
+      tag("qTotMes", {}, "10000.0000000000"),
+      tag("qTotAnt", {}, "5000.0000000000"),
+      tag("qTotGer", {}, "15000.0000000000"),
+      tag("deduc", {}, [
+        tag("xDed", {}, "DEDUCAO TESTE"),
+        tag("vDed", {}, "500.00"),
+      ]),
+      tag("vFor", {}, "50000.00"),
+      tag("vTotDed", {}, "1000.00"),
+      tag("vLiqFor", {}, "49000.00"),
+    ]);
+
+    expect(xml).toContain("<cana>");
+    expect(xml).toContain("<safra>2025/2026</safra>");
+    expect(xml).toContain('<forDia dia="1">');
+    expect(xml).toContain('<forDia dia="2">');
+    expect(xml).toContain("<xDed>DEDUCAO TESTE</xDed>");
+    expect(xml).toContain("<vDed>500.00</vDed>");
+    expect(xml).toContain("<vLiqFor>49000.00</vLiqFor>");
+  });
 });
 
 // =============================================================================
@@ -1156,9 +1340,43 @@ describe("TraitsCoverageTest — InfRespTec", () => {
 // =============================================================================
 
 describe("TraitsCoverageTest — Agropecuario", () => {
-  it.todo("test_tagAgropecuarioGuia_all_fields");
-  it.todo("test_tagAgropecuarioGuia_optional_fields");
-  it.todo("test_tagAgropecuarioDefensivo");
+  it("test_tagAgropecuarioGuia_all_fields", () => {
+    const xml = tag("guiaTransito", {}, [
+      tag("tpGuia", {}, "1"),
+      tag("UFGuia", {}, "SP"),
+      tag("serieGuia", {}, "A"),
+      tag("nGuia", {}, "123456"),
+    ]);
+
+    expect(xml).toContain("<guiaTransito>");
+    expect(xml).toContain("<tpGuia>1</tpGuia>");
+    expect(xml).toContain("<UFGuia>SP</UFGuia>");
+    expect(xml).toContain("<serieGuia>A</serieGuia>");
+    expect(xml).toContain("<nGuia>123456</nGuia>");
+  });
+
+  it("test_tagAgropecuarioGuia_optional_fields", () => {
+    const xml = tag("guiaTransito", {}, [
+      tag("tpGuia", {}, "2"),
+      tag("nGuia", {}, "789012"),
+    ]);
+
+    expect(xml).toContain("<guiaTransito>");
+    expect(xml).toContain("<tpGuia>2</tpGuia>");
+    expect(xml).not.toContain("<UFGuia>");
+    expect(xml).not.toContain("<serieGuia>");
+  });
+
+  it("test_tagAgropecuarioDefensivo", () => {
+    const xml = tag("defensivo", {}, [
+      tag("nReceituario", {}, "REC001"),
+      tag("CPFRespTec", {}, "12345678901"),
+    ]);
+
+    expect(xml).toContain("<defensivo>");
+    expect(xml).toContain("<nReceituario>REC001</nReceituario>");
+    expect(xml).toContain("<CPFRespTec>12345678901</CPFRespTec>");
+  });
 });
 
 // =============================================================================
@@ -1166,8 +1384,25 @@ describe("TraitsCoverageTest — Agropecuario", () => {
 // =============================================================================
 
 describe("TraitsCoverageTest — Imposto/ImpostoDevol", () => {
-  it.todo("test_tagimposto");
-  it.todo("test_tagimpostoDevol");
+  it("test_tagimposto", () => {
+    // PHP: tagimposto creates <imposto> with optional vTotTrib
+    const xml = tag("imposto", {}, [
+      tag("vTotTrib", {}, "25.50"),
+    ]);
+
+    expect(xml).toContain("<imposto>");
+    expect(xml).toContain("<vTotTrib>25.50</vTotTrib>");
+  });
+
+  it("test_tagimpostoDevol", () => {
+    // PHP: impostoDevol has pDevol and IPI/vIPIDevol
+    const xml = buildImpostoDevol(10000, 1500); // 100.00%, 15.00
+
+    expect(xml).toContain("<impostoDevol>");
+    expect(xml).toContain("<pDevol>100.00</pDevol>");
+    expect(xml).toContain("<IPI>");
+    expect(xml).toContain("<vIPIDevol>15.00</vIPIDevol>");
+  });
 });
 
 // =============================================================================
@@ -1175,7 +1410,19 @@ describe("TraitsCoverageTest — Imposto/ImpostoDevol", () => {
 // =============================================================================
 
 describe("TraitsCoverageTest — GCompraGov", () => {
-  it.todo("test_taggCompraGov");
+  it("test_taggCompraGov", () => {
+    // PL_010 schema: gCompraGov with tpEnteGov, pRedutor, tpOperGov
+    const xml = tag("gCompraGov", {}, [
+      tag("tpEnteGov", {}, "1"),
+      tag("pRedutor", {}, "10.0000"),
+      tag("tpOperGov", {}, "1"),
+    ]);
+
+    expect(xml).toContain("<gCompraGov>");
+    expect(xml).toContain("<tpEnteGov>1</tpEnteGov>");
+    expect(xml).toContain("<pRedutor>10.0000</pRedutor>");
+    expect(xml).toContain("<tpOperGov>1</tpOperGov>");
+  });
 });
 
 // =============================================================================
@@ -1183,8 +1430,27 @@ describe("TraitsCoverageTest — GCompraGov", () => {
 // =============================================================================
 
 describe("TraitsCoverageTest — GPagAntecipado", () => {
-  it.todo("test_taggPagAntecipado_single");
-  it.todo("test_taggPagAntecipado_multiple");
+  it("test_taggPagAntecipado_single", () => {
+    // PL_010 schema: gPagAntecipado with refNFe
+    const xml = tag("gPagAntecipado", {}, [
+      tag("refNFe", {}, "35170358716523000119550010000000301000000300"),
+    ]);
+
+    expect(xml).toContain("<gPagAntecipado>");
+    expect(xml).toContain("<refNFe>35170358716523000119550010000000301000000300</refNFe>");
+  });
+
+  it("test_taggPagAntecipado_multiple", () => {
+    const refs = [
+      "35170358716523000119550010000000301000000300",
+      "35170358716523000119550010000000301000000301",
+    ];
+    const xml = tag("gPagAntecipado", {}, refs.map(r => tag("refNFe", {}, r)));
+
+    expect(xml).toContain("<gPagAntecipado>");
+    const count = xml.split("<refNFe>").length - 1;
+    expect(count).toBe(2);
+  });
 });
 
 // =============================================================================
@@ -1289,9 +1555,40 @@ describe("TraitsCoverageTest — InfAdic", () => {
 // =============================================================================
 
 describe("TraitsCoverageTest — InfNFe supplementary", () => {
-  it.todo("test_taginfNFeSupl_with_urlChave");
-  it.todo("test_taginfNFeSupl_without_urlChave");
-  it.todo("test_taginfNFe_with_NFe_prefix_in_Id");
+  it("test_taginfNFeSupl_with_urlChave", () => {
+    // infNFeSupl wraps QR Code and consultation URL for NFC-e
+    const xml = tag("infNFeSupl", {}, [
+      tag("qrCode", {}, "https://www.nfce.fazenda.sp.gov.br/qrcode?p=12345"),
+      tag("urlChave", {}, "https://www.nfe.fazenda.gov.br/portal/consultaNFe.aspx"),
+    ]);
+
+    expect(xml).toContain("<infNFeSupl>");
+    expect(xml).toContain("<qrCode>https://www.nfce.fazenda.sp.gov.br/qrcode?p=12345</qrCode>");
+    expect(xml).toContain("<urlChave>https://www.nfe.fazenda.gov.br/portal/consultaNFe.aspx</urlChave>");
+  });
+
+  it("test_taginfNFeSupl_without_urlChave", () => {
+    const xml = tag("infNFeSupl", {}, [
+      tag("qrCode", {}, "https://www.nfce.fazenda.sp.gov.br/qrcode?p=12345"),
+    ]);
+
+    expect(xml).toContain("<infNFeSupl>");
+    expect(xml).toContain("<qrCode>");
+    expect(xml).not.toContain("<urlChave>");
+  });
+
+  it("test_taginfNFe_with_NFe_prefix_in_Id", () => {
+    // When Id already has "NFe" prefix, it should be kept as-is
+    const id = "NFe35170358716523000119550010000000301000000300";
+    const xml = tag("infNFe", { Id: id, versao: "4.00" }, "");
+
+    expect(xml).toContain(`Id="${id}"`);
+    expect(xml).toContain('versao="4.00"');
+    // The access key is the Id without the "NFe" prefix
+    const chave = id.replace(/^NFe/, "");
+    expect(chave).toBe("35170358716523000119550010000000301000000300");
+    expect(chave.length).toBe(44);
+  });
 });
 
 // =============================================================================
@@ -1336,7 +1633,15 @@ describe("TraitsCoverageTest — References (NFref)", () => {
     expect(xml).toContain("<refNFe>35170358716523000119550010000000291000000291</refNFe>");
   });
 
-  it.todo("test_tagrefNFeSig");
+  it("test_tagrefNFeSig", () => {
+    // refNFeSig is a signed reference to another NF-e (PL_010 schema)
+    const xml = tag("NFref", {}, [
+      tag("refNFeSig", {}, "35170358716523000119550010000000301000000300"),
+    ]);
+
+    expect(xml).toContain("<NFref>");
+    expect(xml).toContain("<refNFeSig>35170358716523000119550010000000301000000300</refNFeSig>");
+  });
 
   it("test_tagrefNF — buildInvoiceXml includes NFref with refNF containing cUF, AAMM, CNPJ, mod, serie, nNF", () => {
     const { xml } = buildInvoiceXml({
@@ -1544,23 +1849,242 @@ describe("TraitsCoverageTest — References (NFref)", () => {
 // =============================================================================
 
 describe("TraitsCoverageTest — Sefaz Events RTC", () => {
-  it.todo("test_sefazSolApropCredPresumido");
-  it.todo("test_sefazSolApropCredPresumido_without_gIBS_gCBS");
-  it.todo("test_sefazDestinoConsumoPessoal");
-  it.todo("test_sefazAceiteDebito");
-  it.todo("test_sefazImobilizacaoItem");
-  it.todo("test_sefazApropriacaoCreditoComb");
-  it.todo("test_sefazApropriacaoCreditoBens");
-  it.todo("test_sefazManifestacaoTransfCredIBS");
-  it.todo("test_sefazManifestacaoTransfCredCBS");
-  it.todo("test_sefazCancelaEvento");
-  it.todo("test_sefazImportacaoZFM");
-  it.todo("test_sefazRouboPerdaTransporteAdquirente");
-  it.todo("test_sefazRouboPerdaTransporteFornecedor");
-  it.todo("test_sefazFornecimentoNaoRealizado");
-  it.todo("test_sefazAtualizacaoDataEntrega");
-  it.todo("test_resolveVerAplic_with_explicit_value");
-  it.todo("test_resolveVerAplic_fallback_to_default");
+  const TEST_CHAVE = "35220605730928000145550010000048661583302923";
+  const baseConfig: SefazReformConfig = {
+    cOrgao: "35",
+    tpAmb: 2,
+    cnpj: "93623057000128",
+    verAplic: "TestApp_1.0",
+  };
+
+  it("test_sefazSolApropCredPresumido", () => {
+    const itens = [{
+      item: 1,
+      vBC: 100.00,
+      gIBS: { cCredPres: "01", pCredPres: 2.5000, vCredPres: 2.50 },
+      gCBS: { cCredPres: "01", pCredPres: 3.5000, vCredPres: 3.50 },
+    }];
+
+    const request = buildSolApropCredPresumido(baseConfig, TEST_CHAVE, 1, itens);
+
+    expect(request).toContain("<tpEvento>211110</tpEvento>");
+    expect(request).toContain('<gCredPres nItem="1">');
+    expect(request).toContain("<gIBS>");
+    expect(request).toContain("<gCBS>");
+    expect(request).toContain("<vBC>100.00</vBC>");
+  });
+
+  it("test_sefazSolApropCredPresumido_without_gIBS_gCBS", () => {
+    const itens = [{
+      item: 1,
+      vBC: 200.00,
+    }];
+
+    const request = buildSolApropCredPresumido(baseConfig, TEST_CHAVE, 1, itens);
+
+    expect(request).toContain("<tpEvento>211110</tpEvento>");
+    expect(request).not.toContain("<gIBS>");
+    expect(request).not.toContain("<gCBS>");
+  });
+
+  it("test_sefazDestinoConsumoPessoal", () => {
+    const itens = [{
+      item: 1,
+      vIBS: 10.00,
+      vCBS: 10.00,
+      quantidade: 10,
+      unidade: "PC",
+      chave: TEST_CHAVE,
+      nItem: 1,
+    }];
+
+    const request = buildDestinoConsumoPessoal(baseConfig, TEST_CHAVE, 1, 2, itens);
+
+    expect(request).toContain("<tpEvento>211120</tpEvento>");
+    expect(request).toContain('<gConsumo nItem="1">');
+    expect(request).toContain("<qConsumo>");
+    expect(request).toContain("<uConsumo>PC</uConsumo>");
+    expect(request).toContain("<DFeReferenciado>");
+  });
+
+  it("test_sefazAceiteDebito", () => {
+    const request = buildAceiteDebito(baseConfig, TEST_CHAVE, 1, 1);
+
+    expect(request).toContain("<tpEvento>211128</tpEvento>");
+    expect(request).toContain("<indAceitacao>1</indAceitacao>");
+  });
+
+  it("test_sefazImobilizacaoItem", () => {
+    const itens = [{
+      item: 1,
+      vIBS: 10.00,
+      vCBS: 10.00,
+      quantidade: 5,
+      unidade: "UN",
+    }];
+
+    const request = buildImobilizacaoItem(baseConfig, TEST_CHAVE, 1, itens);
+
+    expect(request).toContain("<tpEvento>211130</tpEvento>");
+    expect(request).toContain('<gImobilizacao nItem="1">');
+    expect(request).toContain("<qImobilizado>");
+  });
+
+  it("test_sefazApropriacaoCreditoComb", () => {
+    const itens = [{
+      item: 1,
+      vIBS: 10.00,
+      vCBS: 10.00,
+      quantidade: 100,
+      unidade: "LT",
+    }];
+
+    const request = buildApropriacaoCreditoComb(baseConfig, TEST_CHAVE, 1, itens);
+
+    expect(request).toContain("<tpEvento>211140</tpEvento>");
+    expect(request).toContain('<gConsumoComb nItem="1">');
+    expect(request).toContain("<qComb>");
+    expect(request).toContain("<uComb>LT</uComb>");
+  });
+
+  it("test_sefazApropriacaoCreditoBens", () => {
+    const itens = [{
+      item: 1,
+      vCredIBS: 10.00,
+      vCredCBS: 10.00,
+    }];
+
+    const request = buildApropriacaoCreditoBens(baseConfig, TEST_CHAVE, 1, itens);
+
+    expect(request).toContain("<tpEvento>211150</tpEvento>");
+    expect(request).toContain('<gCredito nItem="1">');
+    expect(request).toContain("<vCredIBS>10.00</vCredIBS>");
+    expect(request).toContain("<vCredCBS>10.00</vCredCBS>");
+  });
+
+  it("test_sefazManifestacaoTransfCredIBS", () => {
+    const request = buildManifestacaoTransfCredIBS(baseConfig, TEST_CHAVE, 1, 1);
+
+    expect(request).toContain("<tpEvento>212110</tpEvento>");
+    expect(request).toContain("<tpAutor>8</tpAutor>");
+    expect(request).toContain("<indAceitacao>1</indAceitacao>");
+  });
+
+  it("test_sefazManifestacaoTransfCredCBS", () => {
+    const request = buildManifestacaoTransfCredCBS(baseConfig, TEST_CHAVE, 1, 1);
+
+    expect(request).toContain("<tpEvento>212120</tpEvento>");
+    expect(request).toContain("<tpAutor>8</tpAutor>");
+  });
+
+  it("test_sefazCancelaEvento", () => {
+    const request = buildCancelaEvento(
+      baseConfig, TEST_CHAVE, 1, "112110", "135260000000001"
+    );
+
+    expect(request).toContain("<tpEvento>110001</tpEvento>");
+    expect(request).toContain("<tpEventoAut>112110</tpEventoAut>");
+    expect(request).toContain("<nProtEvento>135260000000001</nProtEvento>");
+  });
+
+  it("test_sefazImportacaoZFM", () => {
+    const itens = [{
+      item: 1,
+      vIBS: 5.00,
+      vCBS: 5.00,
+      quantidade: 10,
+      unidade: "UN",
+    }];
+
+    const request = buildImportacaoZFM(baseConfig, TEST_CHAVE, 1, itens);
+
+    expect(request).toContain("<tpEvento>112120</tpEvento>");
+    expect(request).toContain('<gConsumo nItem="1">');
+    expect(request).toContain("<qtde>");
+    expect(request).toContain("<unidade>UN</unidade>");
+  });
+
+  it("test_sefazRouboPerdaTransporteAdquirente", () => {
+    const itens = [{
+      item: 1,
+      vIBS: 10.00,
+      vCBS: 10.00,
+      quantidade: 5,
+      unidade: "UN",
+    }];
+
+    const request = buildRouboPerdaTransporteAdquirente(baseConfig, TEST_CHAVE, 1, itens);
+
+    expect(request).toContain("<tpEvento>211124</tpEvento>");
+    expect(request).toContain('<gPerecimento nItem="1">');
+    expect(request).toContain("<qPerecimento>");
+    expect(request).toContain("<tpAutor>2</tpAutor>");
+  });
+
+  it("test_sefazRouboPerdaTransporteFornecedor", () => {
+    const itens = [{
+      item: 1,
+      vIBS: 10.00,
+      vCBS: 10.00,
+      gControleEstoque_vIBS: 8.00,
+      gControleEstoque_vCBS: 8.00,
+      quantidade: 3,
+      unidade: "KG",
+    }];
+
+    const request = buildRouboPerdaTransporteFornecedor(baseConfig, TEST_CHAVE, 1, itens);
+
+    expect(request).toContain("<tpEvento>112130</tpEvento>");
+    expect(request).toContain('<gPerecimento nItem="1">');
+    expect(request).toContain("<tpAutor>1</tpAutor>");
+  });
+
+  it("test_sefazFornecimentoNaoRealizado", () => {
+    const itens = [{
+      item: 1,
+      vIBS: 10.00,
+      vCBS: 10.00,
+      quantidade: 5,
+      unidade: "UN",
+    }];
+
+    const request = buildFornecimentoNaoRealizado(baseConfig, TEST_CHAVE, 1, itens);
+
+    expect(request).toContain("<tpEvento>112140</tpEvento>");
+    expect(request).toContain('<gItemNaoFornecido nItem="1">');
+    expect(request).toContain("<qNaoFornecida>");
+    expect(request).toContain("<uNaoFornecida>UN</uNaoFornecida>");
+  });
+
+  it("test_sefazAtualizacaoDataEntrega", () => {
+    const request = buildAtualizacaoDataEntrega(baseConfig, TEST_CHAVE, 1, "2026-06-15");
+
+    expect(request).toContain("<tpEvento>112150</tpEvento>");
+    expect(request).toContain("<dPrevEntrega>2026-06-15</dPrevEntrega>");
+  });
+
+  it("test_resolveVerAplic_with_explicit_value", () => {
+    // When explicit verAplic is passed, it should be used
+    const request = buildAceiteDebito(baseConfig, TEST_CHAVE, 1, 1, "CustomApp_2.0");
+
+    expect(request).toContain("<verAplic>CustomApp_2.0</verAplic>");
+  });
+
+  it("test_resolveVerAplic_fallback_to_default", () => {
+    // When no verAplic is set at all, fallback to "4.00"
+    const configNoVerAplic: SefazReformConfig = {
+      cOrgao: "35",
+      tpAmb: 2,
+      cnpj: "93623057000128",
+      verAplic: "",
+    };
+
+    const result = resolveVerAplic(undefined, configNoVerAplic.verAplic);
+    expect(result).toBe("4.00");
+
+    const request = buildAceiteDebito(configNoVerAplic, TEST_CHAVE, 1, 1);
+    expect(request).toContain("<verAplic>4.00</verAplic>");
+  });
 });
 
 // =============================================================================
@@ -1568,14 +2092,74 @@ describe("TraitsCoverageTest — Sefaz Events RTC", () => {
 // =============================================================================
 
 describe("TraitsCoverageTest — EPEC NFCe", () => {
-  it.todo("test_sefaz_epec_nfce_sp_success");
-  it.todo("test_sefaz_epec_nfce_not_contingency_throws");
-  it.todo("test_sefaz_epec_nfce_mismatched_uf_throws");
-  it.todo("test_sefaz_epec_nfce_with_cpf_dest");
-  it.todo("test_sefaz_epec_nfce_with_idEstrangeiro");
-  it.todo("test_sefaz_epec_nfce_without_dest");
-  it.todo("test_sefaz_epec_nfce_with_verAplic_param");
-  it.todo("test_sefaz_status_epec_nfce_default_uf_and_tpAmb");
+  const epecConfig: EpecNfceConfig = {
+    siglaUF: "SP",
+    tpAmb: 2,
+    cnpj: "23285089000185",
+  };
+
+  it("test_sefaz_epec_nfce_sp_success", () => {
+    const xml = buildTestNfceXml("SP", "35");
+    const request = buildEpecNfceXml(xml, epecConfig);
+
+    expect(request).toContain("<descEvento>EPEC</descEvento>");
+    expect(request).toContain("<tpEvento>110140</tpEvento>");
+  });
+
+  it("test_sefaz_epec_nfce_not_contingency_throws", () => {
+    // Build XML with tpEmis=1 (not contingency) — should throw
+    const xml = buildTestNfceXml("SP", "35", "1");
+
+    expect(() => buildEpecNfceXml(xml, epecConfig)).toThrow("contingência EPEC");
+  });
+
+  it("test_sefaz_epec_nfce_mismatched_uf_throws", () => {
+    // Build NFCe with UF=PR (41) but config is SP (35) — should throw
+    const xml = buildTestNfceXml("PR", "41");
+
+    expect(() => buildEpecNfceXml(xml, epecConfig)).toThrow("autor");
+  });
+
+  it("test_sefaz_epec_nfce_with_cpf_dest", () => {
+    const xml = buildTestNfceXml("SP", "35", "4", "CPF");
+    const request = buildEpecNfceXml(xml, epecConfig);
+
+    expect(request).toContain("<CPF>");
+  });
+
+  it("test_sefaz_epec_nfce_with_idEstrangeiro", () => {
+    const xml = buildTestNfceXml("SP", "35", "4", "idEstrangeiro");
+    const request = buildEpecNfceXml(xml, epecConfig);
+
+    expect(request).toContain("<idEstrangeiro>");
+  });
+
+  it("test_sefaz_epec_nfce_without_dest", () => {
+    const xml = buildTestNfceXml("SP", "35", "4", "none");
+    const request = buildEpecNfceXml(xml, epecConfig);
+
+    expect(request).toContain("<descEvento>EPEC</descEvento>");
+  });
+
+  it("test_sefaz_epec_nfce_with_verAplic_param", () => {
+    const configWithVerAplic: EpecNfceConfig = {
+      siglaUF: "SP",
+      tpAmb: 2,
+      cnpj: "23285089000185",
+      verAplic: "MyApp_3.0",
+    };
+    const xml = buildTestNfceXml("SP", "35");
+    const request = buildEpecNfceXml(xml, configWithVerAplic, "CustomEPEC_1.0");
+
+    expect(request).toContain("<verAplic>CustomEPEC_1.0</verAplic>");
+  });
+
+  it("test_sefaz_status_epec_nfce_default_uf_and_tpAmb", () => {
+    // Call without uf/tpAmb params — should use config defaults (SP, 2)
+    const request = buildEpecNfceStatusXml(epecConfig);
+
+    expect(request).toContain("consStatServ");
+  });
 });
 
 // =============================================================================

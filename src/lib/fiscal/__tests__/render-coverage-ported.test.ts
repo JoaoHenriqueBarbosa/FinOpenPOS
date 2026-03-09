@@ -329,9 +329,79 @@ describe("RenderCoverageTest", () => {
       });
     });
 
-    it.todo(
-      "testTagRetTribInRenderOutput — retTrib should be inside <total> section in rendered XML"
-    );
+    it("testTagRetTribInRenderOutput — retTrib should be inside <total> section in rendered XML", () => {
+      const { xml } = buildInvoiceXml({
+        model: 55,
+        series: 1,
+        number: 1,
+        emissionType: 1,
+        environment: 2,
+        issuedAt: new Date("2025-01-15T10:30:00"),
+        operationNature: "VENDA",
+        issuer: {
+          taxId: "58716523000119",
+          stateTaxId: "111222333444",
+          companyName: "Empresa Teste",
+          tradeName: null,
+          taxRegime: 3,
+          stateCode: "SP",
+          cityCode: "3550308",
+          cityName: "Sao Paulo",
+          street: "Rua Teste",
+          streetNumber: "100",
+          district: "Centro",
+          zipCode: "01001000",
+          addressComplement: null,
+        },
+        items: [
+          {
+            itemNumber: 1,
+            productCode: "001",
+            description: "Produto Teste",
+            ncm: "61091000",
+            cfop: "5102",
+            unitOfMeasure: "UN",
+            quantity: 1,
+            unitPrice: 10000,
+            totalPrice: 10000,
+            icmsCst: "00",
+            icmsModBC: 0,
+            icmsRate: 1800,
+            icmsAmount: 1800,
+            pisCst: "01",
+            cofinsCst: "01",
+          },
+        ],
+        payments: [{ method: "01", amount: 10000 }],
+        retTrib: {
+          vRetPIS: 1000,
+          vRetCOFINS: 4600,
+          vRetCSLL: 500,
+          vBCIRRF: 10000,
+          vIRRF: 1500,
+          vBCRetPrev: 20000,
+          vRetPrev: 2200,
+        },
+      });
+
+      // retTrib must be inside <total>
+      expect(xml).toContain("<retTrib>");
+      const totalPos = xml.indexOf("<total>");
+      const retTribPos = xml.indexOf("<retTrib>");
+      const totalEndPos = xml.indexOf("</total>");
+      expect(retTribPos).toBeGreaterThan(totalPos);
+      expect(retTribPos).toBeLessThan(totalEndPos);
+
+      expectXmlContains(xml, {
+        vRetPIS: "10.00",
+        vRetCOFINS: "46.00",
+        vRetCSLL: "5.00",
+        vBCIRRF: "100.00",
+        vIRRF: "15.00",
+        vBCRetPrev: "200.00",
+        vRetPrev: "22.00",
+      });
+    });
   });
 
   // ──────────────────────────────────────────────────────────────────
@@ -443,9 +513,69 @@ describe("RenderCoverageTest", () => {
       });
     });
 
-    it.todo(
-      "testTagProdWithAllOptionalFields — full render with infAdProd and obsItem in rendered XML"
-    );
+    it("testTagProdWithAllOptionalFields — full render with infAdProd and obsItem in rendered XML", () => {
+      const { xml } = buildInvoiceXml({
+        model: 55,
+        series: 1,
+        number: 1,
+        emissionType: 1,
+        environment: 2,
+        issuedAt: new Date("2025-01-15T10:30:00"),
+        operationNature: "VENDA",
+        issuer: {
+          taxId: "58716523000119",
+          stateTaxId: "111222333444",
+          companyName: "Empresa Teste",
+          tradeName: null,
+          taxRegime: 3,
+          stateCode: "SP",
+          cityCode: "3550308",
+          cityName: "Sao Paulo",
+          street: "Rua Teste",
+          streetNumber: "100",
+          district: "Centro",
+          zipCode: "01001000",
+          addressComplement: null,
+        },
+        items: [
+          {
+            itemNumber: 1,
+            productCode: "001",
+            description: "Produto Completo",
+            ncm: "61091000",
+            cfop: "5102",
+            unitOfMeasure: "UN",
+            quantity: 1,
+            unitPrice: 10000,
+            totalPrice: 10000,
+            icmsCst: "00",
+            icmsModBC: 0,
+            icmsRate: 1800,
+            icmsAmount: 1800,
+            pisCst: "01",
+            cofinsCst: "01",
+            infAdProd: "Informacao adicional do produto item 1",
+            obsItem: {
+              obsCont: { xCampo: "CampoTeste", xTexto: "ValorTeste" },
+            },
+          },
+        ],
+        payments: [{ method: "01", amount: 10000 }],
+      });
+
+      // infAdProd should be inside det, after imposto
+      expect(xml).toContain("<infAdProd>Informacao adicional do produto item 1</infAdProd>");
+      const impostoEndPos = xml.indexOf("</imposto>");
+      const infAdProdPos = xml.indexOf("<infAdProd>");
+      const detEndPos = xml.indexOf("</det>");
+      expect(infAdProdPos).toBeGreaterThan(impostoEndPos);
+      expect(infAdProdPos).toBeLessThan(detEndPos);
+
+      // obsItem should be inside det
+      expect(xml).toContain("<obsItem>");
+      expect(xml).toContain('xCampo="CampoTeste"');
+      expect(xml).toContain("<xTexto>ValorTeste</xTexto>");
+    });
   });
 
   // ──────────────────────────────────────────────────────────────────
@@ -454,33 +584,250 @@ describe("RenderCoverageTest", () => {
   // ──────────────────────────────────────────────────────────────────
 
   describe("TraitTagDetOptions — batch tracking, vehicles, medicine, weapons", () => {
-    it.todo(
-      "testTagRastroBatchTracking — render includes rastro with nLote, qLote, dFab, dVal, cAgreg"
-    );
+    // Shared base invoice data for product option tests
+    const baseInvoice = {
+      model: 55 as const,
+      series: 1,
+      number: 1,
+      emissionType: 1 as const,
+      environment: 2 as const,
+      issuedAt: new Date("2025-01-15T10:30:00"),
+      operationNature: "VENDA",
+      issuer: {
+        taxId: "58716523000119",
+        stateTaxId: "111222333444",
+        companyName: "Empresa Teste",
+        tradeName: null,
+        taxRegime: 3 as const,
+        stateCode: "SP",
+        cityCode: "3550308",
+        cityName: "Sao Paulo",
+        street: "Rua Teste",
+        streetNumber: "100",
+        district: "Centro",
+        zipCode: "01001000",
+        addressComplement: null,
+      },
+      payments: [{ method: "01", amount: 10000 }],
+    };
 
-    it.todo(
-      "testTagVeicProdVehicle — render includes veicProd with chassi, xCor, pot, nMotor, anoMod, anoFab, tpRest"
-    );
+    const baseItem = {
+      itemNumber: 1,
+      productCode: "001",
+      description: "Produto Teste",
+      ncm: "61091000",
+      cfop: "5102",
+      unitOfMeasure: "UN",
+      quantity: 1,
+      unitPrice: 10000,
+      totalPrice: 10000,
+      icmsCst: "00",
+      icmsModBC: 0,
+      icmsRate: 1800,
+      icmsAmount: 1800,
+      pisCst: "01",
+      cofinsCst: "01",
+    };
 
-    it.todo(
-      "testTagMedMedicine — render includes med with cProdANVISA and vPMC"
-    );
+    it("testTagRastroBatchTracking — render includes rastro with nLote, qLote, dFab, dVal, cAgreg", () => {
+      const { xml } = buildInvoiceXml({
+        ...baseInvoice,
+        items: [{
+          ...baseItem,
+          rastro: [
+            { nLote: "LOTE2025A", qLote: 100.0, dFab: "2025-01-15", dVal: "2026-01-15", cAgreg: "AGR001" },
+            { nLote: "LOTE2025B", qLote: 50.0, dFab: "2025-02-10", dVal: "2026-02-10" },
+          ],
+        }],
+      });
 
-    it.todo(
-      "testTagArmaWeapon — render includes arma with tpArma, nSerie, nCano, descr"
-    );
+      // rastro should be inside <prod>
+      expect(xml).toContain("<rastro>");
+      const prodPos = xml.indexOf("<prod>");
+      const rastroPos = xml.indexOf("<rastro>");
+      const prodEndPos = xml.indexOf("</prod>");
+      expect(rastroPos).toBeGreaterThan(prodPos);
+      expect(rastroPos).toBeLessThan(prodEndPos);
 
-    it.todo(
-      "testTagRECOPI — render includes nRECOPI"
-    );
+      expectXmlContains(xml, {
+        nLote: "LOTE2025A",
+        qLote: "100.000",
+        dFab: "2025-01-15",
+        dVal: "2026-01-15",
+        cAgreg: "AGR001",
+      });
+      // Second rastro
+      expect(xml).toContain("<nLote>LOTE2025B</nLote>");
+      // Count rastro occurrences
+      const count = xml.split("<rastro>").length - 1;
+      expect(count).toBe(2);
+    });
 
-    it.todo(
-      "testTagRECOPIWithInvalidDataReturnsNull — empty nRECOPI should produce error"
-    );
+    it("testTagVeicProdVehicle — render includes veicProd with chassi, xCor, pot, nMotor, anoMod, anoFab, tpRest", () => {
+      const { xml } = buildInvoiceXml({
+        ...baseInvoice,
+        items: [{
+          ...baseItem,
+          veicProd: {
+            tpOp: "1",
+            chassi: "9BWSU19F08B302158",
+            cCor: "1",
+            xCor: "BRANCA",
+            pot: "150",
+            cilin: "1600",
+            pesoL: "1200",
+            pesoB: "1350",
+            nSerie: "AAA111222",
+            tpComb: "16",
+            nMotor: "MOT12345",
+            CMT: "1800.0000",
+            dist: "2600",
+            anoMod: "2025",
+            anoFab: "2024",
+            tpPint: "M",
+            tpVeic: "06",
+            espVeic: "1",
+            VIN: "R",
+            condVeic: "1",
+            cMod: "123456",
+            cCorDENATRAN: "01",
+            lota: "5",
+            tpRest: "0",
+          },
+        }],
+      });
 
-    it.todo(
-      "testTagDFeReferenciado — render includes DFeReferenciado with chaveAcesso and nItem (PL_010 schema)"
-    );
+      // veicProd should be inside <prod>
+      expect(xml).toContain("<veicProd>");
+      const prodPos = xml.indexOf("<prod>");
+      const veicPos = xml.indexOf("<veicProd>");
+      const prodEndPos = xml.indexOf("</prod>");
+      expect(veicPos).toBeGreaterThan(prodPos);
+      expect(veicPos).toBeLessThan(prodEndPos);
+
+      expectXmlContains(xml, {
+        chassi: "9BWSU19F08B302158",
+        xCor: "BRANCA",
+        pot: "150",
+        nMotor: "MOT12345",
+        anoMod: "2025",
+        anoFab: "2024",
+        tpRest: "0",
+      });
+    });
+
+    it("testTagMedMedicine — render includes med with cProdANVISA and vPMC", () => {
+      const { xml } = buildInvoiceXml({
+        ...baseInvoice,
+        items: [{
+          ...baseItem,
+          med: {
+            cProdANVISA: "1234567890123",
+            vPMC: 4990, // R$49.90
+          },
+        }],
+      });
+
+      // med should be inside <prod>
+      expect(xml).toContain("<med>");
+      const prodPos = xml.indexOf("<prod>");
+      const medPos = xml.indexOf("<med>");
+      const prodEndPos = xml.indexOf("</prod>");
+      expect(medPos).toBeGreaterThan(prodPos);
+      expect(medPos).toBeLessThan(prodEndPos);
+
+      expectXmlContains(xml, {
+        cProdANVISA: "1234567890123",
+        vPMC: "49.90",
+      });
+    });
+
+    it("testTagArmaWeapon — render includes arma with tpArma, nSerie, nCano, descr", () => {
+      const { xml } = buildInvoiceXml({
+        ...baseInvoice,
+        items: [{
+          ...baseItem,
+          arma: [{
+            tpArma: "0",
+            nSerie: "SR12345",
+            nCano: "CN67890",
+            descr: "REVOLVER CALIBRE 38",
+          }],
+        }],
+      });
+
+      // arma should be inside <prod>
+      expect(xml).toContain("<arma>");
+      const prodPos = xml.indexOf("<prod>");
+      const armaPos = xml.indexOf("<arma>");
+      const prodEndPos = xml.indexOf("</prod>");
+      expect(armaPos).toBeGreaterThan(prodPos);
+      expect(armaPos).toBeLessThan(prodEndPos);
+
+      expectXmlContains(xml, {
+        tpArma: "0",
+        nSerie: "SR12345",
+        nCano: "CN67890",
+        descr: "REVOLVER CALIBRE 38",
+      });
+    });
+
+    it("testTagRECOPI — render includes nRECOPI", () => {
+      const { xml } = buildInvoiceXml({
+        ...baseInvoice,
+        items: [{
+          ...baseItem,
+          nRECOPI: "20250101120000123456",
+        }],
+      });
+
+      // nRECOPI should be inside <prod>
+      expect(xml).toContain("<nRECOPI>20250101120000123456</nRECOPI>");
+      const prodPos = xml.indexOf("<prod>");
+      const recopiPos = xml.indexOf("<nRECOPI>");
+      const prodEndPos = xml.indexOf("</prod>");
+      expect(recopiPos).toBeGreaterThan(prodPos);
+      expect(recopiPos).toBeLessThan(prodEndPos);
+    });
+
+    it("testTagRECOPIWithInvalidDataReturnsNull — empty nRECOPI should not render tag", () => {
+      const { xml } = buildInvoiceXml({
+        ...baseInvoice,
+        items: [{
+          ...baseItem,
+          nRECOPI: "",
+        }],
+      });
+
+      // Empty nRECOPI should not produce the tag (falsy check)
+      expect(xml).not.toContain("<nRECOPI>");
+    });
+
+    it("testTagDFeReferenciado — render includes DFeReferenciado with chaveAcesso and nItem (PL_010 schema)", () => {
+      const { xml } = buildInvoiceXml({
+        ...baseInvoice,
+        items: [{
+          ...baseItem,
+          dfeReferenciado: {
+            chaveAcesso: "35170358716523000119550010000000291000000291",
+            nItem: "1",
+          },
+        }],
+      });
+
+      // DFeReferenciado should be inside <det>, after imposto
+      expect(xml).toContain("<DFeReferenciado>");
+      const impostoEndPos = xml.indexOf("</imposto>");
+      const dfeRefPos = xml.indexOf("<DFeReferenciado>");
+      const detEndPos = xml.indexOf("</det>");
+      expect(dfeRefPos).toBeGreaterThan(impostoEndPos);
+      expect(dfeRefPos).toBeLessThan(detEndPos);
+
+      expectXmlContains(xml, {
+        chaveAcesso: "35170358716523000119550010000000291000000291",
+        nItem: "1",
+      });
+    });
   });
 
   // ──────────────────────────────────────────────────────────────────

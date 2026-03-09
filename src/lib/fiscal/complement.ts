@@ -292,6 +292,55 @@ export function attachEventProtocol(
   return joinXml(eventoContent, retEventoContent, "procEventoNFe", versao);
 }
 
+// ── Attach B2B ──────────────────────────────────────────────────────────────
+
+/**
+ * Attach a B2B financial tag to an authorized nfeProc XML.
+ *
+ * Ported from PHP Complements::b2bTag().
+ * Wraps the nfeProc and B2B content in a `<nfeProcB2B>` element.
+ *
+ * @param nfeProcXml  The authorized nfeProc XML
+ * @param b2bXml      The B2B financial XML (must contain the tagB2B element)
+ * @param tagB2B      The expected B2B tag name (default: "NFeB2BFin")
+ * @returns The `nfeProcB2B` XML string
+ */
+export function attachB2B(
+  nfeProcXml: string,
+  b2bXml: string,
+  tagB2B: string = "NFeB2BFin"
+): string {
+  // Validate nfeProc wrapper exists
+  if (!nfeProcXml.includes("<nfeProc")) {
+    throw new Error("XML does not contain <nfeProc> — is this an authorized NFe?");
+  }
+
+  // Validate B2B content contains the expected tag
+  if (!b2bXml.includes(`<${tagB2B}`)) {
+    throw new Error(`B2B XML does not contain <${tagB2B}> tag`);
+  }
+
+  // Extract nfeProc content
+  const nfeProcContent = extractTag(nfeProcXml, "nfeProc");
+  if (!nfeProcContent) {
+    throw new Error("Could not extract <nfeProc> from XML");
+  }
+
+  // Extract B2B tag content
+  const b2bContent = extractTag(b2bXml, tagB2B);
+  if (!b2bContent) {
+    throw new Error(`Could not extract <${tagB2B}> from B2B XML`);
+  }
+
+  return (
+    `<?xml version="1.0" encoding="UTF-8"?>` +
+    `<nfeProcB2B>` +
+    nfeProcContent +
+    b2bContent +
+    `</nfeProcB2B>`
+  );
+}
+
 // ── Internal helpers ────────────────────────────────────────────────────────
 
 /**
