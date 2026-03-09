@@ -1,0 +1,17 @@
+{
+  "pages": [
+    "index",
+    "architecture",
+    "tax-engine",
+    "xml-generation",
+    "sefaz-communication",
+    "certificate-signing",
+    "value-objects",
+    "invoice-workflow",
+    "contingency",
+    "qrcode",
+    "txt-conversion",
+    "database-schema",
+    "utilities"
+  ]
+}

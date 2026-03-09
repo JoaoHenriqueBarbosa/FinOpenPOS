@@ -1,0 +1,34 @@
+---
+title: Getting Started
+description: FinOpenPOS documentation overview
+---
+
+## What is FinOpenPOS?
+
+FinOpenPOS is an open-source Point of Sale system built with Next.js, designed for the Brazilian market with full fiscal compliance (NF-e/NFC-e).
+
+## Monorepo Structure
+
+The project is organized as a Turborepo monorepo:
+
+| Package | Description |
+|---|---|
+| `apps/web` | Next.js 16 app (POS, dashboard, fiscal) |
+| `apps/docs` | This documentation site |
+| `packages/fiscal` | Brazilian fiscal module (NF-e/NFC-e) |
+| `packages/ui` | Shared UI components (shadcn/Radix) |
+| `packages/db` | Drizzle ORM schema |
+| `packages/auth` | Better Auth factory |
+| `packages/api` | tRPC infrastructure |
+| `packages/env` | Environment validation (t3-oss/env) |
+
+## Quick Start
+
+```bash
+git clone https://github.com/JoaoHenriqueBarbosa/FinOpenPOS.git
+cd FinOpenPOS
+bun install
+bun dev:web
+```
+
+The app runs at `http://localhost:3001` with a demo user: `test@example.com` / `test1234`.
