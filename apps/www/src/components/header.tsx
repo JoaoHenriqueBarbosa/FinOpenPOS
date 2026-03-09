@@ -5,6 +5,7 @@ import { MobileMenu } from "./mobile-menu";
 
 const NAV_LINKS = [
 	{ href: "#features", key: "features" as const },
+	{ href: links.app, key: "demo" as const },
 	{ href: links.docs, key: "docs" as const },
 	{ href: links.apiDocs, key: "apiDocs" as const },
 	{ href: links.github, key: "github" as const },

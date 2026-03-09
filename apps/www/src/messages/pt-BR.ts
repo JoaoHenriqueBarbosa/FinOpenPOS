@@ -8,6 +8,7 @@ const messages = {
 		docs: "Documentação",
 		apiDocs: "API",
 		github: "GitHub",
+		demo: "Demo",
 		getStarted: "Começar",
 	},
 	hero: {

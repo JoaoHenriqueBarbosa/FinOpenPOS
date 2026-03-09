@@ -4,5 +4,6 @@ export const links = {
 	github: "https://github.com/JoaoHenriqueBarbosa/FinOpenPOS",
 	docs: env.NEXT_PUBLIC_DOCS_URL,
 	apiDocs: env.NEXT_PUBLIC_API_DOCS_URL,
+	app: env.NEXT_PUBLIC_APP_URL,
 	license: "https://github.com/JoaoHenriqueBarbosa/FinOpenPOS/blob/main/LICENSE",
 } as const;
