@@ -1,7 +1,10 @@
-import crypto from "node:crypto";
-import { STATE_CODES, NFE_NAMESPACE, NFE_VERSION, PAYMENT_TYPES } from "./constants";
+import { STATE_IBGE_CODES } from "./state-codes";
+import { NFE_NAMESPACE, NFE_VERSION, PAYMENT_TYPES } from "./constants";
+import { formatCents, formatDecimal } from "./format-utils";
 import { buildIcmsXml, createIcmsTotals, mergeIcmsTotals, type IcmsTotals } from "./tax-icms";
 import { buildPisXml, buildCofinsXml, buildIpiXml, buildIiXml } from "./tax-pis-cofins-ipi";
+import { TaxId } from "./value-objects/tax-id";
+import { AccessKey } from "./value-objects/access-key";
 import type {
   AccessKeyParams,
   InvoiceBuildData,
@@ -20,7 +23,7 @@ export function buildInvoiceXml(data: InvoiceBuildData): {
   xml: string;
   accessKey: string;
 } {
-  const stateIbge = STATE_CODES[data.issuer.stateCode];
+  const stateIbge = STATE_IBGE_CODES[data.issuer.stateCode];
   if (!stateIbge) {
     throw new Error(`Unknown state code: ${data.issuer.stateCode}`);
   }
@@ -88,44 +91,10 @@ export function buildInvoiceXml(data: InvoiceBuildData): {
 /**
  * Build the access key (chave de acesso) — 44 digits.
  *
- * Format: cUF(2) + AAMM(4) + CNPJ(14) + mod(2) + serie(3) + nNF(9)
- *         + tpEmis(1) + cNF(8) + cDV(1)
+ * Delegates to AccessKey.build(); kept for backward compatibility.
  */
 export function buildAccessKey(params: AccessKeyParams): string {
-  const parts = [
-    params.stateCode.padStart(2, "0"),
-    params.yearMonth,
-    params.taxId.padStart(14, "0"),
-    String(params.model).padStart(2, "0"),
-    String(params.series).padStart(3, "0"),
-    String(params.number).padStart(9, "0"),
-    String(params.emissionType),
-    params.numericCode.padStart(8, "0"),
-  ].join("");
-
-  const checkDigit = calculateMod11(parts);
-  return parts + checkDigit;
-}
-
-/**
- * Build NFC-e QR Code URL.
- *
- * Format varies by version; using version 2 (current):
- * {base_url}?p={chNFe}|{nVersao}|{tpAmb}|{cDest}|{dhEmi_hex}|{vNF}|{vICMS}|{digVal_hex}|{cIdToken}|{hashQRCode}
- */
-export function buildNfceQrCode(
-  accessKey: string,
-  environment: 1 | 2,
-  cscId: string,
-  cscToken: string,
-  qrCodeBaseUrl: string
-): string {
-  // Simplified QR Code (version 2) for online mode
-  const payload = `${accessKey}|${2}|${environment}|${cscId}`;
-  const hashInput = payload + cscToken;
-  const hash = crypto.createHash("sha1").update(hashInput).digest("hex");
-
-  return `${qrCodeBaseUrl}?p=${payload}|${hash}`;
+  return AccessKey.build(params).toString();
 }
 
 // ── XML group builders ──────────────────────────────────────────────────────
@@ -136,11 +105,6 @@ function buildIde(
   numericCode: string,
   accessKey: string
 ): string {
-  const isNfce = data.model === 65;
-  const destOperation = isNfce ? "1" : "1"; // 1=internal, 2=interstate, 3=foreign
-  const consumerType = isNfce ? "1" : "0"; // 1=final consumer, 0=normal
-  const buyerPresence = isNfce ? "1" : "0"; // 1=in-person, 0=not applicable
-
   // Build referenced documents (NFref) if present
   const refElements = buildReferences(data.references);
 
@@ -152,18 +116,18 @@ function buildIde(
     tag("serie", {}, String(data.series)),
     tag("nNF", {}, String(data.number)),
     tag("dhEmi", {}, formatDateTimeNfe(data.issuedAt, data.issuer.stateCode)),
-    tag("tpNF", {}, "1"), // 0=inbound, 1=outbound
-    tag("idDest", {}, destOperation),
+    tag("tpNF", {}, String(data.operationType ?? 1)),
+    tag("idDest", {}, "1"),
     tag("cMunFG", {}, data.issuer.cityCode),
-    tag("tpImp", {}, isNfce ? "4" : "1"), // 1=portrait DANFE, 4=NFC-e DANFCE
+    tag("tpImp", {}, data.printFormat ?? "1"),
     tag("tpEmis", {}, String(data.emissionType)),
     tag("cDV", {}, accessKey.slice(-1)),
     tag("tpAmb", {}, String(data.environment)),
-    tag("finNFe", {}, "1"), // 1=normal
-    tag("indFinal", {}, consumerType),
-    tag("indPres", {}, buyerPresence),
-    tag("indIntermed", {}, "0"), // 0=no intermediary
-    tag("procEmi", {}, "0"), // 0=own application
+    tag("finNFe", {}, String(data.purposeCode ?? 1)),
+    tag("indFinal", {}, data.consumerType ?? "0"),
+    tag("indPres", {}, data.buyerPresence ?? "0"),
+    tag("indIntermed", {}, data.intermediaryIndicator ?? "0"),
+    tag("procEmi", {}, data.emissionProcess ?? "0"),
     tag("verProc", {}, "FinOpenPOS 1.0"),
     ...refElements,
   ]);
@@ -196,10 +160,8 @@ function buildEmit(data: InvoiceBuildData): string {
 function buildDest(data: InvoiceBuildData): string {
   if (!data.recipient) return "";
 
-  const taxIdTag =
-    data.recipient.taxId.length <= 11
-      ? tag("CPF", {}, data.recipient.taxId.padStart(11, "0"))
-      : tag("CNPJ", {}, data.recipient.taxId.padStart(14, "0"));
+  const tid = new TaxId(data.recipient.taxId);
+  const taxIdTag = tag(tid.tagName(), {}, tid.padded());
 
   const isNfce = data.model === 65;
 
@@ -541,9 +503,7 @@ function buildReferences(
           tag("refNFP", {}, [
             tag("cUF", {}, ref.stateCode),
             tag("AAMM", {}, ref.yearMonth),
-            ...(ref.taxId.length > 11
-              ? [tag("CNPJ", {}, ref.taxId)]
-              : [tag("CPF", {}, ref.taxId)]),
+            tag(new TaxId(ref.taxId).tagName(), {}, ref.taxId),
             tag("mod", {}, ref.model),
             tag("serie", {}, ref.series),
             tag("nNF", {}, ref.number),
@@ -564,10 +524,8 @@ function buildReferences(
 }
 
 function buildWithdrawal(w: NonNullable<InvoiceBuildData["withdrawal"]>): string {
-  const taxIdTag =
-    w.taxId.length <= 11
-      ? tag("CPF", {}, w.taxId.padStart(11, "0"))
-      : tag("CNPJ", {}, w.taxId.padStart(14, "0"));
+  const tid = new TaxId(w.taxId);
+  const taxIdTag = tag(tid.tagName(), {}, tid.padded());
 
   return tag("retirada", {}, [
     taxIdTag,
@@ -584,10 +542,8 @@ function buildWithdrawal(w: NonNullable<InvoiceBuildData["withdrawal"]>): string
 }
 
 function buildDelivery(d: NonNullable<InvoiceBuildData["delivery"]>): string {
-  const taxIdTag =
-    d.taxId.length <= 11
-      ? tag("CPF", {}, d.taxId.padStart(11, "0"))
-      : tag("CNPJ", {}, d.taxId.padStart(14, "0"));
+  const tid = new TaxId(d.taxId);
+  const taxIdTag = tag(tid.tagName(), {}, tid.padded());
 
   return tag("entrega", {}, [
     taxIdTag,
@@ -604,10 +560,8 @@ function buildDelivery(d: NonNullable<InvoiceBuildData["delivery"]>): string {
 }
 
 function buildAutXml(entry: { taxId: string }): string {
-  const taxIdTag =
-    entry.taxId.length <= 11
-      ? tag("CPF", {}, entry.taxId.padStart(11, "0"))
-      : tag("CNPJ", {}, entry.taxId.padStart(14, "0"));
+  const tid = new TaxId(entry.taxId);
+  const taxIdTag = tag(tid.tagName(), {}, tid.padded());
 
   return tag("autXML", {}, [taxIdTag]);
 }
@@ -642,11 +596,8 @@ function buildTransp(data: InvoiceBuildData): string {
     const c = t.carrier;
     const carrierChildren: string[] = [];
     if (c.taxId) {
-      if (c.taxId.length <= 11) {
-        carrierChildren.push(tag("CPF", {}, c.taxId.padStart(11, "0")));
-      } else {
-        carrierChildren.push(tag("CNPJ", {}, c.taxId.padStart(14, "0")));
-      }
+      const tid = new TaxId(c.taxId);
+      carrierChildren.push(tag(tid.tagName(), {}, tid.padded()));
     }
     if (c.name) carrierChildren.push(tag("xNome", {}, c.name));
     if (c.stateTaxId) carrierChildren.push(tag("IE", {}, c.stateTaxId));
@@ -960,31 +911,5 @@ function formatDateTimeNfe(date: Date, stateCode: string): string {
   return `${y}-${m}-${d}T${h}:${min}:${s}${offset}`;
 }
 
-/** Format cents to decimal string (e.g., 1050 → "10.50") */
-function formatCents(cents: number, decimalPlaces = 2): string {
-  return (cents / 100).toFixed(decimalPlaces);
-}
+// formatCents and formatDecimal imported from ./format-utils
 
-/** Format a number with N decimal places */
-function formatDecimal(value: number, decimalPlaces: number): string {
-  return value.toFixed(decimalPlaces);
-}
-
-/**
- * Calculate modulo 11 check digit (used for access key).
- * Weights cycle from 2 to 9 right-to-left.
- * Result: if remainder < 2 → digit 0; else 11 - remainder.
- */
-function calculateMod11(digits: string): string {
-  let sum = 0;
-  let weight = 2;
-
-  for (let i = digits.length - 1; i >= 0; i--) {
-    sum += parseInt(digits[i]) * weight;
-    weight = weight >= 9 ? 2 : weight + 1;
-  }
-
-  const remainder = sum % 11;
-  const digit = remainder < 2 ? 0 : 11 - remainder;
-  return String(digit);
-}

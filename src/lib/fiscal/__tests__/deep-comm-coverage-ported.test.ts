@@ -2889,16 +2889,16 @@ describe("CommunicationCoverageTest", () => {
   // ──────────────────────────────────────────────────────────────────
 
   describe("TraitEPECNfce — sefazStatusEpecNfce", () => {
-    const spConfig: EpecNfceConfig = { siglaUF: "SP", tpAmb: 2, cnpj: "23285089000185" };
+    const spConfig: EpecNfceConfig = { stateCode: "SP", tpAmb: 2, cnpj: "23285089000185" };
 
     it("test_sefaz_status_epec_nfce_modelo_55_throws — should throw when model is 55", () => {
       // EPEC NFC-e status only works for model 65 — model validation is done at caller level
       // Here we test UF validation: RJ should throw
-      expect(() => buildEpecNfceStatusXml({ ...spConfig, siglaUF: "RJ" })).toThrow();
+      expect(() => buildEpecNfceStatusXml({ ...spConfig, stateCode: "RJ" })).toThrow();
     });
 
     it("test_sefaz_status_epec_nfce_uf_nao_sp_throws — should throw when UF is not SP", () => {
-      expect(() => buildEpecNfceStatusXml({ ...spConfig, siglaUF: "PR" })).toThrow();
+      expect(() => buildEpecNfceStatusXml({ ...spConfig, stateCode: "PR" })).toThrow();
     });
 
     it("test_sefaz_status_epec_nfce_sp — should build status request for EPEC NFC-e in SP", () => {

@@ -1,5 +1,10 @@
 import { XMLParser } from "fast-xml-parser";
 import { NFE_NAMESPACE, NFE_VERSION } from "./constants";
+import {
+  SEFAZ_STATUS,
+  VALID_PROTOCOL_STATUSES,
+  VALID_EVENT_STATUSES,
+} from "./sefaz-status-codes";
 
 // ── XML Parser (reusable, configured for NFe) ──────────────────────────────
 
@@ -67,7 +72,7 @@ export function attachProtocol(
     const digVal = infProt.digVal;
 
     if (digVal && digVal === digestNFe && chNFe === accessKey) {
-      const validStatuses = ["100", "150", "110", "205", "301", "302", "303"];
+      const validStatuses = VALID_PROTOCOL_STATUSES;
       if (!validStatuses.includes(cStat)) {
         const xMotivo = infProt.xMotivo ?? "";
         throw new Error(`NFe rejected by SEFAZ: [${cStat}] ${xMotivo}`);
@@ -89,7 +94,7 @@ export function attachProtocol(
     if (infProt) {
       const cStat = String(infProt.cStat);
       const xMotivo = infProt.xMotivo ?? "";
-      const validStatuses = ["100", "150", "110", "205", "301", "302", "303"];
+      const validStatuses = VALID_PROTOCOL_STATUSES;
       if (!validStatuses.includes(cStat)) {
         throw new Error(`NFe rejected by SEFAZ: [${cStat}] ${xMotivo}`);
       }
@@ -136,7 +141,7 @@ export function attachCancellation(
   const retEventos = findAllNodes(parsedCancel, "retEvento");
 
   const cancelEventTypes = ["110111", "110112"]; // EVT_CANCELA, EVT_CANCELASUBSTITUICAO
-  const validStatuses = ["135", "136", "155"];
+  const validStatuses = VALID_EVENT_STATUSES;
 
   let matchedRetEvento: string | null = null;
 
@@ -224,7 +229,7 @@ export function attachInutilizacao(
 
   if (retInfInut) {
     const cStat = String(retInfInut.cStat);
-    if (cStat !== "102") {
+    if (cStat !== String(SEFAZ_STATUS.VOIDED)) {
       const xMotivo = retInfInut.xMotivo ?? "";
       throw new Error(`Inutilizacao rejected by SEFAZ: [${cStat}] ${xMotivo}`);
     }
@@ -282,7 +287,7 @@ export function attachEventProtocol(
   const infEvento = retEvento?.infEvento;
   if (infEvento) {
     const cStat = String(infEvento.cStat);
-    const validStatuses = ["135", "136", "155"];
+    const validStatuses = VALID_EVENT_STATUSES;
     if (!validStatuses.includes(cStat)) {
       const xMotivo = infEvento.xMotivo ?? "";
       throw new Error(`Event rejected by SEFAZ: [${cStat}] ${xMotivo}`);

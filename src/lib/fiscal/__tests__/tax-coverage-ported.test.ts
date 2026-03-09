@@ -1892,8 +1892,8 @@ describe("TraitsCoverageTest — Sefaz Events RTC", () => {
       item: 1,
       vIBS: 10.00,
       vCBS: 10.00,
-      quantidade: 10,
-      unidade: "PC",
+      quantity: 10,
+      unit: "PC",
       chave: TEST_CHAVE,
       nItem: 1,
     }];
@@ -1919,8 +1919,8 @@ describe("TraitsCoverageTest — Sefaz Events RTC", () => {
       item: 1,
       vIBS: 10.00,
       vCBS: 10.00,
-      quantidade: 5,
-      unidade: "UN",
+      quantity: 5,
+      unit: "UN",
     }];
 
     const request = buildImobilizacaoItem(baseConfig, TEST_CHAVE, 1, itens);
@@ -1935,8 +1935,8 @@ describe("TraitsCoverageTest — Sefaz Events RTC", () => {
       item: 1,
       vIBS: 10.00,
       vCBS: 10.00,
-      quantidade: 100,
-      unidade: "LT",
+      quantity: 100,
+      unit: "LT",
     }];
 
     const request = buildApropriacaoCreditoComb(baseConfig, TEST_CHAVE, 1, itens);
@@ -1992,8 +1992,8 @@ describe("TraitsCoverageTest — Sefaz Events RTC", () => {
       item: 1,
       vIBS: 5.00,
       vCBS: 5.00,
-      quantidade: 10,
-      unidade: "UN",
+      quantity: 10,
+      unit: "UN",
     }];
 
     const request = buildImportacaoZFM(baseConfig, TEST_CHAVE, 1, itens);
@@ -2009,8 +2009,8 @@ describe("TraitsCoverageTest — Sefaz Events RTC", () => {
       item: 1,
       vIBS: 10.00,
       vCBS: 10.00,
-      quantidade: 5,
-      unidade: "UN",
+      quantity: 5,
+      unit: "UN",
     }];
 
     const request = buildRouboPerdaTransporteAdquirente(baseConfig, TEST_CHAVE, 1, itens);
@@ -2028,8 +2028,8 @@ describe("TraitsCoverageTest — Sefaz Events RTC", () => {
       vCBS: 10.00,
       gControleEstoque_vIBS: 8.00,
       gControleEstoque_vCBS: 8.00,
-      quantidade: 3,
-      unidade: "KG",
+      quantity: 3,
+      unit: "KG",
     }];
 
     const request = buildRouboPerdaTransporteFornecedor(baseConfig, TEST_CHAVE, 1, itens);
@@ -2044,8 +2044,8 @@ describe("TraitsCoverageTest — Sefaz Events RTC", () => {
       item: 1,
       vIBS: 10.00,
       vCBS: 10.00,
-      quantidade: 5,
-      unidade: "UN",
+      quantity: 5,
+      unit: "UN",
     }];
 
     const request = buildFornecimentoNaoRealizado(baseConfig, TEST_CHAVE, 1, itens);
@@ -2093,7 +2093,7 @@ describe("TraitsCoverageTest — Sefaz Events RTC", () => {
 
 describe("TraitsCoverageTest — EPEC NFCe", () => {
   const epecConfig: EpecNfceConfig = {
-    siglaUF: "SP",
+    stateCode: "SP",
     tpAmb: 2,
     cnpj: "23285089000185",
   };
@@ -2143,10 +2143,10 @@ describe("TraitsCoverageTest — EPEC NFCe", () => {
 
   it("test_sefaz_epec_nfce_with_verAplic_param", () => {
     const configWithVerAplic: EpecNfceConfig = {
-      siglaUF: "SP",
+      stateCode: "SP",
       tpAmb: 2,
       cnpj: "23285089000185",
-      verAplic: "MyApp_3.0",
+      appVersion: "MyApp_3.0",
     };
     const xml = buildTestNfceXml("SP", "35");
     const request = buildEpecNfceXml(xml, configWithVerAplic, "CustomEPEC_1.0");
