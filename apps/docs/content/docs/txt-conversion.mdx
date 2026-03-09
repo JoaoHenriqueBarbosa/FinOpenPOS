@@ -1,0 +1,116 @@
+---
+title: TXT-to-XML Conversion
+description: The SPED TXT format is a legacy pipe-delimited representation of NF-e data. This module converts TXT to NF-e XML, enabling batch import from legacy fiscal software and SEBRAE tools.
+---
+
+## Overview
+
+The SPED TXT format is a legacy pipe-delimited representation of NF-e data used by older fiscal systems and the SEBRAE simplified layout. This module converts TXT to NF-e XML, enabling batch import from legacy software.
+
+**Files**: `convert.ts`, `txt-structures.ts`, `valid-txt.ts`
+
+## TXT Format
+
+Each line represents a data group, prefixed by a tag identifier and delimited by pipes:
+
+```
+A|4.00|NFe|
+B|35|200209944445000162|55|101|000123456|1|89012345|3|
+C|Empresa Teste|09944445000162|
+...
+H|1|
+I|Produto 1|12345678|01234567890|5102|1|UN|10.50|10.50|
+Q|01|10.50|1.6500|0.17|
+S|01|10.50|7.6000|0.80|
+```
+
+### Tag meanings
+
+| Tag | XML Group | Description |
+|-----|-----------|-------------|
+| A | NFe header | Version, namespace |
+| B | ide | Identification (UF, CNPJ, model, series, number) |
+| C | emit | Issuer data |
+| E | dest | Recipient data |
+| H | det (header) | Item number |
+| I | prod | Product data |
+| N | ICMS | ICMS tax data |
+| Q | PIS | PIS tax data |
+| S | COFINS | COFINS tax data |
+| W | total | Totals |
+| X | transp | Transport |
+| Y | pag | Payment |
+| Z | infAdic | Additional info |
+
+## Supported Layouts (`txt-structures.ts`)
+
+| Layout | Description | Fields |
+|--------|-------------|--------|
+| LOCAL | Standard local layout | Full field set |
+| LOCAL\_V12 | Local v1.2 | Slight field variations |
+| LOCAL\_V13 | Local v1.3 | Updated fields |
+| SEBRAE | Simplified SEBRAE layout | Reduced field set |
+
+Each layout defines a `Record<string, string>` mapping tag → pipe-delimited field names:
+
+```typescript
+const LOCAL: Record<string, string> = {
+  "A": "versao|Id",
+  "B": "cUF|cNF|natOp|mod|serie|nNF|dhEmi|...",
+  "C": "xNome|CNPJ|...",
+  // ...
+};
+```
+
+## Validation (`valid-txt.ts`)
+
+```typescript
+function isValidTxt(content: string): { valid: boolean; errors: string[]; layout: string }
+```
+
+Validates:
+- First line must start with `A|` (version tag)
+- Must contain at least `B|` (identification)
+- Detects layout version from field count
+- Checks required tags are present
+
+## Converter (`convert.ts`)
+
+### Entry point
+
+```typescript
+function convertTxtToXml(txtContent: string): string
+```
+
+### Conversion flow
+
+1. **Validate** — Check TXT format and detect layout
+2. **Parse lines** — Split by `|`, map to field names using the layout structure
+3. **Build XML** — For each parsed group, generate the corresponding XML tags
+4. **Assemble** — Combine all groups into a complete `<NFe>` XML document
+
+### Parser class (NFeParser)
+
+Internal class that maintains state across lines:
+
+```typescript
+class NFeParser {
+  private structure: Record<string, string>;  // layout definition
+  private infNFeId: string;                    // access key
+  private curProd: ParsedFields;               // current product being parsed
+  // ... state for each XML group
+}
+```
+
+The parser processes lines sequentially. When it encounters `H|` (item header), it starts a new product. When it encounters `I|`, `N|`, `Q|`, `S|`, it adds data to the current product.
+
+### Output
+
+A valid unsigned NF-e XML document that can then be signed and submitted to SEFAZ, identical to what `xml-builder.ts` produces from structured data.
+
+## Use Cases
+
+1. **Legacy migration** — Import invoices from older SPED-compatible systems
+2. **Batch processing** — Convert multiple TXT files to XML for bulk authorization
+3. **SEBRAE integration** — Support the simplified layout used by small businesses via SEBRAE tools
+4. **Testing** — The PHP sped-nfe test suite uses TXT fixtures; this converter enables test porting
