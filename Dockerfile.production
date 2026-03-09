@@ -3,16 +3,23 @@ RUN apk add --no-cache nodejs npm postgresql postgresql-client && npm i -g bun
 
 FROM base AS deps
 WORKDIR /app
-COPY package.json bun.lock* ./
+COPY package.json bun.lock ./
+COPY apps/web/package.json ./apps/web/
+COPY packages/api/package.json ./packages/api/
+COPY packages/auth/package.json ./packages/auth/
+COPY packages/config/package.json ./packages/config/
+COPY packages/db/package.json ./packages/db/
+COPY packages/env/package.json ./packages/env/
+COPY packages/ui/package.json ./packages/ui/
 RUN bun install --frozen-lockfile
 
 FROM base AS build
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app .
 COPY . .
 
 # Run prepare-prod to switch from PGLite to node-postgres
-RUN bun scripts/prepare-prod.ts
+RUN cd apps/web && bun scripts/prepare-prod.ts
 # Reinstall after dependency changes (pg added, pglite removed)
 RUN bun install
 
@@ -20,7 +27,7 @@ ENV BETTER_AUTH_SECRET=build-placeholder
 ENV BETTER_AUTH_URL=http://localhost:3000
 ENV DATABASE_URL=postgresql://finopenpos:finopenpos@localhost:5432/finopenpos
 
-RUN bun run --bun next build
+RUN cd apps/web && bun run --bun next build
 
 FROM base AS runtime
 WORKDIR /app
@@ -38,18 +45,24 @@ RUN echo "local all all trust" > /var/lib/postgresql/data/pg_hba.conf \
     && echo "host all all 127.0.0.1/32 trust" >> /var/lib/postgresql/data/pg_hba.conf \
     && echo "host all all ::1/128 trust" >> /var/lib/postgresql/data/pg_hba.conf
 
+# Copy full node_modules tree (root + workspace, after prepare-prod)
 COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/.next ./.next
-COPY --from=build /app/public ./public
+COPY --from=build /app/apps/web/node_modules ./apps/web/node_modules
+
+# Copy built app
+COPY --from=build /app/apps/web/.next ./apps/web/.next
+COPY --from=build /app/apps/web/public ./apps/web/public
+COPY --from=build /app/apps/web/package.json ./apps/web/
+COPY --from=build /app/apps/web/next.config.mjs ./apps/web/
+COPY --from=build /app/apps/web/drizzle.config.ts ./apps/web/
+COPY --from=build /app/apps/web/scripts ./apps/web/scripts
+COPY --from=build /app/apps/web/src ./apps/web/src
 COPY --from=build /app/package.json ./
-COPY --from=build /app/next.config.mjs ./
-COPY --from=build /app/drizzle.config.ts ./
-COPY --from=build /app/scripts ./scripts
-COPY --from=build /app/src ./src
 
 COPY docker-entrypoint-prod.sh /docker-entrypoint-prod.sh
 RUN chmod +x /docker-entrypoint-prod.sh
 
+WORKDIR /app/apps/web
 EXPOSE 3111
 
 CMD ["/docker-entrypoint-prod.sh"]
