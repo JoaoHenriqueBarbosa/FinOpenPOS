@@ -3,6 +3,7 @@ set -e
 
 # Start web app (with db setup)
 cd /app/apps/web
+mkdir -p data
 bun scripts/ensure-db.ts && bunx drizzle-kit push
 BASE_PATH=/app bun next start --port 3001 &
 

@@ -14,12 +14,15 @@ COPY packages/db/package.json ./packages/db/
 COPY packages/env/package.json ./packages/env/
 COPY packages/fiscal/package.json ./packages/fiscal/
 COPY packages/ui/package.json ./packages/ui/
-RUN bun install --frozen-lockfile
+RUN bun install --frozen-lockfile --ignore-scripts
 
 FROM base AS build
 WORKDIR /app
 COPY --from=deps /app .
 COPY . .
+
+# Run postinstall scripts (fumadocs-mdx needs source files)
+RUN cd apps/docs && bunx fumadocs-mdx
 
 ENV BETTER_AUTH_SECRET=build-placeholder
 ENV BETTER_AUTH_URL=http://localhost:3001
@@ -66,6 +69,9 @@ COPY --from=build /app/apps/www/next.config.ts ./apps/www/
 COPY --from=build /app/apps/docs/.next ./apps/docs/.next
 COPY --from=build /app/apps/docs/package.json ./apps/docs/
 COPY --from=build /app/apps/docs/next.config.mjs ./apps/docs/
+
+# Copy packages source (needed by drizzle-kit at runtime)
+COPY --from=build /app/packages ./packages
 
 COPY --from=build /app/package.json ./
 
