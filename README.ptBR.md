@@ -1,6 +1,6 @@
 # FinOpenPOS
 
-Sistema open-source de Ponto de Venda (PDV) e gestao de estoque com **modulo fiscal brasileiro** (NF-e/NFC-e). Construido com Next.js 16, React 19 e PostgreSQL embarcado via PGLite. Zero dependencias externas para rodar — `bun dev` e pronto.
+Sistema open-source de Ponto de Venda (PDV) e gestao de estoque com **modulo fiscal brasileiro** (NF-e/NFC-e). Construido com Next.js 16, React 19 e PostgreSQL embarcado via PGLite. Monorepo Turborepo com o modulo fiscal como pacote standalone. Zero dependencias externas para rodar — `bun install && bun run dev` e pronto.
 
 > **[Read in English](README.md)**
 
@@ -56,15 +56,15 @@ Sistema open-source de Ponto de Venda (PDV) e gestao de estoque com **modulo fis
 
 ```mermaid
 flowchart LR
-  Browser["Browser\nReact 19"]
-  Proxy["proxy.ts\n(verifica sessao)"]
-  tRPC["tRPC v11\n(superjson)"]
-  Auth["Better Auth\n(cookie de sessao)"]
+  Browser["Browser React 19"]
+  Proxy["proxy.ts (verifica sessao)"]
+  tRPC["tRPC v11 (superjson)"]
+  Auth["Better Auth (cookie de sessao)"]
   Drizzle["Drizzle ORM"]
-  PGLite["PGLite\n(PostgreSQL WASM)"]
-  Scalar["Scalar\n/api/docs"]
-  Fiscal["Modulo Fiscal\n(NF-e / NFC-e)"]
-  SEFAZ["SEFAZ\n(Receita Estadual)"]
+  PGLite["PGLite (PostgreSQL WASM)"]
+  Scalar["Scalar /api/docs"]
+  Fiscal["Modulo Fiscal (NF-e / NFC-e)"]
+  SEFAZ["SEFAZ (Receita Estadual)"]
 
   Browser -->|requisicao HTTP| Proxy
   Proxy -->|autenticado| tRPC
@@ -93,20 +93,22 @@ flowchart LR
 | Parsing XML | fast-xml-parser |
 | Runtime | Bun |
 | i18n | next-intl (en + pt-BR) |
+| Monorepo | Turborepo, Biome |
+| Modulo Fiscal | @finopenpos/fiscal (pacote standalone) |
 
 ## Quick Start
 
 ```bash
 git clone https://github.com/JoaoHenriqueBarbosa/FinOpenPOS.git
 cd FinOpenPOS
-cp .env.example .env
+cp apps/web/.env.example apps/web/.env
 ```
 
-Edite o `.env` com um secret seguro:
+Edite o `apps/web/.env` com um secret seguro:
 
 ```
 BETTER_AUTH_SECRET=gere-com-openssl-rand-base64-32
-BETTER_AUTH_URL=http://localhost:3000
+BETTER_AUTH_URL=http://localhost:3001
 ```
 
 ```bash
@@ -114,96 +116,94 @@ bun install
 bun run dev
 ```
 
-Acesse http://localhost:3000 e use o botao **Fill demo credentials** para entrar com a conta de teste (`test@example.com` / `test1234`).
+Acesse http://localhost:3001 e use o botao **Fill demo credentials** para entrar com a conta de teste (`test@example.com` / `test1234`).
 
-> O primeiro `bun run dev` cria o banco automaticamente em `./data/pglite`, empurra o schema via Drizzle e executa o seed com dados demo (20 clientes, 32 produtos, 40 pedidos, 25 transacoes) + ~5570 municipios IBGE.
+> O primeiro `bun run dev` cria o banco automaticamente em `apps/web/data/pglite`, empurra o schema via Drizzle e executa o seed com dados demo (20 clientes, 32 produtos, 40 pedidos, 25 transacoes) + ~5570 municipios IBGE.
 
 ## Scripts
 
 | Comando | Descricao |
 |---------|-----------|
-| `bun run dev` | Valida PGLite, push schema e inicia dev server |
-| `bun run build` | Valida PGLite, push schema e build de producao |
-| `bun run start` | Inicia o servidor de producao |
-| `bun run db:push` | Empurra schema Drizzle para o PGLite e regenera diagrama ER |
-| `bun run db:ensure` | Detecta e limpa PGLite corrompido automaticamente |
-| `bun test` | Roda testes dos routers tRPC |
-| `bun test src/lib/fiscal/__tests__/` | Roda testes do modulo fiscal |
-| `bun run test:coverage` | Roda testes com relatorio de cobertura |
-| `bun run prepare-prod` | Migra do PGLite para PostgreSQL real |
+| `bun run dev` | Inicia todos os apps via Turborepo |
+| `bun run dev:web` | Inicia apenas a app web |
+| `bun run check` | Lint e format com Biome |
+| `cd apps/web && bun test` | Roda testes dos routers tRPC |
+| `cd packages/fiscal && bun test` | Roda testes do modulo fiscal (754 testes) |
+| `cd apps/web && bun run prepare-prod` | Migra do PGLite para PostgreSQL real |
 
 ## Estrutura do Projeto
 
 ```
-src/
-├── app/
-│   ├── admin/
-│   │   ├── fiscal/          # Lista de notas, detalhes, configuracoes
-│   │   ├── products/        # Gestao de produtos (com campos fiscais)
-│   │   ├── orders/          # Gestao de pedidos
-│   │   ├── pos/             # Ponto de Venda
-│   │   └── ...              # Dashboard, clientes, caixa
-│   ├── api/                 # Auth, tRPC, Scalar docs, spec OpenAPI
-│   ├── login/               # Pagina de login
-│   └── signup/              # Pagina de cadastro
-├── components/
-│   └── ui/                  # Componentes shadcn + FormTextField
-├── lib/
-│   ├── db/
-│   │   ├── schema.ts        # Schema Drizzle (6 negocio + 4 fiscal + cities)
-│   │   └── seed.ts          # Dados demo + seed de municipios IBGE
-│   ├── fiscal/              # ← Modulo fiscal completo (veja abaixo)
-│   │   ├── __tests__/       # 754 testes (portados do PHP sped-nfe)
-│   │   ├── value-objects/   # AccessKey, TaxId
-│   │   ├── tax-icms.ts      # Motor ICMS (25 variantes)
-│   │   ├── tax-pis-cofins-ipi.ts  # PIS/COFINS/IPI/II
-│   │   ├── xml-builder.ts   # Geracao XML NF-e
-│   │   ├── certificate.ts   # Extracao PFX + assinatura XML
-│   │   ├── invoice-service.ts     # Orquestracao ciclo de vida
-│   │   ├── sefaz-*.ts       # Camada de comunicacao SEFAZ
-│   │   └── ...              # 30+ modulos (veja docs/)
-│   └── trpc/
-│       ├── routers/         # Routers tRPC (negocio + fiscal)
-│       └── ...
-├── messages/                # i18n (en.ts, pt-BR.ts)
-├── proxy.ts                 # Middleware Next.js 16
-└── docs/                    # Documentacao fiscal detalhada (12 arquivos)
+FinOpenPOS/
+├── apps/
+│   └── web/                    # Aplicacao web Next.js 16
+│       ├── src/
+│       │   ├── app/            # Paginas (admin, login, cadastro, rotas API)
+│       │   ├── components/     # Componentes UI (shadcn + custom)
+│       │   ├── lib/
+│       │   │   ├── db/         # Schema Drizzle + singleton PGLite
+│       │   │   ├── invoice-service.ts    # Orquestrador ciclo de vida da nota
+│       │   │   ├── invoice-repository.ts # Persistencia de notas (Drizzle)
+│       │   │   ├── fiscal-settings-repository.ts
+│       │   │   └── trpc/       # Routers tRPC (negocio + fiscal)
+│       │   ├── messages/       # i18n (en.ts, pt-BR.ts)
+│       │   └── proxy.ts        # Middleware Next.js 16
+│       ├── scripts/            # DB ensure, ER gen, prepare-prod
+│       └── data/               # Banco PGLite (gitignored)
+├── packages/
+│   └── fiscal/                 # @finopenpos/fiscal — lib fiscal standalone
+│       └── src/
+│           ├── __tests__/      # 754 testes (portados do PHP sped-nfe)
+│           ├── value-objects/   # AccessKey, TaxId
+│           ├── tax-icms.ts     # Motor ICMS (25 variantes)
+│           ├── tax-pis-cofins-ipi.ts  # PIS/COFINS/IPI/II
+│           ├── xml-builder.ts  # Geracao XML NF-e
+│           ├── certificate.ts  # Extracao PFX + assinatura XML
+│           ├── sefaz-*.ts      # Camada de comunicacao SEFAZ
+│           └── ...             # 30+ modulos (veja docs/)
+├── turbo.json                  # Config de tarefas Turborepo
+├── biome.json                  # Config de linter/formatter
+├── Dockerfile                  # Imagem Docker dev (PGLite)
+├── Dockerfile.production       # Imagem Docker producao (PostgreSQL)
+└── docs/                       # Documentacao fiscal detalhada (12 arquivos)
 ```
 
 ## Modulo Fiscal (NF-e / NFC-e)
 
-O modulo fiscal implementa emissao completa de notas fiscais eletronicas seguindo a especificacao MOC 4.00 da SEFAZ, portado da biblioteca PHP [sped-nfe](https://github.com/nfephp-org/sped-nfe) para TypeScript com arquitetura DDD.
+O modulo fiscal vive em `packages/fiscal/` como `@finopenpos/fiscal` — um pacote standalone com zero dependencia de banco de dados. Pode ser usado independentemente em qualquer projeto TypeScript/JavaScript.
+
+O modulo implementa emissao completa de notas fiscais eletronicas seguindo a especificacao MOC 4.00 da SEFAZ, portado da biblioteca PHP [sped-nfe](https://github.com/nfephp-org/sped-nfe) para TypeScript com arquitetura DDD.
 
 ### Ciclo de Vida da Nota
 
 ```mermaid
 flowchart TD
-  Start([Pedido realizado]) --> LoadSettings[Carrega config fiscal\n+ certificado]
-  LoadSettings --> BuildXML[Gera XML NF-e/NFC-e\na partir dos itens]
-  BuildXML --> CalcTax[Calcula impostos\nICMS + PIS + COFINS + IPI]
-  CalcTax --> GenKey[Gera chave de acesso\n44 digitos mod-11]
-  GenKey --> Sign[Assina XML\ncom certificado A1 e-CNPJ]
+  Start([Pedido realizado]) --> LoadSettings[Carrega config fiscal + certificado]
+  LoadSettings --> BuildXML[Gera XML NF-e/NFC-e a partir dos itens]
+  BuildXML --> CalcTax[Calcula impostos ICMS + PIS + COFINS + IPI]
+  CalcTax --> GenKey[Gera chave de acesso 44 digitos mod-11]
+  GenKey --> Sign[Assina XML com certificado A1 e-CNPJ]
   Sign --> SendSEFAZ{Envia para SEFAZ}
 
   SendSEFAZ -->|cStat 100| Authorized[Autorizada ✓]
   SendSEFAZ -->|cStat 110| Denied[Denegada ✗]
   SendSEFAZ -->|timeout| Contingency{Modelo?}
 
-  Contingency -->|NFC-e 65| Offline[Salva offline\nstatus=contingencia]
+  Contingency -->|NFC-e 65| Offline[Salva offline status=contingencia]
   Contingency -->|NF-e 55| Error[Lanca erro]
 
-  Authorized --> AttachProto[Anexa protocolo\nXML nfeProc]
-  AttachProto --> SaveDB[(Salva no BD\nnota + itens)]
+  Authorized --> AttachProto[Anexa protocolo XML nfeProc]
+  AttachProto --> SaveDB[(Salva no BD nota + itens)]
   Offline --> SaveDB
   Denied --> SaveDB
 
-  SaveDB --> IncrNumber[Incrementa\nproximo numero]
+  SaveDB --> IncrNumber[Incrementa proximo numero]
 
   Authorized -.->|depois| Cancel[Cancelar nota]
-  Cancel --> EventXML[Gera XML de\nevento de cancelamento]
-  EventXML --> SignEvent[Assina + envia\npara SEFAZ]
+  Cancel --> EventXML[Gera XML de evento de cancelamento]
+  EventXML --> SignEvent[Assina + envia para SEFAZ]
 
-  Offline -.->|conexao volta| Sync[Sincronizar notas\npendentes]
+  Offline -.->|conexao volta| Sync[Sincronizar notas pendentes]
 ```
 
 ### Motor de Impostos
@@ -211,15 +211,15 @@ flowchart TD
 ```mermaid
 flowchart LR
   subgraph Domain["Camada de Dominio (logica pura)"]
-    ICMS["tax-icms.ts\n15 CST + 10 CSOSN"]
-    PIS["tax-pis-cofins-ipi.ts\nPIS / COFINS / IPI / II"]
-    TE["tax-element.ts\nInterface TaxElement"]
+    ICMS["tax-icms.ts 15 CST + 10 CSOSN"]
+    PIS["tax-pis-cofins-ipi.ts PIS / COFINS / IPI / II"]
+    TE["tax-element.ts Interface TaxElement"]
   end
 
   subgraph Infra["Camada de Infraestrutura"]
-    XB["xml-builder.ts\nXML NF-e completo"]
-    XU["xml-utils.ts\ntag() + escapeXml()"]
-    FU["format-utils.ts\ncentavos → '10.50'"]
+    XB["xml-builder.ts XML NF-e completo"]
+    XU["xml-utils.ts tag() + escapeXml()"]
+    FU["format-utils.ts centavos → '10.50'"]
   end
 
   ICMS -->|retorna TaxElement| TE
@@ -309,13 +309,10 @@ A spec OpenAPI 3.0 raw esta disponivel em `/api/openapi.json`.
 
 ```bash
 # Testes dos routers tRPC
-bun test
+cd apps/web && bun test
 
 # Testes do modulo fiscal
-bun test src/lib/fiscal/__tests__/
-
-# Relatorio de cobertura
-bun run test:coverage
+cd packages/fiscal && bun test
 ```
 
 > **Nota**: Rode testes fiscal e tRPC separadamente — o Bun pode dar segfault em execucoes paralelas grandes.
@@ -323,15 +320,15 @@ bun run test:coverage
 ```mermaid
 flowchart TB
   subgraph FiscalTests["Testes Fiscais (754)"]
-    TaxTests["Motor de impostos\nICMS / PIS / COFINS / IPI"]
-    XMLTests["XML builder\n+ complement"]
-    PortedTests["Portados do PHP\nsuite sped-nfe"]
-    QRTests["QR code\n+ certificado"]
+    TaxTests["Motor de impostos ICMS / PIS / COFINS / IPI"]
+    XMLTests["XML builder + complement"]
+    PortedTests["Portados do PHP suite sped-nfe"]
+    QRTests["QR code + certificado"]
   end
 
   subgraph tRPCTests["Testes tRPC (86)"]
-    PGLite["PGLite\n(in-memory)"]
-    Mock["mock.module\n(@/lib/db)"]
+    PGLite["PGLite (in-memory)"]
+    Mock["mock.module (@/lib/db)"]
     Caller["createCallerFactory"]
   end
 
@@ -359,7 +356,7 @@ docker compose down           # Parar
 docker compose down -v        # Parar e apagar dados do banco
 ```
 
-O `compose.yaml` espera as variaveis de ambiente `BETTER_AUTH_SECRET` e `BETTER_AUTH_URL`. Crie um `.env` na raiz ou passe via `-e`:
+O `compose.yaml` espera as variaveis de ambiente `BETTER_AUTH_SECRET` e `BETTER_AUTH_URL`. Crie um `apps/web/.env` ou passe via `-e`:
 
 ```bash
 BETTER_AUTH_SECRET=sua-chave-secreta-de-32-chars-minimo
@@ -455,7 +452,7 @@ Todos os valores monetarios sao armazenados como **inteiros em centavos** (ex: R
 
 ### PGLite (padrao)
 
-O PGLite roda PostgreSQL completo via WASM, direto no processo do Node.js. Os dados ficam em `./data/pglite` (filesystem). Nao precisa de servidor PostgreSQL externo.
+O PGLite roda PostgreSQL completo via WASM, direto no processo do Node.js. Os dados ficam em `apps/web/data/pglite` (filesystem). Nao precisa de servidor PostgreSQL externo.
 
 **Vantagens:** zero config, sem dependencias, ideal para dev e projetos pequenos.
 
@@ -470,13 +467,13 @@ Quando o projeto crescer e precisar de um banco real, a migracao e simples porqu
 Execute o script que faz todos os passos automaticamente:
 
 ```bash
-bun run prepare-prod
+cd apps/web && bun run prepare-prod
 ```
 
-Depois configure `DATABASE_URL` no seu `.env` e rode:
+Depois configure `DATABASE_URL` no seu `apps/web/.env` e rode:
 
 ```bash
-bun run db:push
+cd apps/web && bun run db:push
 bun run dev
 ```
 
@@ -491,7 +488,7 @@ bun add pg
 bun remove @electric-sql/pglite
 ```
 
-#### 2. Atualize `src/lib/db/index.ts`
+#### 2. Atualize `apps/web/src/lib/db/index.ts`
 
 ```ts
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -500,7 +497,7 @@ import * as schema from "./schema";
 export const db = drizzle(process.env.DATABASE_URL!, { schema });
 ```
 
-#### 3. Atualize `drizzle.config.ts`
+#### 3. Atualize `apps/web/drizzle.config.ts`
 
 ```ts
 import { defineConfig } from "drizzle-kit";
@@ -523,18 +520,18 @@ DATABASE_URL=postgresql://user:password@host:5432/finopenpos
 #### 5. Empurre o schema e rode
 
 ```bash
-bun run db:push
+cd apps/web && bun run db:push
 bun run dev
 ```
 
 #### 6. Limpe o que nao precisa mais
 
-- Delete `scripts/ensure-db.ts` (so existe para recovery do PGLite)
-- Remova `db:ensure` do script `dev` e `build` no `package.json`
-- Remova `serverExternalPackages` do `next.config.mjs`
+- Delete `apps/web/scripts/ensure-db.ts` (so existe para recovery do PGLite)
+- Remova `db:ensure` do script `dev` e `build` no `apps/web/package.json`
+- Remova `serverExternalPackages` do `apps/web/next.config.mjs`
 - No Docker, troque o volume PGLite por uma conexao ao PostgreSQL via `DATABASE_URL`
 
-> O schema Drizzle (`src/lib/db/schema.ts`) nao muda. Todas as queries, relations e procedures tRPC continuam funcionando sem alteracao.
+> O schema Drizzle (`apps/web/src/lib/db/schema.ts`) nao muda. Todas as queries, relations e procedures tRPC continuam funcionando sem alteracao.
 
 ## Contribuindo
 

@@ -4,7 +4,7 @@
 
 The fiscal module adds 4 tables to the PGLite database (Drizzle ORM). All tables are multi-tenant, keyed by `user_uid`. The schema follows the convention: monetary values in cents (integer), names in snake_case.
 
-**File**: `src/lib/db/schema.ts`
+**File**: `apps/web/src/lib/db/schema.ts`
 
 ## Tables
 
@@ -153,7 +153,7 @@ The existing products table was extended with optional fiscal fields:
 | `cofins_cst` | text | COFINS CST (nullable) |
 | `unit_of_measure` | text | Unit (nullable, default "UN") |
 
-## Seeding (`seed.ts`)
+## Seeding (`apps/web/src/lib/db/seed.ts`)
 
 The `cities` table is seeded from the IBGE API:
 
