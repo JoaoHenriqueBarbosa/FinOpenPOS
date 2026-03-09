@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@finopenpos/ui/components/card";
 import {
   Table,
   TableBody,
@@ -9,13 +9,13 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { Combobox } from "@/components/ui/combobox";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+} from "@finopenpos/ui/components/table";
+import { Combobox } from "@finopenpos/ui/components/combobox";
+import { Button } from "@finopenpos/ui/components/button";
+import { Input } from "@finopenpos/ui/components/input";
+import { Badge } from "@finopenpos/ui/components/badge";
 import { Loader2Icon, MinusIcon, PlusIcon, SearchIcon, Trash2Icon, ReceiptTextIcon } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Skeleton } from "@finopenpos/ui/components/skeleton";
 import { toast } from "sonner";
 import { useTRPC } from "@/lib/trpc/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";

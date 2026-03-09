@@ -1,19 +1,23 @@
-import { db } from "@finopenpos/db";
-import * as schema from "@finopenpos/db/schema/auth";
-import { env } from "@finopenpos/env/server";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 
-export const auth = betterAuth({
-  database: drizzleAdapter(db, {
-    provider: "pg",
+type DrizzleDb = Parameters<typeof drizzleAdapter>[0];
 
-    schema: schema,
-  }),
-  trustedOrigins: [env.CORS_ORIGIN],
-  emailAndPassword: {
-    enabled: true,
-  },
-  plugins: [nextCookies()],
-});
+interface AuthOptions {
+  db: DrizzleDb;
+  baseURL?: string;
+  trustedOrigins?: string[];
+}
+
+export function createAuth({ db, baseURL, trustedOrigins }: AuthOptions) {
+  return betterAuth({
+    baseURL,
+    database: drizzleAdapter(db, { provider: "pg" }),
+    emailAndPassword: { enabled: true },
+    trustedOrigins,
+    plugins: [nextCookies()],
+  });
+}
+
+export type Auth = ReturnType<typeof createAuth>;

@@ -1,11 +1,11 @@
 "use client";
 
 import { login } from "./actions";
-import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardFooter } from "@finopenpos/ui/components/card";
+import { Label } from "@finopenpos/ui/components/label";
+import { Input } from "@finopenpos/ui/components/input";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { Button } from "@finopenpos/ui/components/button";
 import { MountainIcon } from "lucide-react";
 import { useRef } from "react";
 import { useTranslations } from "next-intl";

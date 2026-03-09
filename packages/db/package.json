@@ -1,5 +1,7 @@
 {
   "name": "@finopenpos/db",
+  "version": "0.0.0",
+  "private": true,
   "type": "module",
   "exports": {
     ".": {
@@ -10,22 +12,13 @@
     }
   },
   "scripts": {
-    "db:push": "drizzle-kit push",
-    "db:generate": "drizzle-kit generate",
-    "db:studio": "drizzle-kit studio",
-    "db:migrate": "drizzle-kit migrate"
+    "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "@finopenpos/env": "workspace:*",
-    "dotenv": "catalog:",
-    "drizzle-orm": "^0.45.1",
-    "pg": "^8.17.1",
-    "zod": "catalog:"
+    "drizzle-orm": "^0.45.1"
   },
   "devDependencies": {
     "@finopenpos/config": "workspace:*",
-    "@types/pg": "^8.16.0",
-    "drizzle-kit": "^0.31.8",
     "typescript": "^5"
   }
 }

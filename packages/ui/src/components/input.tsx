@@ -1,19 +1,42 @@
-import { Input as InputPrimitive } from "@base-ui/react/input";
-import { cn } from "@my-better-t-app/ui/lib/utils";
-import * as React from "react";
+import * as React from "react"
 
-function Input({ className, type, ...props }: React.ComponentProps<"input">) {
-  return (
-    <InputPrimitive
-      type={type}
-      data-slot="input"
-      className={cn(
-        "h-8 w-full min-w-0 rounded-none border border-input bg-transparent px-2.5 py-1 text-xs transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-xs file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20 md:text-xs dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
-        className,
-      )}
-      {...props}
-    />
-  );
+import { cn } from "../lib/utils"
+
+interface InputProps extends React.ComponentProps<"input"> {
+  label?: string
+  error?: string
 }
 
-export { Input };
+const Input = React.forwardRef<HTMLInputElement, InputProps>(
+  ({ className, type, label, error, ...props }, ref) => {
+    const input = (
+      <input
+        type={type}
+        className={cn(
+          "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+          error && "border-destructive focus-visible:ring-destructive",
+          className
+        )}
+        ref={ref}
+        {...props}
+      />
+    )
+
+    if (!label && !error) return input
+
+    return (
+      <div className="space-y-1">
+        {label && (
+          <label htmlFor={props.id} className="text-sm font-medium leading-none">
+            {label}
+          </label>
+        )}
+        {input}
+        {error && <p className="text-sm text-destructive">{error}</p>}
+      </div>
+    )
+  }
+)
+Input.displayName = "Input"
+
+export { Input }
