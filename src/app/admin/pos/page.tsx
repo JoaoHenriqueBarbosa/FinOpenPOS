@@ -14,7 +14,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Loader2Icon, MinusIcon, PlusIcon, SearchIcon, Trash2Icon } from "lucide-react";
+import { Loader2Icon, MinusIcon, PlusIcon, SearchIcon, Trash2Icon, ReceiptTextIcon } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useTRPC } from "@/lib/trpc/client";
@@ -55,6 +55,7 @@ export default function POSPage() {
   const [paymentMethod, setPaymentMethod] = useState<{ id: number; name: string } | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<{ id: number; name: string } | null>(null);
   const [productSearch, setProductSearch] = useState("");
+  const [emitNfce, setEmitNfce] = useState(false);
 
   const filteredProducts = useMemo(() => {
     if (!productSearch.trim()) return products;
@@ -290,15 +291,27 @@ export default function POSPage() {
           )}
           <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t pt-4">
             <strong className="text-lg">{tc("total")}: {formatCurrency(total, locale)}</strong>
-            <Button
-              onClick={handleCreateOrder}
-              disabled={!canCreate || createOrderMutation.isPending}
-              size="lg"
-              className="w-full sm:w-auto"
-            >
-              {createOrderMutation.isPending && <Loader2Icon className="h-4 w-4 animate-spin mr-2" />}
-              {t("createOrder")}
-            </Button>
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={emitNfce}
+                  onChange={(e) => setEmitNfce(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                <ReceiptTextIcon className="h-4 w-4 text-muted-foreground" />
+                NFC-e
+              </label>
+              <Button
+                onClick={handleCreateOrder}
+                disabled={!canCreate || createOrderMutation.isPending}
+                size="lg"
+                className="flex-1 sm:flex-initial"
+              >
+                {createOrderMutation.isPending && <Loader2Icon className="h-4 w-4 animate-spin mr-2" />}
+                {t("createOrder")}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

@@ -49,6 +49,12 @@ export default function Products() {
     price: z.number().min(0, t("priceMustBePositive")),
     in_stock: z.number().int().min(0, t("stockMustBeNonNegative")),
     category: z.string(),
+    ncm: z.string(),
+    cfop: z.string(),
+    icms_cst: z.string(),
+    pis_cst: z.string(),
+    cofins_cst: z.string(),
+    unit_of_measure: z.string(),
   });
 
   const categoryFilterOptions: FilterOption[] = [
@@ -120,7 +126,7 @@ export default function Products() {
   });
 
   const form = useForm({
-    defaultValues: { name: "", description: "", price: 0, in_stock: 0, category: "" },
+    defaultValues: { name: "", description: "", price: 0, in_stock: 0, category: "", ncm: "", cfop: "", icms_cst: "", pis_cst: "", cofins_cst: "", unit_of_measure: "" },
     validators: {
       onSubmit: productFormSchema,
     },
@@ -131,6 +137,12 @@ export default function Products() {
         price: Math.round(value.price * 100),
         in_stock: value.in_stock,
         category: value.category || undefined,
+        ncm: value.ncm || undefined,
+        cfop: value.cfop || undefined,
+        icms_cst: value.icms_cst || undefined,
+        pis_cst: value.pis_cst || undefined,
+        cofins_cst: value.cofins_cst || undefined,
+        unit_of_measure: value.unit_of_measure || undefined,
       };
       if (isEditing) {
         updateMutation.mutate({ id: editingId, ...payload });
@@ -163,6 +175,12 @@ export default function Products() {
     form.setFieldValue("price", p.price / 100);
     form.setFieldValue("in_stock", p.in_stock);
     form.setFieldValue("category", p.category ?? "");
+    form.setFieldValue("ncm", p.ncm ?? "");
+    form.setFieldValue("cfop", p.cfop ?? "");
+    form.setFieldValue("icms_cst", p.icms_cst ?? "");
+    form.setFieldValue("pis_cst", p.pis_cst ?? "");
+    form.setFieldValue("cofins_cst", p.cofins_cst ?? "");
+    form.setFieldValue("unit_of_measure", p.unit_of_measure ?? "");
     setIsDialogOpen(true);
   };
 
@@ -316,6 +334,61 @@ export default function Products() {
                   </div>
                 )}
               </form.Field>
+              {/* Fiscal Data */}
+              <div className="border-t pt-4 mt-2">
+                <p className="text-sm font-medium mb-1">{t("fiscalData")}</p>
+                <p className="text-xs text-muted-foreground mb-3">{t("fiscalDataHint")}</p>
+                <div className="grid grid-cols-3 gap-3">
+                  <form.Field name="ncm">
+                    {(field) => (
+                      <div className="space-y-1">
+                        <Label className="text-xs">{t("ncm")}</Label>
+                        <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} maxLength={8} placeholder="00000000" className="h-8 text-sm" />
+                      </div>
+                    )}
+                  </form.Field>
+                  <form.Field name="cfop">
+                    {(field) => (
+                      <div className="space-y-1">
+                        <Label className="text-xs">{t("cfop")}</Label>
+                        <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} maxLength={4} placeholder="5102" className="h-8 text-sm" />
+                      </div>
+                    )}
+                  </form.Field>
+                  <form.Field name="unit_of_measure">
+                    {(field) => (
+                      <div className="space-y-1">
+                        <Label className="text-xs">{t("unitOfMeasure")}</Label>
+                        <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} maxLength={6} placeholder="UN" className="h-8 text-sm" />
+                      </div>
+                    )}
+                  </form.Field>
+                  <form.Field name="icms_cst">
+                    {(field) => (
+                      <div className="space-y-1">
+                        <Label className="text-xs">{t("icmsCst")}</Label>
+                        <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} maxLength={3} placeholder="00" className="h-8 text-sm" />
+                      </div>
+                    )}
+                  </form.Field>
+                  <form.Field name="pis_cst">
+                    {(field) => (
+                      <div className="space-y-1">
+                        <Label className="text-xs">{t("pisCst")}</Label>
+                        <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} maxLength={2} placeholder="99" className="h-8 text-sm" />
+                      </div>
+                    )}
+                  </form.Field>
+                  <form.Field name="cofins_cst">
+                    {(field) => (
+                      <div className="space-y-1">
+                        <Label className="text-xs">{t("cofinsCst")}</Label>
+                        <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} maxLength={2} placeholder="99" className="h-8 text-sm" />
+                      </div>
+                    )}
+                  </form.Field>
+                </div>
+              </div>
             </div>
             <DialogFooter>
               <form.Subscribe selector={(state) => state.isSubmitting}>
