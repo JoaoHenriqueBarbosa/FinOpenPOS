@@ -1,0 +1,27 @@
+{
+  "name": "@finopenpos/api",
+  "type": "module",
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./*": {
+      "default": "./src/*.ts"
+    }
+  },
+  "scripts": {},
+  "dependencies": {
+    "@finopenpos/auth": "workspace:*",
+    "@finopenpos/db": "workspace:*",
+    "@finopenpos/env": "workspace:*",
+    "@trpc/client": "catalog:",
+    "@trpc/server": "catalog:",
+    "dotenv": "catalog:",
+    "next": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@finopenpos/config": "workspace:*",
+    "typescript": "^5"
+  }
+}

@@ -29,8 +29,9 @@ su postgres -c "psql -tc \"SELECT 1 FROM pg_roles WHERE rolname='${DB_USER}'\" |
 su postgres -c "psql -tc \"SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'\" | grep -q 1 \
   || psql -c \"CREATE DATABASE ${DB_NAME} OWNER ${DB_USER}\""
 
-# Push schema
-bun drizzle-kit push
+# Push schema (workdir is /app/apps/web via Dockerfile)
+cd /app/apps/web
+bunx drizzle-kit push
 
 # Start Next.js
 exec bun next start
