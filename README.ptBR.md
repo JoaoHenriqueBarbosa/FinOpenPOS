@@ -1,39 +1,81 @@
 # FinOpenPOS
 
-Sistema open-source de Ponto de Venda (PDV) e gestão de estoque, construído com Next.js 16, React 19 e PostgreSQL embarcado via PGLite. Zero dependências externas para rodar — `bun dev` e pronto.
+Sistema open-source de Ponto de Venda (PDV) e gestao de estoque com **modulo fiscal brasileiro** (NF-e/NFC-e). Construido com Next.js 16, React 19 e PostgreSQL embarcado via PGLite. Zero dependencias externas para rodar — `bun dev` e pronto.
 
 > **[Read in English](README.md)**
 
+## Indice
+
+- [Features](#features)
+- [Arquitetura](#arquitetura)
+- [Tech Stack](#tech-stack)
+- [Quick Start](#quick-start)
+- [Scripts](#scripts)
+- [Estrutura do Projeto](#estrutura-do-projeto)
+- [Modulo Fiscal (NF-e / NFC-e)](#modulo-fiscal-nf-e--nfc-e)
+  - [Ciclo de Vida da Nota](#ciclo-de-vida-da-nota)
+  - [Motor de Impostos](#motor-de-impostos)
+  - [Comunicacao com a SEFAZ](#comunicacao-com-a-sefaz)
+  - [Documentacao Detalhada](#documentacao-detalhada)
+- [API](#api)
+  - [Documentacao Interativa](#documentacao-interativa)
+  - [Procedures tRPC](#procedures-trpc)
+- [Testes](#testes)
+- [Deploy com Docker](#deploy-com-docker)
+- [Banco de Dados](#banco-de-dados)
+  - [Schema](#schema)
+  - [PGLite (padrao)](#pglite-padrao)
+  - [Migrando para PostgreSQL](#migrando-para-postgresql)
+- [Contribuindo](#contribuindo)
+- [Licenca](#licenca)
+
 ## Features
 
-- **Dashboard** com gráficos interativos (receita, despesas, fluxo de caixa, margem de lucro)
-- **Gestão de Produtos** com categorias e controle de estoque
-- **Gestão de Clientes** com status ativo/inativo
-- **Gestão de Pedidos** com itens, totais e status
-- **Ponto de Venda (PDV)** para processamento rápido de vendas
-- **Caixa** com registro de transações (receitas e despesas)
-- **Autenticação** com email/senha via Better Auth
-- **Documentação da API** gerada automaticamente via Scalar em `/api/docs`
+### Negocio
+- **Dashboard** com graficos interativos (receita, despesas, fluxo de caixa, margem de lucro)
+- **Gestao de Produtos** com categorias e controle de estoque
+- **Gestao de Clientes** com status ativo/inativo
+- **Gestao de Pedidos** com itens, totais e status
+- **Ponto de Venda (PDV)** para processamento rapido de vendas
+- **Caixa** com registro de transacoes (receitas e despesas)
+- **Autenticacao** com email/senha via Better Auth
+- **Documentacao da API** gerada automaticamente via Scalar em `/api/docs`
+
+### Fiscal (NF-e / NFC-e)
+- **Emissao de Notas Fiscais** — NF-e (modelo 55, B2B) e NFC-e (modelo 65, consumidor)
+- **Calculo de Impostos** — ICMS (15 CST + 10 CSOSN), PIS, COFINS, IPI, II, ISSQN
+- **Integracao SEFAZ** — autorizar, cancelar, inutilizar, consultar com certificado digital mTLS
+- **Assinatura Digital** — XML assinado com certificado A1 e-CNPJ (PFX/PKCS#12)
+- **QR Code** — geracao de QR code NFC-e (v2.00/v3.00, online + offline)
+- **Contingencia** — SVC-AN, SVC-RS (NF-e) e EPEC (NFC-e) modos offline
+- **Eventos da Reforma IBS/CBS** — 14 tipos de evento da reforma tributaria (PL_010)
+- **Tela de Configuracoes** — dados da empresa, endereco, certificado, CSC, codigos padrao
+- **Auto-preenchimento de CEP** — via ViaCEP + BrasilAPI
 
 ## Arquitetura
 
 ```mermaid
 flowchart LR
   Browser["Browser\nReact 19"]
-  Proxy["proxy.ts\n(verifica sessão)"]
+  Proxy["proxy.ts\n(verifica sessao)"]
   tRPC["tRPC v11\n(superjson)"]
-  Auth["Better Auth\n(cookie de sessão)"]
+  Auth["Better Auth\n(cookie de sessao)"]
   Drizzle["Drizzle ORM"]
   PGLite["PGLite\n(PostgreSQL WASM)"]
   Scalar["Scalar\n/api/docs"]
+  Fiscal["Modulo Fiscal\n(NF-e / NFC-e)"]
+  SEFAZ["SEFAZ\n(Receita Estadual)"]
 
-  Browser -->|requisição HTTP| Proxy
+  Browser -->|requisicao HTTP| Proxy
   Proxy -->|autenticado| tRPC
   Proxy -->|/api/auth/*| Auth
   tRPC -->|protectedProcedure| Drizzle
+  tRPC -->|rotas fiscais| Fiscal
   Drizzle -->|SQL| PGLite
   tRPC -.->|spec OpenAPI| Scalar
-  Auth -->|sessão| PGLite
+  Auth -->|sessao| PGLite
+  Fiscal -->|gera XML + assina| SEFAZ
+  Fiscal -->|persiste| Drizzle
 ```
 
 ## Tech Stack
@@ -45,9 +87,12 @@ flowchart LR
 | Banco de dados | PGLite (PostgreSQL via WASM) |
 | ORM | Drizzle ORM |
 | API | tRPC v11 (type safety ponta a ponta) |
-| Autenticação | Better Auth |
+| Autenticacao | Better Auth |
 | Docs da API | Scalar (OpenAPI 3.0) |
+| Assinatura XML | xml-crypto |
+| Parsing XML | fast-xml-parser |
 | Runtime | Bun |
+| i18n | next-intl (en + pt-BR) |
 
 ## Quick Start
 
@@ -69,136 +114,251 @@ bun install
 bun run dev
 ```
 
-Acesse http://localhost:3000 e use o botão **Fill demo credentials** para entrar com a conta de teste (`test@example.com` / `test1234`).
+Acesse http://localhost:3000 e use o botao **Fill demo credentials** para entrar com a conta de teste (`test@example.com` / `test1234`).
 
-> O primeiro `bun run dev` cria o banco automaticamente em `./data/pglite`, empurra o schema via Drizzle e executa o seed com dados demo (20 clientes, 32 produtos, 40 pedidos, 25 transações).
+> O primeiro `bun run dev` cria o banco automaticamente em `./data/pglite`, empurra o schema via Drizzle e executa o seed com dados demo (20 clientes, 32 produtos, 40 pedidos, 25 transacoes) + ~5570 municipios IBGE.
 
 ## Scripts
 
-| Comando | Descrição |
+| Comando | Descricao |
 |---------|-----------|
 | `bun run dev` | Valida PGLite, push schema e inicia dev server |
-| `bun run build` | Valida PGLite, push schema e build de produção |
-| `bun run start` | Inicia o servidor de produção |
+| `bun run build` | Valida PGLite, push schema e build de producao |
+| `bun run start` | Inicia o servidor de producao |
 | `bun run db:push` | Empurra schema Drizzle para o PGLite e regenera diagrama ER |
 | `bun run db:ensure` | Detecta e limpa PGLite corrompido automaticamente |
-| `bun test` | Roda todos os testes E2E (routers tRPC) |
-| `bun run test:coverage` | Roda testes com relatório de cobertura |
+| `bun test` | Roda testes dos routers tRPC |
+| `bun test src/lib/fiscal/__tests__/` | Roda testes do modulo fiscal |
+| `bun run test:coverage` | Roda testes com relatorio de cobertura |
 
 ## Estrutura do Projeto
 
 ```
 src/
 ├── app/
-│   ├── admin/           # Dashboard, produtos, clientes, pedidos, PDV, caixa
-│   ├── api/
-│   │   ├── auth/        # Handler catch-all do Better Auth
-│   │   ├── trpc/        # Handler HTTP do tRPC (/api/trpc/*)
-│   │   ├── docs/        # Documentação interativa via Scalar
-│   │   └── openapi.json/# Spec OpenAPI 3.0 gerada automaticamente
-│   ├── login/           # Página de login
-│   └── signup/          # Página de cadastro
+│   ├── admin/
+│   │   ├── fiscal/          # Lista de notas, detalhes, configuracoes
+│   │   ├── products/        # Gestao de produtos (com campos fiscais)
+│   │   ├── orders/          # Gestao de pedidos
+│   │   ├── pos/             # Ponto de Venda
+│   │   └── ...              # Dashboard, clientes, caixa
+│   ├── api/                 # Auth, tRPC, Scalar docs, spec OpenAPI
+│   ├── login/               # Pagina de login
+│   └── signup/              # Pagina de cadastro
 ├── components/
-│   ├── ui/              # Componentes shadcn (Button, Card, Dialog, etc.)
-│   └── trpc-provider.tsx # TRPCProvider + setup React Query
+│   └── ui/                  # Componentes shadcn + FormTextField
 ├── lib/
 │   ├── db/
-│   │   ├── index.ts     # Singleton PGLite + instância Drizzle
-│   │   ├── schema.ts    # Schema Drizzle (6 tabelas de negócio)
-│   │   ├── auth-schema.ts # Tabelas do Better Auth (auto-geradas)
-│   │   └── seed.ts      # Seed com dados demo via Faker
-│   ├── trpc/
-│   │   ├── init.ts      # Contexto tRPC, router, procedures (public + protected)
-│   │   ├── router.ts    # Router raiz (products, customers, orders, etc.)
-│   │   ├── openapi.ts   # Gerador de spec OpenAPI a partir dos routers tRPC
-│   │   └── routers/     # Routers individuais com validação Zod
-│   │       └── __tests__/# Testes E2E (bun:test + PGLite in-memory)
-│   ├── auth.ts          # Config Better Auth (server)
-│   ├── auth-client.ts   # Client auth (useSession, signIn, etc.)
-│   └── auth-guard.ts    # Helper getAuthUser() para procedures tRPC
-├── proxy.ts             # Middleware Next.js 16 (proteção de rotas)
-└── instrumentation.ts   # Executa seed no startup do Next.js
+│   │   ├── schema.ts        # Schema Drizzle (6 negocio + 4 fiscal + cities)
+│   │   └── seed.ts          # Dados demo + seed de municipios IBGE
+│   ├── fiscal/              # ← Modulo fiscal completo (veja abaixo)
+│   │   ├── __tests__/       # 754 testes (portados do PHP sped-nfe)
+│   │   ├── value-objects/   # AccessKey, TaxId
+│   │   ├── tax-icms.ts      # Motor ICMS (25 variantes)
+│   │   ├── tax-pis-cofins-ipi.ts  # PIS/COFINS/IPI/II
+│   │   ├── xml-builder.ts   # Geracao XML NF-e
+│   │   ├── certificate.ts   # Extracao PFX + assinatura XML
+│   │   ├── invoice-service.ts     # Orquestracao ciclo de vida
+│   │   ├── sefaz-*.ts       # Camada de comunicacao SEFAZ
+│   │   └── ...              # 30+ modulos (veja docs/)
+│   └── trpc/
+│       ├── routers/         # Routers tRPC (negocio + fiscal)
+│       └── ...
+├── messages/                # i18n (en.ts, pt-BR.ts)
+├── proxy.ts                 # Middleware Next.js 16
+└── docs/                    # Documentacao fiscal detalhada (12 arquivos)
 ```
+
+## Modulo Fiscal (NF-e / NFC-e)
+
+O modulo fiscal implementa emissao completa de notas fiscais eletronicas seguindo a especificacao MOC 4.00 da SEFAZ, portado da biblioteca PHP [sped-nfe](https://github.com/nfephp-org/sped-nfe) para TypeScript com arquitetura DDD.
+
+### Ciclo de Vida da Nota
+
+```mermaid
+flowchart TD
+  Start([Pedido realizado]) --> LoadSettings[Carrega config fiscal\n+ certificado]
+  LoadSettings --> BuildXML[Gera XML NF-e/NFC-e\na partir dos itens]
+  BuildXML --> CalcTax[Calcula impostos\nICMS + PIS + COFINS + IPI]
+  CalcTax --> GenKey[Gera chave de acesso\n44 digitos mod-11]
+  GenKey --> Sign[Assina XML\ncom certificado A1 e-CNPJ]
+  Sign --> SendSEFAZ{Envia para SEFAZ}
+
+  SendSEFAZ -->|cStat 100| Authorized[Autorizada ✓]
+  SendSEFAZ -->|cStat 110| Denied[Denegada ✗]
+  SendSEFAZ -->|timeout| Contingency{Modelo?}
+
+  Contingency -->|NFC-e 65| Offline[Salva offline\nstatus=contingencia]
+  Contingency -->|NF-e 55| Error[Lanca erro]
+
+  Authorized --> AttachProto[Anexa protocolo\nXML nfeProc]
+  AttachProto --> SaveDB[(Salva no BD\nnota + itens)]
+  Offline --> SaveDB
+  Denied --> SaveDB
+
+  SaveDB --> IncrNumber[Incrementa\nproximo numero]
+
+  Authorized -.->|depois| Cancel[Cancelar nota]
+  Cancel --> EventXML[Gera XML de\nevento de cancelamento]
+  EventXML --> SignEvent[Assina + envia\npara SEFAZ]
+
+  Offline -.->|conexao volta| Sync[Sincronizar notas\npendentes]
+```
+
+### Motor de Impostos
+
+```mermaid
+flowchart LR
+  subgraph Domain["Camada de Dominio (logica pura)"]
+    ICMS["tax-icms.ts\n15 CST + 10 CSOSN"]
+    PIS["tax-pis-cofins-ipi.ts\nPIS / COFINS / IPI / II"]
+    TE["tax-element.ts\nInterface TaxElement"]
+  end
+
+  subgraph Infra["Camada de Infraestrutura"]
+    XB["xml-builder.ts\nXML NF-e completo"]
+    XU["xml-utils.ts\ntag() + escapeXml()"]
+    FU["format-utils.ts\ncentavos → '10.50'"]
+  end
+
+  ICMS -->|retorna TaxElement| TE
+  PIS -->|retorna TaxElement| TE
+  TE -->|serializeTaxElement| XB
+  XB --> XU
+  ICMS --> FU
+  PIS --> FU
+```
+
+Os modulos de imposto nunca importam codigo XML — eles retornam estruturas `TaxElement` que o builder serializa. Isso mantem a logica de dominio pura e testavel.
+
+### Comunicacao com a SEFAZ
+
+```mermaid
+sequenceDiagram
+  participant App as Invoice Service
+  participant Builder as Request Builder
+  participant Cert as Certificate
+  participant Transport as SEFAZ Transport
+  participant SEFAZ as Web Service SEFAZ
+
+  App->>Builder: buildAuthorizationRequestXml(nfeAssinada)
+  App->>Cert: extractCertFromPfx(pfx, senha)
+  Cert-->>App: PEM cert + key
+
+  App->>Transport: sefazRequest(url, xml, cert, key)
+  Transport->>Transport: Monta envelope SOAP 1.2
+  Transport->>Transport: Grava PEM em arquivos temp
+  Transport->>SEFAZ: curl --cert cert.pem --key key.pem (mTLS)
+  SEFAZ-->>Transport: Resposta SOAP
+  Transport->>Transport: Extrai conteudo do body SOAP
+  Transport-->>App: { httpStatus, body, content }
+
+  App->>App: parseAuthorizationResponse(content)
+  App->>App: attachProtocol(request, response)
+```
+
+> **Por que curl?** O `node:https` do Bun nao suporta PFX para mTLS. O workaround extrai PEM do PFX via openssl e usa curl para a requisicao HTTPS.
+
+### Documentacao Detalhada
+
+A pasta [`docs/`](docs/) contem 12 documentos aprofundados:
+
+| Documento | Tema |
+|-----------|------|
+| [00-architecture.md](docs/00-architecture.md) | Camadas, grafo de dependencias, convencoes numericas |
+| [01-tax-engine.md](docs/01-tax-engine.md) | ICMS/PIS/COFINS/IPI, padrao TaxElement |
+| [02-xml-generation.md](docs/02-xml-generation.md) | xml-builder, complement, estrutura XML NF-e |
+| [03-sefaz-communication.md](docs/03-sefaz-communication.md) | Transporte, URLs, request builders, eventos reforma |
+| [04-certificate-signing.md](docs/04-certificate-signing.md) | Extracao PFX, assinatura digital XML |
+| [05-value-objects.md](docs/05-value-objects.md) | AccessKey (mod-11), TaxId (CPF/CNPJ) |
+| [06-invoice-workflow.md](docs/06-invoice-workflow.md) | Ciclo de vida da nota, repositorios |
+| [07-contingency.md](docs/07-contingency.md) | SVC-AN/SVC-RS, EPEC, modos offline |
+| [08-qrcode.md](docs/08-qrcode.md) | QR code NFC-e v2.00/v3.00 |
+| [09-txt-conversion.md](docs/09-txt-conversion.md) | Conversao formato legado SPED TXT |
+| [10-database-schema.md](docs/10-database-schema.md) | Tabelas fiscais, multi-tenancy |
+| [11-utilities.md](docs/11-utilities.md) | GTIN, consulta CEP, codigos estaduais |
 
 ## API
 
-Todas as procedures exigem autenticação via cookie de sessão do Better Auth. A API usa **tRPC** para type safety de ponta a ponta — os componentes do frontend consomem as procedures diretamente com inferência completa de TypeScript.
+Todas as procedures exigem autenticacao via cookie de sessao do Better Auth. A API usa **tRPC** para type safety de ponta a ponta — os componentes do frontend consomem as procedures diretamente com inferencia completa de TypeScript.
 
-### Documentação Interativa
+### Documentacao Interativa
 
-Acesse **`/api/docs`** para a referência completa e interativa da API, gerada pelo Scalar a partir das definições dos routers tRPC.
+Acesse **`/api/docs`** para a referencia completa e interativa da API, gerada pelo Scalar a partir das definicoes dos routers tRPC.
 
-A spec OpenAPI 3.0 raw está disponível em `/api/openapi.json`.
+A spec OpenAPI 3.0 raw esta disponivel em `/api/openapi.json`.
 
 ### Procedures tRPC
 
-| Router | Procedures | Descrição |
+| Router | Procedures | Descricao |
 |--------|-----------|-----------|
 | `products` | `list`, `create`, `update`, `delete` | CRUD de produtos com estoque e categorias |
 | `customers` | `list`, `create`, `update`, `delete` | CRUD de clientes com status |
-| `orders` | `list`, `create`, `update`, `delete` | Gestão de pedidos com itens e transações |
-| `transactions` | `list`, `create`, `update`, `delete` | Registro de transações (receitas/despesas) |
-| `paymentMethods` | `list`, `create`, `update`, `delete` | Gestão de métodos de pagamento |
-| `dashboard` | `stats` | Receita, despesas, lucro, fluxo de caixa e margens agregados |
+| `orders` | `list`, `create`, `update`, `delete` | Gestao de pedidos com itens e transacoes |
+| `transactions` | `list`, `create`, `update`, `delete` | Registro de transacoes (receitas/despesas) |
+| `paymentMethods` | `list`, `create`, `update`, `delete` | Gestao de metodos de pagamento |
+| `dashboard` | `stats` | Receita, despesas, lucro, fluxo de caixa e margens |
+| `fiscal` | `list`, `getById`, `issue`, `cancel`, `void`, `sync` | Gestao de notas fiscais |
+| `fiscalSettings` | `get`, `upsert`, `testConnection`, `getCertificateInfo` | Configuracao fiscal |
+| `cities` | `listByState` | Consulta de municipios IBGE por estado |
 
 ## Testes
 
-Todos os 6 routers tRPC têm 100% de cobertura de teste (70 testes, 216 assertions) usando `bun:test` com bancos PGLite in-memory.
+840 testes em 2 suites (754 fiscal + 86 tRPC), todos passando com 0 falhas.
 
 ```bash
-# Rodar todos os testes
+# Testes dos routers tRPC
 bun test
 
-# Rodar com relatório de cobertura
+# Testes do modulo fiscal
+bun test src/lib/fiscal/__tests__/
+
+# Relatorio de cobertura
 bun run test:coverage
 ```
 
+> **Nota**: Rode testes fiscal e tRPC separadamente — o Bun pode dar segfault em execucoes paralelas grandes.
+
 ```mermaid
 flowchart TB
-  subgraph TestFile["Cada arquivo de teste"]
-    PGLite["PGLite\n(in-memory)"]
-    Mock["mock.module\n(@/lib/db)"]
-    Caller["createCallerFactory\n(autenticado / não-autenticado)"]
-    DDL["DDL via\ngetTableConfig"]
+  subgraph FiscalTests["Testes Fiscais (754)"]
+    TaxTests["Motor de impostos\nICMS / PIS / COFINS / IPI"]
+    XMLTests["XML builder\n+ complement"]
+    PortedTests["Portados do PHP\nsuite sped-nfe"]
+    QRTests["QR code\n+ certificado"]
   end
 
-  Schema["schema.ts\n(fonte única de verdade)"] -->|deriva| DDL
-  DDL -->|CREATE TABLE| PGLite
+  subgraph tRPCTests["Testes tRPC (86)"]
+    PGLite["PGLite\n(in-memory)"]
+    Mock["mock.module\n(@/lib/db)"]
+    Caller["createCallerFactory"]
+  end
+
+  Schema["schema.ts"] -->|DDL| PGLite
   Mock -->|injeta| PGLite
   Caller -->|chama router| Mock
 
-  subgraph Verificações
-    Create["create → list() confirma persistência"]
-    Update["update → list() confirma alteração + campos inalterados"]
-    Delete["delete → list() confirma remoção"]
-    Isolation["cross-user → dados invisíveis"]
-    Validation["Zod rejeita → contagem inalterada"]
+  subgraph Verificacoes
+    CRUD["CRUD → list() confirma estado"]
+    Isolation["cross-user → invisivel"]
+    Zod["Zod rejeita → inalterado"]
   end
 
-  Caller --> Verificações
+  Caller --> Verificacoes
 ```
-
-Cada arquivo de teste recebe uma instância PGLite isolada via `mock.module("@/lib/db", ...)`. O DDL é derivado automaticamente do schema Drizzle usando `getTableConfig` — sem SQL hardcoded para manter em sincronia. Os testes verificam o estado real do banco após cada mutação: `list()` após create/update/delete, isolamento entre usuários, comportamento de FK cascade e rejeições de validação Zod.
 
 ## Deploy com Docker
 
 O projeto inclui Dockerfile multi-stage baseado em Alpine e Docker Compose com volume persistente.
 
 ```bash
-# Build e start
-docker compose up -d
-
-# Ver logs
-docker compose logs -f
-
-# Parar
-docker compose down
-
-# Parar e apagar dados do banco
-docker compose down -v
+docker compose up -d          # Build e start
+docker compose logs -f        # Ver logs
+docker compose down           # Parar
+docker compose down -v        # Parar e apagar dados do banco
 ```
 
-O `compose.yaml` espera as variáveis de ambiente `BETTER_AUTH_SECRET` e `BETTER_AUTH_URL`. Crie um `.env` na raiz ou passe via `-e`:
+O `compose.yaml` espera as variaveis de ambiente `BETTER_AUTH_SECRET` e `BETTER_AUTH_URL`. Crie um `.env` na raiz ou passe via `-e`:
 
 ```bash
 BETTER_AUTH_SECRET=sua-chave-secreta-de-32-chars-minimo
@@ -207,7 +367,7 @@ BETTER_AUTH_URL=https://seu-dominio.com
 
 ### Coolify / PaaS
 
-O projeto funciona com Coolify e plataformas similares que detectam `compose.yaml`. Configure as variáveis de ambiente na UI da plataforma. A porta interna padrão é `3111` (configurável via env `PORT`).
+O projeto funciona com Coolify e plataformas similares que detectam `compose.yaml`. Configure as variaveis de ambiente na UI da plataforma. A porta interna padrao e `3111` (configuravel via env `PORT`).
 
 ## Banco de Dados
 
@@ -281,28 +441,89 @@ erDiagram
         timestamp created_at
     }
 
-    customers |o--o{ orders : "has"
-    orders |o--o{ order_items : "contains"
-    products |o--o{ order_items : "references"
-    orders |o--o{ transactions : "generates"
-    payment_methods |o--o{ transactions : "uses"
+    fiscal_settings {
+        serial id PK
+        varchar user_uid UK
+        varchar company_name
+        varchar tax_id
+        varchar state_code
+        integer environment
+        bytea certificate_pfx
+        varchar csc_id
+        varchar csc_token
+        integer next_nfe_number
+        integer next_nfce_number
+    }
+
+    invoices {
+        serial id PK
+        integer order_id FK
+        integer model
+        integer series
+        integer number
+        varchar access_key
+        varchar status
+        text request_xml
+        text protocol_xml
+        integer total_amount
+        varchar user_uid
+        timestamp authorized_at
+    }
+
+    invoice_items {
+        serial id PK
+        integer invoice_id FK
+        integer product_id FK
+        integer item_number
+        varchar ncm
+        varchar cfop
+        integer quantity
+        integer unit_price
+        integer total_price
+    }
+
+    invoice_events {
+        serial id PK
+        integer invoice_id FK
+        varchar event_type
+        integer status_code
+        text reason
+        text request_xml
+        timestamp created_at
+    }
+
+    cities {
+        integer id PK
+        varchar name
+        varchar state_code
+    }
+
+    customers |o--o{ orders : "tem"
+    orders |o--o{ order_items : "contem"
+    products |o--o{ order_items : "referencia"
+    orders |o--o{ transactions : "gera"
+    payment_methods |o--o{ transactions : "usa"
+    orders |o--o{ invoices : "gera"
+    invoices |o--o{ invoice_items : "contem"
+    invoices |o--o{ invoice_events : "registra"
+    products |o--o{ invoice_items : "referencia"
 ```
 
 <!-- ER_END -->
 
-Todos os valores monetários são armazenados como **inteiros em centavos** (ex: R$ 49,99 = `4999`). Isso evita problemas de precisão com ponto flutuante. Na interface, os valores são divididos por 100 para exibição. Todas as tabelas com `user_uid` aplicam multi-tenancy — `payment_methods` é a única tabela global.
+Todos os valores monetarios sao armazenados como **inteiros em centavos** (ex: R$ 49,99 = `4999`). Isso evita problemas de precisao com ponto flutuante. Todas as tabelas com `user_uid` aplicam multi-tenancy.
 
-### PGLite (padrão)
+### PGLite (padrao)
 
-O PGLite roda PostgreSQL completo via WASM, direto no processo do Node.js. Os dados ficam em `./data/pglite` (filesystem). Não precisa de servidor PostgreSQL externo.
+O PGLite roda PostgreSQL completo via WASM, direto no processo do Node.js. Os dados ficam em `./data/pglite` (filesystem). Nao precisa de servidor PostgreSQL externo.
 
-**Vantagens:** zero config, sem dependências, ideal para dev e projetos pequenos.
+**Vantagens:** zero config, sem dependencias, ideal para dev e projetos pequenos.
 
-**Limitações:** single-process (sem conexões concorrentes de fora), performance abaixo de um PostgreSQL nativo para cargas pesadas, sem replicação.
+**Limitacoes:** single-process (sem conexoes concorrentes de fora), performance abaixo de um PostgreSQL nativo para cargas pesadas, sem replicacao.
 
 ### Migrando para PostgreSQL
 
-Quando o projeto crescer e precisar de um banco real, a migração é simples porque o Drizzle ORM abstrai a camada de acesso — o schema é idêntico.
+Quando o projeto crescer e precisar de um banco real, a migracao e simples porque o Drizzle ORM abstrai a camada de acesso — o schema e identico.
 
 #### 1. Instale o driver do PostgreSQL
 
@@ -347,19 +568,19 @@ bun run db:push
 bun run dev
 ```
 
-#### 6. Limpe o que não precisa mais
+#### 6. Limpe o que nao precisa mais
 
-- Delete `scripts/ensure-db.ts` (só existe para recovery do PGLite)
+- Delete `scripts/ensure-db.ts` (so existe para recovery do PGLite)
 - Remova `db:ensure` do script `dev` e `build` no `package.json`
 - Remova `serverExternalPackages` do `next.config.mjs`
-- No Docker, troque o volume PGLite por uma conexão ao PostgreSQL via `DATABASE_URL`
+- No Docker, troque o volume PGLite por uma conexao ao PostgreSQL via `DATABASE_URL`
 
-> O schema Drizzle (`src/lib/db/schema.ts`) não muda. Todas as queries, relations e procedures tRPC continuam funcionando sem alteração.
+> O schema Drizzle (`src/lib/db/schema.ts`) nao muda. Todas as queries, relations e procedures tRPC continuam funcionando sem alteracao.
 
 ## Contribuindo
 
-Contribuições são bem-vindas! Abra uma issue ou envie um Pull Request.
+Contribuicoes sao bem-vindas! Abra uma issue ou envie um Pull Request.
 
-## Licença
+## Licenca
 
 MIT License — veja [LICENSE](LICENSE).
