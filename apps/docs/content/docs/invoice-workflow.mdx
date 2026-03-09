@@ -1,0 +1,165 @@
+---
+title: Invoice Workflow
+description: The invoice service orchestrates the complete lifecycle of an electronic invoice from XML generation to SEFAZ submission, handling authorization, cancellation, voiding, contingency, and persistence.
+---
+
+## Overview
+
+The invoice service orchestrates the complete lifecycle of an electronic invoice: from building the XML to sending it to SEFAZ, handling responses, and persisting results. It sits in the application/service layer, coordinating domain logic, infrastructure, and persistence.
+
+These three files are the DB-coupled layer that lives in the app, not in the `@finopenpos/fiscal` package (which has zero database dependencies).
+
+**Files**: `apps/web/src/lib/invoice-service.ts`, `apps/web/src/lib/fiscal-settings-repository.ts`, `apps/web/src/lib/invoice-repository.ts`
+
+## Invoice Lifecycle
+
+```
+  ┌──────────┐     ┌──────────┐     ┌───────────┐     ┌────────────┐
+  │ pending   │────→│authorized│────→│ cancelled  │     │   voided   │
+  └──────────┘     └──────────┘     └───────────┘     └────────────┘
+       │                                                      ↑
+       │           ┌──────────┐                               │
+       ├──────────→│ rejected │                    (number range)
+       │           └──────────┘
+       │           ┌──────────┐
+       ├──────────→│  denied  │
+       │           └──────────┘
+       │           ┌────────────┐
+       └──────────→│contingency │──→ (sync later → authorized/rejected)
+                   └────────────┘
+```
+
+## Main Operations
+
+### issueInvoice
+
+```typescript
+async function issueInvoice(
+  orderId: number,
+  model: InvoiceModel,  // 55 or 65
+  userUid: string,
+  recipientTaxId?: string,
+  recipientName?: string
+): Promise<{ invoiceId: number; status: InvoiceStatus; accessKey: string }>
+```
+
+**Flow**:
+1. Load and validate fiscal settings (`loadValidatedSettings`)
+2. Check CSC for NFC-e model 65
+3. Load order with items from DB
+4. Get next number/series from settings
+5. Build `InvoiceBuildData` from order items
+6. `buildInvoiceXml()` → unsigned XML + access key
+7. `loadCertificate()` + `signXml()` → signed XML
+8. Send to SEFAZ via `sefazRequest()`
+9. Parse response → determine status (authorized/rejected/denied)
+10. If authorized: `attachProtocol()` → nfeProc XML
+11. `saveInvoice()` → persist to DB
+12. `incrementNextNumber()` → update counter
+
+**Offline fallback** (NFC-e only): If SEFAZ is unavailable, save as "contingency" status and sync later.
+
+### checkSefazStatus
+
+```typescript
+async function checkSefazStatus(userUid: string): Promise<{
+  online: boolean;
+  statusCode: number;
+  statusMessage: string;
+}>
+```
+
+Calls `NfeStatusServico` to check if SEFAZ is online. Status 107 = running.
+
+### cancelInvoice
+
+```typescript
+async function cancelInvoice(
+  invoiceId: number,
+  userUid: string,
+  reason: string  // min 15 chars
+): Promise<{ success: boolean; statusCode: number }>
+```
+
+Only authorized invoices can be cancelled. Builds cancellation event XML, signs, and sends to SEFAZ `RecepcaoEvento`. Saves the event in `invoiceEvents`.
+
+### voidNumberRange
+
+```typescript
+async function voidNumberRange(
+  model: InvoiceModel,
+  series: number,
+  startNumber: number,
+  endNumber: number,
+  reason: string,
+  userUid: string
+): Promise<{ success: boolean; statusCode: number }>
+```
+
+Voids unused invoice number ranges (inutilizacao). Required when numbers are skipped (e.g., system crash before issuing).
+
+### syncPendingInvoices
+
+```typescript
+async function syncPendingInvoices(userUid: string): Promise<{
+  total: number; authorized: number; failed: number;
+}>
+```
+
+Retries pending/contingency invoices that weren't confirmed by SEFAZ.
+
+## Settings Validation (DRY)
+
+The `loadValidatedSettings` helper deduplicates the 4x repeated validation pattern:
+
+```typescript
+async function loadValidatedSettings(userUid: string): Promise<FiscalSettings> {
+  const settings = await loadFiscalSettings(userUid);
+  if (!settings || !settings.certificatePfx || !settings.certificatePassword) {
+    throw new Error("Fiscal settings or certificate not configured");
+  }
+  return settings;
+}
+```
+
+Used by: `checkSefazStatus`, `cancelInvoice`, `voidNumberRange`, `syncPendingInvoices`.
+
+## Fiscal Settings Repository (`apps/web/src/lib/fiscal-settings-repository.ts`)
+
+### loadFiscalSettings
+
+```typescript
+async function loadFiscalSettings(userUid: string): Promise<FiscalSettings | null>
+```
+
+Maps DB snake\_case fields to domain camelCase. Provides defaults:
+- Series: 1
+- NCM: "00000000"
+- CFOP: "5102" (internal sale)
+- ICMS CST: "00", PIS/COFINS CST: "99"
+
+### incrementNextNumber
+
+```typescript
+async function incrementNextNumber(userUid: string, model: InvoiceModel): Promise<void>
+```
+
+Atomically increments `next_nfe_number` or `next_nfce_number`.
+
+## Invoice Repository (`apps/web/src/lib/invoice-repository.ts`)
+
+### Key operations
+
+| Function | Description |
+|----------|-------------|
+| `loadOrderWithItems(orderId, userUid)` | Load order + items + products (for building XML) |
+| `findInvoice(invoiceId, userUid)` | Get single invoice by ID |
+| `saveInvoice(data)` | Insert invoice + items, returns invoiceId |
+| `findPendingInvoices(userUid)` | Get invoices with status "pending" or "contingency" |
+| `updateInvoiceStatus(invoiceId, data)` | Update status, response XML, protocol, etc. |
+| `saveVoidedInvoice(data)` | Create a "voided" record for number range voiding |
+| `saveInvoiceEvent(data)` | Log cancellation/voiding event with XML |
+
+### Multi-tenancy
+
+Every query includes `eq(table.user_uid, userUid)` in the WHERE clause.
