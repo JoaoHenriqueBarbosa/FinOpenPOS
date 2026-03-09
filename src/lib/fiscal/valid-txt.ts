@@ -3,8 +3,7 @@
  * Ported from PHP: NFePHP\NFe\Common\ValidTXT
  */
 
-import fs from "node:fs";
-import path from "node:path";
+import { getStructure } from "./txt-structures";
 
 export const LAYOUT_LOCAL = "LOCAL";
 export const LAYOUT_LOCAL_V12 = "LOCAL_V12";
@@ -12,33 +11,13 @@ export const LAYOUT_LOCAL_V13 = "LOCAL_V13";
 export const LAYOUT_SEBRAE = "SEBRAE";
 
 /**
- * Load the TXT structure definition from the PHP reference storage.
+ * Load the TXT structure definition for the given version and layout.
  */
 export function loadStructure(
   version: number = 4.0,
   baseLayout: string = LAYOUT_LOCAL
 ): Record<string, string> {
-  const storagePath = path.resolve(
-    __dirname,
-    "../../../.reference/sped-nfe/storage"
-  );
-  let comp = "";
-  if (baseLayout.toUpperCase() === LAYOUT_SEBRAE) {
-    comp = "_sebrae";
-  } else if (baseLayout.toUpperCase() === LAYOUT_LOCAL_V12) {
-    comp = "_v1.2";
-  } else if (baseLayout.toUpperCase() === LAYOUT_LOCAL_V13) {
-    comp = "_v1.3";
-  }
-  const ver = Math.round(version * 100);
-  const file = path.join(storagePath, `txtstructure${ver}${comp}.json`);
-  if (!fs.existsSync(file)) {
-    throw new Error(
-      `Structure file for the indicated TXT layout version was not found [${file}].`
-    );
-  }
-  const json = fs.readFileSync(file, "utf-8");
-  return JSON.parse(json);
+  return getStructure(version, baseLayout);
 }
 
 /**

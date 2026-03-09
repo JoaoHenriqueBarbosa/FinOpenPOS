@@ -5,9 +5,8 @@
  * This module converts the SPED TXT representation of an NF-e into XML.
  */
 
-import fs from "node:fs";
-import path from "node:path";
-import { isValidTxt, loadStructure } from "./valid-txt";
+import { isValidTxt } from "./valid-txt";
+import { getStructureByVersionString } from "./txt-structures";
 import { NFE_NAMESPACE, NFE_VERSION } from "./constants";
 
 // ── Layout constants ────────────────────────────────────────────────────────
@@ -32,9 +31,9 @@ interface DumpEntry {
 
 export class Convert {
   private txt: string;
-  private dados: string[] = [];
-  private numNFe: number = 1;
-  private notas: string[][] = [];
+  private data: string[] = [];
+  private nfeCount: number = 1;
+  private invoices: string[][] = [];
   private layouts: string[] = [];
   private xmls: string[] = [];
   private baseLayout: string;
@@ -55,15 +54,15 @@ export class Convert {
     if (!this.isNFe(this.txt)) {
       throw new Error("Wrong document: not a valid NFe TXT");
     }
-    this.notas = this.sliceNotas(this.dados);
-    this.checkQtdNFe();
-    this.validateNotas();
+    this.invoices = this.sliceInvoices(this.data);
+    this.checkNfeCount();
+    this.validateInvoices();
 
-    for (let i = 0; i < this.notas.length; i++) {
-      const nota = this.notas[i];
+    for (let i = 0; i < this.invoices.length; i++) {
+      const invoice = this.invoices[i];
       const version = this.layouts[i];
       const parser = new Parser(version, this.baseLayout);
-      const xml = parser.toXml(nota);
+      const xml = parser.toXml(invoice);
       if (!xml) {
         const errors = parser.getErrors();
         if (errors.length > 0) {
@@ -87,16 +86,16 @@ export class Convert {
     if (!this.isNFe(this.txt)) {
       throw new Error("Wrong document: not a valid NFe TXT");
     }
-    this.notas = this.sliceNotas(this.dados);
-    this.checkQtdNFe();
-    this.validateNotas();
+    this.invoices = this.sliceInvoices(this.data);
+    this.checkNfeCount();
+    this.validateInvoices();
 
     const dumps: DumpEntry[][] = [];
-    for (let i = 0; i < this.notas.length; i++) {
-      const nota = this.notas[i];
+    for (let i = 0; i < this.invoices.length; i++) {
+      const invoice = this.invoices[i];
       const version = this.layouts[i];
       const parser = new Parser(version, this.baseLayout);
-      dumps.push(parser.dump(nota));
+      dumps.push(parser.dump(invoice));
     }
     return dumps;
   }
@@ -105,66 +104,66 @@ export class Convert {
     if (!txt) {
       throw new Error("Empty document");
     }
-    this.dados = txt.split("\n");
-    const fields = this.dados[0].split("|");
+    this.data = txt.split("\n");
+    const fields = this.data[0].split("|");
     if (fields[0] === "NOTAFISCAL") {
-      this.numNFe = parseInt(fields[1], 10);
+      this.nfeCount = parseInt(fields[1], 10);
       return true;
     }
     return false;
   }
 
-  private sliceNotas(array: string[]): string[][] {
-    const notas: string[][] = [];
-    const numNotas = parseInt(array[0].split("|")[1], 10);
+  private sliceInvoices(array: string[]): string[][] {
+    const invoices: string[][] = [];
+    const invoiceCount = parseInt(array[0].split("|")[1], 10);
     const rest = array.slice(1);
 
-    if (numNotas === 1) {
-      notas.push(rest);
-      return notas;
+    if (invoiceCount === 1) {
+      invoices.push(rest);
+      return invoices;
     }
 
-    const markers: { init: number; fim: number }[] = [];
+    const markers: { init: number; end: number }[] = [];
     let xCount = 0;
     for (let i = 0; i < rest.length; i++) {
       if (rest[i].startsWith("A|")) {
         if (xCount > 0) {
-          markers[xCount - 1].fim = i;
+          markers[xCount - 1].end = i;
         }
-        markers.push({ init: i, fim: 0 });
+        markers.push({ init: i, end: 0 });
         xCount++;
       }
     }
     if (markers.length > 0) {
-      markers[markers.length - 1].fim = rest.length;
+      markers[markers.length - 1].end = rest.length;
     }
 
     for (const m of markers) {
-      notas.push(rest.slice(m.init, m.fim));
+      invoices.push(rest.slice(m.init, m.end));
     }
-    return notas;
+    return invoices;
   }
 
-  private checkQtdNFe(): void {
-    if (this.notas.length !== this.numNFe) {
+  private checkNfeCount(): void {
+    if (this.invoices.length !== this.nfeCount) {
       throw new Error(
-        `Number of NFe declared (${this.numNFe}) does not match found (${this.notas.length})`
+        `Number of NFe declared (${this.nfeCount}) does not match found (${this.invoices.length})`
       );
     }
   }
 
-  private validateNotas(): void {
-    for (const nota of this.notas) {
-      this.loadLayoutVersion(nota);
-      this.isValidTxtNota(nota);
+  private validateInvoices(): void {
+    for (const invoice of this.invoices) {
+      this.loadLayoutVersion(invoice);
+      this.isValidTxtInvoice(invoice);
     }
   }
 
-  private loadLayoutVersion(nota: string[]): void {
-    if (!nota.length) {
-      throw new Error("Empty nota");
+  private loadLayoutVersion(invoice: string[]): void {
+    if (!invoice.length) {
+      throw new Error("Empty invoice");
     }
-    for (const line of nota) {
+    for (const line of invoice) {
       const fields = line.split("|");
       if (fields[0] === "A") {
         this.layouts.push(fields[1]);
@@ -173,8 +172,8 @@ export class Convert {
     }
   }
 
-  private isValidTxtNota(nota: string[]): void {
-    const errors = isValidTxt(nota.join("\n"), this.baseLayout);
+  private isValidTxtInvoice(invoice: string[]): void {
+    const errors = isValidTxt(invoice.join("\n"), this.baseLayout);
     if (errors.length > 0) {
       throw new Error(`Invalid TXT: ${errors.join("\n")}`);
     }
@@ -230,19 +229,7 @@ class Parser {
 
   constructor(version: string = "4.00", baseLayout: string = LOCAL) {
     this.baseLayout = baseLayout;
-    const ver = version.replace(".", "");
-    let comp = "";
-    if (baseLayout === SEBRAE) comp = "_sebrae";
-    else if (baseLayout === LOCAL_V12) comp = "_v1.2";
-    else if (baseLayout === LOCAL_V13) comp = "_v1.3";
-
-    const storagePath = path.resolve(
-      __dirname,
-      "../../../.reference/sped-nfe/storage"
-    );
-    const filePath = path.join(storagePath, `txtstructure${ver}${comp}.json`);
-    const json = fs.readFileSync(filePath, "utf-8");
-    this.structure = JSON.parse(json);
+    this.structure = getStructureByVersionString(version, baseLayout);
   }
 
   getErrors(): string[] {
@@ -250,19 +237,19 @@ class Parser {
   }
 
   /**
-   * Convert a TXT nota (array of lines) to XML string.
+   * Convert a TXT invoice (array of lines) to XML string.
    */
-  toXml(nota: string[]): string | null {
-    this.processNota(nota);
+  toXml(invoice: string[]): string | null {
+    this.processInvoice(invoice);
     return this.buildXml();
   }
 
   /**
-   * Dump parsed fields from a nota as structured objects.
+   * Dump parsed fields from an invoice as structured objects.
    */
-  dump(nota: string[]): DumpEntry[] {
+  dump(invoice: string[]): DumpEntry[] {
     const result: DumpEntry[] = [];
-    for (const line of nota) {
+    for (const line of invoice) {
       if (!line.trim()) continue;
       const fields = line.split("|");
       const ref = fields[0].toUpperCase();
@@ -274,8 +261,8 @@ class Parser {
     return result;
   }
 
-  private processNota(nota: string[]): void {
-    for (const line of nota) {
+  private processInvoice(invoice: string[]): void {
+    for (const line of invoice) {
       if (!line.trim()) continue;
       const fields = line.split("|");
       const ref = fields[0].toUpperCase();
@@ -752,27 +739,15 @@ class NFeParser {
 
   constructor(version: string = "4.00", baseLayout: string = LOCAL) {
     this.baseLayout = baseLayout;
-    const ver = version.replace(".", "");
-    let comp = "";
-    if (baseLayout === SEBRAE) comp = "_sebrae";
-    else if (baseLayout === LOCAL_V12) comp = "_v1.2";
-    else if (baseLayout === LOCAL_V13) comp = "_v1.3";
-
-    const storagePath = path.resolve(
-      __dirname,
-      "../../../.reference/sped-nfe/storage"
-    );
-    const filePath = path.join(storagePath, `txtstructure${ver}${comp}.json`);
-    const json = fs.readFileSync(filePath, "utf-8");
-    this.structure = JSON.parse(json);
+    this.structure = getStructureByVersionString(version, baseLayout);
   }
 
   getErrors(): string[] {
     return this.errors;
   }
 
-  toXml(nota: string[]): string | null {
-    this.parse(nota);
+  toXml(invoice: string[]): string | null {
+    this.parse(invoice);
     // Validate the access key length (must be 44 digits after removing "NFe" prefix)
     if (this.infNFeId) {
       const key = this.infNFeId.replace(/^NFe/, "");
@@ -788,9 +763,9 @@ class NFeParser {
     return this.buildXml();
   }
 
-  dump(nota: string[]): DumpEntry[] {
+  dump(invoice: string[]): DumpEntry[] {
     const result: DumpEntry[] = [];
-    for (const line of nota) {
+    for (const line of invoice) {
       if (!line.trim()) continue;
       const fields = line.split("|");
       const ref = fields[0].toUpperCase();
@@ -802,8 +777,8 @@ class NFeParser {
     return result;
   }
 
-  private parse(nota: string[]): void {
-    for (const line of nota) {
+  private parse(invoice: string[]): void {
+    for (const line of invoice) {
       if (!line.trim()) continue;
       const fields = line.split("|");
       const ref = fields[0].toUpperCase();
@@ -1533,16 +1508,16 @@ Convert.prototype.toXml = function(): string[] {
   if (!self.isNFe(self.txt)) {
     throw new Error("Wrong document: not a valid NFe TXT");
   }
-  self.notas = self.sliceNotas(self.dados);
-  self.checkQtdNFe();
-  self.validateNotas();
+  self.invoices = self.sliceInvoices(self.data);
+  self.checkNfeCount();
+  self.validateInvoices();
 
   const xmls: string[] = [];
-  for (let i = 0; i < self.notas.length; i++) {
-    const nota = self.notas[i];
+  for (let i = 0; i < self.invoices.length; i++) {
+    const invoice = self.invoices[i];
     const version = self.layouts[i];
     const parser = new NFeParser(version, self.baseLayout);
-    const xml = parser.toXml(nota);
+    const xml = parser.toXml(invoice);
     if (!xml) {
       const errors = parser.getErrors();
       if (errors.length > 0) {
@@ -1566,16 +1541,16 @@ Convert.prototype.dump = function(): DumpEntry[][] {
   if (!self.isNFe(self.txt)) {
     throw new Error("Wrong document: not a valid NFe TXT");
   }
-  self.notas = self.sliceNotas(self.dados);
-  self.checkQtdNFe();
-  self.validateNotas();
+  self.invoices = self.sliceInvoices(self.data);
+  self.checkNfeCount();
+  self.validateInvoices();
 
   const dumps: DumpEntry[][] = [];
-  for (let i = 0; i < self.notas.length; i++) {
-    const nota = self.notas[i];
+  for (let i = 0; i < self.invoices.length; i++) {
+    const invoice = self.invoices[i];
     const version = self.layouts[i];
     const parser = new NFeParser(version, self.baseLayout);
-    dumps.push(parser.dump(nota));
+    dumps.push(parser.dump(invoice));
   }
   return dumps;
 };

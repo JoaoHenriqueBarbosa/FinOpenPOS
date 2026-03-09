@@ -136,6 +136,21 @@ export interface InvoiceBuildData {
     reason: string;
     at: Date;
   };
+  // IDE group overrides (defaults match legacy behavior)
+  /** tpNF: 0=inbound, 1=outbound. Default: 1 */
+  operationType?: number;
+  /** finNFe: 1=normal, 2=complementary, 3=adjustment, 4=return. Default: 1 */
+  purposeCode?: number;
+  /** indIntermed: 0=no intermediary, 1=marketplace, etc. Default: "0" */
+  intermediaryIndicator?: string;
+  /** procEmi: 0=own app, 1=Avulsa, etc. Default: "0" */
+  emissionProcess?: string;
+  /** indFinal: 0=normal, 1=final consumer */
+  consumerType?: string;
+  /** indPres: 0=not applicable, 1=in-person, etc. */
+  buyerPresence?: string;
+  /** tpImp: 1=portrait DANFE, 4=NFC-e DANFCE, etc. */
+  printFormat?: string;
   // Referenced documents (NFref inside ide)
   references?: Array<
     | { type: "nfe"; accessKey: string }

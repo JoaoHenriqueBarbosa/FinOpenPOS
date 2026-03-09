@@ -1,3 +1,4 @@
+import { formatCents, formatRate } from "./format-utils";
 import { tag } from "./xml-builder";
 
 /**
@@ -56,16 +57,6 @@ export function createIssqnTotals(): IssqnTotals {
   return { vBC: 0, vISS: 0, vISSRet: 0, vDeducao: 0, vOutro: 0, vDescIncond: 0, vDescCond: 0 };
 }
 
-/** Format cents to 2-decimal string */
-function fc(cents: number): string {
-  return (cents / 100).toFixed(2);
-}
-
-/** Format rate hundredths to 4-decimal string */
-function fr(hundredths: number): string {
-  return (hundredths / 100).toFixed(4);
-}
-
 /**
  * Build ISSQN XML element and accumulate totals.
  * Goes inside <imposto> as an alternative to ICMS (services vs goods).
@@ -86,18 +77,18 @@ export function buildIssqnXml(
   }
 
   const children: string[] = [
-    tag("vBC", {}, fc(data.vBC)),
-    tag("vAliq", {}, fr(data.vAliq)),
-    tag("vISSQN", {}, fc(data.vISSQN)),
+    tag("vBC", {}, formatCents(data.vBC)),
+    tag("vAliq", {}, formatRate(data.vAliq)),
+    tag("vISSQN", {}, formatCents(data.vISSQN)),
     tag("cMunFG", {}, data.cMunFG),
     tag("cListServ", {}, data.cListServ),
   ];
 
-  if (data.vDeducao != null) children.push(tag("vDeducao", {}, fc(data.vDeducao)));
-  if (data.vOutro != null) children.push(tag("vOutro", {}, fc(data.vOutro)));
-  if (data.vDescIncond != null) children.push(tag("vDescIncond", {}, fc(data.vDescIncond)));
-  if (data.vDescCond != null) children.push(tag("vDescCond", {}, fc(data.vDescCond)));
-  if (data.vISSRet != null) children.push(tag("vISSRet", {}, fc(data.vISSRet)));
+  if (data.vDeducao != null) children.push(tag("vDeducao", {}, formatCents(data.vDeducao)));
+  if (data.vOutro != null) children.push(tag("vOutro", {}, formatCents(data.vOutro)));
+  if (data.vDescIncond != null) children.push(tag("vDescIncond", {}, formatCents(data.vDescIncond)));
+  if (data.vDescCond != null) children.push(tag("vDescCond", {}, formatCents(data.vDescCond)));
+  if (data.vISSRet != null) children.push(tag("vISSRet", {}, formatCents(data.vISSRet)));
 
   children.push(tag("indISS", {}, data.indISS));
 
@@ -122,7 +113,7 @@ export function buildImpostoDevol(pDevol: number, vIPIDevol: number): string {
   return tag("impostoDevol", {}, [
     tag("pDevol", {}, (pDevol / 100).toFixed(2)),
     tag("IPI", {}, [
-      tag("vIPIDevol", {}, fc(vIPIDevol)),
+      tag("vIPIDevol", {}, formatCents(vIPIDevol)),
     ]),
   ]);
 }

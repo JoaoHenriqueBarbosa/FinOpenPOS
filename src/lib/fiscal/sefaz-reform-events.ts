@@ -213,8 +213,8 @@ export interface ConsumoItem {
   item: number;
   vIBS: number;
   vCBS: number;
-  quantidade: number;
-  unidade: string;
+  quantity: number;
+  unit: string;
   chave?: string;
   nItem?: number;
 }
@@ -240,8 +240,8 @@ export function buildDestinoConsumoPessoal(
       + `<vIBS>${fmt2(item.vIBS)}</vIBS>`
       + `<vCBS>${fmt2(item.vCBS)}</vCBS>`
       + `<gControleEstoque>`
-      + `<qConsumo>${fmt4(item.quantidade)}</qConsumo>`
-      + `<uConsumo>${item.unidade}</uConsumo>`
+      + `<qConsumo>${fmt4(item.quantity)}</qConsumo>`
+      + `<uConsumo>${item.unit}</uConsumo>`
       + `</gControleEstoque>`;
     if (item.chave && item.nItem != null) {
       tagAdic += `<DFeReferenciado>`
@@ -294,8 +294,8 @@ export interface ImobilizacaoItem {
   item: number;
   vIBS: number;
   vCBS: number;
-  quantidade: number;
-  unidade: string;
+  quantity: number;
+  unit: string;
 }
 
 /**
@@ -318,8 +318,8 @@ export function buildImobilizacaoItem(
       + `<vIBS>${fmt2(item.vIBS)}</vIBS>`
       + `<vCBS>${fmt2(item.vCBS)}</vCBS>`
       + `<gControleEstoque>`
-      + `<qImobilizado>${fmt4(item.quantidade)}</qImobilizado>`
-      + `<uImobilizado>${item.unidade}</uImobilizado>`
+      + `<qImobilizado>${fmt4(item.quantity)}</qImobilizado>`
+      + `<uImobilizado>${item.unit}</uImobilizado>`
       + `</gControleEstoque>`
       + `</gImobilizacao>`;
   }
@@ -339,8 +339,8 @@ export interface CombustivelItem {
   item: number;
   vIBS: number;
   vCBS: number;
-  quantidade: number;
-  unidade: string;
+  quantity: number;
+  unit: string;
 }
 
 /**
@@ -363,8 +363,8 @@ export function buildApropriacaoCreditoComb(
       + `<vIBS>${fmt2(item.vIBS)}</vIBS>`
       + `<vCBS>${fmt2(item.vCBS)}</vCBS>`
       + `<gControleEstoque>`
-      + `<qComb>${fmt4(item.quantidade)}</qComb>`
-      + `<uComb>${item.unidade}</uComb>`
+      + `<qComb>${fmt4(item.quantity)}</qComb>`
+      + `<uComb>${item.unit}</uComb>`
       + `</gControleEstoque>`
       + `</gConsumoComb>`;
   }
@@ -505,8 +505,8 @@ export interface ImportacaoZFMItem {
   item: number;
   vIBS: number;
   vCBS: number;
-  quantidade: number;
-  unidade: string;
+  quantity: number;
+  unit: string;
 }
 
 /**
@@ -529,8 +529,8 @@ export function buildImportacaoZFM(
       + `<vIBS>${fmt2(item.vIBS)}</vIBS>`
       + `<vCBS>${fmt2(item.vCBS)}</vCBS>`
       + `<gControleEstoque>`
-      + `<qtde>${fmt4(item.quantidade)}</qtde>`
-      + `<unidade>${item.unidade}</unidade>`
+      + `<qtde>${fmt4(item.quantity)}</qtde>`
+      + `<unidade>${item.unit}</unidade>`
       + `</gControleEstoque>`
       + `</gConsumo>`;
   }
@@ -550,8 +550,8 @@ export interface PerecimentoAdquirenteItem {
   item: number;
   vIBS: number;
   vCBS: number;
-  quantidade: number;
-  unidade: string;
+  quantity: number;
+  unit: string;
 }
 
 /**
@@ -574,8 +574,8 @@ export function buildRouboPerdaTransporteAdquirente(
       + `<vIBS>${fmt2(item.vIBS)}</vIBS>`
       + `<vCBS>${fmt2(item.vCBS)}</vCBS>`
       + `<gControleEstoque>`
-      + `<qPerecimento>${fmt4(item.quantidade)}</qPerecimento>`
-      + `<uPerecimento>${item.unidade}</uPerecimento>`
+      + `<qPerecimento>${fmt4(item.quantity)}</qPerecimento>`
+      + `<uPerecimento>${item.unit}</uPerecimento>`
       + `</gControleEstoque>`
       + `</gPerecimento>`;
   }
@@ -597,8 +597,8 @@ export interface PerecimentoFornecedorItem {
   vCBS: number;
   gControleEstoque_vIBS: number;
   gControleEstoque_vCBS: number;
-  quantidade: number;
-  unidade: string;
+  quantity: number;
+  unit: string;
 }
 
 /**
@@ -621,8 +621,8 @@ export function buildRouboPerdaTransporteFornecedor(
       + `<vIBS>${fmt2(item.vIBS)}</vIBS>`
       + `<vCBS>${fmt2(item.vCBS)}</vCBS>`
       + `<gControleEstoque>`
-      + `<qPerecimento>${fmt4(item.quantidade)}</qPerecimento>`
-      + `<uPerecimento>${item.unidade}</uPerecimento>`
+      + `<qPerecimento>${fmt4(item.quantity)}</qPerecimento>`
+      + `<uPerecimento>${item.unit}</uPerecimento>`
       + `<vIBS>${fmt2(item.gControleEstoque_vIBS)}</vIBS>`
       + `<vCBS>${fmt2(item.gControleEstoque_vCBS)}</vCBS>`
       + `</gControleEstoque>`
@@ -644,8 +644,8 @@ export interface ItemNaoFornecido {
   item: number;
   vIBS: number;
   vCBS: number;
-  quantidade: number;
-  unidade: string;
+  quantity: number;
+  unit: string;
 }
 
 /**
@@ -668,8 +668,8 @@ export function buildFornecimentoNaoRealizado(
       + `<vIBS>${fmt2(item.vIBS)}</vIBS>`
       + `<vCBS>${fmt2(item.vCBS)}</vCBS>`
       + `<gControleEstoque>`
-      + `<qNaoFornecida>${fmt4(item.quantidade)}</qNaoFornecida>`
-      + `<uNaoFornecida>${item.unidade}</uNaoFornecida>`
+      + `<qNaoFornecida>${fmt4(item.quantity)}</qNaoFornecida>`
+      + `<uNaoFornecida>${item.unit}</uNaoFornecida>`
       + `</gControleEstoque>`
       + `</gItemNaoFornecido>`;
   }

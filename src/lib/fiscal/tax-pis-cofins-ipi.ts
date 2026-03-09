@@ -1,3 +1,4 @@
+import { formatCentsOrZero, formatRate4OrZero } from "./format-utils";
 import { tag } from "./xml-builder";
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -105,20 +106,6 @@ export interface IiData {
   vIOF: number;
 }
 
-// ── Formatting helpers ──────────────────────────────────────────────────────
-
-/** Format cents (integer) to a decimal string with N places. Default 2. */
-function fmtCents(cents: number | undefined, decimals = 2): string {
-  if (cents == null) return (0).toFixed(decimals);
-  return (cents / 100).toFixed(decimals);
-}
-
-/** Format a 4-decimal-place integer (value * 10000) to decimal string. */
-function fmt4(value: number | undefined): string {
-  if (value == null) return (0).toFixed(4);
-  return (value / 10000).toFixed(4);
-}
-
 // ── CST classification sets ─────────────────────────────────────────────────
 
 const PIS_COFINS_ALIQ_CSTS = new Set(["01", "02"]);
@@ -150,16 +137,16 @@ export function buildPisXml(data: PisData): string {
   if (PIS_COFINS_ALIQ_CSTS.has(data.CST)) {
     inner = tag("PISAliq", {}, [
       tag("CST", {}, data.CST),
-      tag("vBC", {}, fmtCents(data.vBC)),
-      tag("pPIS", {}, fmt4(data.pPIS)),
-      tag("vPIS", {}, fmtCents(data.vPIS)),
+      tag("vBC", {}, formatCentsOrZero(data.vBC)),
+      tag("pPIS", {}, formatRate4OrZero(data.pPIS)),
+      tag("vPIS", {}, formatCentsOrZero(data.vPIS)),
     ]);
   } else if (PIS_COFINS_QTDE_CSTS.has(data.CST)) {
     inner = tag("PISQtde", {}, [
       tag("CST", {}, data.CST),
-      tag("qBCProd", {}, fmt4(data.qBCProd)),
-      tag("vAliqProd", {}, fmt4(data.vAliqProd)),
-      tag("vPIS", {}, fmtCents(data.vPIS)),
+      tag("qBCProd", {}, formatRate4OrZero(data.qBCProd)),
+      tag("vAliqProd", {}, formatRate4OrZero(data.vAliqProd)),
+      tag("vPIS", {}, formatCentsOrZero(data.vPIS)),
     ]);
   } else if (PIS_COFINS_NT_CSTS.has(data.CST)) {
     inner = tag("PISNT", {}, [
@@ -182,15 +169,15 @@ function buildPisOutrInner(data: PisData): string {
 
   if (data.qBCProd != null) {
     // Quantity-based calculation
-    children.push(tag("qBCProd", {}, fmt4(data.qBCProd)));
-    children.push(tag("vAliqProd", {}, fmt4(data.vAliqProd)));
+    children.push(tag("qBCProd", {}, formatRate4OrZero(data.qBCProd)));
+    children.push(tag("vAliqProd", {}, formatRate4OrZero(data.vAliqProd)));
   } else {
     // Percentage-based calculation
-    children.push(tag("vBC", {}, fmtCents(data.vBC)));
-    children.push(tag("pPIS", {}, fmt4(data.pPIS)));
+    children.push(tag("vBC", {}, formatCentsOrZero(data.vBC)));
+    children.push(tag("pPIS", {}, formatRate4OrZero(data.pPIS)));
   }
 
-  children.push(tag("vPIS", {}, fmtCents(data.vPIS)));
+  children.push(tag("vPIS", {}, formatCentsOrZero(data.vPIS)));
 
   return tag("PISOutr", {}, children);
 }
@@ -203,14 +190,14 @@ export function buildPisStXml(data: PisStData): string {
   const children: string[] = [];
 
   if (data.qBCProd != null) {
-    children.push(tag("qBCProd", {}, fmt4(data.qBCProd)));
-    children.push(tag("vAliqProd", {}, fmt4(data.vAliqProd)));
+    children.push(tag("qBCProd", {}, formatRate4OrZero(data.qBCProd)));
+    children.push(tag("vAliqProd", {}, formatRate4OrZero(data.vAliqProd)));
   } else {
-    children.push(tag("vBC", {}, fmtCents(data.vBC)));
-    children.push(tag("pPIS", {}, fmt4(data.pPIS)));
+    children.push(tag("vBC", {}, formatCentsOrZero(data.vBC)));
+    children.push(tag("pPIS", {}, formatRate4OrZero(data.pPIS)));
   }
 
-  children.push(tag("vPIS", {}, fmtCents(data.vPIS)));
+  children.push(tag("vPIS", {}, formatCentsOrZero(data.vPIS)));
 
   if (data.indSomaPISST != null) {
     children.push(tag("indSomaPISST", {}, String(data.indSomaPISST)));
@@ -236,16 +223,16 @@ export function buildCofinsXml(data: CofinsData): string {
   if (PIS_COFINS_ALIQ_CSTS.has(data.CST)) {
     inner = tag("COFINSAliq", {}, [
       tag("CST", {}, data.CST),
-      tag("vBC", {}, fmtCents(data.vBC)),
-      tag("pCOFINS", {}, fmt4(data.pCOFINS)),
-      tag("vCOFINS", {}, fmtCents(data.vCOFINS)),
+      tag("vBC", {}, formatCentsOrZero(data.vBC)),
+      tag("pCOFINS", {}, formatRate4OrZero(data.pCOFINS)),
+      tag("vCOFINS", {}, formatCentsOrZero(data.vCOFINS)),
     ]);
   } else if (PIS_COFINS_QTDE_CSTS.has(data.CST)) {
     inner = tag("COFINSQtde", {}, [
       tag("CST", {}, data.CST),
-      tag("qBCProd", {}, fmt4(data.qBCProd)),
-      tag("vAliqProd", {}, fmt4(data.vAliqProd)),
-      tag("vCOFINS", {}, fmtCents(data.vCOFINS)),
+      tag("qBCProd", {}, formatRate4OrZero(data.qBCProd)),
+      tag("vAliqProd", {}, formatRate4OrZero(data.vAliqProd)),
+      tag("vCOFINS", {}, formatCentsOrZero(data.vCOFINS)),
     ]);
   } else if (PIS_COFINS_NT_CSTS.has(data.CST)) {
     inner = tag("COFINSNT", {}, [
@@ -267,14 +254,14 @@ function buildCofinsOutrInner(data: CofinsData): string {
   const children: string[] = [tag("CST", {}, data.CST)];
 
   if (data.qBCProd != null) {
-    children.push(tag("qBCProd", {}, fmt4(data.qBCProd)));
-    children.push(tag("vAliqProd", {}, fmt4(data.vAliqProd)));
+    children.push(tag("qBCProd", {}, formatRate4OrZero(data.qBCProd)));
+    children.push(tag("vAliqProd", {}, formatRate4OrZero(data.vAliqProd)));
   } else {
-    children.push(tag("vBC", {}, fmtCents(data.vBC)));
-    children.push(tag("pCOFINS", {}, fmt4(data.pCOFINS)));
+    children.push(tag("vBC", {}, formatCentsOrZero(data.vBC)));
+    children.push(tag("pCOFINS", {}, formatRate4OrZero(data.pCOFINS)));
   }
 
-  children.push(tag("vCOFINS", {}, fmtCents(data.vCOFINS)));
+  children.push(tag("vCOFINS", {}, formatCentsOrZero(data.vCOFINS)));
 
   return tag("COFINSOutr", {}, children);
 }
@@ -287,14 +274,14 @@ export function buildCofinsStXml(data: CofinsStData): string {
   const children: string[] = [];
 
   if (data.qBCProd != null) {
-    children.push(tag("qBCProd", {}, fmt4(data.qBCProd)));
-    children.push(tag("vAliqProd", {}, fmt4(data.vAliqProd)));
+    children.push(tag("qBCProd", {}, formatRate4OrZero(data.qBCProd)));
+    children.push(tag("vAliqProd", {}, formatRate4OrZero(data.vAliqProd)));
   } else {
-    children.push(tag("vBC", {}, fmtCents(data.vBC)));
-    children.push(tag("pCOFINS", {}, fmt4(data.pCOFINS)));
+    children.push(tag("vBC", {}, formatCentsOrZero(data.vBC)));
+    children.push(tag("pCOFINS", {}, formatRate4OrZero(data.pCOFINS)));
   }
 
-  children.push(tag("vCOFINS", {}, fmtCents(data.vCOFINS)));
+  children.push(tag("vCOFINS", {}, formatCentsOrZero(data.vCOFINS)));
 
   if (data.indSomaCOFINSST != null) {
     children.push(tag("indSomaCOFINSST", {}, String(data.indSomaCOFINSST)));
@@ -335,15 +322,15 @@ export function buildIpiXml(data: IpiData): string {
 
     if (data.vBC != null && data.pIPI != null) {
       // Percentage-based
-      tribChildren.push(tag("vBC", {}, fmtCents(data.vBC)));
-      tribChildren.push(tag("pIPI", {}, fmt4(data.pIPI)));
+      tribChildren.push(tag("vBC", {}, formatCentsOrZero(data.vBC)));
+      tribChildren.push(tag("pIPI", {}, formatRate4OrZero(data.pIPI)));
     } else {
       // Unit-based
-      tribChildren.push(tag("qUnid", {}, fmt4(data.qUnid)));
-      tribChildren.push(tag("vUnid", {}, fmt4(data.vUnid)));
+      tribChildren.push(tag("qUnid", {}, formatRate4OrZero(data.qUnid)));
+      tribChildren.push(tag("vUnid", {}, formatRate4OrZero(data.vUnid)));
     }
 
-    tribChildren.push(tag("vIPI", {}, fmtCents(data.vIPI)));
+    tribChildren.push(tag("vIPI", {}, formatCentsOrZero(data.vIPI)));
 
     children.push(tag("IPITrib", {}, tribChildren));
   } else {
@@ -364,9 +351,9 @@ export function buildIpiXml(data: IpiData): string {
  */
 export function buildIiXml(data: IiData): string {
   return tag("II", {}, [
-    tag("vBC", {}, fmtCents(data.vBC)),
-    tag("vDespAdu", {}, fmtCents(data.vDespAdu)),
-    tag("vII", {}, fmtCents(data.vII)),
-    tag("vIOF", {}, fmtCents(data.vIOF)),
+    tag("vBC", {}, formatCentsOrZero(data.vBC)),
+    tag("vDespAdu", {}, formatCentsOrZero(data.vDespAdu)),
+    tag("vII", {}, formatCentsOrZero(data.vII)),
+    tag("vIOF", {}, formatCentsOrZero(data.vIOF)),
   ]);
 }

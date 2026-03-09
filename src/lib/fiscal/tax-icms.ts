@@ -19,24 +19,19 @@
  * correct integer representation.
  */
 
+import { formatCentsOrNull } from "./format-utils";
 import { tag } from "./xml-builder";
 
 // ── Formatting helpers ──────────────────────────────────────────────────────
 
-/** Format an integer-cents value to a decimal string with `dp` decimal places. */
-function fc(cents: number | undefined | null, dp = 2): string | null {
-  if (cents === undefined || cents === null) return null;
-  return (cents / 100).toFixed(dp);
-}
-
 /** Conditionally emit an XML tag only when `value` is not null/undefined. */
-function optTag(name: string, value: string | null | undefined): string | null {
+function optionalTag(name: string, value: string | null | undefined): string | null {
   if (value === null || value === undefined) return null;
   return tag(name, {}, value);
 }
 
 /** Emit an XML tag; throws if value is null (for required fields). */
-function reqTag(name: string, value: string | null | undefined): string {
+function requiredTag(name: string, value: string | null | undefined): string {
   if (value === null || value === undefined) {
     throw new Error(`Required ICMS field "${name}" is missing`);
   }
@@ -256,27 +251,27 @@ export function buildIcmsPartXml(data: IcmsData): { xml: string; totals: IcmsTot
   totals.vST = accum(totals.vST, data.vICMSST);
 
   const children = filterNulls([
-    reqTag("orig", data.orig),
-    reqTag("CST", data.CST),
-    reqTag("modBC", data.modBC),
-    reqTag("vBC", fc(data.vBC)),
-    optTag("pRedBC", fc(data.pRedBC, 4)),
-    reqTag("pICMS", fc(data.pICMS, 4)),
-    reqTag("vICMS", fc(data.vICMS)),
-    reqTag("modBCST", data.modBCST),
-    optTag("pMVAST", fc(data.pMVAST, 4)),
-    optTag("pRedBCST", fc(data.pRedBCST, 4)),
-    reqTag("vBCST", fc(data.vBCST)),
-    reqTag("pICMSST", fc(data.pICMSST, 4)),
-    reqTag("vICMSST", fc(data.vICMSST)),
-    optTag("vBCFCPST", fc(data.vBCFCPST)),
-    optTag("pFCPST", fc(data.pFCPST, 4)),
-    optTag("vFCPST", fc(data.vFCPST)),
-    reqTag("pBCOp", fc(data.pBCOp, 4)),
-    reqTag("UFST", data.UFST),
-    optTag("vICMSDeson", fc(data.vICMSDeson)),
-    optTag("motDesICMS", data.motDesICMS),
-    optTag("indDeduzDeson", data.indDeduzDeson),
+    requiredTag("orig", data.orig),
+    requiredTag("CST", data.CST),
+    requiredTag("modBC", data.modBC),
+    requiredTag("vBC", formatCentsOrNull(data.vBC)),
+    optionalTag("pRedBC", formatCentsOrNull(data.pRedBC, 4)),
+    requiredTag("pICMS", formatCentsOrNull(data.pICMS, 4)),
+    requiredTag("vICMS", formatCentsOrNull(data.vICMS)),
+    requiredTag("modBCST", data.modBCST),
+    optionalTag("pMVAST", formatCentsOrNull(data.pMVAST, 4)),
+    optionalTag("pRedBCST", formatCentsOrNull(data.pRedBCST, 4)),
+    requiredTag("vBCST", formatCentsOrNull(data.vBCST)),
+    requiredTag("pICMSST", formatCentsOrNull(data.pICMSST, 4)),
+    requiredTag("vICMSST", formatCentsOrNull(data.vICMSST)),
+    optionalTag("vBCFCPST", formatCentsOrNull(data.vBCFCPST)),
+    optionalTag("pFCPST", formatCentsOrNull(data.pFCPST, 4)),
+    optionalTag("vFCPST", formatCentsOrNull(data.vFCPST)),
+    requiredTag("pBCOp", formatCentsOrNull(data.pBCOp, 4)),
+    requiredTag("UFST", data.UFST),
+    optionalTag("vICMSDeson", formatCentsOrNull(data.vICMSDeson)),
+    optionalTag("motDesICMS", data.motDesICMS),
+    optionalTag("indDeduzDeson", data.indDeduzDeson),
   ]);
 
   const inner = tag("ICMSPart", {}, children);
@@ -292,21 +287,21 @@ export function buildIcmsStXml(data: IcmsData): { xml: string; totals: IcmsTotal
   totals.vFCPSTRet = accum(totals.vFCPSTRet, data.vFCPSTRet);
 
   const children = filterNulls([
-    reqTag("orig", data.orig),
-    reqTag("CST", data.CST),
-    reqTag("vBCSTRet", fc(data.vBCSTRet)),
-    optTag("pST", fc(data.pST, 4)),
-    optTag("vICMSSubstituto", fc(data.vICMSSubstituto)),
-    reqTag("vICMSSTRet", fc(data.vICMSSTRet)),
-    optTag("vBCFCPSTRet", fc(data.vBCFCPSTRet)),
-    optTag("pFCPSTRet", fc(data.pFCPSTRet, 4)),
-    optTag("vFCPSTRet", fc(data.vFCPSTRet)),
-    reqTag("vBCSTDest", fc(data.vBCSTDest)),
-    reqTag("vICMSSTDest", fc(data.vICMSSTDest)),
-    optTag("pRedBCEfet", fc(data.pRedBCEfet, 4)),
-    optTag("vBCEfet", fc(data.vBCEfet)),
-    optTag("pICMSEfet", fc(data.pICMSEfet, 4)),
-    optTag("vICMSEfet", fc(data.vICMSEfet)),
+    requiredTag("orig", data.orig),
+    requiredTag("CST", data.CST),
+    requiredTag("vBCSTRet", formatCentsOrNull(data.vBCSTRet)),
+    optionalTag("pST", formatCentsOrNull(data.pST, 4)),
+    optionalTag("vICMSSubstituto", formatCentsOrNull(data.vICMSSubstituto)),
+    requiredTag("vICMSSTRet", formatCentsOrNull(data.vICMSSTRet)),
+    optionalTag("vBCFCPSTRet", formatCentsOrNull(data.vBCFCPSTRet)),
+    optionalTag("pFCPSTRet", formatCentsOrNull(data.pFCPSTRet, 4)),
+    optionalTag("vFCPSTRet", formatCentsOrNull(data.vFCPSTRet)),
+    requiredTag("vBCSTDest", formatCentsOrNull(data.vBCSTDest)),
+    requiredTag("vICMSSTDest", formatCentsOrNull(data.vICMSSTDest)),
+    optionalTag("pRedBCEfet", formatCentsOrNull(data.pRedBCEfet, 4)),
+    optionalTag("vBCEfet", formatCentsOrNull(data.vBCEfet)),
+    optionalTag("pICMSEfet", formatCentsOrNull(data.pICMSEfet, 4)),
+    optionalTag("vICMSEfet", formatCentsOrNull(data.vICMSEfet)),
   ]);
 
   const inner = tag("ICMSST", {}, children);
@@ -324,15 +319,15 @@ export function buildIcmsUfDestXml(data: IcmsData): { xml: string; totals: IcmsT
   totals.vICMSUFRemet = accum(totals.vICMSUFRemet, data.vICMSUFRemet);
 
   const children = filterNulls([
-    reqTag("vBCUFDest", fc(data.vBCUFDest)),
-    optTag("vBCFCPUFDest", fc(data.vBCFCPUFDest)),
-    optTag("pFCPUFDest", fc(data.pFCPUFDest, 4)),
-    reqTag("pICMSUFDest", fc(data.pICMSUFDest, 4)),
-    reqTag("pICMSInter", fc(data.pICMSInter, 2)),
-    reqTag("pICMSInterPart", "100.0000"),
-    optTag("vFCPUFDest", fc(data.vFCPUFDest)),
-    reqTag("vICMSUFDest", fc(data.vICMSUFDest)),
-    reqTag("vICMSUFRemet", fc(data.vICMSUFRemet ?? 0)),
+    requiredTag("vBCUFDest", formatCentsOrNull(data.vBCUFDest)),
+    optionalTag("vBCFCPUFDest", formatCentsOrNull(data.vBCFCPUFDest)),
+    optionalTag("pFCPUFDest", formatCentsOrNull(data.pFCPUFDest, 4)),
+    requiredTag("pICMSUFDest", formatCentsOrNull(data.pICMSUFDest, 4)),
+    requiredTag("pICMSInter", formatCentsOrNull(data.pICMSInter, 2)),
+    requiredTag("pICMSInterPart", "100.0000"),
+    optionalTag("vFCPUFDest", formatCentsOrNull(data.vFCPUFDest)),
+    requiredTag("vICMSUFDest", formatCentsOrNull(data.vICMSUFDest)),
+    requiredTag("vICMSUFRemet", formatCentsOrNull(data.vICMSUFRemet ?? 0)),
   ]);
 
   return { xml: tag("ICMSUFDest", {}, children), totals };
@@ -405,14 +400,14 @@ function buildCst00(d: IcmsData, t: IcmsTotals): string {
   t.vFCP = accum(t.vFCP, d.vFCP);
 
   return tag("ICMS00", {}, filterNulls([
-    reqTag("orig", d.orig),
-    reqTag("CST", d.CST),
-    reqTag("modBC", d.modBC),
-    reqTag("vBC", fc(d.vBC)),
-    reqTag("pICMS", fc(d.pICMS, 4)),
-    reqTag("vICMS", fc(d.vICMS)),
-    optTag("pFCP", fc(d.pFCP, 4)),
-    optTag("vFCP", fc(d.vFCP)),
+    requiredTag("orig", d.orig),
+    requiredTag("CST", d.CST),
+    requiredTag("modBC", d.modBC),
+    requiredTag("vBC", formatCentsOrNull(d.vBC)),
+    requiredTag("pICMS", formatCentsOrNull(d.pICMS, 4)),
+    requiredTag("vICMS", formatCentsOrNull(d.vICMS)),
+    optionalTag("pFCP", formatCentsOrNull(d.pFCP, 4)),
+    optionalTag("vFCP", formatCentsOrNull(d.vFCP)),
   ]));
 }
 
@@ -422,11 +417,11 @@ function buildCst02(d: IcmsData, t: IcmsTotals): string {
   t.vICMSMono = accum(t.vICMSMono, d.vICMSMono);
 
   return tag("ICMS02", {}, filterNulls([
-    reqTag("orig", d.orig),
-    reqTag("CST", d.CST),
-    optTag("qBCMono", fc(d.qBCMono, 4)),
-    reqTag("adRemICMS", fc(d.adRemICMS, 4)),
-    reqTag("vICMSMono", fc(d.vICMSMono)),
+    requiredTag("orig", d.orig),
+    requiredTag("CST", d.CST),
+    optionalTag("qBCMono", formatCentsOrNull(d.qBCMono, 4)),
+    requiredTag("adRemICMS", formatCentsOrNull(d.adRemICMS, 4)),
+    requiredTag("vICMSMono", formatCentsOrNull(d.vICMSMono)),
   ]));
 }
 
@@ -440,26 +435,26 @@ function buildCst10(d: IcmsData, t: IcmsTotals): string {
   t.vFCP = accum(t.vFCP, d.vFCP);
 
   return tag("ICMS10", {}, filterNulls([
-    reqTag("orig", d.orig),
-    reqTag("CST", d.CST),
-    reqTag("modBC", d.modBC),
-    reqTag("vBC", fc(d.vBC)),
-    reqTag("pICMS", fc(d.pICMS, 4)),
-    reqTag("vICMS", fc(d.vICMS)),
-    optTag("vBCFCP", fc(d.vBCFCP)),
-    optTag("pFCP", fc(d.pFCP, 4)),
-    optTag("vFCP", fc(d.vFCP)),
-    reqTag("modBCST", d.modBCST),
-    optTag("pMVAST", fc(d.pMVAST, 4)),
-    optTag("pRedBCST", fc(d.pRedBCST, 4)),
-    reqTag("vBCST", fc(d.vBCST)),
-    reqTag("pICMSST", fc(d.pICMSST, 4)),
-    reqTag("vICMSST", fc(d.vICMSST)),
-    optTag("vBCFCPST", fc(d.vBCFCPST)),
-    optTag("pFCPST", fc(d.pFCPST, 4)),
-    optTag("vFCPST", fc(d.vFCPST)),
-    optTag("vICMSSTDeson", fc(d.vICMSSTDeson)),
-    optTag("motDesICMSST", d.motDesICMSST),
+    requiredTag("orig", d.orig),
+    requiredTag("CST", d.CST),
+    requiredTag("modBC", d.modBC),
+    requiredTag("vBC", formatCentsOrNull(d.vBC)),
+    requiredTag("pICMS", formatCentsOrNull(d.pICMS, 4)),
+    requiredTag("vICMS", formatCentsOrNull(d.vICMS)),
+    optionalTag("vBCFCP", formatCentsOrNull(d.vBCFCP)),
+    optionalTag("pFCP", formatCentsOrNull(d.pFCP, 4)),
+    optionalTag("vFCP", formatCentsOrNull(d.vFCP)),
+    requiredTag("modBCST", d.modBCST),
+    optionalTag("pMVAST", formatCentsOrNull(d.pMVAST, 4)),
+    optionalTag("pRedBCST", formatCentsOrNull(d.pRedBCST, 4)),
+    requiredTag("vBCST", formatCentsOrNull(d.vBCST)),
+    requiredTag("pICMSST", formatCentsOrNull(d.pICMSST, 4)),
+    requiredTag("vICMSST", formatCentsOrNull(d.vICMSST)),
+    optionalTag("vBCFCPST", formatCentsOrNull(d.vBCFCPST)),
+    optionalTag("pFCPST", formatCentsOrNull(d.pFCPST, 4)),
+    optionalTag("vFCPST", formatCentsOrNull(d.vFCPST)),
+    optionalTag("vICMSSTDeson", formatCentsOrNull(d.vICMSSTDeson)),
+    optionalTag("motDesICMSST", d.motDesICMSST),
   ]));
 }
 
@@ -471,19 +466,19 @@ function buildCst15(d: IcmsData, t: IcmsTotals): string {
   t.vICMSMonoReten = accum(t.vICMSMonoReten, d.vICMSMonoReten);
 
   const children = filterNulls([
-    reqTag("orig", d.orig),
-    reqTag("CST", d.CST),
-    optTag("qBCMono", fc(d.qBCMono, 4)),
-    reqTag("adRemICMS", fc(d.adRemICMS, 4)),
-    reqTag("vICMSMono", fc(d.vICMSMono)),
-    optTag("qBCMonoReten", fc(d.qBCMonoReten, 4)),
-    reqTag("adRemICMSReten", fc(d.adRemICMSReten, 4)),
-    reqTag("vICMSMonoReten", fc(d.vICMSMonoReten)),
+    requiredTag("orig", d.orig),
+    requiredTag("CST", d.CST),
+    optionalTag("qBCMono", formatCentsOrNull(d.qBCMono, 4)),
+    requiredTag("adRemICMS", formatCentsOrNull(d.adRemICMS, 4)),
+    requiredTag("vICMSMono", formatCentsOrNull(d.vICMSMono)),
+    optionalTag("qBCMonoReten", formatCentsOrNull(d.qBCMonoReten, 4)),
+    requiredTag("adRemICMSReten", formatCentsOrNull(d.adRemICMSReten, 4)),
+    requiredTag("vICMSMonoReten", formatCentsOrNull(d.vICMSMonoReten)),
   ]);
 
   if (d.pRedAdRem != null) {
-    children.push(reqTag("pRedAdRem", fc(d.pRedAdRem)));
-    children.push(reqTag("motRedAdRem", d.motRedAdRem));
+    children.push(requiredTag("pRedAdRem", formatCentsOrNull(d.pRedAdRem)));
+    children.push(requiredTag("motRedAdRem", d.motRedAdRem));
   }
 
   return tag("ICMS15", {}, children);
@@ -497,19 +492,19 @@ function buildCst20(d: IcmsData, t: IcmsTotals): string {
   t.vFCP = accum(t.vFCP, d.vFCP);
 
   return tag("ICMS20", {}, filterNulls([
-    reqTag("orig", d.orig),
-    reqTag("CST", d.CST),
-    reqTag("modBC", d.modBC),
-    reqTag("pRedBC", fc(d.pRedBC, 4)),
-    reqTag("vBC", fc(d.vBC)),
-    reqTag("pICMS", fc(d.pICMS, 4)),
-    reqTag("vICMS", fc(d.vICMS)),
-    optTag("vBCFCP", fc(d.vBCFCP)),
-    optTag("pFCP", fc(d.pFCP, 4)),
-    optTag("vFCP", fc(d.vFCP)),
-    optTag("vICMSDeson", fc(d.vICMSDeson)),
-    optTag("motDesICMS", d.motDesICMS),
-    optTag("indDeduzDeson", d.indDeduzDeson),
+    requiredTag("orig", d.orig),
+    requiredTag("CST", d.CST),
+    requiredTag("modBC", d.modBC),
+    requiredTag("pRedBC", formatCentsOrNull(d.pRedBC, 4)),
+    requiredTag("vBC", formatCentsOrNull(d.vBC)),
+    requiredTag("pICMS", formatCentsOrNull(d.pICMS, 4)),
+    requiredTag("vICMS", formatCentsOrNull(d.vICMS)),
+    optionalTag("vBCFCP", formatCentsOrNull(d.vBCFCP)),
+    optionalTag("pFCP", formatCentsOrNull(d.pFCP, 4)),
+    optionalTag("vFCP", formatCentsOrNull(d.vFCP)),
+    optionalTag("vICMSDeson", formatCentsOrNull(d.vICMSDeson)),
+    optionalTag("motDesICMS", d.motDesICMS),
+    optionalTag("indDeduzDeson", d.indDeduzDeson),
   ]));
 }
 
@@ -521,20 +516,20 @@ function buildCst30(d: IcmsData, t: IcmsTotals): string {
   t.vFCPST = accum(t.vFCPST, d.vFCPST);
 
   return tag("ICMS30", {}, filterNulls([
-    reqTag("orig", d.orig),
-    reqTag("CST", d.CST),
-    reqTag("modBCST", d.modBCST),
-    optTag("pMVAST", fc(d.pMVAST, 4)),
-    optTag("pRedBCST", fc(d.pRedBCST, 4)),
-    reqTag("vBCST", fc(d.vBCST)),
-    reqTag("pICMSST", fc(d.pICMSST, 4)),
-    reqTag("vICMSST", fc(d.vICMSST)),
-    optTag("vBCFCPST", fc(d.vBCFCPST)),
-    optTag("pFCPST", fc(d.pFCPST, 4)),
-    optTag("vFCPST", fc(d.vFCPST)),
-    optTag("vICMSDeson", fc(d.vICMSDeson)),
-    optTag("motDesICMS", d.motDesICMS),
-    optTag("indDeduzDeson", d.indDeduzDeson),
+    requiredTag("orig", d.orig),
+    requiredTag("CST", d.CST),
+    requiredTag("modBCST", d.modBCST),
+    optionalTag("pMVAST", formatCentsOrNull(d.pMVAST, 4)),
+    optionalTag("pRedBCST", formatCentsOrNull(d.pRedBCST, 4)),
+    requiredTag("vBCST", formatCentsOrNull(d.vBCST)),
+    requiredTag("pICMSST", formatCentsOrNull(d.pICMSST, 4)),
+    requiredTag("vICMSST", formatCentsOrNull(d.vICMSST)),
+    optionalTag("vBCFCPST", formatCentsOrNull(d.vBCFCPST)),
+    optionalTag("pFCPST", formatCentsOrNull(d.pFCPST, 4)),
+    optionalTag("vFCPST", formatCentsOrNull(d.vFCPST)),
+    optionalTag("vICMSDeson", formatCentsOrNull(d.vICMSDeson)),
+    optionalTag("motDesICMS", d.motDesICMS),
+    optionalTag("indDeduzDeson", d.indDeduzDeson),
   ]));
 }
 
@@ -543,11 +538,11 @@ function buildCst40(d: IcmsData, t: IcmsTotals): string {
   t.vICMSDeson = accum(t.vICMSDeson, d.vICMSDeson);
 
   return tag("ICMS40", {}, filterNulls([
-    reqTag("orig", d.orig),
-    reqTag("CST", d.CST),
-    optTag("vICMSDeson", fc(d.vICMSDeson)),
-    optTag("motDesICMS", d.motDesICMS),
-    optTag("indDeduzDeson", d.indDeduzDeson),
+    requiredTag("orig", d.orig),
+    requiredTag("CST", d.CST),
+    optionalTag("vICMSDeson", formatCentsOrNull(d.vICMSDeson)),
+    optionalTag("motDesICMS", d.motDesICMS),
+    optionalTag("indDeduzDeson", d.indDeduzDeson),
   ]));
 }
 
@@ -558,23 +553,23 @@ function buildCst51(d: IcmsData, t: IcmsTotals): string {
   t.vFCP = accum(t.vFCP, d.vFCP);
 
   return tag("ICMS51", {}, filterNulls([
-    reqTag("orig", d.orig),
-    reqTag("CST", d.CST),
-    optTag("modBC", d.modBC),
-    optTag("pRedBC", fc(d.pRedBC, 4)),
-    optTag("cBenefRBC", d.cBenefRBC),
-    optTag("vBC", fc(d.vBC)),
-    optTag("pICMS", fc(d.pICMS, 4)),
-    optTag("vICMSOp", fc(d.vICMSOp)),
-    optTag("pDif", fc(d.pDif, 4)),
-    optTag("vICMSDif", fc(d.vICMSDif)),
-    optTag("vICMS", fc(d.vICMS)),
-    optTag("vBCFCP", fc(d.vBCFCP)),
-    optTag("pFCP", fc(d.pFCP, 4)),
-    optTag("vFCP", fc(d.vFCP)),
-    optTag("pFCPDif", fc(d.pFCPDif)),
-    optTag("vFCPDif", fc(d.vFCPDif)),
-    optTag("vFCPEfet", fc(d.vFCPEfet)),
+    requiredTag("orig", d.orig),
+    requiredTag("CST", d.CST),
+    optionalTag("modBC", d.modBC),
+    optionalTag("pRedBC", formatCentsOrNull(d.pRedBC, 4)),
+    optionalTag("cBenefRBC", d.cBenefRBC),
+    optionalTag("vBC", formatCentsOrNull(d.vBC)),
+    optionalTag("pICMS", formatCentsOrNull(d.pICMS, 4)),
+    optionalTag("vICMSOp", formatCentsOrNull(d.vICMSOp)),
+    optionalTag("pDif", formatCentsOrNull(d.pDif, 4)),
+    optionalTag("vICMSDif", formatCentsOrNull(d.vICMSDif)),
+    optionalTag("vICMS", formatCentsOrNull(d.vICMS)),
+    optionalTag("vBCFCP", formatCentsOrNull(d.vBCFCP)),
+    optionalTag("pFCP", formatCentsOrNull(d.pFCP, 4)),
+    optionalTag("vFCP", formatCentsOrNull(d.vFCP)),
+    optionalTag("pFCPDif", formatCentsOrNull(d.pFCPDif)),
+    optionalTag("vFCPDif", formatCentsOrNull(d.vFCPDif)),
+    optionalTag("vFCPEfet", formatCentsOrNull(d.vFCPEfet)),
   ]));
 }
 
@@ -586,14 +581,14 @@ function buildCst53(d: IcmsData, t: IcmsTotals): string {
   t.vICMSMonoReten = accum(t.vICMSMonoReten, d.vICMSMonoReten);
 
   return tag("ICMS53", {}, filterNulls([
-    reqTag("orig", d.orig),
-    reqTag("CST", d.CST),
-    optTag("qBCMono", fc(d.qBCMono, 4)),
-    optTag("adRemICMS", fc(d.adRemICMS, 4)),
-    optTag("vICMSMonoOp", fc(d.vICMSMonoOp)),
-    optTag("pDif", fc(d.pDif, 4)),
-    optTag("vICMSMonoDif", fc(d.vICMSMonoDif)),
-    optTag("vICMSMono", fc(d.vICMSMono)),
+    requiredTag("orig", d.orig),
+    requiredTag("CST", d.CST),
+    optionalTag("qBCMono", formatCentsOrNull(d.qBCMono, 4)),
+    optionalTag("adRemICMS", formatCentsOrNull(d.adRemICMS, 4)),
+    optionalTag("vICMSMonoOp", formatCentsOrNull(d.vICMSMonoOp)),
+    optionalTag("pDif", formatCentsOrNull(d.pDif, 4)),
+    optionalTag("vICMSMonoDif", formatCentsOrNull(d.vICMSMonoDif)),
+    optionalTag("vICMSMono", formatCentsOrNull(d.vICMSMono)),
   ]));
 }
 
@@ -602,19 +597,19 @@ function buildCst60(d: IcmsData, t: IcmsTotals): string {
   t.vFCPSTRet = accum(t.vFCPSTRet, d.vFCPSTRet);
 
   return tag("ICMS60", {}, filterNulls([
-    reqTag("orig", d.orig),
-    reqTag("CST", d.CST),
-    optTag("vBCSTRet", fc(d.vBCSTRet)),
-    optTag("pST", fc(d.pST, 4)),
-    optTag("vICMSSubstituto", fc(d.vICMSSubstituto)),
-    optTag("vICMSSTRet", fc(d.vICMSSTRet)),
-    optTag("vBCFCPSTRet", fc(d.vBCFCPSTRet)),
-    optTag("pFCPSTRet", fc(d.pFCPSTRet, 4)),
-    optTag("vFCPSTRet", fc(d.vFCPSTRet)),
-    optTag("pRedBCEfet", fc(d.pRedBCEfet, 4)),
-    optTag("vBCEfet", fc(d.vBCEfet)),
-    optTag("pICMSEfet", fc(d.pICMSEfet, 4)),
-    optTag("vICMSEfet", fc(d.vICMSEfet)),
+    requiredTag("orig", d.orig),
+    requiredTag("CST", d.CST),
+    optionalTag("vBCSTRet", formatCentsOrNull(d.vBCSTRet)),
+    optionalTag("pST", formatCentsOrNull(d.pST, 4)),
+    optionalTag("vICMSSubstituto", formatCentsOrNull(d.vICMSSubstituto)),
+    optionalTag("vICMSSTRet", formatCentsOrNull(d.vICMSSTRet)),
+    optionalTag("vBCFCPSTRet", formatCentsOrNull(d.vBCFCPSTRet)),
+    optionalTag("pFCPSTRet", formatCentsOrNull(d.pFCPSTRet, 4)),
+    optionalTag("vFCPSTRet", formatCentsOrNull(d.vFCPSTRet)),
+    optionalTag("pRedBCEfet", formatCentsOrNull(d.pRedBCEfet, 4)),
+    optionalTag("vBCEfet", formatCentsOrNull(d.vBCEfet)),
+    optionalTag("pICMSEfet", formatCentsOrNull(d.pICMSEfet, 4)),
+    optionalTag("vICMSEfet", formatCentsOrNull(d.vICMSEfet)),
   ]));
 }
 
@@ -624,11 +619,11 @@ function buildCst61(d: IcmsData, t: IcmsTotals): string {
   t.vICMSMonoRet = accum(t.vICMSMonoRet, d.vICMSMonoRet);
 
   return tag("ICMS61", {}, filterNulls([
-    reqTag("orig", d.orig),
-    reqTag("CST", d.CST),
-    optTag("qBCMonoRet", fc(d.qBCMonoRet, 4)),
-    reqTag("adRemICMSRet", fc(d.adRemICMSRet, 4)),
-    reqTag("vICMSMonoRet", fc(d.vICMSMonoRet)),
+    requiredTag("orig", d.orig),
+    requiredTag("CST", d.CST),
+    optionalTag("qBCMonoRet", formatCentsOrNull(d.qBCMonoRet, 4)),
+    requiredTag("adRemICMSRet", formatCentsOrNull(d.adRemICMSRet, 4)),
+    requiredTag("vICMSMonoRet", formatCentsOrNull(d.vICMSMonoRet)),
   ]));
 }
 
@@ -643,30 +638,30 @@ function buildCst70(d: IcmsData, t: IcmsTotals): string {
   t.vFCP = accum(t.vFCP, d.vFCP);
 
   return tag("ICMS70", {}, filterNulls([
-    reqTag("orig", d.orig),
-    reqTag("CST", d.CST),
-    reqTag("modBC", d.modBC),
-    reqTag("pRedBC", fc(d.pRedBC, 4)),
-    reqTag("vBC", fc(d.vBC)),
-    reqTag("pICMS", fc(d.pICMS, 4)),
-    reqTag("vICMS", fc(d.vICMS)),
-    optTag("vBCFCP", fc(d.vBCFCP)),
-    optTag("pFCP", fc(d.pFCP, 4)),
-    optTag("vFCP", fc(d.vFCP)),
-    reqTag("modBCST", d.modBCST),
-    optTag("pMVAST", fc(d.pMVAST, 4)),
-    optTag("pRedBCST", fc(d.pRedBCST, 4)),
-    reqTag("vBCST", fc(d.vBCST)),
-    reqTag("pICMSST", fc(d.pICMSST, 4)),
-    reqTag("vICMSST", fc(d.vICMSST)),
-    optTag("vBCFCPST", fc(d.vBCFCPST)),
-    optTag("pFCPST", fc(d.pFCPST, 4)),
-    optTag("vFCPST", fc(d.vFCPST)),
-    optTag("vICMSDeson", fc(d.vICMSDeson)),
-    optTag("motDesICMS", d.motDesICMS),
-    optTag("indDeduzDeson", d.indDeduzDeson),
-    optTag("vICMSSTDeson", fc(d.vICMSSTDeson)),
-    optTag("motDesICMSST", d.motDesICMSST),
+    requiredTag("orig", d.orig),
+    requiredTag("CST", d.CST),
+    requiredTag("modBC", d.modBC),
+    requiredTag("pRedBC", formatCentsOrNull(d.pRedBC, 4)),
+    requiredTag("vBC", formatCentsOrNull(d.vBC)),
+    requiredTag("pICMS", formatCentsOrNull(d.pICMS, 4)),
+    requiredTag("vICMS", formatCentsOrNull(d.vICMS)),
+    optionalTag("vBCFCP", formatCentsOrNull(d.vBCFCP)),
+    optionalTag("pFCP", formatCentsOrNull(d.pFCP, 4)),
+    optionalTag("vFCP", formatCentsOrNull(d.vFCP)),
+    requiredTag("modBCST", d.modBCST),
+    optionalTag("pMVAST", formatCentsOrNull(d.pMVAST, 4)),
+    optionalTag("pRedBCST", formatCentsOrNull(d.pRedBCST, 4)),
+    requiredTag("vBCST", formatCentsOrNull(d.vBCST)),
+    requiredTag("pICMSST", formatCentsOrNull(d.pICMSST, 4)),
+    requiredTag("vICMSST", formatCentsOrNull(d.vICMSST)),
+    optionalTag("vBCFCPST", formatCentsOrNull(d.vBCFCPST)),
+    optionalTag("pFCPST", formatCentsOrNull(d.pFCPST, 4)),
+    optionalTag("vFCPST", formatCentsOrNull(d.vFCPST)),
+    optionalTag("vICMSDeson", formatCentsOrNull(d.vICMSDeson)),
+    optionalTag("motDesICMS", d.motDesICMS),
+    optionalTag("indDeduzDeson", d.indDeduzDeson),
+    optionalTag("vICMSSTDeson", formatCentsOrNull(d.vICMSSTDeson)),
+    optionalTag("motDesICMSST", d.motDesICMSST),
   ]));
 }
 
@@ -681,37 +676,37 @@ function buildCst90(d: IcmsData, t: IcmsTotals): string {
   t.vFCP = accum(t.vFCP, d.vFCP);
 
   return tag("ICMS90", {}, filterNulls([
-    reqTag("orig", d.orig),
-    reqTag("CST", d.CST),
-    optTag("modBC", d.modBC),
-    optTag("vBC", fc(d.vBC)),
-    optTag("pRedBC", fc(d.pRedBC, 4)),
-    optTag("cBenefRBC", d.cBenefRBC),
-    optTag("pICMS", fc(d.pICMS, 4)),
-    optTag("vICMSOp", fc(d.vICMSOp)),
-    optTag("pDif", fc(d.pDif)),
-    optTag("vICMSDif", fc(d.vICMSDif)),
-    optTag("vICMS", fc(d.vICMS)),
-    optTag("vBCFCP", fc(d.vBCFCP)),
-    optTag("pFCP", fc(d.pFCP, 4)),
-    optTag("vFCP", fc(d.vFCP)),
-    optTag("pFCPDif", fc(d.pFCPDif, 4)),
-    optTag("vFCPDif", fc(d.vFCPDif)),
-    optTag("vFCPEfet", fc(d.vFCPEfet)),
-    optTag("modBCST", d.modBCST),
-    optTag("pMVAST", fc(d.pMVAST, 4)),
-    optTag("pRedBCST", fc(d.pRedBCST, 4)),
-    optTag("vBCST", fc(d.vBCST)),
-    optTag("pICMSST", fc(d.pICMSST, 4)),
-    optTag("vICMSST", fc(d.vICMSST)),
-    optTag("vBCFCPST", fc(d.vBCFCPST)),
-    optTag("pFCPST", fc(d.pFCPST, 4)),
-    optTag("vFCPST", fc(d.vFCPST)),
-    optTag("vICMSDeson", fc(d.vICMSDeson)),
-    optTag("motDesICMS", d.motDesICMS),
-    optTag("indDeduzDeson", d.indDeduzDeson),
-    optTag("vICMSSTDeson", fc(d.vICMSSTDeson)),
-    optTag("motDesICMSST", d.motDesICMSST),
+    requiredTag("orig", d.orig),
+    requiredTag("CST", d.CST),
+    optionalTag("modBC", d.modBC),
+    optionalTag("vBC", formatCentsOrNull(d.vBC)),
+    optionalTag("pRedBC", formatCentsOrNull(d.pRedBC, 4)),
+    optionalTag("cBenefRBC", d.cBenefRBC),
+    optionalTag("pICMS", formatCentsOrNull(d.pICMS, 4)),
+    optionalTag("vICMSOp", formatCentsOrNull(d.vICMSOp)),
+    optionalTag("pDif", formatCentsOrNull(d.pDif)),
+    optionalTag("vICMSDif", formatCentsOrNull(d.vICMSDif)),
+    optionalTag("vICMS", formatCentsOrNull(d.vICMS)),
+    optionalTag("vBCFCP", formatCentsOrNull(d.vBCFCP)),
+    optionalTag("pFCP", formatCentsOrNull(d.pFCP, 4)),
+    optionalTag("vFCP", formatCentsOrNull(d.vFCP)),
+    optionalTag("pFCPDif", formatCentsOrNull(d.pFCPDif, 4)),
+    optionalTag("vFCPDif", formatCentsOrNull(d.vFCPDif)),
+    optionalTag("vFCPEfet", formatCentsOrNull(d.vFCPEfet)),
+    optionalTag("modBCST", d.modBCST),
+    optionalTag("pMVAST", formatCentsOrNull(d.pMVAST, 4)),
+    optionalTag("pRedBCST", formatCentsOrNull(d.pRedBCST, 4)),
+    optionalTag("vBCST", formatCentsOrNull(d.vBCST)),
+    optionalTag("pICMSST", formatCentsOrNull(d.pICMSST, 4)),
+    optionalTag("vICMSST", formatCentsOrNull(d.vICMSST)),
+    optionalTag("vBCFCPST", formatCentsOrNull(d.vBCFCPST)),
+    optionalTag("pFCPST", formatCentsOrNull(d.pFCPST, 4)),
+    optionalTag("vFCPST", formatCentsOrNull(d.vFCPST)),
+    optionalTag("vICMSDeson", formatCentsOrNull(d.vICMSDeson)),
+    optionalTag("motDesICMS", d.motDesICMS),
+    optionalTag("indDeduzDeson", d.indDeduzDeson),
+    optionalTag("vICMSSTDeson", formatCentsOrNull(d.vICMSSTDeson)),
+    optionalTag("motDesICMSST", d.motDesICMSST),
   ]));
 }
 
@@ -747,18 +742,18 @@ function buildCsosn(data: IcmsData, totals: IcmsTotals): string {
 /** CSOSN 101 — Tributada pelo Simples Nacional com permissao de credito */
 function buildCsosn101(d: IcmsData, _t: IcmsTotals): string {
   return tag("ICMSSN101", {}, filterNulls([
-    reqTag("orig", d.orig),
-    reqTag("CSOSN", d.CSOSN),
-    reqTag("pCredSN", fc(d.pCredSN, 2)),
-    reqTag("vCredICMSSN", fc(d.vCredICMSSN)),
+    requiredTag("orig", d.orig),
+    requiredTag("CSOSN", d.CSOSN),
+    requiredTag("pCredSN", formatCentsOrNull(d.pCredSN, 2)),
+    requiredTag("vCredICMSSN", formatCentsOrNull(d.vCredICMSSN)),
   ]));
 }
 
 /** CSOSN 102/103/300/400 — Tributada sem permissao de credito / Imune / Nao tributada */
 function buildCsosn102(d: IcmsData, _t: IcmsTotals): string {
   return tag("ICMSSN102", {}, filterNulls([
-    optTag("orig", d.orig), // may be null for CRT=4
-    reqTag("CSOSN", d.CSOSN),
+    optionalTag("orig", d.orig), // may be null for CRT=4
+    requiredTag("CSOSN", d.CSOSN),
   ]));
 }
 
@@ -768,19 +763,19 @@ function buildCsosn201(d: IcmsData, t: IcmsTotals): string {
   t.vST = accum(t.vST, d.vICMSST);
 
   return tag("ICMSSN201", {}, filterNulls([
-    reqTag("orig", d.orig),
-    reqTag("CSOSN", d.CSOSN),
-    reqTag("modBCST", d.modBCST),
-    optTag("pMVAST", fc(d.pMVAST, 4)),
-    optTag("pRedBCST", fc(d.pRedBCST, 4)),
-    reqTag("vBCST", fc(d.vBCST)),
-    reqTag("pICMSST", fc(d.pICMSST, 4)),
-    reqTag("vICMSST", fc(d.vICMSST)),
-    optTag("vBCFCPST", fc(d.vBCFCPST)),
-    optTag("pFCPST", fc(d.pFCPST, 4)),
-    optTag("vFCPST", fc(d.vFCPST)),
-    optTag("pCredSN", fc(d.pCredSN, 4)),
-    optTag("vCredICMSSN", fc(d.vCredICMSSN)),
+    requiredTag("orig", d.orig),
+    requiredTag("CSOSN", d.CSOSN),
+    requiredTag("modBCST", d.modBCST),
+    optionalTag("pMVAST", formatCentsOrNull(d.pMVAST, 4)),
+    optionalTag("pRedBCST", formatCentsOrNull(d.pRedBCST, 4)),
+    requiredTag("vBCST", formatCentsOrNull(d.vBCST)),
+    requiredTag("pICMSST", formatCentsOrNull(d.pICMSST, 4)),
+    requiredTag("vICMSST", formatCentsOrNull(d.vICMSST)),
+    optionalTag("vBCFCPST", formatCentsOrNull(d.vBCFCPST)),
+    optionalTag("pFCPST", formatCentsOrNull(d.pFCPST, 4)),
+    optionalTag("vFCPST", formatCentsOrNull(d.vFCPST)),
+    optionalTag("pCredSN", formatCentsOrNull(d.pCredSN, 4)),
+    optionalTag("vCredICMSSN", formatCentsOrNull(d.vCredICMSSN)),
   ]));
 }
 
@@ -790,36 +785,36 @@ function buildCsosn202(d: IcmsData, t: IcmsTotals): string {
   t.vST = accum(t.vST, d.vICMSST);
 
   return tag("ICMSSN202", {}, filterNulls([
-    reqTag("orig", d.orig),
-    reqTag("CSOSN", d.CSOSN),
-    reqTag("modBCST", d.modBCST),
-    optTag("pMVAST", fc(d.pMVAST, 4)),
-    optTag("pRedBCST", fc(d.pRedBCST, 4)),
-    reqTag("vBCST", fc(d.vBCST)),
-    reqTag("pICMSST", fc(d.pICMSST, 4)),
-    reqTag("vICMSST", fc(d.vICMSST)),
-    optTag("vBCFCPST", fc(d.vBCFCPST)),
-    optTag("pFCPST", fc(d.pFCPST, 4)),
-    optTag("vFCPST", fc(d.vFCPST)),
+    requiredTag("orig", d.orig),
+    requiredTag("CSOSN", d.CSOSN),
+    requiredTag("modBCST", d.modBCST),
+    optionalTag("pMVAST", formatCentsOrNull(d.pMVAST, 4)),
+    optionalTag("pRedBCST", formatCentsOrNull(d.pRedBCST, 4)),
+    requiredTag("vBCST", formatCentsOrNull(d.vBCST)),
+    requiredTag("pICMSST", formatCentsOrNull(d.pICMSST, 4)),
+    requiredTag("vICMSST", formatCentsOrNull(d.vICMSST)),
+    optionalTag("vBCFCPST", formatCentsOrNull(d.vBCFCPST)),
+    optionalTag("pFCPST", formatCentsOrNull(d.pFCPST, 4)),
+    optionalTag("vFCPST", formatCentsOrNull(d.vFCPST)),
   ]));
 }
 
 /** CSOSN 500 — ICMS cobrado anteriormente por ST ou por antecipacao */
 function buildCsosn500(d: IcmsData, _t: IcmsTotals): string {
   return tag("ICMSSN500", {}, filterNulls([
-    reqTag("orig", d.orig),
-    reqTag("CSOSN", d.CSOSN),
-    optTag("vBCSTRet", fc(d.vBCSTRet)),
-    optTag("pST", fc(d.pST, 4)),
-    optTag("vICMSSubstituto", fc(d.vICMSSubstituto)),
-    optTag("vICMSSTRet", fc(d.vICMSSTRet)),
-    optTag("vBCFCPSTRet", fc(d.vBCFCPSTRet, 2)),
-    optTag("pFCPSTRet", fc(d.pFCPSTRet, 4)),
-    optTag("vFCPSTRet", fc(d.vFCPSTRet)),
-    optTag("pRedBCEfet", fc(d.pRedBCEfet, 4)),
-    optTag("vBCEfet", fc(d.vBCEfet)),
-    optTag("pICMSEfet", fc(d.pICMSEfet, 4)),
-    optTag("vICMSEfet", fc(d.vICMSEfet)),
+    requiredTag("orig", d.orig),
+    requiredTag("CSOSN", d.CSOSN),
+    optionalTag("vBCSTRet", formatCentsOrNull(d.vBCSTRet)),
+    optionalTag("pST", formatCentsOrNull(d.pST, 4)),
+    optionalTag("vICMSSubstituto", formatCentsOrNull(d.vICMSSubstituto)),
+    optionalTag("vICMSSTRet", formatCentsOrNull(d.vICMSSTRet)),
+    optionalTag("vBCFCPSTRet", formatCentsOrNull(d.vBCFCPSTRet, 2)),
+    optionalTag("pFCPSTRet", formatCentsOrNull(d.pFCPSTRet, 4)),
+    optionalTag("vFCPSTRet", formatCentsOrNull(d.vFCPSTRet)),
+    optionalTag("pRedBCEfet", formatCentsOrNull(d.pRedBCEfet, 4)),
+    optionalTag("vBCEfet", formatCentsOrNull(d.vBCEfet)),
+    optionalTag("pICMSEfet", formatCentsOrNull(d.pICMSEfet, 4)),
+    optionalTag("vICMSEfet", formatCentsOrNull(d.vICMSEfet)),
   ]));
 }
 
@@ -831,24 +826,24 @@ function buildCsosn900(d: IcmsData, t: IcmsTotals): string {
   t.vST = accum(t.vST, d.vICMSST);
 
   return tag("ICMSSN900", {}, filterNulls([
-    optTag("orig", d.orig), // may be null for CRT=4
-    reqTag("CSOSN", d.CSOSN),
-    optTag("modBC", d.modBC),
-    optTag("vBC", fc(d.vBC)),
-    optTag("pRedBC", fc(d.pRedBC, 4)),
-    optTag("pICMS", fc(d.pICMS, 4)),
-    optTag("vICMS", fc(d.vICMS)),
-    optTag("modBCST", d.modBCST),
-    optTag("pMVAST", fc(d.pMVAST, 4)),
-    optTag("pRedBCST", fc(d.pRedBCST, 4)),
-    optTag("vBCST", fc(d.vBCST)),
-    optTag("pICMSST", fc(d.pICMSST, 4)),
-    optTag("vICMSST", fc(d.vICMSST)),
-    optTag("vBCFCPST", fc(d.vBCFCPST)),
-    optTag("pFCPST", fc(d.pFCPST, 4)),
-    optTag("vFCPST", fc(d.vFCPST)),
-    optTag("pCredSN", fc(d.pCredSN, 4)),
-    optTag("vCredICMSSN", fc(d.vCredICMSSN)),
+    optionalTag("orig", d.orig), // may be null for CRT=4
+    requiredTag("CSOSN", d.CSOSN),
+    optionalTag("modBC", d.modBC),
+    optionalTag("vBC", formatCentsOrNull(d.vBC)),
+    optionalTag("pRedBC", formatCentsOrNull(d.pRedBC, 4)),
+    optionalTag("pICMS", formatCentsOrNull(d.pICMS, 4)),
+    optionalTag("vICMS", formatCentsOrNull(d.vICMS)),
+    optionalTag("modBCST", d.modBCST),
+    optionalTag("pMVAST", formatCentsOrNull(d.pMVAST, 4)),
+    optionalTag("pRedBCST", formatCentsOrNull(d.pRedBCST, 4)),
+    optionalTag("vBCST", formatCentsOrNull(d.vBCST)),
+    optionalTag("pICMSST", formatCentsOrNull(d.pICMSST, 4)),
+    optionalTag("vICMSST", formatCentsOrNull(d.vICMSST)),
+    optionalTag("vBCFCPST", formatCentsOrNull(d.vBCFCPST)),
+    optionalTag("pFCPST", formatCentsOrNull(d.pFCPST, 4)),
+    optionalTag("vFCPST", formatCentsOrNull(d.vFCPST)),
+    optionalTag("pCredSN", formatCentsOrNull(d.pCredSN, 4)),
+    optionalTag("vCredICMSSN", formatCentsOrNull(d.vCredICMSSN)),
   ]));
 }
 

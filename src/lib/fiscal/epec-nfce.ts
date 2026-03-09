@@ -6,7 +6,7 @@
  */
 
 import { XMLParser } from "fast-xml-parser";
-import { STATE_CODES } from "./constants";
+import { STATE_IBGE_CODES } from "./state-codes";
 
 const xmlParser = new XMLParser({
   ignoreAttributes: false,
@@ -14,21 +14,15 @@ const xmlParser = new XMLParser({
   removeNSPrefix: true,
 });
 
-/** Reverse lookup: state abbreviation -> IBGE code */
-const STATE_CODE_BY_UF: Record<string, string> = {};
-for (const [uf, code] of Object.entries(STATE_CODES)) {
-  STATE_CODE_BY_UF[uf] = code;
-}
-
 export interface EpecNfceConfig {
   /** State abbreviation, e.g. "SP" */
-  siglaUF: string;
+  stateCode: string;
   /** Tax environment: 1=production, 2=homologation */
   tpAmb: number;
   /** CNPJ of the company */
   cnpj: string;
   /** Application version (from setVerAplic) */
-  verAplic?: string;
+  appVersion?: string;
 }
 
 function getNodeValue(obj: any, tagName: string): string | undefined {
@@ -75,7 +69,7 @@ export function buildEpecNfceXml(
   const chNFe = infNFeId.replace(/^NFe/, "");
 
   // Validate UF match
-  const cOrgaoAutor = STATE_CODE_BY_UF[config.siglaUF];
+  const cOrgaoAutor = STATE_IBGE_CODES[config.stateCode];
   const ufChave = chNFe.substring(0, 2);
   if (cOrgaoAutor !== ufChave) {
     throw new Error(
@@ -88,7 +82,7 @@ export function buildEpecNfceXml(
   const tpNF = getNodeValue(ide, "tpNF") ?? "1";
   const emitIE = getNodeValue(emit, "IE") ?? "";
 
-  let destUF = config.siglaUF;
+  let destUF = config.stateCode;
   if (dest?.enderDest?.UF) {
     destUF = String(dest.enderDest.UF);
   }
@@ -125,7 +119,7 @@ export function buildEpecNfceXml(
   // Resolve verAplic
   let resolvedVerAplic = verAplic;
   if (!resolvedVerAplic) {
-    resolvedVerAplic = config.verAplic || verProc;
+    resolvedVerAplic = config.appVersion || verProc;
   }
 
   const tagAdic = `<cOrgaoAutor>${cOrgaoAutor}</cOrgaoAutor>`
@@ -179,7 +173,7 @@ export function buildEpecNfceStatusXml(
   tpAmb?: number
 ): string {
   const resolvedTpAmb = tpAmb ?? config.tpAmb;
-  const resolvedUf = uf || config.siglaUF;
+  const resolvedUf = uf || config.stateCode;
 
   if (resolvedUf !== "SP") {
     throw new Error(
@@ -187,7 +181,7 @@ export function buildEpecNfceStatusXml(
     );
   }
 
-  const cUF = STATE_CODE_BY_UF[resolvedUf];
+  const cUF = STATE_IBGE_CODES[resolvedUf];
 
   return `<consStatServ xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">`
     + `<tpAmb>${resolvedTpAmb}</tpAmb>`

@@ -1,13 +1,3 @@
-import { eq, and } from "drizzle-orm";
-import { db } from "@/lib/db";
-import {
-  invoices,
-  invoiceItems,
-  fiscalSettings,
-  orders,
-  orderItems,
-  products,
-} from "@/lib/db/schema";
 import { buildInvoiceXml } from "./xml-builder";
 import { loadCertificate, signXml } from "./certificate";
 import { getSefazUrl } from "./sefaz-urls";
@@ -22,6 +12,17 @@ import {
   parseCancellationResponse,
 } from "./sefaz-client";
 import { PAYMENT_TYPES } from "./constants";
+import { SEFAZ_STATUS } from "./sefaz-status-codes";
+import { loadFiscalSettings, incrementNextNumber } from "./fiscal-settings-repository";
+import {
+  loadOrderWithItems,
+  findInvoice,
+  saveInvoice,
+  findPendingInvoices,
+  updateInvoiceStatus,
+  saveVoidedInvoice,
+  saveInvoiceEvent,
+} from "./invoice-repository";
 import type {
   InvoiceModel,
   InvoiceStatus,
@@ -63,10 +64,7 @@ export async function issueInvoice(
   }
 
   // 2. Load order with items
-  const order = await db.query.orders.findFirst({
-    where: and(eq(orders.id, orderId), eq(orders.user_uid, userUid)),
-    with: { orderItems: { with: { product: true } } },
-  });
+  const order = await loadOrderWithItems(orderId, userUid);
 
   if (!order) throw new Error("Order not found");
 
@@ -98,11 +96,9 @@ export async function issueInvoice(
   try {
     sefazResponse = await sendToSefaz(signedXml, settings, model);
 
-    if (sefazResponse.statusCode === 100) {
-      // 100 = authorized
+    if (sefazResponse.statusCode === SEFAZ_STATUS.AUTHORIZED) {
       status = "authorized";
-    } else if (sefazResponse.statusCode === 110) {
-      // 110 = denied (use not allowed)
+    } else if (sefazResponse.statusCode === SEFAZ_STATUS.DENIED) {
       status = "denied";
     } else {
       status = "rejected";
@@ -171,7 +167,7 @@ export async function checkSefazStatus(userUid: string): Promise<{
   const parsed = parseStatusResponse(response.content);
 
   return {
-    online: parsed.statusCode === 107, // 107 = service running
+    online: parsed.statusCode === SEFAZ_STATUS.SERVICE_RUNNING,
     ...parsed,
   };
 }
@@ -188,9 +184,7 @@ export async function cancelInvoice(
     throw new Error("Cancellation reason must have at least 15 characters");
   }
 
-  const invoice = await db.query.invoices.findFirst({
-    where: and(eq(invoices.id, invoiceId), eq(invoices.user_uid, userUid)),
-  });
+  const invoice = await findInvoice(invoiceId, userUid);
 
   if (!invoice) throw new Error("Invoice not found");
   if (invoice.status !== "authorized") {
@@ -233,26 +227,23 @@ export async function cancelInvoice(
 
   const parsed = parseCancellationResponse(response.content);
 
-  // 135 = event registered, 155 = already cancelled
-  const success = parsed.statusCode === 135 || parsed.statusCode === 155;
+  const success =
+    parsed.statusCode === SEFAZ_STATUS.EVENT_REGISTERED ||
+    parsed.statusCode === SEFAZ_STATUS.ALREADY_CANCELLED;
 
   if (success) {
-    await db
-      .update(invoices)
-      .set({ status: "cancelled" })
-      .where(eq(invoices.id, invoiceId));
+    await updateInvoiceStatus(invoiceId, { status: "cancelled" });
   }
 
   // Save event
-  const { invoiceEvents } = await import("@/lib/db/schema");
-  await db.insert(invoiceEvents).values({
-    invoice_id: invoiceId,
-    event_type: "cancellation",
-    protocol_number: parsed.protocolNumber || null,
-    status_code: parsed.statusCode,
+  await saveInvoiceEvent({
+    invoiceId,
+    eventType: "cancellation",
+    protocolNumber: parsed.protocolNumber || null,
+    statusCode: parsed.statusCode,
     reason,
-    request_xml: signedXml,
-    response_xml: response.body,
+    requestXml: signedXml,
+    responseXml: response.body,
   });
 
   return { success, ...parsed };
@@ -313,23 +304,19 @@ export async function voidNumberRange(
   const cStat = voidResult.statusCode;
   const xMotivo = voidResult.statusMessage;
 
-  // 102 = voided successfully
-  const success = cStat === 102;
+  const success = cStat === SEFAZ_STATUS.VOIDED;
 
   // Save voided numbers as invoices with "voided" status
   if (success) {
     for (let n = startNumber; n <= endNumber; n++) {
-      await db.insert(invoices).values({
-        user_uid: userUid,
+      await saveVoidedInvoice({
+        userUid,
         model,
         series,
         number: n,
-        status: "voided",
         environment: settings.environment,
-        issued_at: new Date(),
-        total_amount: 0,
-        status_code: cStat,
-        status_message: xMotivo,
+        statusCode: cStat,
+        statusMessage: xMotivo,
       });
     }
   }
@@ -351,15 +338,7 @@ export async function syncPendingInvoices(userUid: string): Promise<{
     throw new Error("Fiscal settings not configured");
   }
 
-  const pending = await db
-    .select()
-    .from(invoices)
-    .where(
-      and(
-        eq(invoices.user_uid, userUid),
-        eq(invoices.status, "contingency")
-      )
-    );
+  const pending = await findPendingInvoices(userUid);
 
   let authorized = 0;
   let failed = 0;
@@ -374,30 +353,24 @@ export async function syncPendingInvoices(userUid: string): Promise<{
         invoice.model as InvoiceModel
       );
 
-      if (response.statusCode === 100) {
-        await db
-          .update(invoices)
-          .set({
-            status: "authorized",
-            response_xml: response.responseXml,
-            protocol_xml: response.protocolXml || null,
-            protocol_number: response.protocolNumber || null,
-            status_code: response.statusCode,
-            status_message: response.statusMessage,
-            authorized_at: response.authorizedAt || new Date(),
-          })
-          .where(eq(invoices.id, invoice.id));
+      if (response.statusCode === SEFAZ_STATUS.AUTHORIZED) {
+        await updateInvoiceStatus(invoice.id, {
+          status: "authorized",
+          responseXml: response.responseXml,
+          protocolXml: response.protocolXml || null,
+          protocolNumber: response.protocolNumber || null,
+          statusCode: response.statusCode,
+          statusMessage: response.statusMessage,
+          authorizedAt: response.authorizedAt || new Date(),
+        });
         authorized++;
       } else {
-        await db
-          .update(invoices)
-          .set({
-            status: "rejected",
-            response_xml: response.responseXml,
-            status_code: response.statusCode,
-            status_message: response.statusMessage,
-          })
-          .where(eq(invoices.id, invoice.id));
+        await updateInvoiceStatus(invoice.id, {
+          status: "rejected",
+          responseXml: response.responseXml,
+          statusCode: response.statusCode,
+          statusMessage: response.statusMessage,
+        });
         failed++;
       }
     } catch {
@@ -409,52 +382,6 @@ export async function syncPendingInvoices(userUid: string): Promise<{
 }
 
 // ── Private helpers ─────────────────────────────────────────────────────────
-
-async function loadFiscalSettings(
-  userUid: string
-): Promise<FiscalSettings | null> {
-  const result = await db
-    .select()
-    .from(fiscalSettings)
-    .where(eq(fiscalSettings.user_uid, userUid))
-    .limit(1);
-
-  if (result.length === 0) return null;
-
-  const row = result[0];
-  return {
-    id: row.id,
-    userUid: row.user_uid,
-    companyName: row.company_name,
-    tradeName: row.trade_name,
-    taxId: row.tax_id,
-    stateTaxId: row.state_tax_id,
-    taxRegime: row.tax_regime as 1 | 2 | 3,
-    stateCode: row.state_code,
-    cityCode: row.city_code,
-    cityName: row.city_name,
-    street: row.street,
-    streetNumber: row.street_number,
-    district: row.district,
-    zipCode: row.zip_code,
-    addressComplement: row.address_complement,
-    environment: row.environment as SefazEnvironment,
-    nfeSeries: row.nfe_series ?? 1,
-    nfceSeries: row.nfce_series ?? 1,
-    nextNfeNumber: row.next_nfe_number ?? 1,
-    nextNfceNumber: row.next_nfce_number ?? 1,
-    cscId: row.csc_id,
-    cscToken: row.csc_token,
-    certificatePfx: row.certificate_pfx,
-    certificatePassword: row.certificate_password,
-    certificateValidUntil: row.certificate_valid_until,
-    defaultNcm: row.default_ncm ?? "00000000",
-    defaultCfop: row.default_cfop ?? "5102",
-    defaultIcmsCst: row.default_icms_cst ?? "00",
-    defaultPisCst: row.default_pis_cst ?? "99",
-    defaultCofinsCst: row.default_cofins_cst ?? "99",
-  };
-}
 
 function buildInvoiceData(
   order: any,
@@ -495,6 +422,8 @@ function buildInvoiceData(
     },
   ];
 
+  const isNfce = model === 65;
+
   return {
     model,
     series,
@@ -503,6 +432,14 @@ function buildInvoiceData(
     environment: settings.environment,
     issuedAt: new Date(),
     operationNature: "VENDA",
+    // Domain decisions: NFC-e vs NF-e defaults
+    operationType: 1, // outbound
+    purposeCode: 1, // normal
+    intermediaryIndicator: "0", // no intermediary
+    emissionProcess: "0", // own application
+    consumerType: isNfce ? "1" : "0", // NFC-e = final consumer
+    buyerPresence: isNfce ? "1" : "0", // NFC-e = in-person
+    printFormat: isNfce ? "4" : "1", // NFC-e = DANFCE, NF-e = portrait DANFE
     issuer: {
       taxId: settings.taxId,
       stateTaxId: settings.stateTaxId,
@@ -556,7 +493,7 @@ async function sendToSefaz(
   const parsed = parseAuthorizationResponse(response.content);
 
   return {
-    success: parsed.statusCode === 100,
+    success: parsed.statusCode === SEFAZ_STATUS.AUTHORIZED,
     statusCode: parsed.statusCode,
     statusMessage: parsed.statusMessage,
     protocolNumber: parsed.protocolNumber,
@@ -564,103 +501,4 @@ async function sendToSefaz(
     responseXml: response.body,
     authorizedAt: parsed.authorizedAt ? new Date(parsed.authorizedAt) : undefined,
   };
-}
-
-async function saveInvoice(data: {
-  userUid: string;
-  orderId: number;
-  model: InvoiceModel;
-  series: number;
-  number: number;
-  accessKey: string;
-  buildData: InvoiceBuildData;
-  signedXml: string;
-  sefazResponse: SefazResponse | null;
-  status: InvoiceStatus;
-  settings: FiscalSettings;
-  isContingency: boolean;
-}): Promise<number> {
-  const result = await db
-    .insert(invoices)
-    .values({
-      user_uid: data.userUid,
-      order_id: data.orderId,
-      model: data.model,
-      series: data.series,
-      number: data.number,
-      access_key: data.accessKey,
-      operation_nature: data.buildData.operationNature,
-      operation_type: 1,
-      status: data.status,
-      environment: data.settings.environment,
-      request_xml: data.signedXml,
-      response_xml: data.sefazResponse?.responseXml || null,
-      protocol_xml: data.sefazResponse?.protocolXml || null,
-      protocol_number: data.sefazResponse?.protocolNumber || null,
-      status_code: data.sefazResponse?.statusCode || null,
-      status_message: data.sefazResponse?.statusMessage || null,
-      issued_at: data.buildData.issuedAt,
-      authorized_at: data.sefazResponse?.authorizedAt || null,
-      total_amount: data.buildData.items.reduce((sum, i) => sum + i.totalPrice, 0),
-      is_contingency: data.isContingency,
-      contingency_type: data.isContingency ? "offline" : null,
-      contingency_at: data.isContingency ? new Date() : null,
-      contingency_reason: data.isContingency ? "SEFAZ unavailable" : null,
-      recipient_tax_id: data.buildData.recipient?.taxId || null,
-      recipient_name: data.buildData.recipient?.name || null,
-    })
-    .returning({ id: invoices.id });
-
-  const invoiceId = result[0].id;
-
-  // Save items
-  await db.insert(invoiceItems).values(
-    data.buildData.items.map((item) => ({
-      invoice_id: invoiceId,
-      item_number: item.itemNumber,
-      product_code: item.productCode,
-      description: item.description,
-      ncm: item.ncm,
-      cfop: item.cfop,
-      unit_of_measure: item.unitOfMeasure,
-      quantity: Math.round(item.quantity * 1000),
-      unit_price: item.unitPrice,
-      total_price: item.totalPrice,
-      icms_cst: item.icmsCst,
-      icms_rate: item.icmsRate,
-      icms_amount: item.icmsAmount,
-      pis_cst: item.pisCst,
-      cofins_cst: item.cofinsCst,
-    }))
-  );
-
-  return invoiceId;
-}
-
-async function incrementNextNumber(
-  userUid: string,
-  model: InvoiceModel
-): Promise<void> {
-  const field =
-    model === 65
-      ? fiscalSettings.next_nfce_number
-      : fiscalSettings.next_nfe_number;
-
-  const current = await db
-    .select({ val: field })
-    .from(fiscalSettings)
-    .where(eq(fiscalSettings.user_uid, userUid))
-    .limit(1);
-
-  if (current[0]) {
-    const nextVal = (current[0].val ?? 1) + 1;
-    await db
-      .update(fiscalSettings)
-      .set(
-        model === 65
-          ? { next_nfce_number: nextVal }
-          : { next_nfe_number: nextVal }
-      )
-      .where(eq(fiscalSettings.user_uid, userUid));
-  }
 }

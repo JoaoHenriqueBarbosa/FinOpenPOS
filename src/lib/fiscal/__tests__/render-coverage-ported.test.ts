@@ -186,6 +186,10 @@ describe("RenderCoverageTest", () => {
         environment: 2,
         issuedAt: new Date("2025-01-15T10:30:00"),
         operationNature: "VENDA",
+        // NFC-e domain fields (set by invoice-service in production)
+        consumerType: "1",
+        buyerPresence: "1",
+        printFormat: "4",
         issuer: {
           taxId: "58716523000119",
           stateTaxId: "111222333444",
