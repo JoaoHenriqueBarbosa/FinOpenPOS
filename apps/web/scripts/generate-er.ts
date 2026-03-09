@@ -102,5 +102,8 @@ function injectIntoReadme(filePath: string, mermaid: string) {
 
 const mermaid = generateMermaid();
 
-injectIntoReadme("README.md", mermaid);
-injectIntoReadme("README.ptBR.md", mermaid);
+import { resolve } from "node:path";
+
+const root = resolve(import.meta.dirname, "../../..");
+injectIntoReadme(resolve(root, "README.md"), mermaid);
+injectIntoReadme(resolve(root, "README.ptBR.md"), mermaid);

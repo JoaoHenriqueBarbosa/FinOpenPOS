@@ -1,9 +1,11 @@
 node_modules
 .next
-data/pglite
+**/data/pglite
 drizzle
 .env
 .env*.local
 .git
 .claude
 .playwright-mcp
+.reference
+.turbo
