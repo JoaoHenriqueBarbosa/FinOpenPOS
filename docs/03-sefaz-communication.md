@@ -1,0 +1,214 @@
+# SEFAZ Communication
+
+## Overview
+
+SEFAZ (Secretaria da Fazenda) is Brazil's tax authority web service. Communication uses SOAP 1.2 over HTTPS with mutual TLS (client certificate). Each state has its own SEFAZ or delegates to SVRS (Sefaz Virtual do Rio Grande do Sul).
+
+**Files**: `sefaz-transport.ts`, `sefaz-request-builders.ts`, `sefaz-response-parsers.ts`, `sefaz-urls.ts`, `sefaz-event-types.ts`, `sefaz-reform-events.ts`, `sefaz-client.ts` (barrel)
+
+## Architecture
+
+```
+invoice-service
+    │
+    ▼
+sefaz-client.ts (barrel re-export)
+    ├── sefaz-request-builders.ts  → builds XML request body
+    ├── sefaz-transport.ts         → SOAP envelope + curl mTLS
+    ├── sefaz-response-parsers.ts  → parses XML response
+    └── sefaz-urls.ts              → resolves endpoint URLs
+```
+
+## Transport (`sefaz-transport.ts`)
+
+### Why curl?
+
+Bun's `node:https` Agent does not support PFX for mTLS (`ECONNREFUSED`). The workaround: extract PEM cert/key from PFX using `certificate.ts`, write to temp files, and call curl.
+
+### sefazRequest()
+
+```typescript
+async function sefazRequest(options: {
+  url: string;
+  service: SefazService;
+  xmlContent: string;
+  pfx: Buffer;
+  passphrase: string;
+  timeout?: number;  // default 30s
+}): Promise<{ httpStatus: number; body: string; content: string }>
+```
+
+**Flow**:
+1. Build SOAP 1.2 envelope wrapping the XML content
+2. Extract PEM cert/key from PFX via `extractCertFromPfx()` / `extractKeyFromPfx()`
+3. Write cert, key, and SOAP body to temp files
+4. `curl -s -k --cert ... --key ... -H "Content-Type: application/soap+xml" -d @body url`
+5. Parse HTTP status from curl `-w` output
+6. Extract SOAP body content via regex
+7. Clean up temp files in `finally` block
+
+### SOAP envelope structure
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<soap12:Envelope xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">
+  <soap12:Header/>
+  <soap12:Body>
+    <nfeDadosMsg xmlns="http://www.portalfiscal.inf.br/wsdl/.../{service}">
+      {xmlContent}
+    </nfeDadosMsg>
+  </soap12:Body>
+</soap12:Envelope>
+```
+
+## URLs (`sefaz-urls.ts`)
+
+### State authorizer mapping
+
+Each Brazilian state either has its own SEFAZ or delegates to SVRS:
+
+| Own authorizer | States |
+|---------------|--------|
+| AM | Amazonas |
+| BA | Bahia |
+| GO | Goias |
+| MG | Minas Gerais |
+| MS | Mato Grosso do Sul |
+| MT | Mato Grosso |
+| PE | Pernambuco |
+| PR | Parana |
+| RS | Rio Grande do Sul |
+| SP | Sao Paulo |
+| SVRS | All other 17 states |
+
+### Services
+
+Each authorizer exposes 6 web services:
+
+| Service | Purpose |
+|---------|---------|
+| `NfeStatusServico` | Check if SEFAZ is online |
+| `NfeAutorizacao` | Submit NF-e for authorization |
+| `NfeRetAutorizacao` | Retrieve async authorization result |
+| `NfeConsultaProtocolo` | Query invoice by access key |
+| `NfeInutilizacao` | Void unused number ranges |
+| `RecepcaoEvento` | Send events (cancellation, CCe, etc.) |
+
+### getSefazUrl()
+
+```typescript
+getSefazUrl(stateCode: string, service: SefazService, environment: SefazEnvironment): string
+```
+
+Resolves the correct URL considering state, service, and environment (production vs homologation).
+
+## Request Builders (`sefaz-request-builders.ts`)
+
+### Status check
+
+```typescript
+buildStatusRequestXml(stateCode, environment)
+// → <consStatServ xmlns="..." versao="4.00"><tpAmb>2</tpAmb><cUF>35</cUF><xServ>STATUS</xServ></consStatServ>
+```
+
+### Authorization
+
+```typescript
+buildAuthorizationRequestXml(signedNfeXml, environment, stateCode)
+// → <enviNFe xmlns="..." versao="4.00"><idLote>...</idLote><indSinc>1</indSinc>{nfe}</enviNFe>
+```
+
+### Cancellation
+
+```typescript
+buildCancellationXml(accessKey, protocolNumber, reason, taxId, environment)
+// Delegates to buildEventXml() with EVENT_TYPES.CANCELLATION
+```
+
+### Generic event builder
+
+```typescript
+buildEventXml(options: {
+  accessKey, eventType, sequenceNumber, taxId, orgCode,
+  environment, eventDateTime, additionalTags?, lotId?
+})
+// → <envEvento>...<evento>...<infEvento>...<detEvento>...</detEvento></infEvento></evento></envEvento>
+```
+
+Higher-level builders delegate to `buildEventXml`: CCe, Interested Actor, Extension Request, Delivery Proof, etc.
+
+### Batch builders
+
+- `buildBatchManifestationXml()` — multiple manifestation events in one envelope
+- `buildBatchEventXml()` — generic batch events
+
+### Shared primitives (`sefaz-event-types.ts`)
+
+```typescript
+buildEventId(eventType, accessKey, seqNum)  // → "ID110111{chNFe}01"
+defaultLotId(lotId?)                         // → lotId ?? Date.now().toString()
+getEventDescription(eventType)               // → "Cancelamento", "EPEC", etc.
+```
+
+## Response Parsers (`sefaz-response-parsers.ts`)
+
+```typescript
+parseStatusResponse(xml)         // → { statusCode, statusMessage, averageTime }
+parseAuthorizationResponse(xml)  // → { statusCode, protocolNumber, accessKey, ... }
+parseCancellationResponse(xml)   // → { statusCode, protocolNumber, ... }
+```
+
+Uses `fast-xml-parser` and `findNested()` to locate response elements regardless of nesting depth.
+
+## Event Types (`sefaz-event-types.ts`)
+
+Standard NF-e event codes:
+
+| Code | Constant | Description |
+|------|----------|-------------|
+| 110110 | CCE | Carta de Correcao |
+| 110111 | CANCELLATION | Cancelamento |
+| 110112 | CANCELLATION_BY_SUBSTITUTION | Cancelamento por substituicao |
+| 110140 | EPEC | Evento Previo de Emissao em Contingencia |
+| 110150 | INTERESTED_ACTOR | Ator interessado na NF-e |
+| 210200 | CONFIRMATION | Confirmacao da Operacao |
+| 210210 | AWARENESS | Ciencia da Operacao |
+| 210220 | UNKNOWN_OPERATION | Desconhecimento da Operacao |
+| 210240 | OPERATION_NOT_PERFORMED | Operacao nao Realizada |
+
+## Reform Events (`sefaz-reform-events.ts`)
+
+IBS/CBS tax reform events (PL_010). These are distinct from standard NF-e events.
+
+### Template pattern (DRY)
+
+All 14 reform events follow the same structure:
+
+```typescript
+function buildXxx(config, chNFe, nSeqEvento, ...params, verAplic?) {
+  const va = resolveVerAplic(verAplic, config.verAplic);
+  let tagAdic = reformEventHeader(config, va, tpAutor);  // <cOrgaoAutor>+<tpAutor>+<verAplic>
+  // ... event-specific content added to tagAdic ...
+  return wrapReformEvent(config, tpEvento, chNFe, nSeqEvento, tagAdic, va);
+}
+```
+
+### Event types
+
+| tpEvento | Function | Description |
+|----------|----------|-------------|
+| 110001 | buildCancelaEvento | Cancel a previous event |
+| 112110 | buildInfoPagtoIntegral | Full payment information |
+| 112120 | buildImportacaoZFM | ALC/ZFM import not converted |
+| 112130 | buildRouboPerdaTransporteFornecedor | Loss/theft by supplier (CIF) |
+| 112140 | buildFornecimentoNaoRealizado | Supply not fulfilled |
+| 112150 | buildAtualizacaoDataEntrega | Delivery date update |
+| 211110 | buildSolApropCredPresumido | Presumed credit appropriation |
+| 211120 | buildDestinoConsumoPessoal | Personal consumption |
+| 211124 | buildRouboPerdaTransporteAdquirente | Loss/theft by buyer (FOB) |
+| 211128 | buildAceiteDebito | Debit acceptance |
+| 211130 | buildImobilizacaoItem | Item immobilization |
+| 211140 | buildApropriacaoCreditoComb | Fuel credit appropriation |
+| 211150 | buildApropriacaoCreditoBens | Goods/services credit |
+| 212110 | buildManifestacaoTransfCredIBS | IBS credit transfer manifestation |
+| 212120 | buildManifestacaoTransfCredCBS | CBS credit transfer manifestation |
