@@ -1,0 +1,55 @@
+FROM alpine:3.21 AS base
+RUN apk add --no-cache nodejs npm postgresql postgresql-client && npm i -g bun
+
+FROM base AS deps
+WORKDIR /app
+COPY package.json bun.lock* ./
+RUN bun install --frozen-lockfile
+
+FROM base AS build
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+# Run prepare-prod to switch from PGLite to node-postgres
+RUN bun scripts/prepare-prod.ts
+# Reinstall after dependency changes (pg added, pglite removed)
+RUN bun install
+
+ENV BETTER_AUTH_SECRET=build-placeholder
+ENV BETTER_AUTH_URL=http://localhost:3000
+ENV DATABASE_URL=postgresql://finopenpos:finopenpos@localhost:5432/finopenpos
+
+RUN bun run --bun next build
+
+FROM base AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+
+# Setup PostgreSQL data directory
+RUN mkdir -p /run/postgresql /var/lib/postgresql/data \
+    && chown -R postgres:postgres /run/postgresql /var/lib/postgresql/data
+
+# Init PostgreSQL cluster
+RUN su postgres -c "initdb -D /var/lib/postgresql/data"
+
+# Configure pg_hba for local trust auth
+RUN echo "local all all trust" > /var/lib/postgresql/data/pg_hba.conf \
+    && echo "host all all 127.0.0.1/32 trust" >> /var/lib/postgresql/data/pg_hba.conf \
+    && echo "host all all ::1/128 trust" >> /var/lib/postgresql/data/pg_hba.conf
+
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/.next ./.next
+COPY --from=build /app/public ./public
+COPY --from=build /app/package.json ./
+COPY --from=build /app/next.config.mjs ./
+COPY --from=build /app/drizzle.config.ts ./
+COPY --from=build /app/scripts ./scripts
+COPY --from=build /app/src ./src
+
+COPY docker-entrypoint-prod.sh /docker-entrypoint-prod.sh
+RUN chmod +x /docker-entrypoint-prod.sh
+
+EXPOSE 3111
+
+CMD ["/docker-entrypoint-prod.sh"]

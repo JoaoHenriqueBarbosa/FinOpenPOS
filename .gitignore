@@ -39,7 +39,8 @@ next-env.d.ts
 .env
 
 # pglite local database
-/data/pglite
+/data/*
+!/data/.gitkeep
 
 # drizzle migrations
 /drizzle
