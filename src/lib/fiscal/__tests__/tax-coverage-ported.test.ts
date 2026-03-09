@@ -276,8 +276,8 @@ describe("TaxCoverageTest — ICMS CST", () => {
       vFCPDif: 60,
       vFCPEfet: 120,
     });
-    expectXmlContains(xml, "<ICMS51>", "<pDif>", "<vICMSDif>", "<cBenefRBC>",
-      "<pFCPDif>", "<vFCPDif>", "<vFCPEfet>");
+    expectXmlContains(xml, "<ICMS51>", "<pDif>33.3300</pDif>", "<vICMSDif>5.40</vICMSDif>", "<cBenefRBC>",
+      "<pFCPDif>33.3300</pFCPDif>", "<vFCPDif>0.60</vFCPDif>", "<vFCPEfet>1.20</vFCPEfet>");
   });
 
   it("testICMS51Minimal — CST 51 minimal", () => {
@@ -432,8 +432,9 @@ describe("TaxCoverageTest — ICMS CST", () => {
       vICMSSTDeson: 100,
       motDesICMSST: "3",
     });
-    expectXmlContains(xml, "<ICMS90>", "<cBenefRBC>", "<vICMSOp>", "<pDif>",
-      "<vICMSDif>", "<pFCPDif>", "<vFCPDif>", "<vFCPEfet>",
+    expectXmlContains(xml, "<ICMS90>", "<cBenefRBC>", "<vICMSOp>",
+      "<pDif>33.3300</pDif>", "<vICMSDif>5.40</vICMSDif>",
+      "<pFCPDif>33.3300</pFCPDif>", "<vFCPDif>0.67</vFCPDif>", "<vFCPEfet>1.33</vFCPEfet>",
       "<vICMSSTDeson>", "<motDesICMSST>");
   });
 
@@ -523,7 +524,7 @@ describe("TaxCoverageTest — ICMSSN CSOSN", () => {
       pCredSN: 200,
       vCredICMSSN: 200,
     });
-    expectXmlContains(xml, "<ICMSSN101>", "<pCredSN>");
+    expectXmlContains(xml, "<ICMSSN101>", "<pCredSN>2.0000</pCredSN>");
   });
 
   it("testICMSSN102 — CSOSN 102", () => {
