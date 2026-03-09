@@ -1,6 +1,9 @@
 #!/bin/sh
 set -e
 
+# Start nginx first (so port 80 responds immediately)
+nginx
+
 # Start web app (with db setup)
 cd /app/apps/web
 mkdir -p data
@@ -15,5 +18,5 @@ bun next start --port 3003 &
 cd /app/apps/docs
 BASE_PATH=/docs bun next start --port 3002 &
 
-# Start nginx in foreground
-nginx -g 'daemon off;'
+# Wait for any process to exit
+wait
