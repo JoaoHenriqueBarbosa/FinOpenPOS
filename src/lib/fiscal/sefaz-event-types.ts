@@ -20,8 +20,8 @@ export const EVENT_TYPES = {
 } as const;
 
 /** Map event type to its description */
-export function getEventDescription(eventType: number): string {
-  const descriptions: Record<number, string> = {
+export function getEventDescription(eventType: number | string): string {
+  const descriptions: Record<string, string> = {
     [EVENT_TYPES.CCE]: "Carta de Correcao",
     [EVENT_TYPES.CANCELLATION]: "Cancelamento",
     [EVENT_TYPES.CANCELLATION_BY_SUBSTITUTION]: "Cancelamento por substituicao",
@@ -40,5 +40,19 @@ export function getEventDescription(eventType: number): string {
     [EVENT_TYPES.DELIVERY_FAILURE]: "Insucesso na Entrega da NF-e",
     [EVENT_TYPES.DELIVERY_FAILURE_CANCELLATION]: "Cancelamento Insucesso na Entrega da NF-e",
   };
-  return descriptions[eventType] ?? "";
+  return descriptions[String(eventType)] ?? "";
+}
+
+/** Build an event ID: ID{tpEvento}{chNFe}{seqPadded} */
+export function buildEventId(
+  eventType: number | string,
+  accessKey: string,
+  seqNum: number,
+): string {
+  return `ID${eventType}${accessKey}${String(seqNum).padStart(2, "0")}`;
+}
+
+/** Generate lot ID from explicit value or Date.now() fallback */
+export function defaultLotId(lotId?: string): string {
+  return lotId ?? String(Date.now());
 }

@@ -1,5 +1,5 @@
 import { TaxId } from "./value-objects/tax-id";
-import { EVENT_TYPES, getEventDescription } from "./sefaz-event-types";
+import { EVENT_TYPES, getEventDescription, buildEventId, defaultLotId } from "./sefaz-event-types";
 
 /**
  * Build the status service request XML.
@@ -36,7 +36,7 @@ export function buildAuthorizationRequestXml(
 
   return [
     `<enviNFe xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">`,
-    `<idLote>${Date.now()}</idLote>`,
+    `<idLote>${defaultLotId()}</idLote>`,
     `<indSinc>1</indSinc>`,
     nfeContent,
     `</enviNFe>`,
@@ -55,31 +55,17 @@ export function buildCancellationXml(
 ): string {
   if (!accessKey) throw new Error("Access key is required for cancellation");
   if (!reason) throw new Error("Cancellation reason (xJust) is required");
-  const eventId = `ID110111${accessKey}01`;
-  const now = new Date().toISOString();
 
-  return [
-    `<envEvento xmlns="http://www.portalfiscal.inf.br/nfe" versao="1.00">`,
-    `<idLote>${Date.now()}</idLote>`,
-    `<evento xmlns="http://www.portalfiscal.inf.br/nfe" versao="1.00">`,
-    `<infEvento Id="${eventId}">`,
-    `<cOrgao>91</cOrgao>`,
-    `<tpAmb>${environment}</tpAmb>`,
-    `<CNPJ>${taxId}</CNPJ>`,
-    `<chNFe>${accessKey}</chNFe>`,
-    `<dhEvento>${now}</dhEvento>`,
-    `<tpEvento>110111</tpEvento>`,
-    `<nSeqEvento>1</nSeqEvento>`,
-    `<verEvento>1.00</verEvento>`,
-    `<detEvento versao="1.00">`,
-    `<descEvento>Cancelamento</descEvento>`,
-    `<nProt>${protocolNumber}</nProt>`,
-    `<xJust>${reason}</xJust>`,
-    `</detEvento>`,
-    `</infEvento>`,
-    `</evento>`,
-    `</envEvento>`,
-  ].join("");
+  return buildEventXml({
+    accessKey,
+    eventType: EVENT_TYPES.CANCELLATION,
+    sequenceNumber: 1,
+    taxId,
+    orgCode: "91",
+    environment,
+    eventDateTime: new Date().toISOString(),
+    additionalTags: `<nProt>${protocolNumber}</nProt><xJust>${reason}</xJust>`,
+  });
 }
 
 /**
@@ -298,11 +284,10 @@ export function buildEventXml(options: {
     isCpf = false,
   } = options;
 
-  const seqPadded = String(sequenceNumber).padStart(2, "0");
-  const eventId = `ID${eventType}${accessKey}${seqPadded}`;
+  const eventId = buildEventId(eventType, accessKey, sequenceNumber);
   const descEvento = getEventDescription(eventType);
   const taxIdTag = new TaxId(taxId).toXmlTag();
-  const lot = lotId ?? String(Date.now());
+  const lot = defaultLotId(lotId);
 
   return [
     `<envEvento xmlns="http://www.portalfiscal.inf.br/nfe" versao="1.00">`,
@@ -546,8 +531,7 @@ export function buildExtensionCancellationXml(options: {
       ? EVENT_TYPES.EXTENSION_REQUEST_1
       : EVENT_TYPES.EXTENSION_REQUEST_2;
 
-  const seqPadded = String(sequenceNumber).padStart(2, "0");
-  const idPedidoCancelado = `ID${origEvent}${accessKey}${seqPadded}`;
+  const idPedidoCancelado = buildEventId(origEvent, accessKey, sequenceNumber);
 
   const additionalTags =
     `<idPedidoCancelado>${idPedidoCancelado}</idPedidoCancelado>` +
@@ -998,15 +982,14 @@ export function buildBatchManifestationXml(options: {
     EVENT_TYPES.OPERATION_NOT_PERFORMED,
   ];
 
-  const lot = lotId ?? String(Date.now());
+  const lot = defaultLotId(lotId);
   const taxIdTag = new TaxId(taxId).toXmlTag();
 
   const eventoElements = events
     .filter((e) => validManifestTypes.includes(e.eventType))
     .map((e) => {
       const seqNum = e.sequenceNumber ?? 1;
-      const seqPadded = String(seqNum).padStart(2, "0");
-      const eventId = `ID${e.eventType}${e.accessKey}${seqPadded}`;
+      const eventId = buildEventId(e.eventType, e.accessKey, seqNum);
       const descEvento = getEventDescription(e.eventType);
 
       let detContent = `<descEvento>${descEvento}</descEvento>`;
@@ -1072,15 +1055,14 @@ export function buildBatchEventXml(options: {
 
   const { STATE_CODES } = require("./constants");
   const cUF = STATE_CODES[stateCode];
-  const lot = lotId ?? String(Date.now());
+  const lot = defaultLotId(lotId);
   const taxIdTag = new TaxId(taxId).toXmlTag();
 
   const eventoElements = events
     .filter((e) => e.eventType !== EVENT_TYPES.EPEC)
     .map((e) => {
       const seqNum = e.sequenceNumber ?? 1;
-      const seqPadded = String(seqNum).padStart(2, "0");
-      const eventId = `ID${e.eventType}${e.accessKey}${seqPadded}`;
+      const eventId = buildEventId(e.eventType, e.accessKey, seqNum);
       const descEvento = getEventDescription(e.eventType);
 
       return [
@@ -1199,10 +1181,9 @@ export function buildConciliacaoXml(options: {
     }
   }
 
-  const seqPadded = String(sequenceNumber).padStart(2, "0");
-  const eventId = `ID${eventType}${accessKey}${seqPadded}`;
+  const eventId = buildEventId(eventType, accessKey, sequenceNumber);
   const taxIdTag = new TaxId(taxId).toXmlTag();
-  const lot = lotId ?? String(Date.now());
+  const lot = defaultLotId(lotId);
 
   return [
     `<envEvento xmlns="http://www.portalfiscal.inf.br/nfe" versao="1.00">`,

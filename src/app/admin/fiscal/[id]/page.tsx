@@ -10,6 +10,7 @@ import { ArrowLeftIcon, FileDownIcon, CodeXmlIcon, ChevronDownIcon } from "lucid
 import Link from "next/link";
 import { useTRPC } from "@/lib/trpc/client";
 import { useQuery } from "@tanstack/react-query";
+import { invoiceStatusBadgeVariant } from "../utils";
 import { useTranslations, useLocale } from "next-intl";
 import { formatCurrency } from "@/lib/utils";
 import { useState } from "react";
@@ -37,14 +38,6 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
     return <div className="text-muted-foreground">{t("noInvoices")}</div>;
   }
 
-  const statusBadgeVariant = (status: string) => {
-    switch (status) {
-      case "authorized": return "default" as const;
-      case "pending": case "contingency": return "secondary" as const;
-      case "rejected": case "cancelled": case "denied": return "destructive" as const;
-      default: return "outline" as const;
-    }
-  };
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -62,7 +55,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
             <CardTitle>
               {invoice.model === 65 ? t("nfce") : t("nfe")} #{invoice.series}-{String(invoice.number).padStart(9, "0")}
             </CardTitle>
-            <Badge variant={statusBadgeVariant(invoice.status)}>{invoice.status}</Badge>
+            <Badge variant={invoiceStatusBadgeVariant(invoice.status)}>{invoice.status}</Badge>
           </div>
         </CardHeader>
         <CardContent>

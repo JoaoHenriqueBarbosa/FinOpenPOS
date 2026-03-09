@@ -89,7 +89,7 @@ export function signXml(
 /**
  * Extract certificate PEM from PFX using openssl.
  */
-function extractCertFromPfx(pfxBuffer: Buffer, passphrase: string): string {
+export function extractCertFromPfx(pfxBuffer: Buffer, passphrase: string): string {
   const { execSync } = require("node:child_process");
   const tmpPfx = "/tmp/_finopenpos_cert_extract.pfx";
   require("node:fs").writeFileSync(tmpPfx, pfxBuffer);
@@ -113,7 +113,7 @@ function extractCertFromPfx(pfxBuffer: Buffer, passphrase: string): string {
 /**
  * Extract private key PEM from PFX using openssl.
  */
-function extractKeyFromPfx(pfxBuffer: Buffer, passphrase: string): string {
+export function extractKeyFromPfx(pfxBuffer: Buffer, passphrase: string): string {
   const { execSync } = require("node:child_process");
   const tmpPfx = "/tmp/_finopenpos_key_extract.pfx";
   require("node:fs").writeFileSync(tmpPfx, pfxBuffer);

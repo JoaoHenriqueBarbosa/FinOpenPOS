@@ -265,20 +265,11 @@ export function buildIcmsPartXml(data: IcmsData): { xml: string; totals: IcmsTot
     optionalField("pRedBC", formatCentsOrNull(data.pRedBC, 4)),
     requiredField("pICMS", formatCentsOrNull(data.pICMS, 4)),
     requiredField("vICMS", formatCentsOrNull(data.vICMS)),
-    requiredField("modBCST", data.modBCST),
-    optionalField("pMVAST", formatCentsOrNull(data.pMVAST, 4)),
-    optionalField("pRedBCST", formatCentsOrNull(data.pRedBCST, 4)),
-    requiredField("vBCST", formatCentsOrNull(data.vBCST)),
-    requiredField("pICMSST", formatCentsOrNull(data.pICMSST, 4)),
-    requiredField("vICMSST", formatCentsOrNull(data.vICMSST)),
-    optionalField("vBCFCPST", formatCentsOrNull(data.vBCFCPST)),
-    optionalField("pFCPST", formatCentsOrNull(data.pFCPST, 4)),
-    optionalField("vFCPST", formatCentsOrNull(data.vFCPST)),
+    ...stFields(data),
+    ...fcpStFields(data),
     requiredField("pBCOp", formatCentsOrNull(data.pBCOp, 4)),
     requiredField("UFST", data.UFST),
-    optionalField("vICMSDeson", formatCentsOrNull(data.vICMSDeson)),
-    optionalField("motDesICMS", data.motDesICMS),
-    optionalField("indDeduzDeson", data.indDeduzDeson),
+    ...desonerationFields(data),
   ]);
 
   const element: TaxElement = { outerTag: "ICMS", outerFields: [], variantTag: "ICMSPart", fields };
@@ -362,6 +353,59 @@ export function mergeIcmsTotals(target: IcmsTotals, source: IcmsTotals): void {
   target.vICMSMonoReten += source.vICMSMonoReten;
   target.qBCMonoRet += source.qBCMonoRet;
   target.vICMSMonoRet += source.vICMSMonoRet;
+}
+
+// ── Domain field-block helpers ──────────────────────────────────────────────
+//
+// These helpers model real NF-e schema groups. Each represents a well-known
+// fiscal concept (FCP, ST, desoneration) and returns a nullable field array
+// that can be spread into filterFields().
+
+/** FCP (Fundo de Combate à Pobreza): vBCFCP, pFCP, vFCP */
+function fcpFields(d: IcmsData): (TaxField | null)[] {
+  return [
+    optionalField("vBCFCP", formatCentsOrNull(d.vBCFCP)),
+    optionalField("pFCP", formatCentsOrNull(d.pFCP, 4)),
+    optionalField("vFCP", formatCentsOrNull(d.vFCP)),
+  ];
+}
+
+/** FCP-ST: vBCFCPST, pFCPST, vFCPST */
+function fcpStFields(d: IcmsData): (TaxField | null)[] {
+  return [
+    optionalField("vBCFCPST", formatCentsOrNull(d.vBCFCPST)),
+    optionalField("pFCPST", formatCentsOrNull(d.pFCPST, 4)),
+    optionalField("vFCPST", formatCentsOrNull(d.vFCPST)),
+  ];
+}
+
+/** ST base (required modBCST): modBCST … vICMSST */
+function stFields(d: IcmsData): (TaxField | null)[] {
+  return [
+    requiredField("modBCST", d.modBCST),
+    optionalField("pMVAST", formatCentsOrNull(d.pMVAST, 4)),
+    optionalField("pRedBCST", formatCentsOrNull(d.pRedBCST, 4)),
+    requiredField("vBCST", formatCentsOrNull(d.vBCST)),
+    requiredField("pICMSST", formatCentsOrNull(d.pICMSST, 4)),
+    requiredField("vICMSST", formatCentsOrNull(d.vICMSST)),
+  ];
+}
+
+/** Desoneration: vICMSDeson, motDesICMS, indDeduzDeson */
+function desonerationFields(d: IcmsData): (TaxField | null)[] {
+  return [
+    optionalField("vICMSDeson", formatCentsOrNull(d.vICMSDeson)),
+    optionalField("motDesICMS", d.motDesICMS),
+    optionalField("indDeduzDeson", d.indDeduzDeson),
+  ];
+}
+
+/** ST desoneration: vICMSSTDeson, motDesICMSST */
+function stDesonerationFields(d: IcmsData): (TaxField | null)[] {
+  return [
+    optionalField("vICMSSTDeson", formatCentsOrNull(d.vICMSSTDeson)),
+    optionalField("motDesICMSST", d.motDesICMSST),
+  ];
 }
 
 // ── CST builders (regime Normal) ────────────────────────────────────────────
@@ -454,20 +498,10 @@ function calcCst10(d: IcmsData, t: IcmsTotals): CstResult {
     requiredField("vBC", formatCentsOrNull(d.vBC)),
     requiredField("pICMS", formatCentsOrNull(d.pICMS, 4)),
     requiredField("vICMS", formatCentsOrNull(d.vICMS)),
-    optionalField("vBCFCP", formatCentsOrNull(d.vBCFCP)),
-    optionalField("pFCP", formatCentsOrNull(d.pFCP, 4)),
-    optionalField("vFCP", formatCentsOrNull(d.vFCP)),
-    requiredField("modBCST", d.modBCST),
-    optionalField("pMVAST", formatCentsOrNull(d.pMVAST, 4)),
-    optionalField("pRedBCST", formatCentsOrNull(d.pRedBCST, 4)),
-    requiredField("vBCST", formatCentsOrNull(d.vBCST)),
-    requiredField("pICMSST", formatCentsOrNull(d.pICMSST, 4)),
-    requiredField("vICMSST", formatCentsOrNull(d.vICMSST)),
-    optionalField("vBCFCPST", formatCentsOrNull(d.vBCFCPST)),
-    optionalField("pFCPST", formatCentsOrNull(d.pFCPST, 4)),
-    optionalField("vFCPST", formatCentsOrNull(d.vFCPST)),
-    optionalField("vICMSSTDeson", formatCentsOrNull(d.vICMSSTDeson)),
-    optionalField("motDesICMSST", d.motDesICMSST),
+    ...fcpFields(d),
+    ...stFields(d),
+    ...fcpStFields(d),
+    ...stDesonerationFields(d),
   ]) };
 }
 
@@ -512,12 +546,8 @@ function calcCst20(d: IcmsData, t: IcmsTotals): CstResult {
     requiredField("vBC", formatCentsOrNull(d.vBC)),
     requiredField("pICMS", formatCentsOrNull(d.pICMS, 4)),
     requiredField("vICMS", formatCentsOrNull(d.vICMS)),
-    optionalField("vBCFCP", formatCentsOrNull(d.vBCFCP)),
-    optionalField("pFCP", formatCentsOrNull(d.pFCP, 4)),
-    optionalField("vFCP", formatCentsOrNull(d.vFCP)),
-    optionalField("vICMSDeson", formatCentsOrNull(d.vICMSDeson)),
-    optionalField("motDesICMS", d.motDesICMS),
-    optionalField("indDeduzDeson", d.indDeduzDeson),
+    ...fcpFields(d),
+    ...desonerationFields(d),
   ]) };
 }
 
@@ -531,18 +561,9 @@ function calcCst30(d: IcmsData, t: IcmsTotals): CstResult {
   return { variantTag: "ICMS30", fields: filterFields([
     requiredField("orig", d.orig),
     requiredField("CST", d.CST),
-    requiredField("modBCST", d.modBCST),
-    optionalField("pMVAST", formatCentsOrNull(d.pMVAST, 4)),
-    optionalField("pRedBCST", formatCentsOrNull(d.pRedBCST, 4)),
-    requiredField("vBCST", formatCentsOrNull(d.vBCST)),
-    requiredField("pICMSST", formatCentsOrNull(d.pICMSST, 4)),
-    requiredField("vICMSST", formatCentsOrNull(d.vICMSST)),
-    optionalField("vBCFCPST", formatCentsOrNull(d.vBCFCPST)),
-    optionalField("pFCPST", formatCentsOrNull(d.pFCPST, 4)),
-    optionalField("vFCPST", formatCentsOrNull(d.vFCPST)),
-    optionalField("vICMSDeson", formatCentsOrNull(d.vICMSDeson)),
-    optionalField("motDesICMS", d.motDesICMS),
-    optionalField("indDeduzDeson", d.indDeduzDeson),
+    ...stFields(d),
+    ...fcpStFields(d),
+    ...desonerationFields(d),
   ]) };
 }
 
@@ -553,9 +574,7 @@ function calcCst40(d: IcmsData, t: IcmsTotals): CstResult {
   return { variantTag: "ICMS40", fields: filterFields([
     requiredField("orig", d.orig),
     requiredField("CST", d.CST),
-    optionalField("vICMSDeson", formatCentsOrNull(d.vICMSDeson)),
-    optionalField("motDesICMS", d.motDesICMS),
-    optionalField("indDeduzDeson", d.indDeduzDeson),
+    ...desonerationFields(d),
   ]) };
 }
 
@@ -658,23 +677,11 @@ function calcCst70(d: IcmsData, t: IcmsTotals): CstResult {
     requiredField("vBC", formatCentsOrNull(d.vBC)),
     requiredField("pICMS", formatCentsOrNull(d.pICMS, 4)),
     requiredField("vICMS", formatCentsOrNull(d.vICMS)),
-    optionalField("vBCFCP", formatCentsOrNull(d.vBCFCP)),
-    optionalField("pFCP", formatCentsOrNull(d.pFCP, 4)),
-    optionalField("vFCP", formatCentsOrNull(d.vFCP)),
-    requiredField("modBCST", d.modBCST),
-    optionalField("pMVAST", formatCentsOrNull(d.pMVAST, 4)),
-    optionalField("pRedBCST", formatCentsOrNull(d.pRedBCST, 4)),
-    requiredField("vBCST", formatCentsOrNull(d.vBCST)),
-    requiredField("pICMSST", formatCentsOrNull(d.pICMSST, 4)),
-    requiredField("vICMSST", formatCentsOrNull(d.vICMSST)),
-    optionalField("vBCFCPST", formatCentsOrNull(d.vBCFCPST)),
-    optionalField("pFCPST", formatCentsOrNull(d.pFCPST, 4)),
-    optionalField("vFCPST", formatCentsOrNull(d.vFCPST)),
-    optionalField("vICMSDeson", formatCentsOrNull(d.vICMSDeson)),
-    optionalField("motDesICMS", d.motDesICMS),
-    optionalField("indDeduzDeson", d.indDeduzDeson),
-    optionalField("vICMSSTDeson", formatCentsOrNull(d.vICMSSTDeson)),
-    optionalField("motDesICMSST", d.motDesICMSST),
+    ...fcpFields(d),
+    ...stFields(d),
+    ...fcpStFields(d),
+    ...desonerationFields(d),
+    ...stDesonerationFields(d),
   ]) };
 }
 
@@ -700,26 +707,20 @@ function calcCst90(d: IcmsData, t: IcmsTotals): CstResult {
     optionalField("pDif", formatCentsOrNull(d.pDif)),
     optionalField("vICMSDif", formatCentsOrNull(d.vICMSDif)),
     optionalField("vICMS", formatCentsOrNull(d.vICMS)),
-    optionalField("vBCFCP", formatCentsOrNull(d.vBCFCP)),
-    optionalField("pFCP", formatCentsOrNull(d.pFCP, 4)),
-    optionalField("vFCP", formatCentsOrNull(d.vFCP)),
+    ...fcpFields(d),
     optionalField("pFCPDif", formatCentsOrNull(d.pFCPDif, 4)),
     optionalField("vFCPDif", formatCentsOrNull(d.vFCPDif)),
     optionalField("vFCPEfet", formatCentsOrNull(d.vFCPEfet)),
+    // ST fields are all optional for CST 90 (can't use stFields helper)
     optionalField("modBCST", d.modBCST),
     optionalField("pMVAST", formatCentsOrNull(d.pMVAST, 4)),
     optionalField("pRedBCST", formatCentsOrNull(d.pRedBCST, 4)),
     optionalField("vBCST", formatCentsOrNull(d.vBCST)),
     optionalField("pICMSST", formatCentsOrNull(d.pICMSST, 4)),
     optionalField("vICMSST", formatCentsOrNull(d.vICMSST)),
-    optionalField("vBCFCPST", formatCentsOrNull(d.vBCFCPST)),
-    optionalField("pFCPST", formatCentsOrNull(d.pFCPST, 4)),
-    optionalField("vFCPST", formatCentsOrNull(d.vFCPST)),
-    optionalField("vICMSDeson", formatCentsOrNull(d.vICMSDeson)),
-    optionalField("motDesICMS", d.motDesICMS),
-    optionalField("indDeduzDeson", d.indDeduzDeson),
-    optionalField("vICMSSTDeson", formatCentsOrNull(d.vICMSSTDeson)),
-    optionalField("motDesICMSST", d.motDesICMSST),
+    ...fcpStFields(d),
+    ...desonerationFields(d),
+    ...stDesonerationFields(d),
   ]) };
 }
 
@@ -778,15 +779,8 @@ function calcCsosn201(d: IcmsData, t: IcmsTotals): CstResult {
   return { variantTag: "ICMSSN201", fields: filterFields([
     requiredField("orig", d.orig),
     requiredField("CSOSN", d.CSOSN),
-    requiredField("modBCST", d.modBCST),
-    optionalField("pMVAST", formatCentsOrNull(d.pMVAST, 4)),
-    optionalField("pRedBCST", formatCentsOrNull(d.pRedBCST, 4)),
-    requiredField("vBCST", formatCentsOrNull(d.vBCST)),
-    requiredField("pICMSST", formatCentsOrNull(d.pICMSST, 4)),
-    requiredField("vICMSST", formatCentsOrNull(d.vICMSST)),
-    optionalField("vBCFCPST", formatCentsOrNull(d.vBCFCPST)),
-    optionalField("pFCPST", formatCentsOrNull(d.pFCPST, 4)),
-    optionalField("vFCPST", formatCentsOrNull(d.vFCPST)),
+    ...stFields(d),
+    ...fcpStFields(d),
     optionalField("pCredSN", formatCentsOrNull(d.pCredSN, 4)),
     optionalField("vCredICMSSN", formatCentsOrNull(d.vCredICMSSN)),
   ]) };
@@ -800,15 +794,8 @@ function calcCsosn202(d: IcmsData, t: IcmsTotals): CstResult {
   return { variantTag: "ICMSSN202", fields: filterFields([
     requiredField("orig", d.orig),
     requiredField("CSOSN", d.CSOSN),
-    requiredField("modBCST", d.modBCST),
-    optionalField("pMVAST", formatCentsOrNull(d.pMVAST, 4)),
-    optionalField("pRedBCST", formatCentsOrNull(d.pRedBCST, 4)),
-    requiredField("vBCST", formatCentsOrNull(d.vBCST)),
-    requiredField("pICMSST", formatCentsOrNull(d.pICMSST, 4)),
-    requiredField("vICMSST", formatCentsOrNull(d.vICMSST)),
-    optionalField("vBCFCPST", formatCentsOrNull(d.vBCFCPST)),
-    optionalField("pFCPST", formatCentsOrNull(d.pFCPST, 4)),
-    optionalField("vFCPST", formatCentsOrNull(d.vFCPST)),
+    ...stFields(d),
+    ...fcpStFields(d),
   ]) };
 }
 
@@ -846,15 +833,14 @@ function calcCsosn900(d: IcmsData, t: IcmsTotals): CstResult {
     optionalField("pRedBC", formatCentsOrNull(d.pRedBC, 4)),
     optionalField("pICMS", formatCentsOrNull(d.pICMS, 4)),
     optionalField("vICMS", formatCentsOrNull(d.vICMS)),
+    // ST fields are all optional for CSOSN 900 (can't use stFields helper)
     optionalField("modBCST", d.modBCST),
     optionalField("pMVAST", formatCentsOrNull(d.pMVAST, 4)),
     optionalField("pRedBCST", formatCentsOrNull(d.pRedBCST, 4)),
     optionalField("vBCST", formatCentsOrNull(d.vBCST)),
     optionalField("pICMSST", formatCentsOrNull(d.pICMSST, 4)),
     optionalField("vICMSST", formatCentsOrNull(d.vICMSST)),
-    optionalField("vBCFCPST", formatCentsOrNull(d.vBCFCPST)),
-    optionalField("pFCPST", formatCentsOrNull(d.pFCPST, 4)),
-    optionalField("vFCPST", formatCentsOrNull(d.vFCPST)),
+    ...fcpStFields(d),
     optionalField("pCredSN", formatCentsOrNull(d.pCredSN, 4)),
     optionalField("vCredICMSSN", formatCentsOrNull(d.vCredICMSSN)),
   ]) };

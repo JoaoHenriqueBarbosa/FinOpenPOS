@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import type { EmissionType, SefazEnvironment } from "./types";
+import { extractXmlTagValue } from "./xml-utils";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -261,11 +262,7 @@ export async function putQRTag(params: PutQRTagParams): Promise<string> {
   return result;
 }
 
-/** Extract value of a simple XML tag from a string */
-function extractXmlTagValue(xml: string, tagName: string): string | undefined {
-  const match = xml.match(new RegExp(`<${tagName}>([^<]*)</${tagName}>`));
-  return match?.[1];
-}
+// extractXmlTagValue imported from ./xml-utils
 
 /** Extract an attribute value from an XML element */
 function extractXmlTagAttr(xml: string, tagName: string, attrName: string): string | undefined {

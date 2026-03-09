@@ -10,6 +10,8 @@
  * We replicate the same structure so tests can assert on string containment.
  */
 
+import { buildEventId, defaultLotId } from "./sefaz-event-types";
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmt2(v: number): string {
@@ -52,11 +54,10 @@ interface EventEnvelopeParams {
 
 function buildEventEnvelope(p: EventEnvelopeParams): string {
   const verEvento = "1.00";
-  const sSeqEvento = String(p.nSeqEvento).padStart(2, "0");
-  const eventId = `ID${p.tpEvento}${p.chNFe}${sSeqEvento}`;
+  const eventId = buildEventId(p.tpEvento, p.chNFe, p.nSeqEvento);
   const descEvento = EVENT_DESCRIPTIONS[p.tpEvento] ?? "Evento";
   const dhEvento = new Date().toISOString().replace("Z", "-03:00");
-  const lote = Date.now().toString();
+  const lote = defaultLotId();
 
   return `<envEvento xmlns="http://www.portalfiscal.inf.br/nfe" versao="${verEvento}">`
     + `<idLote>${lote}</idLote>`
@@ -77,6 +78,30 @@ function buildEventEnvelope(p: EventEnvelopeParams): string {
     + `</infEvento>`
     + `</evento>`
     + `</envEvento>`;
+}
+
+/** Build the standard cOrgaoAutor + tpAutor + verAplic tagAdic prefix */
+function reformEventHeader(config: SefazReformConfig, va: string, tpAutor?: number): string {
+  let h = `<cOrgaoAutor>${config.cOrgao}</cOrgaoAutor>`;
+  if (tpAutor != null) h += `<tpAutor>${tpAutor}</tpAutor>`;
+  h += `<verAplic>${va}</verAplic>`;
+  return h;
+}
+
+/** Wrap tagAdic in a buildEventEnvelope call with standard config params */
+function wrapReformEvent(
+  config: SefazReformConfig,
+  tpEvento: string,
+  chNFe: string,
+  nSeqEvento: number,
+  tagAdic: string,
+  va: string,
+): string {
+  return buildEventEnvelope({
+    tpEvento, chNFe, nSeqEvento,
+    cOrgao: config.cOrgao, tpAmb: config.tpAmb, cnpj: config.cnpj,
+    tagAdic, verAplic: va,
+  });
 }
 
 // ── Config type ──────────────────────────────────────────────────────────────
@@ -137,21 +162,8 @@ export function buildInfoPagtoIntegral(
 ): string {
   checkRtcModel(model, chNFe);
   const va = resolveVerAplic(verAplic, config.verAplic);
-  const tagAdic = `<cOrgaoAutor>${config.cOrgao}</cOrgaoAutor>`
-    + `<tpAutor>1</tpAutor>`
-    + `<verAplic>${va}</verAplic>`
-    + `<indQuitacao>1</indQuitacao>`;
-
-  return buildEventEnvelope({
-    tpEvento: "112110",
-    chNFe,
-    nSeqEvento,
-    cOrgao: config.cOrgao,
-    tpAmb: config.tpAmb,
-    cnpj: config.cnpj,
-    tagAdic,
-    verAplic: va,
-  });
+  const tagAdic = reformEventHeader(config, va, 1) + `<indQuitacao>1</indQuitacao>`;
+  return wrapReformEvent(config, "112110", chNFe, nSeqEvento, tagAdic, va);
 }
 
 // ── Event builders ───────────────────────────────────────────────────────────
@@ -174,9 +186,7 @@ export function buildSolApropCredPresumido(
   verAplic?: string
 ): string {
   const va = resolveVerAplic(verAplic, config.verAplic);
-  let tagAdic = `<cOrgaoAutor>${config.cOrgao}</cOrgaoAutor>`
-    + `<tpAutor>2</tpAutor>`
-    + `<verAplic>${va}</verAplic>`;
+  let tagAdic = reformEventHeader(config, va, 2);
 
   for (const item of itens) {
     const bc = fmt2(item.vBC);
@@ -198,15 +208,7 @@ export function buildSolApropCredPresumido(
     tagAdic += `</gCredPres>`;
   }
 
-  return buildEventEnvelope({
-    tpEvento: "211110",
-    chNFe, nSeqEvento,
-    cOrgao: config.cOrgao,
-    tpAmb: config.tpAmb,
-    cnpj: config.cnpj,
-    tagAdic,
-    verAplic: va,
-  });
+  return wrapReformEvent(config, "211110", chNFe, nSeqEvento, tagAdic, va);
 }
 
 export interface ConsumoItem {
@@ -231,9 +233,7 @@ export function buildDestinoConsumoPessoal(
   verAplic?: string
 ): string {
   const va = resolveVerAplic(verAplic, config.verAplic);
-  let tagAdic = `<cOrgaoAutor>${config.cOrgao}</cOrgaoAutor>`
-    + `<tpAutor>${tpAutor}</tpAutor>`
-    + `<verAplic>${va}</verAplic>`;
+  let tagAdic = reformEventHeader(config, va, tpAutor);
 
   for (const item of itens) {
     tagAdic += `<gConsumo nItem="${item.item}">`
@@ -252,15 +252,7 @@ export function buildDestinoConsumoPessoal(
     tagAdic += `</gConsumo>`;
   }
 
-  return buildEventEnvelope({
-    tpEvento: "211120",
-    chNFe, nSeqEvento,
-    cOrgao: config.cOrgao,
-    tpAmb: config.tpAmb,
-    cnpj: config.cnpj,
-    tagAdic,
-    verAplic: va,
-  });
+  return wrapReformEvent(config, "211120", chNFe, nSeqEvento, tagAdic, va);
 }
 
 /**
@@ -274,20 +266,8 @@ export function buildAceiteDebito(
   verAplic?: string
 ): string {
   const va = resolveVerAplic(verAplic, config.verAplic);
-  const tagAdic = `<cOrgaoAutor>${config.cOrgao}</cOrgaoAutor>`
-    + `<tpAutor>2</tpAutor>`
-    + `<verAplic>${va}</verAplic>`
-    + `<indAceitacao>${indAceitacao}</indAceitacao>`;
-
-  return buildEventEnvelope({
-    tpEvento: "211128",
-    chNFe, nSeqEvento,
-    cOrgao: config.cOrgao,
-    tpAmb: config.tpAmb,
-    cnpj: config.cnpj,
-    tagAdic,
-    verAplic: va,
-  });
+  const tagAdic = reformEventHeader(config, va, 2) + `<indAceitacao>${indAceitacao}</indAceitacao>`;
+  return wrapReformEvent(config, "211128", chNFe, nSeqEvento, tagAdic, va);
 }
 
 export interface ImobilizacaoItem {
@@ -309,9 +289,7 @@ export function buildImobilizacaoItem(
   verAplic?: string
 ): string {
   const va = resolveVerAplic(verAplic, config.verAplic);
-  let tagAdic = `<cOrgaoAutor>${config.cOrgao}</cOrgaoAutor>`
-    + `<tpAutor>2</tpAutor>`
-    + `<verAplic>${va}</verAplic>`;
+  let tagAdic = reformEventHeader(config, va, 2);
 
   for (const item of itens) {
     tagAdic += `<gImobilizacao nItem="${item.item}">`
@@ -324,15 +302,7 @@ export function buildImobilizacaoItem(
       + `</gImobilizacao>`;
   }
 
-  return buildEventEnvelope({
-    tpEvento: "211130",
-    chNFe, nSeqEvento,
-    cOrgao: config.cOrgao,
-    tpAmb: config.tpAmb,
-    cnpj: config.cnpj,
-    tagAdic,
-    verAplic: va,
-  });
+  return wrapReformEvent(config, "211130", chNFe, nSeqEvento, tagAdic, va);
 }
 
 export interface CombustivelItem {
@@ -354,9 +324,7 @@ export function buildApropriacaoCreditoComb(
   verAplic?: string
 ): string {
   const va = resolveVerAplic(verAplic, config.verAplic);
-  let tagAdic = `<cOrgaoAutor>${config.cOrgao}</cOrgaoAutor>`
-    + `<tpAutor>2</tpAutor>`
-    + `<verAplic>${va}</verAplic>`;
+  let tagAdic = reformEventHeader(config, va, 2);
 
   for (const item of itens) {
     tagAdic += `<gConsumoComb nItem="${item.item}">`
@@ -369,15 +337,7 @@ export function buildApropriacaoCreditoComb(
       + `</gConsumoComb>`;
   }
 
-  return buildEventEnvelope({
-    tpEvento: "211140",
-    chNFe, nSeqEvento,
-    cOrgao: config.cOrgao,
-    tpAmb: config.tpAmb,
-    cnpj: config.cnpj,
-    tagAdic,
-    verAplic: va,
-  });
+  return wrapReformEvent(config, "211140", chNFe, nSeqEvento, tagAdic, va);
 }
 
 export interface CreditoBensItem {
@@ -397,9 +357,7 @@ export function buildApropriacaoCreditoBens(
   verAplic?: string
 ): string {
   const va = resolveVerAplic(verAplic, config.verAplic);
-  let tagAdic = `<cOrgaoAutor>${config.cOrgao}</cOrgaoAutor>`
-    + `<tpAutor>2</tpAutor>`
-    + `<verAplic>${va}</verAplic>`;
+  let tagAdic = reformEventHeader(config, va, 2);
 
   for (const item of itens) {
     tagAdic += `<gCredito nItem="${item.item}">`
@@ -408,15 +366,7 @@ export function buildApropriacaoCreditoBens(
       + `</gCredito>`;
   }
 
-  return buildEventEnvelope({
-    tpEvento: "211150",
-    chNFe, nSeqEvento,
-    cOrgao: config.cOrgao,
-    tpAmb: config.tpAmb,
-    cnpj: config.cnpj,
-    tagAdic,
-    verAplic: va,
-  });
+  return wrapReformEvent(config, "211150", chNFe, nSeqEvento, tagAdic, va);
 }
 
 /**
@@ -430,20 +380,8 @@ export function buildManifestacaoTransfCredIBS(
   verAplic?: string
 ): string {
   const va = resolveVerAplic(verAplic, config.verAplic);
-  const tagAdic = `<cOrgaoAutor>${config.cOrgao}</cOrgaoAutor>`
-    + `<tpAutor>8</tpAutor>`
-    + `<verAplic>${va}</verAplic>`
-    + `<indAceitacao>${indAceitacao}</indAceitacao>`;
-
-  return buildEventEnvelope({
-    tpEvento: "212110",
-    chNFe, nSeqEvento,
-    cOrgao: config.cOrgao,
-    tpAmb: config.tpAmb,
-    cnpj: config.cnpj,
-    tagAdic,
-    verAplic: va,
-  });
+  const tagAdic = reformEventHeader(config, va, 8) + `<indAceitacao>${indAceitacao}</indAceitacao>`;
+  return wrapReformEvent(config, "212110", chNFe, nSeqEvento, tagAdic, va);
 }
 
 /**
@@ -457,20 +395,8 @@ export function buildManifestacaoTransfCredCBS(
   verAplic?: string
 ): string {
   const va = resolveVerAplic(verAplic, config.verAplic);
-  const tagAdic = `<cOrgaoAutor>${config.cOrgao}</cOrgaoAutor>`
-    + `<tpAutor>8</tpAutor>`
-    + `<verAplic>${va}</verAplic>`
-    + `<indAceitacao>${indAceitacao}</indAceitacao>`;
-
-  return buildEventEnvelope({
-    tpEvento: "212120",
-    chNFe, nSeqEvento,
-    cOrgao: config.cOrgao,
-    tpAmb: config.tpAmb,
-    cnpj: config.cnpj,
-    tagAdic,
-    verAplic: va,
-  });
+  const tagAdic = reformEventHeader(config, va, 8) + `<indAceitacao>${indAceitacao}</indAceitacao>`;
+  return wrapReformEvent(config, "212120", chNFe, nSeqEvento, tagAdic, va);
 }
 
 /**
@@ -485,20 +411,10 @@ export function buildCancelaEvento(
   verAplic?: string
 ): string {
   const va = resolveVerAplic(verAplic, config.verAplic);
-  const tagAdic = `<cOrgaoAutor>${config.cOrgao}</cOrgaoAutor>`
-    + `<verAplic>${va}</verAplic>`
+  const tagAdic = reformEventHeader(config, va)
     + `<tpEventoAut>${tpEventoAut}</tpEventoAut>`
     + `<nProtEvento>${nProtEvento}</nProtEvento>`;
-
-  return buildEventEnvelope({
-    tpEvento: "110001",
-    chNFe, nSeqEvento,
-    cOrgao: config.cOrgao,
-    tpAmb: config.tpAmb,
-    cnpj: config.cnpj,
-    tagAdic,
-    verAplic: va,
-  });
+  return wrapReformEvent(config, "110001", chNFe, nSeqEvento, tagAdic, va);
 }
 
 export interface ImportacaoZFMItem {
@@ -520,9 +436,7 @@ export function buildImportacaoZFM(
   verAplic?: string
 ): string {
   const va = resolveVerAplic(verAplic, config.verAplic);
-  let tagAdic = `<cOrgaoAutor>${config.cOrgao}</cOrgaoAutor>`
-    + `<tpAutor>1</tpAutor>`
-    + `<verAplic>${va}</verAplic>`;
+  let tagAdic = reformEventHeader(config, va, 1);
 
   for (const item of itens) {
     tagAdic += `<gConsumo nItem="${item.item}">`
@@ -535,15 +449,7 @@ export function buildImportacaoZFM(
       + `</gConsumo>`;
   }
 
-  return buildEventEnvelope({
-    tpEvento: "112120",
-    chNFe, nSeqEvento,
-    cOrgao: config.cOrgao,
-    tpAmb: config.tpAmb,
-    cnpj: config.cnpj,
-    tagAdic,
-    verAplic: va,
-  });
+  return wrapReformEvent(config, "112120", chNFe, nSeqEvento, tagAdic, va);
 }
 
 export interface PerecimentoAdquirenteItem {
@@ -565,9 +471,7 @@ export function buildRouboPerdaTransporteAdquirente(
   verAplic?: string
 ): string {
   const va = resolveVerAplic(verAplic, config.verAplic);
-  let tagAdic = `<cOrgaoAutor>${config.cOrgao}</cOrgaoAutor>`
-    + `<tpAutor>2</tpAutor>`
-    + `<verAplic>${va}</verAplic>`;
+  let tagAdic = reformEventHeader(config, va, 2);
 
   for (const item of itens) {
     tagAdic += `<gPerecimento nItem="${item.item}">`
@@ -580,15 +484,7 @@ export function buildRouboPerdaTransporteAdquirente(
       + `</gPerecimento>`;
   }
 
-  return buildEventEnvelope({
-    tpEvento: "211124",
-    chNFe, nSeqEvento,
-    cOrgao: config.cOrgao,
-    tpAmb: config.tpAmb,
-    cnpj: config.cnpj,
-    tagAdic,
-    verAplic: va,
-  });
+  return wrapReformEvent(config, "211124", chNFe, nSeqEvento, tagAdic, va);
 }
 
 export interface PerecimentoFornecedorItem {
@@ -612,9 +508,7 @@ export function buildRouboPerdaTransporteFornecedor(
   verAplic?: string
 ): string {
   const va = resolveVerAplic(verAplic, config.verAplic);
-  let tagAdic = `<cOrgaoAutor>${config.cOrgao}</cOrgaoAutor>`
-    + `<tpAutor>1</tpAutor>`
-    + `<verAplic>${va}</verAplic>`;
+  let tagAdic = reformEventHeader(config, va, 1);
 
   for (const item of itens) {
     tagAdic += `<gPerecimento nItem="${item.item}">`
@@ -629,15 +523,7 @@ export function buildRouboPerdaTransporteFornecedor(
       + `</gPerecimento>`;
   }
 
-  return buildEventEnvelope({
-    tpEvento: "112130",
-    chNFe, nSeqEvento,
-    cOrgao: config.cOrgao,
-    tpAmb: config.tpAmb,
-    cnpj: config.cnpj,
-    tagAdic,
-    verAplic: va,
-  });
+  return wrapReformEvent(config, "112130", chNFe, nSeqEvento, tagAdic, va);
 }
 
 export interface ItemNaoFornecido {
@@ -659,9 +545,7 @@ export function buildFornecimentoNaoRealizado(
   verAplic?: string
 ): string {
   const va = resolveVerAplic(verAplic, config.verAplic);
-  let tagAdic = `<cOrgaoAutor>${config.cOrgao}</cOrgaoAutor>`
-    + `<tpAutor>1</tpAutor>`
-    + `<verAplic>${va}</verAplic>`;
+  let tagAdic = reformEventHeader(config, va, 1);
 
   for (const item of itens) {
     tagAdic += `<gItemNaoFornecido nItem="${item.item}">`
@@ -674,15 +558,7 @@ export function buildFornecimentoNaoRealizado(
       + `</gItemNaoFornecido>`;
   }
 
-  return buildEventEnvelope({
-    tpEvento: "112140",
-    chNFe, nSeqEvento,
-    cOrgao: config.cOrgao,
-    tpAmb: config.tpAmb,
-    cnpj: config.cnpj,
-    tagAdic,
-    verAplic: va,
-  });
+  return wrapReformEvent(config, "112140", chNFe, nSeqEvento, tagAdic, va);
 }
 
 /**
@@ -696,18 +572,6 @@ export function buildAtualizacaoDataEntrega(
   verAplic?: string
 ): string {
   const va = resolveVerAplic(verAplic, config.verAplic);
-  const tagAdic = `<cOrgaoAutor>${config.cOrgao}</cOrgaoAutor>`
-    + `<tpAutor>1</tpAutor>`
-    + `<verAplic>${va}</verAplic>`
-    + `<dPrevEntrega>${dataPrevista}</dPrevEntrega>`;
-
-  return buildEventEnvelope({
-    tpEvento: "112150",
-    chNFe, nSeqEvento,
-    cOrgao: config.cOrgao,
-    tpAmb: config.tpAmb,
-    cnpj: config.cnpj,
-    tagAdic,
-    verAplic: va,
-  });
+  const tagAdic = reformEventHeader(config, va, 1) + `<dPrevEntrega>${dataPrevista}</dPrevEntrega>`;
+  return wrapReformEvent(config, "112150", chNFe, nSeqEvento, tagAdic, va);
 }

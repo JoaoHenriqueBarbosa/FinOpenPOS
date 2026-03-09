@@ -1,5 +1,6 @@
 import { Contingency } from "./contingency";
 import { buildAccessKey } from "./xml-builder";
+import { extractXmlTagValue } from "./xml-utils";
 
 /**
  * Adjust NF-e XML for contingency mode.
@@ -24,25 +25,25 @@ export function adjustNfeForContingency(xml: string, contingency: Contingency): 
 
   // Parse the XML using a simple regex-based approach for lightweight processing
   // (avoiding heavy DOM dependency in Bun)
-  const mod = extractTagValue(xml, "mod");
+  const mod = extractXmlTagValue(xml, "mod");
   if (mod === "65") {
     throw new Error(
       "The XML belongs to a model 65 document (NFC-e), incorrect for SVCAN or SVCRS contingency."
     );
   }
 
-  const tpEmis = extractTagValue(xml, "tpEmis");
+  const tpEmis = extractXmlTagValue(xml, "tpEmis");
   if (tpEmis !== "1") {
     // XML was already issued in contingency mode, no adjustment needed
     return xml;
   }
 
   // Extract fields needed for access key recalculation
-  const cUF = extractTagValue(xml, "cUF");
-  const cNF = extractTagValue(xml, "cNF");
-  const nNF = extractTagValue(xml, "nNF");
-  const serie = extractTagValue(xml, "serie");
-  const dhEmi = extractTagValue(xml, "dhEmi");
+  const cUF = extractXmlTagValue(xml, "cUF") ?? "";
+  const cNF = extractXmlTagValue(xml, "cNF") ?? "";
+  const nNF = extractXmlTagValue(xml, "nNF") ?? "";
+  const serie = extractXmlTagValue(xml, "serie") ?? "";
+  const dhEmi = extractXmlTagValue(xml, "dhEmi") ?? "";
 
   // Extract emitter document (CNPJ or CPF) from <emit> section
   const emitBlock = xml.match(/<emit>([\s\S]*?)<\/emit>/)?.[1] ?? "";
@@ -119,11 +120,7 @@ export function adjustNfeForContingency(xml: string, contingency: Contingency): 
   return xml;
 }
 
-/** Extract value of a simple XML tag */
-function extractTagValue(xml: string, tagName: string): string {
-  const match = xml.match(new RegExp(`<${tagName}>(.*?)</${tagName}>`));
-  return match?.[1] ?? "";
-}
+// extractXmlTagValue imported from ./xml-utils
 
 /** Remove XML digital signature block */
 function removeSignature(xml: string): string {

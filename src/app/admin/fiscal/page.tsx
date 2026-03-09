@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { useTRPC } from "@/lib/trpc/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { invoiceStatusBadgeVariant } from "./utils";
 import { DataTable, TableActions, TableActionButton, type Column } from "@/components/ui/data-table";
 import { SearchFilter, type FilterOption } from "@/components/ui/search-filter";
 import { useTranslations, useLocale } from "next-intl";
@@ -83,14 +84,6 @@ export default function FiscalPage() {
     { label: t("nfce"), value: "65" },
   ];
 
-  const statusBadgeVariant = (status: string) => {
-    switch (status) {
-      case "authorized": return "default" as const;
-      case "pending": case "contingency": return "secondary" as const;
-      case "rejected": case "cancelled": case "denied": return "destructive" as const;
-      default: return "outline" as const;
-    }
-  };
 
   const statusLabel = (status: string) => {
     const labels: Record<string, string> = {
@@ -131,7 +124,7 @@ export default function FiscalPage() {
       header: tc("status"),
       sortable: true,
       render: (row) => (
-        <Badge variant={statusBadgeVariant(row.status)}>
+        <Badge variant={invoiceStatusBadgeVariant(row.status)}>
           {statusLabel(row.status)}
         </Badge>
       ),

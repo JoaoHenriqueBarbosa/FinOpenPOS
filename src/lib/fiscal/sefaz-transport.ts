@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { SOAP_ENVELOPE_NS, NFE_WSDL_NS } from "./constants";
+import { extractCertFromPfx, extractKeyFromPfx } from "./certificate";
 import type { SefazService } from "./types";
 
 interface SefazRequestOptions {
@@ -40,24 +41,17 @@ export async function sefazRequest(options: SefazRequestOptions): Promise<SefazR
 
   const soapEnvelope = buildSoapEnvelope(service, xmlContent);
 
-  // Extract PEM cert/key from PFX for curl
+  // Extract PEM cert/key from PFX, write to temp files for curl
   const tmpDir = os.tmpdir();
-  const tmpPfx = path.join(tmpDir, `_sefaz_${Date.now()}.pfx`);
-  const tmpCert = path.join(tmpDir, `_sefaz_${Date.now()}.cert.pem`);
-  const tmpKey = path.join(tmpDir, `_sefaz_${Date.now()}.key.pem`);
-  const tmpBody = path.join(tmpDir, `_sefaz_${Date.now()}.xml`);
+  const ts = Date.now();
+  const tmpCert = path.join(tmpDir, `_sefaz_${ts}.cert.pem`);
+  const tmpKey = path.join(tmpDir, `_sefaz_${ts}.key.pem`);
+  const tmpBody = path.join(tmpDir, `_sefaz_${ts}.xml`);
 
   try {
-    fs.writeFileSync(tmpPfx, pfx);
+    fs.writeFileSync(tmpCert, extractCertFromPfx(pfx, passphrase));
+    fs.writeFileSync(tmpKey, extractKeyFromPfx(pfx, passphrase));
     fs.writeFileSync(tmpBody, soapEnvelope);
-
-    // Extract cert and key from PFX
-    execSync(
-      `openssl pkcs12 -in ${tmpPfx} -clcerts -nokeys -passin pass:${passphrase} -legacy 2>/dev/null > ${tmpCert}`
-    );
-    execSync(
-      `openssl pkcs12 -in ${tmpPfx} -nocerts -nodes -passin pass:${passphrase} -legacy 2>/dev/null > ${tmpKey}`
-    );
 
     const timeoutSecs = Math.ceil(timeout / 1000);
     const result = execSync(
@@ -83,7 +77,7 @@ export async function sefazRequest(options: SefazRequestOptions): Promise<SefazR
     }
     throw new Error(`SEFAZ request failed: ${err.message}`);
   } finally {
-    for (const f of [tmpPfx, tmpCert, tmpKey, tmpBody]) {
+    for (const f of [tmpCert, tmpKey, tmpBody]) {
       try { fs.unlinkSync(f); } catch {}
     }
   }
