@@ -84,6 +84,7 @@ Acesse http://localhost:3000 e use o botão **Fill demo credentials** para entra
 | `bun run db:ensure` | Detecta e limpa PGLite corrompido automaticamente |
 | `bun test` | Roda todos os testes E2E (routers tRPC) |
 | `bun run test:coverage` | Roda testes com relatório de cobertura |
+| `bun run prepare-prod` | Migra do PGLite para PostgreSQL real |
 
 ## Estrutura do Projeto
 
@@ -297,6 +298,25 @@ O PGLite roda PostgreSQL completo via WASM, direto no processo do Node.js. Os da
 ### Migrando para PostgreSQL
 
 Quando o projeto crescer e precisar de um banco real, a migração é simples porque o Drizzle ORM abstrai a camada de acesso — o schema é idêntico.
+
+#### Migração automática
+
+Execute o script que faz todos os passos automaticamente:
+
+```bash
+bun run prepare-prod
+```
+
+Depois configure `DATABASE_URL` no seu `.env` e rode:
+
+```bash
+bun run db:push
+bun run dev
+```
+
+#### Migração manual
+
+Se preferir fazer passo a passo:
 
 #### 1. Instale o driver do PostgreSQL
 
