@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { fiscalSettings } from "@/lib/db/schema";
-import type { FiscalSettings, SefazEnvironment, InvoiceModel } from "./types";
+import type { FiscalSettings, SefazEnvironment, InvoiceModel } from "@finopenpos/fiscal";
 
 /**
  * Load fiscal settings for a given user, mapping the DB row to the

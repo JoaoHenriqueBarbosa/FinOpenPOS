@@ -1,5 +1,7 @@
 {
   "name": "@finopenpos/auth",
+  "version": "0.0.0",
+  "private": true,
   "type": "module",
   "exports": {
     ".": {
@@ -9,13 +11,11 @@
       "default": "./src/*.ts"
     }
   },
-  "scripts": {},
+  "scripts": {
+    "check-types": "tsc --noEmit"
+  },
   "dependencies": {
-    "@finopenpos/db": "workspace:*",
-    "@finopenpos/env": "workspace:*",
-    "better-auth": "catalog:",
-    "dotenv": "catalog:",
-    "zod": "catalog:"
+    "better-auth": "catalog:"
   },
   "devDependencies": {
     "@finopenpos/config": "workspace:*",

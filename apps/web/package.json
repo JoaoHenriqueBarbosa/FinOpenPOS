@@ -15,7 +15,11 @@
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.3.15",
+    "@finopenpos/api": "workspace:*",
+    "@finopenpos/auth": "workspace:*",
+    "@finopenpos/db": "workspace:*",
     "@finopenpos/fiscal": "workspace:*",
+    "@finopenpos/ui": "workspace:*",
     "@faker-js/faker": "^10.3.0",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
