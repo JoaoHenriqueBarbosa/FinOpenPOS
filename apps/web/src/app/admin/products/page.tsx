@@ -3,8 +3,8 @@
 import { useState, useMemo } from "react";
 import { useForm } from "@tanstack/react-form";
 import { z } from "zod/v4";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Button } from "@finopenpos/ui/components/button";
+import { Card, CardContent, CardHeader } from "@finopenpos/ui/components/card";
 import { FilePenIcon, TrashIcon, PlusIcon, PackageIcon } from "lucide-react";
 import {
   Dialog,
@@ -13,23 +13,23 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+} from "@finopenpos/ui/components/dialog";
+import { Input } from "@finopenpos/ui/components/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
+} from "@finopenpos/ui/components/select";
+import { Label } from "@finopenpos/ui/components/label";
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Skeleton } from "@finopenpos/ui/components/skeleton";
 import { useTRPC } from "@/lib/trpc/client";
 import { useQuery } from "@tanstack/react-query";
 import { useCrudMutation } from "@/hooks/use-crud-mutation";
-import { DataTable, TableActions, TableActionButton, type Column, type ExportColumn } from "@/components/ui/data-table";
-import { SearchFilter, type FilterOption } from "@/components/ui/search-filter";
+import { DataTable, TableActions, TableActionButton, type Column, type ExportColumn } from "@finopenpos/ui/components/data-table";
+import { SearchFilter, type FilterOption } from "@finopenpos/ui/components/search-filter";
 import type { RouterOutputs } from "@/lib/trpc/router";
 import { useTranslations, useLocale } from "next-intl";
 import { formatCurrency } from "@/lib/utils";

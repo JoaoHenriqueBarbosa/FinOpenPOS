@@ -1,5 +1,7 @@
 {
   "name": "@finopenpos/api",
+  "version": "0.0.0",
+  "private": true,
   "type": "module",
   "exports": {
     ".": {
@@ -9,15 +11,13 @@
       "default": "./src/*.ts"
     }
   },
-  "scripts": {},
+  "scripts": {
+    "check-types": "tsc --noEmit"
+  },
   "dependencies": {
-    "@finopenpos/auth": "workspace:*",
-    "@finopenpos/db": "workspace:*",
-    "@finopenpos/env": "workspace:*",
-    "@trpc/client": "catalog:",
     "@trpc/server": "catalog:",
-    "dotenv": "catalog:",
-    "next": "catalog:",
+    "superjson": "^2.2.6",
+    "trpc-to-openapi": "^3.1.0",
     "zod": "catalog:"
   },
   "devDependencies": {
