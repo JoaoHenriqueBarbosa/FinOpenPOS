@@ -1,4 +1,11 @@
-import { tag } from "./xml-builder";
+import {
+  type TaxElement,
+  type TaxField,
+  requiredField,
+  optionalField,
+  filterFields,
+  serializeTaxElement,
+} from "./tax-element";
 
 /**
  * IS (Imposto Seletivo / IBS+CBS) data — PL_010 tax reform.
@@ -27,31 +34,43 @@ export interface IsData {
 }
 
 /**
- * Build IS (Imposto Seletivo) XML element.
+ * Calculate IS tax element (domain logic, no XML dependency).
  *
  * Three mutually exclusive modes:
  * 1. vBCIS present → includes vBCIS, pIS, pISEspec
  * 2. uTrib+qTrib present → includes uTrib, qTrib
  * 3. Neither → only CSTIS, cClassTribIS, vIS
  */
-export function buildIsXml(data: IsData): string {
-  const children: string[] = [
-    tag("CSTIS", {}, data.CSTIS),
-    tag("cClassTribIS", {}, data.cClassTribIS),
+export function calculateIs(data: IsData): TaxElement {
+  const fields: Array<TaxField | null> = [
+    requiredField("CSTIS", data.CSTIS),
+    requiredField("cClassTribIS", data.cClassTribIS),
   ];
 
   if (data.vBCIS != null) {
-    children.push(tag("vBCIS", {}, data.vBCIS));
-    if (data.pIS != null) children.push(tag("pIS", {}, data.pIS));
-    if (data.pISEspec != null) children.push(tag("pISEspec", {}, data.pISEspec));
+    fields.push(requiredField("vBCIS", data.vBCIS));
+    fields.push(optionalField("pIS", data.pIS));
+    fields.push(optionalField("pISEspec", data.pISEspec));
   }
 
   if (data.uTrib && data.qTrib) {
-    children.push(tag("uTrib", {}, data.uTrib));
-    children.push(tag("qTrib", {}, data.qTrib));
+    fields.push(requiredField("uTrib", data.uTrib));
+    fields.push(requiredField("qTrib", data.qTrib));
   }
 
-  children.push(tag("vIS", {}, data.vIS));
+  fields.push(requiredField("vIS", data.vIS));
 
-  return tag("IS", {}, children);
+  return {
+    outerTag: null,
+    outerFields: [],
+    variantTag: "IS",
+    fields: filterFields(fields),
+  };
+}
+
+/**
+ * Build IS XML string (backward-compatible wrapper).
+ */
+export function buildIsXml(data: IsData): string {
+  return serializeTaxElement(calculateIs(data));
 }

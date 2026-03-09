@@ -1,5 +1,11 @@
 import { formatCentsOrZero, formatRate4OrZero } from "./format-utils";
-import { tag } from "./xml-builder";
+import {
+  type TaxElement,
+  type TaxField,
+  requiredField,
+  filterFields,
+  serializeTaxElement,
+} from "./tax-element";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -131,79 +137,81 @@ const IPI_TRIB_CSTS = new Set(["00", "49", "50", "99"]);
  * - PISNT    (CST 04-09)
  * - PISOutr  (CST 49, 50-75, 98, 99)
  */
-export function buildPisXml(data: PisData): string {
-  let inner: string;
+export function calculatePis(data: PisData): TaxElement {
+  let variantTag: string;
+  let fields: TaxField[];
 
   if (PIS_COFINS_ALIQ_CSTS.has(data.CST)) {
-    inner = tag("PISAliq", {}, [
-      tag("CST", {}, data.CST),
-      tag("vBC", {}, formatCentsOrZero(data.vBC)),
-      tag("pPIS", {}, formatRate4OrZero(data.pPIS)),
-      tag("vPIS", {}, formatCentsOrZero(data.vPIS)),
-    ]);
+    variantTag = "PISAliq";
+    fields = [
+      { name: "CST", value: data.CST },
+      { name: "vBC", value: formatCentsOrZero(data.vBC) },
+      { name: "pPIS", value: formatRate4OrZero(data.pPIS) },
+      { name: "vPIS", value: formatCentsOrZero(data.vPIS) },
+    ];
   } else if (PIS_COFINS_QTDE_CSTS.has(data.CST)) {
-    inner = tag("PISQtde", {}, [
-      tag("CST", {}, data.CST),
-      tag("qBCProd", {}, formatRate4OrZero(data.qBCProd)),
-      tag("vAliqProd", {}, formatRate4OrZero(data.vAliqProd)),
-      tag("vPIS", {}, formatCentsOrZero(data.vPIS)),
-    ]);
+    variantTag = "PISQtde";
+    fields = [
+      { name: "CST", value: data.CST },
+      { name: "qBCProd", value: formatRate4OrZero(data.qBCProd) },
+      { name: "vAliqProd", value: formatRate4OrZero(data.vAliqProd) },
+      { name: "vPIS", value: formatCentsOrZero(data.vPIS) },
+    ];
   } else if (PIS_COFINS_NT_CSTS.has(data.CST)) {
-    inner = tag("PISNT", {}, [
-      tag("CST", {}, data.CST),
-    ]);
+    variantTag = "PISNT";
+    fields = [{ name: "CST", value: data.CST }];
   } else if (PIS_COFINS_OUTR_CSTS.has(data.CST)) {
-    inner = buildPisOutrInner(data);
+    variantTag = "PISOutr";
+    fields = calculatePisOutrFields(data);
   } else {
-    // Fallback: treat unknown CSTs as PISNT
-    inner = tag("PISNT", {}, [
-      tag("CST", {}, data.CST),
-    ]);
+    variantTag = "PISNT";
+    fields = [{ name: "CST", value: data.CST }];
   }
 
-  return tag("PIS", {}, [inner]);
+  return { outerTag: "PIS", outerFields: [], variantTag, fields };
 }
 
-function buildPisOutrInner(data: PisData): string {
-  const children: string[] = [tag("CST", {}, data.CST)];
-
-  if (data.qBCProd != null) {
-    // Quantity-based calculation
-    children.push(tag("qBCProd", {}, formatRate4OrZero(data.qBCProd)));
-    children.push(tag("vAliqProd", {}, formatRate4OrZero(data.vAliqProd)));
-  } else {
-    // Percentage-based calculation
-    children.push(tag("vBC", {}, formatCentsOrZero(data.vBC)));
-    children.push(tag("pPIS", {}, formatRate4OrZero(data.pPIS)));
-  }
-
-  children.push(tag("vPIS", {}, formatCentsOrZero(data.vPIS)));
-
-  return tag("PISOutr", {}, children);
+export function buildPisXml(data: PisData): string {
+  return serializeTaxElement(calculatePis(data));
 }
 
-/**
- * Build `<PISST>` XML group (R01) for a det item.
- * PIS Substituicao Tributaria (optional).
- */
-export function buildPisStXml(data: PisStData): string {
-  const children: string[] = [];
+function calculatePisOutrFields(data: PisData): TaxField[] {
+  const fields: TaxField[] = [{ name: "CST", value: data.CST }];
 
   if (data.qBCProd != null) {
-    children.push(tag("qBCProd", {}, formatRate4OrZero(data.qBCProd)));
-    children.push(tag("vAliqProd", {}, formatRate4OrZero(data.vAliqProd)));
+    fields.push({ name: "qBCProd", value: formatRate4OrZero(data.qBCProd) });
+    fields.push({ name: "vAliqProd", value: formatRate4OrZero(data.vAliqProd) });
   } else {
-    children.push(tag("vBC", {}, formatCentsOrZero(data.vBC)));
-    children.push(tag("pPIS", {}, formatRate4OrZero(data.pPIS)));
+    fields.push({ name: "vBC", value: formatCentsOrZero(data.vBC) });
+    fields.push({ name: "pPIS", value: formatRate4OrZero(data.pPIS) });
   }
 
-  children.push(tag("vPIS", {}, formatCentsOrZero(data.vPIS)));
+  fields.push({ name: "vPIS", value: formatCentsOrZero(data.vPIS) });
+  return fields;
+}
+
+export function calculatePisSt(data: PisStData): TaxElement {
+  const fields: TaxField[] = [];
+
+  if (data.qBCProd != null) {
+    fields.push({ name: "qBCProd", value: formatRate4OrZero(data.qBCProd) });
+    fields.push({ name: "vAliqProd", value: formatRate4OrZero(data.vAliqProd) });
+  } else {
+    fields.push({ name: "vBC", value: formatCentsOrZero(data.vBC) });
+    fields.push({ name: "pPIS", value: formatRate4OrZero(data.pPIS) });
+  }
+
+  fields.push({ name: "vPIS", value: formatCentsOrZero(data.vPIS) });
 
   if (data.indSomaPISST != null) {
-    children.push(tag("indSomaPISST", {}, String(data.indSomaPISST)));
+    fields.push({ name: "indSomaPISST", value: String(data.indSomaPISST) });
   }
 
-  return tag("PISST", {}, children);
+  return { outerTag: null, outerFields: [], variantTag: "PISST", fields };
+}
+
+export function buildPisStXml(data: PisStData): string {
+  return serializeTaxElement(calculatePisSt(data));
 }
 
 // ── COFINS ──────────────────────────────────────────────────────────────────
@@ -217,143 +225,137 @@ export function buildPisStXml(data: PisStData): string {
  * - COFINSNT    (CST 04-09)
  * - COFINSOutr  (CST 49, 50-75, 98, 99)
  */
-export function buildCofinsXml(data: CofinsData): string {
-  let inner: string;
+export function calculateCofins(data: CofinsData): TaxElement {
+  let variantTag: string;
+  let fields: TaxField[];
 
   if (PIS_COFINS_ALIQ_CSTS.has(data.CST)) {
-    inner = tag("COFINSAliq", {}, [
-      tag("CST", {}, data.CST),
-      tag("vBC", {}, formatCentsOrZero(data.vBC)),
-      tag("pCOFINS", {}, formatRate4OrZero(data.pCOFINS)),
-      tag("vCOFINS", {}, formatCentsOrZero(data.vCOFINS)),
-    ]);
+    variantTag = "COFINSAliq";
+    fields = [
+      { name: "CST", value: data.CST },
+      { name: "vBC", value: formatCentsOrZero(data.vBC) },
+      { name: "pCOFINS", value: formatRate4OrZero(data.pCOFINS) },
+      { name: "vCOFINS", value: formatCentsOrZero(data.vCOFINS) },
+    ];
   } else if (PIS_COFINS_QTDE_CSTS.has(data.CST)) {
-    inner = tag("COFINSQtde", {}, [
-      tag("CST", {}, data.CST),
-      tag("qBCProd", {}, formatRate4OrZero(data.qBCProd)),
-      tag("vAliqProd", {}, formatRate4OrZero(data.vAliqProd)),
-      tag("vCOFINS", {}, formatCentsOrZero(data.vCOFINS)),
-    ]);
+    variantTag = "COFINSQtde";
+    fields = [
+      { name: "CST", value: data.CST },
+      { name: "qBCProd", value: formatRate4OrZero(data.qBCProd) },
+      { name: "vAliqProd", value: formatRate4OrZero(data.vAliqProd) },
+      { name: "vCOFINS", value: formatCentsOrZero(data.vCOFINS) },
+    ];
   } else if (PIS_COFINS_NT_CSTS.has(data.CST)) {
-    inner = tag("COFINSNT", {}, [
-      tag("CST", {}, data.CST),
-    ]);
+    variantTag = "COFINSNT";
+    fields = [{ name: "CST", value: data.CST }];
   } else if (PIS_COFINS_OUTR_CSTS.has(data.CST)) {
-    inner = buildCofinsOutrInner(data);
+    variantTag = "COFINSOutr";
+    fields = calculateCofinsOutrFields(data);
   } else {
-    // Fallback: treat unknown CSTs as COFINSNT
-    inner = tag("COFINSNT", {}, [
-      tag("CST", {}, data.CST),
-    ]);
+    variantTag = "COFINSNT";
+    fields = [{ name: "CST", value: data.CST }];
   }
 
-  return tag("COFINS", {}, [inner]);
+  return { outerTag: "COFINS", outerFields: [], variantTag, fields };
 }
 
-function buildCofinsOutrInner(data: CofinsData): string {
-  const children: string[] = [tag("CST", {}, data.CST)];
-
-  if (data.qBCProd != null) {
-    children.push(tag("qBCProd", {}, formatRate4OrZero(data.qBCProd)));
-    children.push(tag("vAliqProd", {}, formatRate4OrZero(data.vAliqProd)));
-  } else {
-    children.push(tag("vBC", {}, formatCentsOrZero(data.vBC)));
-    children.push(tag("pCOFINS", {}, formatRate4OrZero(data.pCOFINS)));
-  }
-
-  children.push(tag("vCOFINS", {}, formatCentsOrZero(data.vCOFINS)));
-
-  return tag("COFINSOutr", {}, children);
+export function buildCofinsXml(data: CofinsData): string {
+  return serializeTaxElement(calculateCofins(data));
 }
 
-/**
- * Build `<COFINSST>` XML group (T01) for a det item.
- * COFINS Substituicao Tributaria (optional).
- */
-export function buildCofinsStXml(data: CofinsStData): string {
-  const children: string[] = [];
+function calculateCofinsOutrFields(data: CofinsData): TaxField[] {
+  const fields: TaxField[] = [{ name: "CST", value: data.CST }];
 
   if (data.qBCProd != null) {
-    children.push(tag("qBCProd", {}, formatRate4OrZero(data.qBCProd)));
-    children.push(tag("vAliqProd", {}, formatRate4OrZero(data.vAliqProd)));
+    fields.push({ name: "qBCProd", value: formatRate4OrZero(data.qBCProd) });
+    fields.push({ name: "vAliqProd", value: formatRate4OrZero(data.vAliqProd) });
   } else {
-    children.push(tag("vBC", {}, formatCentsOrZero(data.vBC)));
-    children.push(tag("pCOFINS", {}, formatRate4OrZero(data.pCOFINS)));
+    fields.push({ name: "vBC", value: formatCentsOrZero(data.vBC) });
+    fields.push({ name: "pCOFINS", value: formatRate4OrZero(data.pCOFINS) });
   }
 
-  children.push(tag("vCOFINS", {}, formatCentsOrZero(data.vCOFINS)));
+  fields.push({ name: "vCOFINS", value: formatCentsOrZero(data.vCOFINS) });
+  return fields;
+}
+
+export function calculateCofinsSt(data: CofinsStData): TaxElement {
+  const fields: TaxField[] = [];
+
+  if (data.qBCProd != null) {
+    fields.push({ name: "qBCProd", value: formatRate4OrZero(data.qBCProd) });
+    fields.push({ name: "vAliqProd", value: formatRate4OrZero(data.vAliqProd) });
+  } else {
+    fields.push({ name: "vBC", value: formatCentsOrZero(data.vBC) });
+    fields.push({ name: "pCOFINS", value: formatRate4OrZero(data.pCOFINS) });
+  }
+
+  fields.push({ name: "vCOFINS", value: formatCentsOrZero(data.vCOFINS) });
 
   if (data.indSomaCOFINSST != null) {
-    children.push(tag("indSomaCOFINSST", {}, String(data.indSomaCOFINSST)));
+    fields.push({ name: "indSomaCOFINSST", value: String(data.indSomaCOFINSST) });
   }
 
-  return tag("COFINSST", {}, children);
+  return { outerTag: null, outerFields: [], variantTag: "COFINSST", fields };
+}
+
+export function buildCofinsStXml(data: CofinsStData): string {
+  return serializeTaxElement(calculateCofinsSt(data));
 }
 
 // ── IPI ─────────────────────────────────────────────────────────────────────
 
-/**
- * Build `<IPI>` XML group (O01) for a det item.
- *
- * Routes based on CST:
- * - IPITrib (CST 00, 49, 50, 99): vBC+pIPI or qUnid+vUnid, then vIPI
- * - IPINT   (all other CSTs): just CST
- */
-export function buildIpiXml(data: IpiData): string {
-  const children: string[] = [];
+export function calculateIpi(data: IpiData): TaxElement {
+  const outerFields: TaxField[] = [];
 
-  // Optional header fields
-  if (data.CNPJProd) {
-    children.push(tag("CNPJProd", {}, data.CNPJProd));
-  }
-  if (data.cSelo) {
-    children.push(tag("cSelo", {}, data.cSelo));
-  }
-  if (data.qSelo != null) {
-    children.push(tag("qSelo", {}, String(data.qSelo)));
-  }
+  if (data.CNPJProd) outerFields.push({ name: "CNPJProd", value: data.CNPJProd });
+  if (data.cSelo) outerFields.push({ name: "cSelo", value: data.cSelo });
+  if (data.qSelo != null) outerFields.push({ name: "qSelo", value: String(data.qSelo) });
+  outerFields.push({ name: "cEnq", value: data.cEnq });
 
-  // cEnq is required
-  children.push(tag("cEnq", {}, data.cEnq));
+  let variantTag: string;
+  let fields: TaxField[];
 
   if (IPI_TRIB_CSTS.has(data.CST)) {
-    // IPITrib
-    const tribChildren: string[] = [tag("CST", {}, data.CST)];
+    variantTag = "IPITrib";
+    fields = [{ name: "CST", value: data.CST }];
 
     if (data.vBC != null && data.pIPI != null) {
-      // Percentage-based
-      tribChildren.push(tag("vBC", {}, formatCentsOrZero(data.vBC)));
-      tribChildren.push(tag("pIPI", {}, formatRate4OrZero(data.pIPI)));
+      fields.push({ name: "vBC", value: formatCentsOrZero(data.vBC) });
+      fields.push({ name: "pIPI", value: formatRate4OrZero(data.pIPI) });
     } else {
-      // Unit-based
-      tribChildren.push(tag("qUnid", {}, formatRate4OrZero(data.qUnid)));
-      tribChildren.push(tag("vUnid", {}, formatRate4OrZero(data.vUnid)));
+      fields.push({ name: "qUnid", value: formatRate4OrZero(data.qUnid) });
+      fields.push({ name: "vUnid", value: formatRate4OrZero(data.vUnid) });
     }
 
-    tribChildren.push(tag("vIPI", {}, formatCentsOrZero(data.vIPI)));
-
-    children.push(tag("IPITrib", {}, tribChildren));
+    fields.push({ name: "vIPI", value: formatCentsOrZero(data.vIPI) });
   } else {
-    // IPINT (non-taxed)
-    children.push(tag("IPINT", {}, [
-      tag("CST", {}, data.CST),
-    ]));
+    variantTag = "IPINT";
+    fields = [{ name: "CST", value: data.CST }];
   }
 
-  return tag("IPI", {}, children);
+  return { outerTag: "IPI", outerFields, variantTag, fields };
+}
+
+export function buildIpiXml(data: IpiData): string {
+  return serializeTaxElement(calculateIpi(data));
 }
 
 // ── II (Imposto de Importacao) ──────────────────────────────────────────────
 
-/**
- * Build `<II>` XML group (P01) for a det item.
- * Import tax — all fields required.
- */
+export function calculateIi(data: IiData): TaxElement {
+  return {
+    outerTag: null,
+    outerFields: [],
+    variantTag: "II",
+    fields: [
+      { name: "vBC", value: formatCentsOrZero(data.vBC) },
+      { name: "vDespAdu", value: formatCentsOrZero(data.vDespAdu) },
+      { name: "vII", value: formatCentsOrZero(data.vII) },
+      { name: "vIOF", value: formatCentsOrZero(data.vIOF) },
+    ],
+  };
+}
+
 export function buildIiXml(data: IiData): string {
-  return tag("II", {}, [
-    tag("vBC", {}, formatCentsOrZero(data.vBC)),
-    tag("vDespAdu", {}, formatCentsOrZero(data.vDespAdu)),
-    tag("vII", {}, formatCentsOrZero(data.vII)),
-    tag("vIOF", {}, formatCentsOrZero(data.vIOF)),
-  ]);
+  return serializeTaxElement(calculateIi(data));
 }
