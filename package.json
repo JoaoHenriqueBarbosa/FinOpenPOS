@@ -10,7 +10,8 @@
     "db:ensure": "bun scripts/ensure-db.ts",
     "db:push": "drizzle-kit push && bun scripts/generate-er.ts",
     "test": "bun test src/lib/trpc/routers/__tests__",
-    "test:coverage": "bun test --coverage src/lib/trpc/routers/__tests__"
+    "test:coverage": "bun test --coverage src/lib/trpc/routers/__tests__",
+    "prepare-prod": "bun scripts/prepare-prod.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.3.15",
