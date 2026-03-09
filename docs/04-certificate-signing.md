@@ -1,0 +1,120 @@
+# Certificate & XML Signing
+
+## Overview
+
+Brazilian electronic invoices require digital signing with an A1 e-CNPJ certificate (PFX/PKCS#12 format). The module handles PFX extraction, certificate info display, and XML digital signature following the NF-e MOC 4.00 specification.
+
+**Files**: `certificate.ts`, `sefaz-transport.ts` (reuses certificate extraction)
+
+## PFX Handling
+
+### Why openssl?
+
+Bun's native crypto cannot parse PKCS#12 (PFX) files — the `pkcs12` module is not implemented. The workaround uses `openssl` CLI via `child_process`:
+
+```bash
+# Extract certificate (PEM)
+openssl pkcs12 -in cert.pfx -clcerts -nokeys -passin pass:xxx -legacy
+
+# Extract private key (PEM)
+openssl pkcs12 -in cert.pfx -nocerts -nodes -passin pass:xxx -legacy
+```
+
+The `-legacy` flag is required for older PFX files that use legacy encryption (RC2-40).
+
+### extractCertFromPfx / extractKeyFromPfx
+
+```typescript
+export function extractCertFromPfx(pfxBuffer: Buffer, passphrase: string): string
+export function extractKeyFromPfx(pfxBuffer: Buffer, passphrase: string): string
+```
+
+Both:
+1. Write PFX buffer to a temp file
+2. Run `openssl pkcs12` to extract PEM
+3. Parse output with regex to isolate the PEM block (`-----BEGIN CERTIFICATE-----...-----END CERTIFICATE-----`)
+4. Clean up temp file in `finally`
+5. Throw if PEM block not found
+
+These functions are exported and shared with `sefaz-transport.ts` (which needs PEM files for curl mTLS).
+
+### loadCertificate
+
+```typescript
+export function loadCertificate(pfx: Buffer, passphrase: string): CertificateData
+```
+
+Returns `{ privateKey, certificate, pfxBuffer, passphrase }` — the PEM strings needed for signing and the raw PFX for storage.
+
+### getCertificateInfo
+
+```typescript
+export function getCertificateInfo(pfx: Buffer, passphrase: string): CertificateInfo
+```
+
+Extracts human-readable certificate details for the settings UI:
+- `commonName` — company name from the certificate
+- `validFrom`, `validUntil` — validity dates
+- `serialNumber` — certificate serial
+- `issuer` — CA (Certificate Authority) name
+
+Uses `node:crypto.X509Certificate` (available in Bun).
+
+## XML Signing
+
+### signXml
+
+```typescript
+export function signXml(xml: string, privateKeyPem: string, certificatePem: string): string
+```
+
+Signs an NF-e XML document per the MOC 4.00 signature specification:
+
+1. **Reference**: The `<infNFe Id="NFe...">` element is the signed reference
+2. **Canonicalization**: Exclusive C14N (`http://www.w3.org/2001/10/xml-exc-c14n#`)
+3. **Transforms**:
+   - Enveloped signature (removes `<Signature>` before hashing)
+   - Exclusive C14N
+4. **Digest**: SHA-1 (`http://www.w3.org/2000/09/xmldsig#sha1`)
+5. **Signature algorithm**: RSA-SHA1 (`http://www.w3.org/2000/09/xmldsig#rsa-sha1`)
+6. **KeyInfo**: Contains `<X509Data><X509Certificate>` with Base64 cert (no headers)
+
+### Signature placement
+
+The `<Signature>` element is inserted inside `<NFe>`, after `<infNFe>`:
+
+```xml
+<NFe xmlns="http://www.portalfiscal.inf.br/nfe">
+  <infNFe Id="NFe35..." versao="4.00">
+    ...
+  </infNFe>
+  <Signature xmlns="http://www.w3.org/2000/09/xmldsig#">
+    <SignedInfo>
+      <CanonicalizationMethod Algorithm="..." />
+      <SignatureMethod Algorithm="..." />
+      <Reference URI="#NFe35...">
+        <Transforms>...</Transforms>
+        <DigestMethod Algorithm="..." />
+        <DigestValue>...</DigestValue>
+      </Reference>
+    </SignedInfo>
+    <SignatureValue>...</SignatureValue>
+    <KeyInfo>
+      <X509Data>
+        <X509Certificate>MIIGxTCCBa...</X509Certificate>
+      </X509Data>
+    </KeyInfo>
+  </Signature>
+</NFe>
+```
+
+### Library
+
+Uses [xml-crypto](https://github.com/node-saml/xml-crypto) for the actual signing operation. The library handles canonicalization, hashing, and signature computation.
+
+## Security notes
+
+- PFX passwords are stored encrypted in the database (`certificate_password` field)
+- Temp files are always cleaned up in `finally` blocks
+- PEM private keys are never persisted to disk beyond the signing operation
+- Certificate expiration is tracked in `certificate_valid_until` for UI warnings

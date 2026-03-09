@@ -14,7 +14,43 @@ const orderWithCustomerSchema = z.object({
   customer: z.object({ name: z.string() }).nullable(),
 });
 
+const orderDetailSchema = z.object({
+  id: z.number(),
+  customer_id: z.number().nullable(),
+  total_amount: z.number(),
+  status: z.string().nullable(),
+  user_uid: z.string(),
+  created_at: z.date().nullable(),
+  customer: z.object({ name: z.string() }).nullable(),
+  orderItems: z.array(z.object({
+    id: z.number(),
+    product_id: z.number().nullable(),
+    quantity: z.number(),
+    price: z.number(),
+    product: z.object({ name: z.string(), category: z.string().nullable() }).nullable(),
+  })),
+});
+
 export const ordersRouter = router({
+  get: protectedProcedure
+    .meta({ openapi: { method: "GET", path: "/orders/{id}", tags: ["Orders"], summary: "Get order details" } })
+    .input(z.object({ id: z.number() }))
+    .output(orderDetailSchema.nullable())
+    .query(async ({ ctx, input }) => {
+      const result = await db.query.orders.findFirst({
+        where: and(eq(orders.id, input.id), eq(orders.user_uid, ctx.user.id)),
+        with: {
+          customer: { columns: { name: true } },
+          orderItems: {
+            with: {
+              product: { columns: { name: true, category: true } },
+            },
+          },
+        },
+      });
+      return result ?? null;
+    }),
+
   list: protectedProcedure
     .meta({ openapi: { method: "GET", path: "/orders", tags: ["Orders"], summary: "List all orders" } })
     .input(z.void())

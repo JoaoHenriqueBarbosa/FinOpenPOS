@@ -30,6 +30,8 @@ import {
   CreditCardIcon,
   MenuIcon,
   XIcon,
+  ReceiptTextIcon,
+  SettingsIcon,
   type LucideIcon,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -39,7 +41,7 @@ import { logout } from "@/app/login/actions";
 
 interface NavItem {
   href: string;
-  labelKey: "dashboard" | "cashier" | "products" | "customers" | "orders" | "paymentMethods" | "pos";
+  labelKey: "dashboard" | "cashier" | "products" | "customers" | "orders" | "paymentMethods" | "pos" | "invoices" | "fiscalSettings";
   icon: LucideIcon;
 }
 
@@ -51,6 +53,8 @@ const navItems: NavItem[] = [
   { href: "/admin/orders", labelKey: "orders", icon: ShoppingBagIcon },
   { href: "/admin/payment-methods", labelKey: "paymentMethods", icon: CreditCardIcon },
   { href: "/admin/pos", labelKey: "pos", icon: ShoppingCartIcon },
+  { href: "/admin/fiscal", labelKey: "invoices", icon: ReceiptTextIcon },
+  { href: "/admin/fiscal/settings", labelKey: "fiscalSettings", icon: SettingsIcon },
 ];
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
