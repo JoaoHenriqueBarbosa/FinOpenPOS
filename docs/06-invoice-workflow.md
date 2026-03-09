@@ -4,7 +4,9 @@
 
 The invoice service orchestrates the complete lifecycle of an electronic invoice: from building the XML to sending it to SEFAZ, handling responses, and persisting results. It sits in the application/service layer, coordinating domain logic, infrastructure, and persistence.
 
-**Files**: `invoice-service.ts`, `fiscal-settings-repository.ts`, `invoice-repository.ts`
+These three files are the DB-coupled layer that lives in the app, not in the `@finopenpos/fiscal` package (which has zero database dependencies).
+
+**Files**: `apps/web/src/lib/invoice-service.ts`, `apps/web/src/lib/fiscal-settings-repository.ts`, `apps/web/src/lib/invoice-repository.ts`
 
 ## Invoice Lifecycle
 
@@ -119,7 +121,7 @@ async function loadValidatedSettings(userUid: string): Promise<FiscalSettings> {
 
 Used by: `checkSefazStatus`, `cancelInvoice`, `voidNumberRange`, `syncPendingInvoices`.
 
-## Fiscal Settings Repository (`fiscal-settings-repository.ts`)
+## Fiscal Settings Repository (`apps/web/src/lib/fiscal-settings-repository.ts`)
 
 ### loadFiscalSettings
 
@@ -141,7 +143,7 @@ async function incrementNextNumber(userUid: string, model: InvoiceModel): Promis
 
 Atomically increments `next_nfe_number` or `next_nfce_number`.
 
-## Invoice Repository (`invoice-repository.ts`)
+## Invoice Repository (`apps/web/src/lib/invoice-repository.ts`)
 
 ### Key operations
 

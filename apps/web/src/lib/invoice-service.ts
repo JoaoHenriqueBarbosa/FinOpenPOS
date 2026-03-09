@@ -1,7 +1,8 @@
-import { buildInvoiceXml } from "./xml-builder";
-import { loadCertificate, signXml } from "./certificate";
-import { getSefazUrl } from "./sefaz-urls";
 import {
+  buildInvoiceXml,
+  loadCertificate,
+  signXml,
+  getSefazUrl,
   sefazRequest,
   buildStatusRequestXml,
   buildAuthorizationRequestXml,
@@ -10,9 +11,19 @@ import {
   parseStatusResponse,
   parseAuthorizationResponse,
   parseCancellationResponse,
-} from "./sefaz-client";
-import { PAYMENT_TYPES } from "./constants";
-import { SEFAZ_STATUS } from "./sefaz-status-codes";
+  PAYMENT_TYPES,
+  SEFAZ_STATUS,
+  type InvoiceModel,
+  type InvoiceStatus,
+  type SefazEnvironment,
+  type EmissionType,
+  type InvoiceBuildData,
+  type InvoiceItemData,
+  type PaymentData,
+  type FiscalSettings,
+  type SefazResponse,
+  type ContingencyType,
+} from "@finopenpos/fiscal";
 import { loadFiscalSettings, incrementNextNumber } from "./fiscal-settings-repository";
 import {
   loadOrderWithItems,
@@ -23,18 +34,6 @@ import {
   saveVoidedInvoice,
   saveInvoiceEvent,
 } from "./invoice-repository";
-import type {
-  InvoiceModel,
-  InvoiceStatus,
-  SefazEnvironment,
-  EmissionType,
-  InvoiceBuildData,
-  InvoiceItemData,
-  PaymentData,
-  FiscalSettings,
-  SefazResponse,
-  ContingencyType,
-} from "./types";
 
 /** Load fiscal settings and validate certificate is configured. */
 async function loadValidatedSettings(userUid: string): Promise<FiscalSettings> {
@@ -299,7 +298,7 @@ export async function voidNumberRange(
     passphrase: settings.certificatePassword,
   });
 
-  const { parseStatusResponse } = await import("./sefaz-client");
+  const { parseStatusResponse } = await import("@finopenpos/fiscal/sefaz-client");
   const voidResult = parseStatusResponse(response.content);
   const cStat = voidResult.statusCode;
   const xMotivo = voidResult.statusMessage;
