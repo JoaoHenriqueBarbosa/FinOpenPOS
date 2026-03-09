@@ -1,6 +1,6 @@
-import { buildInvoiceXml } from "./xml-builder";
-import { loadCertificate, signXml } from "./certificate";
-import { getSefazUrl } from "./sefaz-urls";
+import { buildInvoiceXml } from "./fiscal/xml-builder";
+import { loadCertificate, signXml } from "./fiscal/certificate";
+import { getSefazUrl } from "./fiscal/sefaz-urls";
 import {
   sefazRequest,
   buildStatusRequestXml,
@@ -10,9 +10,9 @@ import {
   parseStatusResponse,
   parseAuthorizationResponse,
   parseCancellationResponse,
-} from "./sefaz-client";
-import { PAYMENT_TYPES } from "./constants";
-import { SEFAZ_STATUS } from "./sefaz-status-codes";
+} from "./fiscal/sefaz-client";
+import { PAYMENT_TYPES } from "./fiscal/constants";
+import { SEFAZ_STATUS } from "./fiscal/sefaz-status-codes";
 import { loadFiscalSettings, incrementNextNumber } from "./fiscal-settings-repository";
 import {
   loadOrderWithItems,
@@ -34,7 +34,7 @@ import type {
   FiscalSettings,
   SefazResponse,
   ContingencyType,
-} from "./types";
+} from "./fiscal/types";
 
 /** Load fiscal settings and validate certificate is configured. */
 async function loadValidatedSettings(userUid: string): Promise<FiscalSettings> {
@@ -299,7 +299,7 @@ export async function voidNumberRange(
     passphrase: settings.certificatePassword,
   });
 
-  const { parseStatusResponse } = await import("./sefaz-client");
+  const { parseStatusResponse } = await import("./fiscal/sefaz-client");
   const voidResult = parseStatusResponse(response.content);
   const cStat = voidResult.statusCode;
   const xMotivo = voidResult.statusMessage;

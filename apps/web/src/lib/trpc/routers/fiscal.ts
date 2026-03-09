@@ -9,7 +9,7 @@ import {
   voidNumberRange,
   checkSefazStatus,
   syncPendingInvoices,
-} from "@/lib/fiscal/invoice-service";
+} from "@/lib/invoice-service";
 
 export const fiscalRouter = router({
   list: protectedProcedure

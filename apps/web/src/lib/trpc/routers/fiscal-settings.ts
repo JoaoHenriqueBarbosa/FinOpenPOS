@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { fiscalSettings } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getCertificateInfo } from "@/lib/fiscal/certificate";
-import { checkSefazStatus } from "@/lib/fiscal/invoice-service";
+import { checkSefazStatus } from "@/lib/invoice-service";
 
 export const fiscalSettingsRouter = router({
   get: protectedProcedure
