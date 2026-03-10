@@ -1,13 +1,13 @@
 ---
 title: Fluxo da Nota Fiscal
-description: O servico de notas fiscais orquestra o ciclo de vida completo de um documento fiscal eletronico, desde a geracao do XML ate o envio ao SEFAZ, tratando autorizacao, cancelamento, inutilizacao, contingencia e persistencia.
+description: O serviço de notas fiscais orquestra o ciclo de vida completo de um documento fiscal eletrônico, desde a geração do XML até o envio ao SEFAZ, tratando autorização, cancelamento, inutilização, contingência e persistência.
 ---
 
-## Visao Geral
+## Visão Geral
 
-O servico de notas fiscais orquestra o ciclo de vida completo de um documento fiscal eletronico: desde a construcao do XML ate o envio ao SEFAZ, tratamento de respostas e persistencia dos resultados. Ele fica na camada de aplicacao/servico, coordenando logica de dominio, infraestrutura e persistencia.
+O serviço de notas fiscais orquestra o ciclo de vida completo de um documento fiscal eletrônico: desde a construção do XML até o envio ao SEFAZ, tratamento de respostas e persistência dos resultados. Ele fica na camada de aplicação/serviço, coordenando lógica de domínio, infraestrutura e persistência.
 
-Esses tres arquivos sao a camada acoplada ao banco que fica na aplicacao, nao no pacote `@finopenpos/fiscal` (que tem zero dependencias de banco de dados).
+Esses três arquivos são a camada acoplada ao banco que fica na aplicação, não no pacote `@finopenpos/fiscal` (que tem zero dependências de banco de dados).
 
 **Arquivos**: `apps/web/src/lib/invoice-service.ts`, `apps/web/src/lib/fiscal-settings-repository.ts`, `apps/web/src/lib/invoice-repository.ts`
 
@@ -29,7 +29,7 @@ Esses tres arquivos sao a camada acoplada ao banco que fica na aplicacao, nao no
                    └────────────┘
 ```
 
-## Operacoes Principais
+## Operações Principais
 
 ### issueInvoice
 
@@ -44,12 +44,12 @@ async function issueInvoice(
 ```
 
 **Fluxo**:
-1. Carregar e validar configuracoes fiscais (`loadValidatedSettings`)
+1. Carregar e validar configurações fiscais (`loadValidatedSettings`)
 2. Verificar CSC para NFC-e modelo 65
 3. Carregar pedido com itens do banco
-4. Obter proximo numero/serie das configuracoes
+4. Obter próximo número/série das configurações
 5. Construir `InvoiceBuildData` a partir dos itens do pedido
-6. `buildInvoiceXml()` → XML nao assinado + chave de acesso
+6. `buildInvoiceXml()` → XML não assinado + chave de acesso
 7. `loadCertificate()` + `signXml()` → XML assinado
 8. Enviar ao SEFAZ via `sefazRequest()`
 9. Parsear resposta → determinar status (autorizada/rejeitada/denegada)
@@ -57,7 +57,7 @@ async function issueInvoice(
 11. `saveInvoice()` → persistir no banco
 12. `incrementNextNumber()` → atualizar contador
 
-**Fallback offline** (apenas NFC-e): Se o SEFAZ estiver indisponivel, salva com status "contingency" e sincroniza depois.
+**Fallback offline** (apenas NFC-e): Se o SEFAZ estiver indisponível, salva com status "contingency" e sincroniza depois.
 
 ### checkSefazStatus
 
@@ -69,7 +69,7 @@ async function checkSefazStatus(userUid: string): Promise<{
 }>
 ```
 
-Chama `NfeStatusServico` para verificar se o SEFAZ esta online. Status 107 = em operacao.
+Chama `NfeStatusServico` para verificar se o SEFAZ está online. Status 107 = em operação.
 
 ### cancelInvoice
 
@@ -81,7 +81,7 @@ async function cancelInvoice(
 ): Promise<{ success: boolean; statusCode: number }>
 ```
 
-Apenas notas autorizadas podem ser canceladas. Constroi o XML do evento de cancelamento, assina e envia ao SEFAZ `RecepcaoEvento`. Salva o evento em `invoiceEvents`.
+Apenas notas autorizadas podem ser canceladas. Constrói o XML do evento de cancelamento, assina e envia ao SEFAZ `RecepcaoEvento`. Salva o evento em `invoiceEvents`.
 
 ### voidNumberRange
 
@@ -96,7 +96,7 @@ async function voidNumberRange(
 ): Promise<{ success: boolean; statusCode: number }>
 ```
 
-Inutiliza faixas de numeros de notas nao utilizadas (inutilizacao). Necessario quando numeros sao pulados (ex.: falha do sistema antes da emissao).
+Inutiliza faixas de números de notas não utilizadas (inutilização). Necessário quando números são pulados (ex.: falha do sistema antes da emissão).
 
 ### syncPendingInvoices
 
@@ -106,11 +106,11 @@ async function syncPendingInvoices(userUid: string): Promise<{
 }>
 ```
 
-Reenvia notas pendentes/em contingencia que nao foram confirmadas pelo SEFAZ.
+Reenvia notas pendentes/em contingência que não foram confirmadas pelo SEFAZ.
 
-## Validacao de Configuracoes (DRY)
+## Validação de Configurações (DRY)
 
-O helper `loadValidatedSettings` elimina a duplicacao do padrao de validacao repetido 4 vezes:
+O helper `loadValidatedSettings` elimina a duplicação do padrão de validação repetido 4 vezes:
 
 ```typescript
 async function loadValidatedSettings(userUid: string): Promise<FiscalSettings> {
@@ -124,7 +124,7 @@ async function loadValidatedSettings(userUid: string): Promise<FiscalSettings> {
 
 Usado por: `checkSefazStatus`, `cancelInvoice`, `voidNumberRange`, `syncPendingInvoices`.
 
-## Repositorio de Configuracoes Fiscais (`apps/web/src/lib/fiscal-settings-repository.ts`)
+## Repositório de Configurações Fiscais (`apps/web/src/lib/fiscal-settings-repository.ts`)
 
 ### loadFiscalSettings
 
@@ -132,8 +132,8 @@ Usado por: `checkSefazStatus`, `cancelInvoice`, `voidNumberRange`, `syncPendingI
 async function loadFiscalSettings(userUid: string): Promise<FiscalSettings | null>
 ```
 
-Mapeia campos snake\_case do banco para camelCase no dominio. Fornece valores padrao:
-- Serie: 1
+Mapeia campos snake\_case do banco para camelCase no domínio. Fornece valores padrão:
+- Série: 1
 - NCM: "00000000"
 - CFOP: "5102" (venda interna)
 - ICMS CST: "00", PIS/COFINS CST: "99"
@@ -146,20 +146,20 @@ async function incrementNextNumber(userUid: string, model: InvoiceModel): Promis
 
 Incrementa atomicamente `next_nfe_number` ou `next_nfce_number`.
 
-## Repositorio de Notas Fiscais (`apps/web/src/lib/invoice-repository.ts`)
+## Repositório de Notas Fiscais (`apps/web/src/lib/invoice-repository.ts`)
 
-### Operacoes principais
+### Operações principais
 
-| Funcao | Descricao |
+| Função | Descrição |
 |--------|-----------|
-| `loadOrderWithItems(orderId, userUid)` | Carregar pedido + itens + produtos (para construcao do XML) |
+| `loadOrderWithItems(orderId, userUid)` | Carregar pedido + itens + produtos (para construção do XML) |
 | `findInvoice(invoiceId, userUid)` | Obter nota fiscal por ID |
 | `saveInvoice(data)` | Inserir nota + itens, retorna invoiceId |
 | `findPendingInvoices(userUid)` | Obter notas com status "pending" ou "contingency" |
 | `updateInvoiceStatus(invoiceId, data)` | Atualizar status, XML de resposta, protocolo, etc. |
-| `saveVoidedInvoice(data)` | Criar registro "voided" para inutilizacao de faixa de numeros |
-| `saveInvoiceEvent(data)` | Registrar evento de cancelamento/inutilizacao com XML |
+| `saveVoidedInvoice(data)` | Criar registro "voided" para inutilização de faixa de números |
+| `saveInvoiceEvent(data)` | Registrar evento de cancelamento/inutilização com XML |
 
 ### Multi-tenancy
 
-Toda consulta inclui `eq(table.user_uid, userUid)` na clausula WHERE.
+Toda consulta inclui `eq(table.user_uid, userUid)` na cláusula WHERE.

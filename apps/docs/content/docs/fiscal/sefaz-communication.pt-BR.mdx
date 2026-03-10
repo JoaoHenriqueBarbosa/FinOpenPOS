@@ -1,11 +1,11 @@
 ---
-title: Comunicacao SEFAZ
-description: A comunicacao com o SEFAZ, autoridade tributaria do Brasil, utiliza SOAP 1.2 sobre HTTPS com TLS mutuo, com cada estado tendo seu proprio SEFAZ ou delegando ao SVRS, suportando autorizacao, cancelamento, eventos e mais.
+title: Comunicação SEFAZ
+description: A comunicação com o SEFAZ, autoridade tributária do Brasil, utiliza SOAP 1.2 sobre HTTPS com TLS mútuo, com cada estado tendo seu próprio SEFAZ ou delegando ao SVRS, suportando autorização, cancelamento, eventos e mais.
 ---
 
-## Visao Geral
+## Visão Geral
 
-SEFAZ (Secretaria da Fazenda) e o web service da autoridade tributaria do Brasil. A comunicacao utiliza SOAP 1.2 sobre HTTPS com TLS mutuo (certificado de cliente). Cada estado tem seu proprio SEFAZ ou delega ao SVRS (Sefaz Virtual do Rio Grande do Sul).
+SEFAZ (Secretaria da Fazenda) é o web service da autoridade tributária do Brasil. A comunicação utiliza SOAP 1.2 sobre HTTPS com TLS mútuo (certificado de cliente). Cada estado tem seu próprio SEFAZ ou delega ao SVRS (Sefaz Virtual do Rio Grande do Sul).
 
 **Arquivos**: `sefaz-transport.ts`, `sefaz-request-builders.ts`, `sefaz-response-parsers.ts`, `sefaz-urls.ts`, `sefaz-event-types.ts`, `sefaz-reform-events.ts`, `sefaz-client.ts` (barrel)
 
@@ -26,7 +26,7 @@ sefaz-client.ts (barrel re-export)
 
 ### Por que curl?
 
-O `node:https` Agent do Bun nao suporta PFX para mTLS (`ECONNREFUSED`). A solucao alternativa: extrair cert/key PEM do PFX usando `certificate.ts`, gravar em arquivos temporarios e chamar curl.
+O `node:https` Agent do Bun não suporta PFX para mTLS (`ECONNREFUSED`). A solução alternativa: extrair cert/key PEM do PFX usando `certificate.ts`, gravar em arquivos temporários e chamar curl.
 
 ### sefazRequest()
 
@@ -42,13 +42,13 @@ async function sefazRequest(options: {
 ```
 
 **Fluxo**:
-1. Construir envelope SOAP 1.2 encapsulando o conteudo XML
+1. Construir envelope SOAP 1.2 encapsulando o conteúdo XML
 2. Extrair cert/key PEM do PFX via `extractCertFromPfx()` / `extractKeyFromPfx()`
-3. Gravar cert, key e corpo SOAP em arquivos temporarios
+3. Gravar cert, key e corpo SOAP em arquivos temporários
 4. `curl -s -k --cert ... --key ... -H "Content-Type: application/soap+xml" -d @body url`
-5. Parsear status HTTP da saida `-w` do curl
-6. Extrair conteudo do corpo SOAP via regex
-7. Limpar arquivos temporarios no bloco `finally`
+5. Parsear status HTTP da saída `-w` do curl
+6. Extrair conteúdo do corpo SOAP via regex
+7. Limpar arquivos temporários no bloco `finally`
 
 ### Estrutura do envelope SOAP
 
@@ -68,33 +68,33 @@ async function sefazRequest(options: {
 
 ### Mapeamento de autorizadores por estado
 
-Cada estado brasileiro tem seu proprio SEFAZ ou delega ao SVRS:
+Cada estado brasileiro tem seu próprio SEFAZ ou delega ao SVRS:
 
-| Autorizador proprio | Estados |
+| Autorizador próprio | Estados |
 |---------------------|---------|
 | AM | Amazonas |
 | BA | Bahia |
-| GO | Goias |
+| GO | Goiás |
 | MG | Minas Gerais |
 | MS | Mato Grosso do Sul |
 | MT | Mato Grosso |
 | PE | Pernambuco |
-| PR | Parana |
+| PR | Paraná |
 | RS | Rio Grande do Sul |
-| SP | Sao Paulo |
+| SP | São Paulo |
 | SVRS | Todos os outros 17 estados |
 
-### Servicos
+### Serviços
 
-Cada autorizador expoe 6 web services:
+Cada autorizador expõe 6 web services:
 
-| Servico | Finalidade |
+| Serviço | Finalidade |
 |---------|------------|
-| `NfeStatusServico` | Verificar se o SEFAZ esta online |
-| `NfeAutorizacao` | Enviar NF-e para autorizacao |
-| `NfeRetAutorizacao` | Recuperar resultado de autorizacao assincrona |
+| `NfeStatusServico` | Verificar se o SEFAZ está online |
+| `NfeAutorizacao` | Enviar NF-e para autorização |
+| `NfeRetAutorizacao` | Recuperar resultado de autorização assíncrona |
 | `NfeConsultaProtocolo` | Consultar nota pela chave de acesso |
-| `NfeInutilizacao` | Inutilizar faixas de numeros nao utilizadas |
+| `NfeInutilizacao` | Inutilizar faixas de números não utilizadas |
 | `RecepcaoEvento` | Enviar eventos (cancelamento, CCe, etc.) |
 
 ### getSefazUrl()
@@ -103,18 +103,18 @@ Cada autorizador expoe 6 web services:
 getSefazUrl(stateCode: string, service: SefazService, environment: SefazEnvironment): string
 ```
 
-Resolve a URL correta considerando estado, servico e ambiente (producao vs homologacao).
+Resolve a URL correta considerando estado, serviço e ambiente (produção vs homologação).
 
-## Construtores de Requisicao (`sefaz-request-builders.ts`)
+## Construtores de Requisição (`sefaz-request-builders.ts`)
 
-### Verificacao de status
+### Verificação de status
 
 ```typescript
 buildStatusRequestXml(stateCode, environment)
 // → <consStatServ xmlns="..." versao="4.00"><tpAmb>2</tpAmb><cUF>35</cUF><xServ>STATUS</xServ></consStatServ>
 ```
 
-### Autorizacao
+### Autorização
 
 ```typescript
 buildAuthorizationRequestXml(signedNfeXml, environment, stateCode)
@@ -128,7 +128,7 @@ buildCancellationXml(accessKey, protocolNumber, reason, taxId, environment)
 // Delegates to buildEventXml() with EVENT_TYPES.CANCELLATION
 ```
 
-### Construtor generico de eventos
+### Construtor genérico de eventos
 
 ```typescript
 buildEventXml(options: {
@@ -138,12 +138,12 @@ buildEventXml(options: {
 // → <envEvento>...<evento>...<infEvento>...<detEvento>...</detEvento></infEvento></evento></envEvento>
 ```
 
-Construtores de nivel superior delegam para `buildEventXml`: CCe, Ator Interessado, Pedido de Prorrogacao, Comprovante de Entrega, etc.
+Construtores de nível superior delegam para `buildEventXml`: CCe, Ator Interessado, Pedido de Prorrogação, Comprovante de Entrega, etc.
 
 ### Construtores em lote
 
-- `buildBatchManifestationXml()` — multiplos eventos de manifestacao em um envelope
-- `buildBatchEventXml()` — eventos em lote genericos
+- `buildBatchManifestationXml()` — múltiplos eventos de manifestação em um envelope
+- `buildBatchEventXml()` — eventos em lote genéricos
 
 ### Primitivas compartilhadas (`sefaz-event-types.ts`)
 
@@ -165,25 +165,25 @@ Usa `fast-xml-parser` e `findNested()` para localizar elementos de resposta inde
 
 ## Tipos de Evento (`sefaz-event-types.ts`)
 
-Codigos de evento padrao da NF-e:
+Códigos de evento padrão da NF-e:
 
-| Codigo | Constante | Descricao |
+| Código | Constante | Descrição |
 |--------|-----------|-----------|
-| 110110 | CCE | Carta de Correcao |
+| 110110 | CCE | Carta de Correção |
 | 110111 | CANCELLATION | Cancelamento |
-| 110112 | CANCELLATION\_BY\_SUBSTITUTION | Cancelamento por substituicao |
-| 110140 | EPEC | Evento Previo de Emissao em Contingencia |
+| 110112 | CANCELLATION\_BY\_SUBSTITUTION | Cancelamento por substituição |
+| 110140 | EPEC | Evento Prévio de Emissão em Contingência |
 | 110150 | INTERESTED\_ACTOR | Ator interessado na NF-e |
-| 210200 | CONFIRMATION | Confirmacao da Operacao |
-| 210210 | AWARENESS | Ciencia da Operacao |
-| 210220 | UNKNOWN\_OPERATION | Desconhecimento da Operacao |
-| 210240 | OPERATION\_NOT\_PERFORMED | Operacao nao Realizada |
+| 210200 | CONFIRMATION | Confirmação da Operação |
+| 210210 | AWARENESS | Ciência da Operação |
+| 210220 | UNKNOWN\_OPERATION | Desconhecimento da Operação |
+| 210240 | OPERATION\_NOT\_PERFORMED | Operação não Realizada |
 
 ## Eventos da Reforma (`sefaz-reform-events.ts`)
 
-Eventos da reforma tributaria IBS/CBS (PL\_010). Estes sao distintos dos eventos padrao da NF-e.
+Eventos da reforma tributária IBS/CBS (PL\_010). Estes são distintos dos eventos padrão da NF-e.
 
-### Padrao de template (DRY)
+### Padrão de template (DRY)
 
 Todos os 14 eventos da reforma seguem a mesma estrutura:
 
@@ -198,20 +198,20 @@ function buildXxx(config, chNFe, nSeqEvento, ...params, verAplic?) {
 
 ### Tipos de evento
 
-| tpEvento | Funcao | Descricao |
+| tpEvento | Função | Descrição |
 |----------|--------|-----------|
 | 110001 | buildCancelaEvento | Cancelar um evento anterior |
-| 112110 | buildInfoPagtoIntegral | Informacao de pagamento integral |
-| 112120 | buildImportacaoZFM | Importacao ALC/ZFM nao convertida |
+| 112110 | buildInfoPagtoIntegral | Informação de pagamento integral |
+| 112120 | buildImportacaoZFM | Importação ALC/ZFM não convertida |
 | 112130 | buildRouboPerdaTransporteFornecedor | Perda/roubo pelo fornecedor (CIF) |
-| 112140 | buildFornecimentoNaoRealizado | Fornecimento nao realizado |
-| 112150 | buildAtualizacaoDataEntrega | Atualizacao de data de entrega |
-| 211110 | buildSolApropCredPresumido | Apropriacao de credito presumido |
+| 112140 | buildFornecimentoNaoRealizado | Fornecimento não realizado |
+| 112150 | buildAtualizacaoDataEntrega | Atualização de data de entrega |
+| 211110 | buildSolApropCredPresumido | Apropriação de crédito presumido |
 | 211120 | buildDestinoConsumoPessoal | Consumo pessoal |
 | 211124 | buildRouboPerdaTransporteAdquirente | Perda/roubo pelo adquirente (FOB) |
-| 211128 | buildAceiteDebito | Aceite de debito |
-| 211130 | buildImobilizacaoItem | Imobilizacao de item |
-| 211140 | buildApropriacaoCreditoComb | Apropriacao de credito de combustivel |
-| 211150 | buildApropriacaoCreditoBens | Credito de bens/servicos |
-| 212110 | buildManifestacaoTransfCredIBS | Manifestacao de transferencia de credito IBS |
-| 212120 | buildManifestacaoTransfCredCBS | Manifestacao de transferencia de credito CBS |
+| 211128 | buildAceiteDebito | Aceite de débito |
+| 211130 | buildImobilizacaoItem | Imobilização de item |
+| 211140 | buildApropriacaoCreditoComb | Apropriação de crédito de combustível |
+| 211150 | buildApropriacaoCreditoBens | Crédito de bens/serviços |
+| 212110 | buildManifestacaoTransfCredIBS | Manifestação de transferência de crédito IBS |
+| 212120 | buildManifestacaoTransfCredCBS | Manifestação de transferência de crédito CBS |

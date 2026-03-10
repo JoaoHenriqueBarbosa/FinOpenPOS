@@ -1,19 +1,19 @@
 ---
-title: Arquitetura do Modulo Fiscal
-description: O modulo fiscal implementa a emissao completa de documentos fiscais eletronicos brasileiros (NF-e modelo 55 e NFC-e modelo 65) seguindo a especificacao SEFAZ MOC 4.00, portado do PHP sped-nfe para TypeScript com uma arquitetura em camadas DDD.
+title: Arquitetura do Módulo Fiscal
+description: O módulo fiscal implementa a emissão completa de documentos fiscais eletrônicos brasileiros (NF-e modelo 55 e NFC-e modelo 65) seguindo a especificação SEFAZ MOC 4.00, portado do PHP sped-nfe para TypeScript com uma arquitetura em camadas DDD.
 ---
 
-## Visao Geral
+## Visão Geral
 
-O modulo fiscal implementa a emissao completa de documentos fiscais eletronicos brasileiros (NF-e modelo 55 e NFC-e modelo 65) seguindo a especificacao SEFAZ MOC 4.00. Foi portado da biblioteca PHP [sped-nfe](https://github.com/nfephp-org/sped-nfe) para TypeScript, adaptado a uma arquitetura em camadas DDD (Domain-Driven Design).
+O módulo fiscal implementa a emissão completa de documentos fiscais eletrônicos brasileiros (NF-e modelo 55 e NFC-e modelo 65) seguindo a especificação SEFAZ MOC 4.00. Foi portado da biblioteca PHP [sped-nfe](https://github.com/nfephp-org/sped-nfe) para TypeScript, adaptado a uma arquitetura em camadas DDD (Domain-Driven Design).
 
 ### Estrutura do Monorepo
 
-O projeto utiliza um monorepo Turborepo. A logica fiscal pura esta em um pacote independente (`@finopenpos/fiscal`) em `packages/fiscal/`, sem dependencias de banco de dados. Os arquivos acoplados ao banco (repositorios e servico de notas) ficam na camada da aplicacao em `apps/web/src/lib/`.
+O projeto utiliza um monorepo Turborepo. A lógica fiscal pura está em um pacote independente (`@finopenpos/fiscal`) em `packages/fiscal/`, sem dependências de banco de dados. Os arquivos acoplados ao banco (repositórios e serviço de notas) ficam na camada da aplicação em `apps/web/src/lib/`.
 
-- **`packages/fiscal/src/`** — pacote fiscal independente (logica de dominio, XML, SEFAZ, etc.)
-- **`apps/web/src/lib/`** — arquivos de servico/repositorio acoplados ao banco (invoice-service, invoice-repository, fiscal-settings-repository)
-- **`apps/web/src/`** — aplicacao Next.js (paginas, routers tRPC, etc.)
+- **`packages/fiscal/src/`** — pacote fiscal independente (lógica de domínio, XML, SEFAZ, etc.)
+- **`apps/web/src/lib/`** — arquivos de serviço/repositório acoplados ao banco (invoice-service, invoice-repository, fiscal-settings-repository)
+- **`apps/web/src/`** — aplicação Next.js (páginas, routers tRPC, etc.)
 
 ## Diagrama de Camadas
 
@@ -47,7 +47,7 @@ O projeto utiliza um monorepo Turborepo. A logica fiscal pura esta em um pacote 
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## Fluxo de Dependencias
+## Fluxo de Dependências
 
 ```
 invoice-service
@@ -69,70 +69,70 @@ invoice-service
 └── qrcode.ts (NFC-e QR code)
 ```
 
-**Regra chave**: Modulos de impostos (dominio) nunca importam xml-builder (infraestrutura). Eles retornam estruturas `TaxElement`, que o xml-builder serializa. Isso evita dependencias circulares e mantem a logica de dominio pura.
+**Regra chave**: Módulos de impostos (domínio) nunca importam xml-builder (infraestrutura). Eles retornam estruturas `TaxElement`, que o xml-builder serializa. Isso evita dependências circulares e mantém a lógica de domínio pura.
 
-## Convencoes Numericas
+## Convenções Numéricas
 
-| Conceito | Armazenamento | Exemplo | Saida XML |
+| Conceito | Armazenamento | Exemplo | Saída XML |
 |----------|---------------|---------|-----------|
-| Monetario (vBC, vICMS, vNF) | Centavos (inteiro) | `1050` | `"10.50"` |
-| Aliquotas ICMS/FCP (pICMS, pFCP) | Centesimos (4dp) | `180000` | `"18.0000"` |
-| Aliquotas PIS/COFINS (pPIS) | x10000 (4dp) | `16500` | `"1.6500"` |
+| Monetário (vBC, vICMS, vNF) | Centavos (inteiro) | `1050` | `"10.50"` |
+| Alíquotas ICMS/FCP (pICMS, pFCP) | Centésimos (4dp) | `180000` | `"18.0000"` |
+| Alíquotas PIS/COFINS (pPIS) | x10000 (4dp) | `16500` | `"1.6500"` |
 | Quantidades | x1000 (3dp) | `1500` | `"1.500"` |
 
-## Tipos de Dominio Principais
+## Tipos de Domínio Principais
 
 | Tipo | Valores | Significado |
 |------|---------|-------------|
 | `InvoiceModel` | `55`, `65` | NF-e (B2B), NFC-e (consumidor) |
 | `InvoiceStatus` | `pending`, `authorized`, `rejected`, `cancelled`, `denied`, `contingency`, `voided` | Estados do ciclo de vida |
-| `SefazEnvironment` | `1`, `2` | Producao, Homologacao |
+| `SefazEnvironment` | `1`, `2` | Produção, Homologação |
 | `EmissionType` | `1`, `6`, `7`, `9` | Normal, SVC-AN, SVC-RS, Offline |
 | `TaxRegime` | `1`, `2`, `3` | Simples Nacional, Excesso Simples, Normal |
 
 ## Multi-Tenancy
 
-Todas as tabelas do banco sao chaveadas por `user_uid`. Toda funcao de repositorio recebe `userUid` como primeiro parametro. Nao ha acesso cruzado entre tenants.
+Todas as tabelas do banco são chaveadas por `user_uid`. Toda função de repositório recebe `userUid` como primeiro parâmetro. Não há acesso cruzado entre tenants.
 
-## Indice de Arquivos
+## Índice de Arquivos
 
-Todos os arquivos do pacote **`@finopenpos/fiscal`** ficam em `packages/fiscal/src/`. Os tres arquivos acoplados ao banco ficam em `apps/web/src/lib/`.
+Todos os arquivos do pacote **`@finopenpos/fiscal`** ficam em `packages/fiscal/src/`. Os três arquivos acoplados ao banco ficam em `apps/web/src/lib/`.
 
-| Arquivo | Localizacao | Camada | Proposito |
+| Arquivo | Localização | Camada | Propósito |
 |---------|-------------|--------|-----------|
-| `types.ts` | `packages/fiscal/src/` | Dominio | Todas as definicoes de tipos |
-| `constants.ts` | `packages/fiscal/src/` | Dominio | Namespaces XML, codigos de pagamento |
-| `state-codes.ts` | `packages/fiscal/src/` | Dominio | Mapeamento UF - codigo IBGE |
-| `sefaz-status-codes.ts` | `packages/fiscal/src/` | Dominio | Codigos de resposta cStat |
-| `value-objects/access-key.ts` | `packages/fiscal/src/` | Dominio | Chave de acesso de 44 digitos |
-| `value-objects/tax-id.ts` | `packages/fiscal/src/` | Dominio | Value object CPF/CNPJ |
-| `format-utils.ts` | `packages/fiscal/src/` | Dominio | Formatacao de centavos/aliquotas |
-| `tax-element.ts` | `packages/fiscal/src/` | Dominio | Padrao de desacoplamento TaxElement |
-| `tax-icms.ts` | `packages/fiscal/src/` | Dominio | Imposto ICMS (15+ variantes) |
-| `tax-pis-cofins-ipi.ts` | `packages/fiscal/src/` | Dominio | PIS, COFINS, IPI, II |
-| `tax-issqn.ts` | `packages/fiscal/src/` | Dominio | ISS (servicos) |
-| `tax-is.ts` | `packages/fiscal/src/` | Dominio | IS (consumo) |
+| `types.ts` | `packages/fiscal/src/` | Domínio | Todas as definições de tipos |
+| `constants.ts` | `packages/fiscal/src/` | Domínio | Namespaces XML, códigos de pagamento |
+| `state-codes.ts` | `packages/fiscal/src/` | Domínio | Mapeamento UF - código IBGE |
+| `sefaz-status-codes.ts` | `packages/fiscal/src/` | Domínio | Códigos de resposta cStat |
+| `value-objects/access-key.ts` | `packages/fiscal/src/` | Domínio | Chave de acesso de 44 dígitos |
+| `value-objects/tax-id.ts` | `packages/fiscal/src/` | Domínio | Value object CPF/CNPJ |
+| `format-utils.ts` | `packages/fiscal/src/` | Domínio | Formatação de centavos/alíquotas |
+| `tax-element.ts` | `packages/fiscal/src/` | Domínio | Padrão de desacoplamento TaxElement |
+| `tax-icms.ts` | `packages/fiscal/src/` | Domínio | Imposto ICMS (15+ variantes) |
+| `tax-pis-cofins-ipi.ts` | `packages/fiscal/src/` | Domínio | PIS, COFINS, IPI, II |
+| `tax-issqn.ts` | `packages/fiscal/src/` | Domínio | ISS (serviços) |
+| `tax-is.ts` | `packages/fiscal/src/` | Domínio | IS (consumo) |
 | `xml-utils.ts` | `packages/fiscal/src/` | Infra | tag(), escapeXml(), extractXmlTagValue() |
-| `xml-builder.ts` | `packages/fiscal/src/` | Infra | Geracao completa do XML NF-e |
-| `complement.ts` | `packages/fiscal/src/` | Infra | Anexacao de protocolo |
-| `certificate.ts` | `packages/fiscal/src/` | Infra | Extracao PFX, assinatura XML |
+| `xml-builder.ts` | `packages/fiscal/src/` | Infra | Geração completa do XML NF-e |
+| `complement.ts` | `packages/fiscal/src/` | Infra | Anexação de protocolo |
+| `certificate.ts` | `packages/fiscal/src/` | Infra | Extração PFX, assinatura XML |
 | `sefaz-urls.ts` | `packages/fiscal/src/` | Infra | Registro de endpoints por estado |
 | `sefaz-transport.ts` | `packages/fiscal/src/` | Infra | SOAP HTTP + mTLS via curl |
-| `sefaz-request-builders.ts` | `packages/fiscal/src/` | Infra | Geradores de XML de requisicao |
+| `sefaz-request-builders.ts` | `packages/fiscal/src/` | Infra | Geradores de XML de requisição |
 | `sefaz-response-parsers.ts` | `packages/fiscal/src/` | Infra | Parsing de resposta |
 | `sefaz-event-types.ts` | `packages/fiscal/src/` | Infra | Constantes e helpers de eventos |
 | `sefaz-reform-events.ts` | `packages/fiscal/src/` | Infra | Eventos da reforma IBS/CBS |
-| `contingency.ts` | `packages/fiscal/src/` | Infra | Configuracao de fallback offline |
-| `contingency-nfe.ts` | `packages/fiscal/src/` | Infra | Ajustes de contingencia NF-e |
+| `contingency.ts` | `packages/fiscal/src/` | Infra | Configuração de fallback offline |
+| `contingency-nfe.ts` | `packages/fiscal/src/` | Infra | Ajustes de contingência NF-e |
 | `epec-nfce.ts` | `packages/fiscal/src/` | Infra | Registro EPEC para NFC-e |
-| `qrcode.ts` | `packages/fiscal/src/` | Infra | Geracao de QR code NFC-e |
-| `convert.ts` | `packages/fiscal/src/` | Infra | Conversao TXT - XML |
+| `qrcode.ts` | `packages/fiscal/src/` | Infra | Geração de QR code NFC-e |
+| `convert.ts` | `packages/fiscal/src/` | Infra | Conversão TXT - XML |
 | `txt-structures.ts` | `packages/fiscal/src/` | Infra | Layouts de campos TXT |
-| `valid-txt.ts` | `packages/fiscal/src/` | Infra | Validacao TXT |
-| `standardize.ts` | `packages/fiscal/src/` | Infra | Deteccao de tipo XML |
-| `gtin.ts` | `packages/fiscal/src/` | Infra | Validacao de codigo de barras |
-| `cep-lookup.ts` | `packages/fiscal/src/` | Infra | Consulta de CEP/codigo postal |
-| `config-validate.ts` | `packages/fiscal/src/` | Infra | Validacao de JSON de configuracao |
-| `invoice-service.ts` | `apps/web/src/lib/` | Servico | Orquestracao do ciclo de vida da nota |
-| `fiscal-settings-repository.ts` | `apps/web/src/lib/` | Persistencia | CRUD de configuracoes |
-| `invoice-repository.ts` | `apps/web/src/lib/` | Persistencia | CRUD de notas fiscais |
+| `valid-txt.ts` | `packages/fiscal/src/` | Infra | Validação TXT |
+| `standardize.ts` | `packages/fiscal/src/` | Infra | Detecção de tipo XML |
+| `gtin.ts` | `packages/fiscal/src/` | Infra | Validação de código de barras |
+| `cep-lookup.ts` | `packages/fiscal/src/` | Infra | Consulta de CEP/código postal |
+| `config-validate.ts` | `packages/fiscal/src/` | Infra | Validação de JSON de configuração |
+| `invoice-service.ts` | `apps/web/src/lib/` | Serviço | Orquestração do ciclo de vida da nota |
+| `fiscal-settings-repository.ts` | `apps/web/src/lib/` | Persistência | CRUD de configurações |
+| `invoice-repository.ts` | `apps/web/src/lib/` | Persistência | CRUD de notas fiscais |

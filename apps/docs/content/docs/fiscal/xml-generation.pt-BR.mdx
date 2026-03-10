@@ -1,11 +1,11 @@
 ---
-title: Geracao de XML
-description: A camada de geracao de XML constroi documentos XML completos e nao assinados de NF-e/NFC-e conforme a especificacao MOC 4.00, tratando a montagem de todos os grupos da nota, helpers de endereco e anexacao de protocolo.
+title: Geração de XML
+description: A camada de geração de XML constrói documentos XML completos e não assinados de NF-e/NFC-e conforme a especificação MOC 4.00, tratando a montagem de todos os grupos da nota, helpers de endereço e anexação de protocolo.
 ---
 
-## Visao Geral
+## Visão Geral
 
-A camada de geracao de XML constroi documentos XML completos e nao assinados de NF-e/NFC-e conforme a especificacao MOC 4.00. Apos a geracao, o XML e assinado com um certificado digital e enviado ao SEFAZ.
+A camada de geração de XML constrói documentos XML completos e não assinados de NF-e/NFC-e conforme a especificação MOC 4.00. Após a geração, o XML é assinado com um certificado digital e enviado ao SEFAZ.
 
 **Arquivos**: `xml-builder.ts`, `xml-utils.ts`, `complement.ts`
 
@@ -17,15 +17,15 @@ A camada de geracao de XML constroi documentos XML completos e nao assinados de 
 buildInvoiceXml(data: InvoiceBuildData): { xml: string; accessKey: string }
 ```
 
-### Fluxo de construcao
+### Fluxo de construção
 
-1. **Consulta de estado** — Converte UF para codigo IBGE via `state-codes.ts`
-2. **Codigo aleatorio** — Gera `cNF` de 8 digitos para a chave de acesso
-3. **Chave de acesso** — Constroi chave de 44 digitos via `AccessKey.build()` com digito verificador mod-11
+1. **Consulta de estado** — Converte UF para código IBGE via `state-codes.ts`
+2. **Código aleatório** — Gera `cNF` de 8 dígitos para a chave de acesso
+3. **Chave de acesso** — Constrói chave de 44 dígitos via `AccessKey.build()` com dígito verificador mod-11
 4. **Loop de itens** — Para cada item:
    - Chama `buildIcmsXml()` → acumula totais de ICMS
-   - Chama `buildPisXml()`, `buildCofinsXml()`, `buildIpiXml()` conforme necessario
-   - Constroi `<det nItem="N">` com `<prod>` + `<imposto>`
+   - Chama `buildPisXml()`, `buildCofinsXml()`, `buildIpiXml()` conforme necessário
+   - Constrói `<det nItem="N">` com `<prod>` + `<imposto>`
 5. **Montagem dos grupos** — `ide`, `emit`, `dest`, `det[]`, `total`, `transp`, `pag`, `infAdic`
 6. **Encapsulamento** — `<?xml?><NFe xmlns="..."><infNFe Id="NFe{accessKey}" versao="4.00">...</infNFe></NFe>`
 
@@ -60,9 +60,9 @@ buildInvoiceXml(data: InvoiceBuildData): { xml: string; accessKey: string }
 </NFe>
 ```
 
-### Helper de endereco (DRY)
+### Helper de endereço (DRY)
 
-O helper `buildAddressFields()` gera a sequencia comum de tags de endereco (xLgr, nro, xCpl, xBairro, cMun, xMun, UF, CEP, cPais, xPais) usada por `enderEmit`, `retirada` e `entrega`.
+O helper `buildAddressFields()` gera a sequência comum de tags de endereço (xLgr, nro, xCpl, xBairro, cMun, xMun, UF, CEP, cPais, xPais) usada por `enderEmit`, `retirada` e `entrega`.
 
 ```typescript
 function buildAddressFields(a: {
@@ -72,17 +72,17 @@ function buildAddressFields(a: {
 }): string[]
 ```
 
-### Secoes especiais
+### Seções especiais
 
 - **NFref** — Notas referenciadas (NF-e, NFC-e, ECF, nota de produtor)
-- **Retirada/Entrega** — Enderecos de retirada/entrega com CPF/CNPJ
+- **Retirada/Entrega** — Endereços de retirada/entrega com CPF/CNPJ
 - **autXML** — Partes autorizadas a acessar o XML
-- **retTrib** — Retencao de tributos (PIS, COFINS, CSLL, IRRF valores retidos)
-- **infAdic** — Informacoes adicionais, observacoes do contribuinte/fisco, referencias de processos
+- **retTrib** — Retenção de tributos (PIS, COFINS, CSLL, IRRF valores retidos)
+- **infAdic** — Informações adicionais, observações do contribuinte/fisco, referências de processos
 
-## Utilitarios XML (`xml-utils.ts`)
+## Utilitários XML (`xml-utils.ts`)
 
-Compartilhados em todo o modulo (xml-builder, convert, complement, contingency, qrcode):
+Compartilhados em todo o módulo (xml-builder, convert, complement, contingency, qrcode):
 
 ```typescript
 escapeXml(str)                     // Escape &, <, >, ", '
@@ -93,12 +93,12 @@ extractXmlTagValue(xml, tagName)   // Regex extract tag text content
 ### Comportamento de tag()
 
 - Filhos string → escapados (`tag("xNome", {}, "Foo & Bar")` → `<xNome>Foo &amp; Bar</xNome>`)
-- Filhos array → concatenados crus (para aninhar tags pre-construidas)
+- Filhos array → concatenados crus (para aninhar tags pré-construídas)
 - Sem filhos → elemento vazio (`<tag></tag>`)
 
 ## Complemento (`complement.ts`)
 
-Operacoes pos-autorizacao no XML assinado:
+Operações pós-autorização no XML assinado:
 
 ### attachProtocol
 
@@ -106,7 +106,7 @@ Operacoes pos-autorizacao no XML assinado:
 attachProtocol(requestXml: string, responseXml: string): string
 ```
 
-Combina a NF-e assinada (`<NFe>`) com a resposta de protocolo do SEFAZ (`<protNFe>`) no encapsulamento canonico `<nfeProc>`:
+Combina a NF-e assinada (`<NFe>`) com a resposta de protocolo do SEFAZ (`<protNFe>`) no encapsulamento canônico `<nfeProc>`:
 
 ```xml
 <nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
@@ -121,21 +121,21 @@ Combina a NF-e assinada (`<NFe>`) com a resposta de protocolo do SEFAZ (`<protNF
 </nfeProc>
 ```
 
-### Logica de validacao
+### Lógica de validação
 
-- Compara `digVal` entre a assinatura da requisicao e a resposta
-- Valida que `cStat` esta em `VALID_PROTOCOL_STATUSES` (100, 150, etc.)
-- Lanca erro em rejeicao (110, 205, 301, 302, 303) com mensagem descritiva
+- Compara `digVal` entre a assinatura da requisição e a resposta
+- Valida que `cStat` está em `VALID_PROTOCOL_STATUSES` (100, 150, etc.)
+- Lança erro em rejeição (110, 205, 301, 302, 303) com mensagem descritiva
 
-## Conversao TXT-para-XML (`convert.ts`)
+## Conversão TXT-para-XML (`convert.ts`)
 
-Converte o formato legado SPED TXT (delimitado por pipe) para XML de NF-e. Usado para importacao em lote de sistemas antigos.
+Converte o formato legado SPED TXT (delimitado por pipe) para XML de NF-e. Usado para importação em lote de sistemas antigos.
 
 - Suporta layouts: LOCAL, LOCAL\_V12, LOCAL\_V13, SEBRAE
-- Definicoes de campos em `txt-structures.ts`
-- Validacao em `valid-txt.ts`
-- Usa seus proprios helpers `xmlTag()` e `addChild()` (mais simples que `tag()`)
+- Definições de campos em `txt-structures.ts`
+- Validação em `valid-txt.ts`
+- Usa seus próprios helpers `xmlTag()` e `addChild()` (mais simples que `tag()`)
 
-## Re-exportacoes
+## Re-exportações
 
 `xml-builder.ts` re-exporta `tag` e `escapeXml` de `xml-utils.ts` para compatibilidade retroativa (testes importam `{ tag }` de xml-builder).
