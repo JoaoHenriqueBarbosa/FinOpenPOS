@@ -1,0 +1,197 @@
+---
+title: Database
+description: PGLite, schema design, and PostgreSQL migration
+---
+
+## Overview
+
+FinOpenPOS uses **PGLite** — full PostgreSQL running as WASM inside the Node.js process. No external database server required. Data is stored on the filesystem at `apps/web/data/pglite`.
+
+The ORM is **Drizzle**, providing type-safe SQL queries and automatic schema management via `drizzle-kit push`.
+
+## Schema
+
+{/* ER_START */}
+
+```mermaid
+erDiagram
+    products {
+        serial id PK
+        varchar name
+        text description
+        integer price
+        integer in_stock
+        varchar user_uid
+        varchar category
+        varchar ncm
+        varchar cfop
+        varchar icms_cst
+        varchar pis_cst
+        varchar cofins_cst
+        varchar unit_of_measure
+        timestamp created_at
+    }
+
+    customers {
+        serial id PK
+        varchar name
+        varchar email UK
+        varchar phone
+        varchar user_uid
+        varchar status
+        timestamp created_at
+    }
+
+    payment_methods {
+        serial id PK
+        varchar name UK
+        timestamp created_at
+    }
+
+    orders {
+        serial id PK
+        integer customer_id FK
+        integer total_amount
+        varchar user_uid
+        varchar status
+        timestamp created_at
+    }
+
+    order_items {
+        serial id PK
+        integer order_id FK
+        integer product_id FK
+        integer quantity
+        integer price
+        timestamp created_at
+    }
+
+    transactions {
+        serial id PK
+        text description
+        integer order_id FK
+        integer payment_method_id FK
+        integer amount
+        varchar user_uid
+        varchar type
+        varchar category
+        varchar status
+        timestamp created_at
+    }
+
+    customers |o--o{ orders : "has"
+    orders |o--o{ order_items : "contains"
+    products |o--o{ order_items : "references"
+    orders |o--o{ transactions : "generates"
+    payment_methods |o--o{ transactions : "uses"
+```
+
+{/* ER_END */}
+
+See [Fiscal Database Schema](/docs/fiscal/database-schema) for the fiscal-specific tables (`fiscalSettings`, `invoices`, `invoiceItems`, `invoiceEvents`, `cities`).
+
+## Conventions
+
+| Convention | Example |
+|-----------|---------|
+| Monetary values | Integer cents — `4999` = R$49.99 |
+| ICMS/FCP rates | Hundredths — `1800` = 18.00% |
+| PIS/COFINS rates | Ten-thousandths — `16500` = 1.6500% |
+| Multi-tenancy | All tables with `user_uid` column |
+| Timestamps | `created_at` with `defaultNow()` |
+
+## PGLite (Default)
+
+PGLite runs full PostgreSQL via WASM directly in the Node.js process.
+
+**Pros:**
+- Zero configuration — no PostgreSQL server needed
+- No external dependencies — works immediately after `bun install`
+- Ideal for development and small deployments
+
+**Limitations:**
+- Single-process (no external concurrent connections)
+- Lower performance than native PostgreSQL under heavy load
+- No replication
+
+The PGLite singleton lives at `src/lib/db/index.ts` using a `globalThis` trick to survive HMR in development.
+
+## Seeding
+
+On the first `bun run dev`, the database is seeded with:
+- ~5570 IBGE cities (fetched from the IBGE API)
+- Default payment methods
+- Demo data: 20 customers, 32 products, 40 orders, 25 transactions
+
+## Migrating to PostgreSQL
+
+When the project needs a real database, migration is straightforward because Drizzle ORM abstracts the data access layer — the schema is identical.
+
+### Automatic Migration
+
+```bash
+cd apps/web && bun run prepare-prod
+```
+
+Then set `DATABASE_URL` in your `apps/web/.env` file and push the schema:
+
+```bash
+cd apps/web && bun run db:push
+cd apps/web && bun run dev
+```
+
+### Manual Migration
+
+#### 1. Install the PostgreSQL driver
+
+```bash
+bun add pg
+bun remove @electric-sql/pglite
+```
+
+#### 2. Update `apps/web/src/lib/db/index.ts`
+
+```ts
+import { drizzle } from "drizzle-orm/node-postgres";
+import * as schema from "./schema";
+
+export const db = drizzle(process.env.DATABASE_URL!, { schema });
+```
+
+#### 3. Update `apps/web/drizzle.config.ts`
+
+```ts
+import { defineConfig } from "drizzle-kit";
+
+export default defineConfig({
+  dialect: "postgresql",
+  schema: "./src/lib/db/schema.ts",
+  dbCredentials: {
+    url: process.env.DATABASE_URL!,
+  },
+});
+```
+
+#### 4. Add the env variable
+
+```ini
+DATABASE_URL=postgresql://user:password@host:5432/finopenpos
+```
+
+#### 5. Push schema and run
+
+```bash
+cd apps/web && bun run db:push
+bun run dev
+```
+
+#### 6. Clean up
+
+- Delete `scripts/ensure-db.ts` (only exists for PGLite recovery)
+- Remove `db:ensure` from `dev` and `build` scripts in `package.json`
+- Remove `serverExternalPackages` from `next.config.mjs`
+- In Docker, replace the PGLite volume with a PostgreSQL connection via `DATABASE_URL`
+
+<Callout type="info">
+The Drizzle schema (`apps/web/src/lib/db/schema.ts`) doesn't change. All queries, relations and tRPC procedures keep working without modification.
+</Callout>

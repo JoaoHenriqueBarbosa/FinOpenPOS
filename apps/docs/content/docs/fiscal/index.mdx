@@ -1,0 +1,128 @@
+---
+title: Overview
+description: Brazilian fiscal module (NF-e/NFC-e) — standalone @finopenpos/fiscal package
+---
+
+## What is @finopenpos/fiscal?
+
+The fiscal module lives in `packages/fiscal/` as **@finopenpos/fiscal** — a standalone package with zero database dependencies. It can be used independently in any TypeScript/JavaScript project.
+
+It implements complete Brazilian electronic invoicing following the **SEFAZ MOC 4.00** specification, ported from the PHP [sped-nfe](https://github.com/nfephp-org/sped-nfe) library to TypeScript with DDD architecture.
+
+## Capabilities
+
+- **NF-e** (model 55) — B2B invoices
+- **NFC-e** (model 65) — consumer invoices
+- **Tax engine** — ICMS (15 CST + 10 CSOSN), PIS, COFINS, IPI, II, ISSQN
+- **XML generation** — complete NF-e/NFC-e XML per MOC 4.00
+- **Digital signature** — XML signing with A1 e-CNPJ (PFX/PKCS#12)
+- **SEFAZ communication** — authorize, cancel, void, query (mTLS via curl)
+- **QR code** — NFC-e QR code v2.00/v3.00 (online + offline)
+- **Contingency** — SVC-AN, SVC-RS, EPEC offline modes
+- **IBS/CBS reform events** — 14 event types for Brazilian tax reform
+- **TXT conversion** — legacy SPED format (4 layouts)
+- **754 tests** — ported from PHP sped-nfe test suite
+
+## Invoice Lifecycle
+
+```mermaid
+flowchart TD
+  Start([Order placed]) --> LoadSettings[Load fiscal settings + certificate]
+  LoadSettings --> BuildXML[Build NF-e/NFC-e XML from order items]
+  BuildXML --> CalcTax[Calculate taxes\nICMS + PIS + COFINS + IPI]
+  CalcTax --> GenKey[Generate access key\n44-digit mod-11]
+  GenKey --> Sign[Sign XML with A1 e-CNPJ certificate]
+  Sign --> SendSEFAZ{Send to SEFAZ}
+
+  SendSEFAZ -->|cStat 100| Authorized[Authorized]
+  SendSEFAZ -->|cStat 110| Denied[Denied]
+  SendSEFAZ -->|timeout| Contingency{Model?}
+
+  Contingency -->|NFC-e 65| Offline[Save offline\nstatus=contingency]
+  Contingency -->|NF-e 55| Error[Throw error]
+
+  Authorized --> AttachProto[Attach protocol\nnfeProc XML]
+  AttachProto --> SaveDB[(Save to DB\ninvoice + items)]
+  Offline --> SaveDB
+  Denied --> SaveDB
+
+  SaveDB --> IncrNumber[Increment next number]
+
+  Authorized -.->|later| Cancel[Cancel invoice]
+  Cancel --> EventXML[Build cancellation event XML]
+  EventXML --> SignEvent[Sign + send to SEFAZ]
+
+  Offline -.->|connection back| Sync[Sync pending invoices]
+```
+
+## Tax Engine
+
+```mermaid
+flowchart LR
+  subgraph Domain["Domain Layer (pure logic)"]
+    ICMS["tax-icms.ts\n15 CST + 10 CSOSN"]
+    PIS["tax-pis-cofins-ipi.ts\nPIS / COFINS / IPI / II"]
+    TE["tax-element.ts\nTaxElement interface"]
+  end
+
+  subgraph Infra["Infrastructure Layer"]
+    XB["xml-builder.ts\nFull NF-e XML"]
+    XU["xml-utils.ts\ntag() + escapeXml()"]
+    FU["format-utils.ts\ncents → '10.50'"]
+  end
+
+  ICMS -->|returns TaxElement| TE
+  PIS -->|returns TaxElement| TE
+  TE -->|serializeTaxElement| XB
+  XB --> XU
+  ICMS --> FU
+  PIS --> FU
+```
+
+Tax modules never import XML code — they return `TaxElement` structures that the builder serializes. This keeps domain logic pure and testable.
+
+## SEFAZ Communication
+
+```mermaid
+sequenceDiagram
+  participant App as Invoice Service
+  participant Builder as Request Builder
+  participant Cert as Certificate
+  participant Transport as SEFAZ Transport
+  participant SEFAZ as SEFAZ Web Service
+
+  App->>Builder: buildAuthorizationRequestXml(signedNFe)
+  App->>Cert: extractCertFromPfx(pfx, password)
+  Cert-->>App: PEM cert + key
+
+  App->>Transport: sefazRequest(url, xml, cert, key)
+  Transport->>Transport: Build SOAP 1.2 envelope
+  Transport->>Transport: Write PEM to temp files
+  Transport->>SEFAZ: curl --cert cert.pem --key key.pem (mTLS)
+  SEFAZ-->>Transport: SOAP response
+  Transport->>Transport: Extract content from SOAP body
+  Transport-->>App: httpStatus, body, content
+
+  App->>App: parseAuthorizationResponse(content)
+  App->>App: attachProtocol(request, response)
+```
+
+> **Why curl?** Bun's `node:https` Agent does not support PFX for mTLS. The workaround extracts PEM from PFX via openssl and uses curl for the HTTPS request.
+
+## Detailed Documentation
+
+| Page | Topic |
+|------|-------|
+| [Architecture](/docs/fiscal/architecture) | DDD layers, dependency graph, numeric conventions |
+| [Invoice Workflow](/docs/fiscal/invoice-workflow) | Service lifecycle, repositories, multi-tenancy |
+| [Tax Engine](/docs/fiscal/tax-engine) | ICMS/PIS/COFINS/IPI, TaxElement pattern |
+| [XML Generation](/docs/fiscal/xml-generation) | xml-builder, complement, NF-e XML structure |
+| [SEFAZ Communication](/docs/fiscal/sefaz-communication) | Transport, URLs, request builders, reform events |
+| [Certificate & Signing](/docs/fiscal/certificate-signing) | PFX extraction, XML digital signature |
+| [Value Objects](/docs/fiscal/value-objects) | AccessKey (mod-11), TaxId (CPF/CNPJ) |
+| [Contingency](/docs/fiscal/contingency) | SVC-AN/SVC-RS, EPEC, offline modes |
+| [QR Code](/docs/fiscal/qrcode) | NFC-e QR code v2.00/v3.00 |
+| [TXT Conversion](/docs/fiscal/txt-conversion) | SPED TXT legacy format conversion |
+| [Database Schema](/docs/fiscal/database-schema) | Fiscal tables, multi-tenancy |
+| [Utilities](/docs/fiscal/utilities) | GTIN, CEP lookup, state codes |
+| [Emission Testing](/docs/fiscal/emission-testing) | SEFAZ PR real-world testing notes |
