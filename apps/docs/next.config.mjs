@@ -4,6 +4,11 @@ import { createMDX } from "fumadocs-mdx/next";
 const nextConfig = {
   basePath: process.env.BASE_PATH || "",
   reactStrictMode: true,
+  images: {
+    remotePatterns: [
+      { hostname: "avatars.githubusercontent.com" },
+    ],
+  },
 };
 
 const withMDX = createMDX();

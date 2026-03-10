@@ -1,0 +1,19 @@
+{
+  "title": "Fiscal Module",
+  "pages": [
+    "index",
+    "architecture",
+    "invoice-workflow",
+    "tax-engine",
+    "xml-generation",
+    "sefaz-communication",
+    "certificate-signing",
+    "value-objects",
+    "contingency",
+    "qrcode",
+    "txt-conversion",
+    "database-schema",
+    "utilities",
+    "emission-testing"
+  ]
+}

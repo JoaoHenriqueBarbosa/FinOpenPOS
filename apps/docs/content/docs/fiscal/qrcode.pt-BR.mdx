@@ -1,0 +1,104 @@
+---
+title: QR Code da NFC-e
+description: Toda NFC-e (modelo 65) deve incluir um QR code para verificação pelo consumidor, codificando uma URL para consulta da autenticidade da nota no portal da SEFAZ, com suporte aos formatos v2.00 e v3.00.
+---
+
+## Visão Geral
+
+Toda NFC-e (modelo 65) deve incluir um QR code para verificação pelo consumidor. O QR code codifica uma URL que permite consultar a autenticidade da nota no portal da SEFAZ. Duas versões existem: v2.00 (legado) e v3.00 (NT 2025.001, assinatura RSA).
+
+**Arquivo**: `qrcode.ts`
+
+## Ponto de Entrada
+
+```typescript
+function buildNfceQrCodeUrl(params: NfceQrCodeParams): string
+```
+
+### Parâmetros
+
+```typescript
+interface NfceQrCodeParams {
+  accessKey: string;          // chave de acesso de 44 dígitos
+  environment: SefazEnvironment;  // 1 ou 2
+  emissionType: EmissionType;     // 1 (online) ou 9 (offline)
+  cscId: string;              // identificador do CSC (cadastrado na SEFAZ)
+  cscToken: string;           // token secreto do CSC
+  signedXml?: string;         // obrigatório para modo offline
+  stateCode: string;          // UF (ex: "SP")
+  version?: "v200" | "v300";  // padrão "v200"
+}
+```
+
+## Versão 2.00 (Padrão)
+
+### Modo online (tpEmis=1)
+
+```
+{baseUrl}?p={accessKey}|{version}|{tpAmb}|{cscId}|{hash}
+```
+
+- `hash` = SHA-1 hex de `{accessKey}|{version}|{tpAmb}|{cscId}{cscToken}`
+
+### Modo offline (tpEmis=9)
+
+```
+{baseUrl}?p={accessKey}|{version}|{tpAmb}|{dhEmi}|{vNF}|{digVal}|{cscId}|{hash}
+```
+
+Campos adicionais extraídos do XML assinado:
+- `dhEmi` — data/hora da emissão (codificado em hex)
+- `vNF` — valor total
+- `digVal` — valor do digest da assinatura XML (codificado em hex)
+- `hash` = SHA-1 hex de todos os campos concatenados + token CSC
+
+## Versão 3.00 (NT 2025.001)
+
+### Modo online
+
+```
+{baseUrl}?p={accessKey}|{version}|{tpAmb}|{cscId}|{hash}
+```
+
+- `hash` = SHA-256 hex (atualização do SHA-1)
+
+### Modo offline
+
+Igual ao modo offline da v2.00, mas com hash SHA-256.
+
+## URLs Base
+
+Cada estado possui uma URL específica de verificação do QR code. Exemplo:
+
+| Estado | URL de Produção |
+|--------|----------------|
+| SP | `https://www.nfce.fazenda.sp.gov.br/NFCeConsultaPublica/...` |
+| RJ | `https://www.nfce.fazenda.rj.gov.br/consulta` |
+| RS | `https://www.sefaz.rs.gov.br/NFCE/NFCE-COM.aspx` |
+
+As URLs diferem entre os ambientes de produção e homologação.
+
+## CSC (Código de Segurança do Contribuinte)
+
+O CSC é um token secreto cadastrado pela empresa junto à SEFAZ. Ele consiste em:
+- `cscId` — identificador numérico (ex: "1")
+- `cscToken` — string secreta (ex: "A8B1C2D3E4F5...")
+
+O CSC nunca é transmitido no QR code — é usado apenas para calcular o hash. O portal da SEFAZ verifica o hash usando sua cópia do CSC.
+
+## Integração com o XML
+
+A URL do QR code é incorporada no XML da NF-e dentro de `<infNFeSupl>`:
+
+```xml
+<infNFeSupl>
+  <qrCode><![CDATA[https://www.nfce.fazenda.sp.gov.br/...?p=35...]]></qrCode>
+  <urlChave>https://www.nfce.fazenda.sp.gov.br/consulta</urlChave>
+</infNFeSupl>
+```
+
+O `xml-builder.ts` chama `buildNfceQrCodeUrl()` para notas de modelo 65 e insere o resultado.
+
+## Impressão (DANFCE)
+
+A URL do QR code é impressa no DANFCE (Documento Auxiliar da NFC-e) — o cupom fiscal do consumidor. Ele permite que consumidores verifiquem a nota escaneando com qualquer leitor de QR code.

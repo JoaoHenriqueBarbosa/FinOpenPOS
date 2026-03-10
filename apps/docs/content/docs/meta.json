@@ -2,17 +2,13 @@
   "pages": [
     "index",
     "architecture",
-    "tax-engine",
-    "xml-generation",
-    "sefaz-communication",
-    "certificate-signing",
-    "value-objects",
-    "invoice-workflow",
-    "contingency",
-    "emission-testing",
-    "qrcode",
-    "txt-conversion",
-    "database-schema",
-    "utilities"
+    "tech-stack",
+    "project-structure",
+    "database",
+    "api",
+    "testing",
+    "deployment",
+    "---Fiscal Module---",
+    "fiscal"
   ]
 }

@@ -1,34 +1,72 @@
 ---
 title: Getting Started
-description: FinOpenPOS documentation overview
+description: Open-source POS with Brazilian fiscal module (NF-e/NFC-e)
 ---
 
 ## What is FinOpenPOS?
 
-FinOpenPOS is an open-source Point of Sale system built with Next.js, designed for the Brazilian market with full fiscal compliance (NF-e/NFC-e).
+FinOpenPOS is an open-source Point of Sale (POS) and inventory management system with a **Brazilian fiscal module** (NF-e/NFC-e). Built with Next.js 16, React 19 and embedded PostgreSQL via PGLite. Turborepo monorepo with the fiscal module as a standalone package.
 
-## Monorepo Structure
+Zero external dependencies to run — `bun install && bun run dev` and you're set.
 
-The project is organized as a Turborepo monorepo:
+## Features
 
-| Package | Description |
-|---|---|
-| `apps/web` | Next.js 16 app (POS, dashboard, fiscal) |
-| `apps/docs` | This documentation site |
-| `packages/fiscal` | Brazilian fiscal module (NF-e/NFC-e) |
-| `packages/ui` | Shared UI components (shadcn/Radix) |
-| `packages/db` | Drizzle ORM schema |
-| `packages/auth` | Better Auth factory |
-| `packages/api` | tRPC infrastructure |
-| `packages/env` | Environment validation (t3-oss/env) |
+### Business
+
+- **Dashboard** with interactive charts (revenue, expenses, cash flow, profit margin)
+- **Product Management** with categories and stock control
+- **Customer Management** with active/inactive status
+- **Order Management** with items, totals and status tracking
+- **Point of Sale (POS)** for quick sales processing
+- **Cashier** with income and expense transaction logging
+- **Authentication** with email/password via Better Auth
+- **API Documentation** auto-generated interactive docs via Scalar at `/api/docs`
+
+### Fiscal (Brazilian NF-e / NFC-e)
+
+- **Electronic Invoicing** — NF-e (model 55, B2B) and NFC-e (model 65, consumer)
+- **Tax Calculations** — ICMS (15 CST + 10 CSOSN), PIS, COFINS, IPI, II, ISSQN
+- **SEFAZ Integration** — authorize, cancel, void, query with mTLS client certificate
+- **Digital Signature** — XML signing with A1 e-CNPJ certificate (PFX/PKCS#12)
+- **QR Code** — NFC-e QR code generation (v2.00/v3.00, online + offline)
+- **Contingency** — SVC-AN, SVC-RS (NF-e) and EPEC (NFC-e) offline modes
+- **IBS/CBS Reform Events** — 14 event types for the Brazilian tax reform (PL_010)
+- **Settings UI** — company info, address, certificate, CSC, default tax codes
+- **CEP Auto-fill** — address completion via ViaCEP + BrasilAPI
 
 ## Quick Start
 
 ```bash
 git clone https://github.com/JoaoHenriqueBarbosa/FinOpenPOS.git
 cd FinOpenPOS
-bun install
-bun dev:web
+cp apps/web/.env.example apps/web/.env
 ```
 
-The app runs at `http://localhost:3001` with a demo user: `test@example.com` / `test1234`.
+Edit `apps/web/.env` with a secure secret:
+
+```ini
+BETTER_AUTH_SECRET=generate-with-openssl-rand-base64-32
+BETTER_AUTH_URL=http://localhost:3001
+```
+
+```bash
+bun install
+bun run dev
+```
+
+Open `http://localhost:3001` and use the **Fill demo credentials** button to sign in with the test account (`test@example.com` / `test1234`).
+
+<Callout type="info">
+The first `bun run dev` automatically creates the database at `apps/web/data/pglite`, pushes the schema via Drizzle and seeds demo data (20 customers, 32 products, 40 orders, 25 transactions) + ~5570 IBGE cities.
+</Callout>
+
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `bun run dev` | Start all apps via Turborepo |
+| `bun run dev:web` | Start only the web app |
+| `bun run check` | Lint and format with Biome |
+| `cd apps/web && bun test` | Run tRPC router tests |
+| `cd packages/fiscal && bun test` | Run fiscal module tests (754 tests) |
+| `cd apps/web && bun run prepare-prod` | Migrate from PGLite to PostgreSQL |

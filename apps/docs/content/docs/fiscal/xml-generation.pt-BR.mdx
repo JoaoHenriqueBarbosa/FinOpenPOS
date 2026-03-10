@@ -1,0 +1,141 @@
+---
+title: Geracao de XML
+description: A camada de geracao de XML constroi documentos XML completos e nao assinados de NF-e/NFC-e conforme a especificacao MOC 4.00, tratando a montagem de todos os grupos da nota, helpers de endereco e anexacao de protocolo.
+---
+
+## Visao Geral
+
+A camada de geracao de XML constroi documentos XML completos e nao assinados de NF-e/NFC-e conforme a especificacao MOC 4.00. Apos a geracao, o XML e assinado com um certificado digital e enviado ao SEFAZ.
+
+**Arquivos**: `xml-builder.ts`, `xml-utils.ts`, `complement.ts`
+
+## Construtor XML (`xml-builder.ts`)
+
+### Ponto de entrada
+
+```typescript
+buildInvoiceXml(data: InvoiceBuildData): { xml: string; accessKey: string }
+```
+
+### Fluxo de construcao
+
+1. **Consulta de estado** — Converte UF para codigo IBGE via `state-codes.ts`
+2. **Codigo aleatorio** — Gera `cNF` de 8 digitos para a chave de acesso
+3. **Chave de acesso** — Constroi chave de 44 digitos via `AccessKey.build()` com digito verificador mod-11
+4. **Loop de itens** — Para cada item:
+   - Chama `buildIcmsXml()` → acumula totais de ICMS
+   - Chama `buildPisXml()`, `buildCofinsXml()`, `buildIpiXml()` conforme necessario
+   - Constroi `<det nItem="N">` com `<prod>` + `<imposto>`
+5. **Montagem dos grupos** — `ide`, `emit`, `dest`, `det[]`, `total`, `transp`, `pag`, `infAdic`
+6. **Encapsulamento** — `<?xml?><NFe xmlns="..."><infNFe Id="NFe{accessKey}" versao="4.00">...</infNFe></NFe>`
+
+### Estrutura XML da NF-e (simplificada)
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<NFe xmlns="http://www.portalfiscal.inf.br/nfe">
+  <infNFe Id="NFe35..." versao="4.00">
+    <ide>...</ide>          <!-- identification: model, series, number, dates -->
+    <emit>                  <!-- issuer -->
+      <enderEmit>...</enderEmit>
+    </emit>
+    <dest>                  <!-- recipient (optional for NFC-e) -->
+      <enderDest>...</enderDest>
+    </dest>
+    <det nItem="1">         <!-- item 1 -->
+      <prod>...</prod>
+      <imposto>
+        <ICMS><ICMS00>...</ICMS00></ICMS>
+        <PIS><PISAliq>...</PISAliq></PIS>
+        <COFINS><COFINSAliq>...</COFINSAliq></COFINS>
+      </imposto>
+    </det>
+    <total>
+      <ICMSTot>...</ICMSTot>
+    </total>
+    <transp>...</transp>    <!-- transport -->
+    <pag>...</pag>          <!-- payment -->
+    <infAdic>...</infAdic>  <!-- additional info -->
+  </infNFe>
+</NFe>
+```
+
+### Helper de endereco (DRY)
+
+O helper `buildAddressFields()` gera a sequencia comum de tags de endereco (xLgr, nro, xCpl, xBairro, cMun, xMun, UF, CEP, cPais, xPais) usada por `enderEmit`, `retirada` e `entrega`.
+
+```typescript
+function buildAddressFields(a: {
+  street: string; number: string; complement?: string;
+  district: string; cityCode: string; cityName: string;
+  stateCode: string; zipCode?: string; includeCountry?: boolean;
+}): string[]
+```
+
+### Secoes especiais
+
+- **NFref** — Notas referenciadas (NF-e, NFC-e, ECF, nota de produtor)
+- **Retirada/Entrega** — Enderecos de retirada/entrega com CPF/CNPJ
+- **autXML** — Partes autorizadas a acessar o XML
+- **retTrib** — Retencao de tributos (PIS, COFINS, CSLL, IRRF valores retidos)
+- **infAdic** — Informacoes adicionais, observacoes do contribuinte/fisco, referencias de processos
+
+## Utilitarios XML (`xml-utils.ts`)
+
+Compartilhados em todo o modulo (xml-builder, convert, complement, contingency, qrcode):
+
+```typescript
+escapeXml(str)                     // Escape &, <, >, ", '
+tag(name, attrs?, children?)       // Build <name attr="v">children</name>
+extractXmlTagValue(xml, tagName)   // Regex extract tag text content
+```
+
+### Comportamento de tag()
+
+- Filhos string → escapados (`tag("xNome", {}, "Foo & Bar")` → `<xNome>Foo &amp; Bar</xNome>`)
+- Filhos array → concatenados crus (para aninhar tags pre-construidas)
+- Sem filhos → elemento vazio (`<tag></tag>`)
+
+## Complemento (`complement.ts`)
+
+Operacoes pos-autorizacao no XML assinado:
+
+### attachProtocol
+
+```typescript
+attachProtocol(requestXml: string, responseXml: string): string
+```
+
+Combina a NF-e assinada (`<NFe>`) com a resposta de protocolo do SEFAZ (`<protNFe>`) no encapsulamento canonico `<nfeProc>`:
+
+```xml
+<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
+  <NFe>...</NFe>
+  <protNFe versao="4.00">
+    <infProt>
+      <cStat>100</cStat>      <!-- authorized -->
+      <nProt>135...</nProt>    <!-- protocol number -->
+      ...
+    </infProt>
+  </protNFe>
+</nfeProc>
+```
+
+### Logica de validacao
+
+- Compara `digVal` entre a assinatura da requisicao e a resposta
+- Valida que `cStat` esta em `VALID_PROTOCOL_STATUSES` (100, 150, etc.)
+- Lanca erro em rejeicao (110, 205, 301, 302, 303) com mensagem descritiva
+
+## Conversao TXT-para-XML (`convert.ts`)
+
+Converte o formato legado SPED TXT (delimitado por pipe) para XML de NF-e. Usado para importacao em lote de sistemas antigos.
+
+- Suporta layouts: LOCAL, LOCAL\_V12, LOCAL\_V13, SEBRAE
+- Definicoes de campos em `txt-structures.ts`
+- Validacao em `valid-txt.ts`
+- Usa seus proprios helpers `xmlTag()` e `addChild()` (mais simples que `tag()`)
+
+## Re-exportacoes
+
+`xml-builder.ts` re-exporta `tag` e `escapeXml` de `xml-utils.ts` para compatibilidade retroativa (testes importam `{ tag }` de xml-builder).
