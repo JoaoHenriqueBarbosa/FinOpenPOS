@@ -13,6 +13,7 @@
     "fumadocs-core": "^16.6.13",
     "fumadocs-mdx": "^14.2.9",
     "fumadocs-ui": "^16.6.13",
+    "mermaid": "^11.13.0",
     "next": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:"

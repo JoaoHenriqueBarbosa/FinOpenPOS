@@ -79,18 +79,31 @@ function getRelationVerb(from: string, to: string): string {
   return verbs[from]?.[to] ?? "relates to";
 }
 
-function injectIntoReadme(filePath: string, mermaid: string) {
+const MARKERS: Record<string, { start: string; end: string }> = {
+  html: { start: "<!-- ER_START -->", end: "<!-- ER_END -->" },
+  jsx: { start: "{/* ER_START */}", end: "{/* ER_END */}" },
+};
+
+function detectMarkerStyle(content: string): keyof typeof MARKERS | null {
+  for (const [key, { start, end }] of Object.entries(MARKERS)) {
+    if (content.includes(start) && content.includes(end))
+      return key as keyof typeof MARKERS;
+  }
+  return null;
+}
+
+function injectIntoFile(filePath: string, mermaid: string) {
   const content = readFileSync(filePath, "utf-8");
-  const startMarker = "<!-- ER_START -->";
-  const endMarker = "<!-- ER_END -->";
+  const style = detectMarkerStyle(content);
 
-  const startIdx = content.indexOf(startMarker);
-  const endIdx = content.indexOf(endMarker);
-
-  if (startIdx === -1 || endIdx === -1) {
+  if (!style) {
     console.warn(`Markers not found in ${filePath}, skipping`);
     return;
   }
+
+  const { start: startMarker, end: endMarker } = MARKERS[style];
+  const startIdx = content.indexOf(startMarker);
+  const endIdx = content.indexOf(endMarker);
 
   const before = content.slice(0, startIdx + startMarker.length);
   const after = content.slice(endIdx);
@@ -105,5 +118,9 @@ const mermaid = generateMermaid();
 import { resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "../../..");
-injectIntoReadme(resolve(root, "README.md"), mermaid);
-injectIntoReadme(resolve(root, "README.ptBR.md"), mermaid);
+injectIntoFile(resolve(root, "README.md"), mermaid);
+injectIntoFile(resolve(root, "README.ptBR.md"), mermaid);
+injectIntoFile(
+  resolve(root, "apps/docs/content/docs/database.mdx"),
+  mermaid,
+);
