@@ -1,0 +1,105 @@
+---
+title: Utilitários e Helpers
+description: Módulos de suporte que fornecem serviços de validação, consulta, detecção e formatação para o módulo fiscal, incluindo validação GTIN, padronização XML, consulta de CEP e mapeamentos de estados/códigos de status.
+---
+
+## Visão Geral
+
+Módulos de suporte que fornecem serviços de validação, consulta, detecção e formatação para o módulo fiscal.
+
+**Arquivos**: `gtin.ts`, `standardize.ts`, `cep-lookup.ts`, `config-validate.ts`, `state-codes.ts`, `sefaz-status-codes.ts`
+
+## Validação GTIN (`gtin.ts`)
+
+Valida números de códigos de barras (GTIN-8, GTIN-12, GTIN-13, GTIN-14) usados nos campos `<cEAN>` e `<cEANTrib>` dos itens da NF-e.
+
+```typescript
+function isValidGtin(gtin: string): boolean
+```
+
+- String vazia ou `"SEM GTIN"` → válido (produtos isentos)
+- Não numérico → lança erro
+- Comprimento inválido (não é 8/12/13/14) → false
+- Validação do dígito verificador usando o algoritmo GTIN padrão (pesos alternados 1/3)
+
+## Padronização XML (`standardize.ts`)
+
+Detecta o tipo de um documento XML de NF-e e fornece utilitários de conversão.
+
+```typescript
+function whichIs(xml: string): string    // nome da tag raiz
+function toJson(xml: string): string     // XML → string JSON
+function toArray(xml: string): object    // XML → objeto parseado
+function toStd(xml: string): object      // XML → objeto padronizado
+```
+
+Reconhece mais de 37 tags raiz: `NFe`, `nfeProc`, `retConsSitNFe`, `retEnviNFe`, `procEventoNFe`, `distDFeInt`, `resNFe`, `resEvento`, etc.
+
+Utiliza `fast-xml-parser` internamente.
+
+## Consulta de CEP (`cep-lookup.ts`)
+
+Preenche automaticamente campos de endereço a partir de um código postal brasileiro (CEP).
+
+```typescript
+async function lookupCep(cep: string): Promise<CepResult | null>
+```
+
+**Estratégia**: Tenta ViaCEP primeiro, com fallback para BrasilAPI:
+
+1. `https://viacep.com.br/ws/{cep}/json/`
+2. `https://brasilapi.com.br/api/cep/v2/{cep}` (fallback)
+
+Retorna: `{ street, district, cityName, cityCode, stateCode }` ou null.
+
+Utilizado pela página de configurações fiscais para auto-preenchimento de endereço.
+
+## Validação de Configuração (`config-validate.ts`)
+
+Valida uma string de configuração JSON para o setup fiscal:
+
+```typescript
+function validate(content: string): FiscalConfig
+```
+
+Campos obrigatórios: `tpAmb`, `razaosocial`, `siglaUF`, `cnpj`, `schemes`, `versao`.
+Opcionais: `CSC`, `CSCid`, `proxy`, `tokenIBPT`.
+
+Utilizado por ferramentas de migração/setup, não pelo fluxo principal de emissão de notas.
+
+## Códigos de Estado (`state-codes.ts`)
+
+Mapeamento bidirecional entre abreviações de estado (UF) e códigos numéricos do IBGE:
+
+```typescript
+const STATE_IBGE_CODES: Record<string, string>  // "SP" → "35"
+const IBGE_TO_UF: Record<string, string>         // "35" → "SP"
+
+function getStateCode(uf: string): string         // lança erro se desconhecido
+function getStateByCode(code: string): string     // lança erro se desconhecido
+```
+
+Todos os 27 estados brasileiros + DF são cobertos. Utilizado pelo xml-builder (construção da chave de acesso), sefaz-urls (resolução de endpoints) e módulos de contingência.
+
+## Códigos de Status da SEFAZ (`sefaz-status-codes.ts`)
+
+Constantes nomeadas para códigos de resposta comuns da SEFAZ (cStat):
+
+```typescript
+const SEFAZ_STATUS = {
+  AUTHORIZED: 100,            // NF-e autorizada
+  AUTHORIZED_OUT_OF_TIME: 150,// Autorizada fora da janela de tempo
+  DENIED: 110,                // NF-e denegada
+  DUPLICATE: 204,             // NF-e duplicada
+  ALREADY_CANCELLED: 205,     // Já cancelada
+  SERVICE_RUNNING: 107,       // Serviço de status online
+  EVENT_REGISTERED: 135,      // Evento registrado com sucesso
+  EVENT_ALREADY_REGISTERED: 136,
+  // ... mais códigos
+};
+
+const VALID_PROTOCOL_STATUSES = [100, 150, 110, 205, 301, 302, 303];
+const VALID_EVENT_STATUSES = [135, 136, 155];
+```
+
+Utilizado pelo invoice-service (determinar resultado), complement (validar protocolo) e parsers de resposta.

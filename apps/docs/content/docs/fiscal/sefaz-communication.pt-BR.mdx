@@ -1,0 +1,217 @@
+---
+title: Comunicacao SEFAZ
+description: A comunicacao com o SEFAZ, autoridade tributaria do Brasil, utiliza SOAP 1.2 sobre HTTPS com TLS mutuo, com cada estado tendo seu proprio SEFAZ ou delegando ao SVRS, suportando autorizacao, cancelamento, eventos e mais.
+---
+
+## Visao Geral
+
+SEFAZ (Secretaria da Fazenda) e o web service da autoridade tributaria do Brasil. A comunicacao utiliza SOAP 1.2 sobre HTTPS com TLS mutuo (certificado de cliente). Cada estado tem seu proprio SEFAZ ou delega ao SVRS (Sefaz Virtual do Rio Grande do Sul).
+
+**Arquivos**: `sefaz-transport.ts`, `sefaz-request-builders.ts`, `sefaz-response-parsers.ts`, `sefaz-urls.ts`, `sefaz-event-types.ts`, `sefaz-reform-events.ts`, `sefaz-client.ts` (barrel)
+
+## Arquitetura
+
+```
+invoice-service
+    │
+    ▼
+sefaz-client.ts (barrel re-export)
+    ├── sefaz-request-builders.ts  → builds XML request body
+    ├── sefaz-transport.ts         → SOAP envelope + curl mTLS
+    ├── sefaz-response-parsers.ts  → parses XML response
+    └── sefaz-urls.ts              → resolves endpoint URLs
+```
+
+## Transporte (`sefaz-transport.ts`)
+
+### Por que curl?
+
+O `node:https` Agent do Bun nao suporta PFX para mTLS (`ECONNREFUSED`). A solucao alternativa: extrair cert/key PEM do PFX usando `certificate.ts`, gravar em arquivos temporarios e chamar curl.
+
+### sefazRequest()
+
+```typescript
+async function sefazRequest(options: {
+  url: string;
+  service: SefazService;
+  xmlContent: string;
+  pfx: Buffer;
+  passphrase: string;
+  timeout?: number;  // default 30s
+}): Promise<{ httpStatus: number; body: string; content: string }>
+```
+
+**Fluxo**:
+1. Construir envelope SOAP 1.2 encapsulando o conteudo XML
+2. Extrair cert/key PEM do PFX via `extractCertFromPfx()` / `extractKeyFromPfx()`
+3. Gravar cert, key e corpo SOAP em arquivos temporarios
+4. `curl -s -k --cert ... --key ... -H "Content-Type: application/soap+xml" -d @body url`
+5. Parsear status HTTP da saida `-w` do curl
+6. Extrair conteudo do corpo SOAP via regex
+7. Limpar arquivos temporarios no bloco `finally`
+
+### Estrutura do envelope SOAP
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<soap12:Envelope xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">
+  <soap12:Header/>
+  <soap12:Body>
+    <nfeDadosMsg xmlns="http://www.portalfiscal.inf.br/wsdl/.../{service}">
+      {xmlContent}
+    </nfeDadosMsg>
+  </soap12:Body>
+</soap12:Envelope>
+```
+
+## URLs (`sefaz-urls.ts`)
+
+### Mapeamento de autorizadores por estado
+
+Cada estado brasileiro tem seu proprio SEFAZ ou delega ao SVRS:
+
+| Autorizador proprio | Estados |
+|---------------------|---------|
+| AM | Amazonas |
+| BA | Bahia |
+| GO | Goias |
+| MG | Minas Gerais |
+| MS | Mato Grosso do Sul |
+| MT | Mato Grosso |
+| PE | Pernambuco |
+| PR | Parana |
+| RS | Rio Grande do Sul |
+| SP | Sao Paulo |
+| SVRS | Todos os outros 17 estados |
+
+### Servicos
+
+Cada autorizador expoe 6 web services:
+
+| Servico | Finalidade |
+|---------|------------|
+| `NfeStatusServico` | Verificar se o SEFAZ esta online |
+| `NfeAutorizacao` | Enviar NF-e para autorizacao |
+| `NfeRetAutorizacao` | Recuperar resultado de autorizacao assincrona |
+| `NfeConsultaProtocolo` | Consultar nota pela chave de acesso |
+| `NfeInutilizacao` | Inutilizar faixas de numeros nao utilizadas |
+| `RecepcaoEvento` | Enviar eventos (cancelamento, CCe, etc.) |
+
+### getSefazUrl()
+
+```typescript
+getSefazUrl(stateCode: string, service: SefazService, environment: SefazEnvironment): string
+```
+
+Resolve a URL correta considerando estado, servico e ambiente (producao vs homologacao).
+
+## Construtores de Requisicao (`sefaz-request-builders.ts`)
+
+### Verificacao de status
+
+```typescript
+buildStatusRequestXml(stateCode, environment)
+// → <consStatServ xmlns="..." versao="4.00"><tpAmb>2</tpAmb><cUF>35</cUF><xServ>STATUS</xServ></consStatServ>
+```
+
+### Autorizacao
+
+```typescript
+buildAuthorizationRequestXml(signedNfeXml, environment, stateCode)
+// → <enviNFe xmlns="..." versao="4.00"><idLote>...</idLote><indSinc>1</indSinc>{nfe}</enviNFe>
+```
+
+### Cancelamento
+
+```typescript
+buildCancellationXml(accessKey, protocolNumber, reason, taxId, environment)
+// Delegates to buildEventXml() with EVENT_TYPES.CANCELLATION
+```
+
+### Construtor generico de eventos
+
+```typescript
+buildEventXml(options: {
+  accessKey, eventType, sequenceNumber, taxId, orgCode,
+  environment, eventDateTime, additionalTags?, lotId?
+})
+// → <envEvento>...<evento>...<infEvento>...<detEvento>...</detEvento></infEvento></evento></envEvento>
+```
+
+Construtores de nivel superior delegam para `buildEventXml`: CCe, Ator Interessado, Pedido de Prorrogacao, Comprovante de Entrega, etc.
+
+### Construtores em lote
+
+- `buildBatchManifestationXml()` — multiplos eventos de manifestacao em um envelope
+- `buildBatchEventXml()` — eventos em lote genericos
+
+### Primitivas compartilhadas (`sefaz-event-types.ts`)
+
+```typescript
+buildEventId(eventType, accessKey, seqNum)  // → "ID110111{chNFe}01"
+defaultLotId(lotId?)                         // → lotId ?? Date.now().toString()
+getEventDescription(eventType)               // → "Cancelamento", "EPEC", etc.
+```
+
+## Parsers de Resposta (`sefaz-response-parsers.ts`)
+
+```typescript
+parseStatusResponse(xml)         // → { statusCode, statusMessage, averageTime }
+parseAuthorizationResponse(xml)  // → { statusCode, protocolNumber, accessKey, ... }
+parseCancellationResponse(xml)   // → { statusCode, protocolNumber, ... }
+```
+
+Usa `fast-xml-parser` e `findNested()` para localizar elementos de resposta independentemente da profundidade de aninhamento.
+
+## Tipos de Evento (`sefaz-event-types.ts`)
+
+Codigos de evento padrao da NF-e:
+
+| Codigo | Constante | Descricao |
+|--------|-----------|-----------|
+| 110110 | CCE | Carta de Correcao |
+| 110111 | CANCELLATION | Cancelamento |
+| 110112 | CANCELLATION\_BY\_SUBSTITUTION | Cancelamento por substituicao |
+| 110140 | EPEC | Evento Previo de Emissao em Contingencia |
+| 110150 | INTERESTED\_ACTOR | Ator interessado na NF-e |
+| 210200 | CONFIRMATION | Confirmacao da Operacao |
+| 210210 | AWARENESS | Ciencia da Operacao |
+| 210220 | UNKNOWN\_OPERATION | Desconhecimento da Operacao |
+| 210240 | OPERATION\_NOT\_PERFORMED | Operacao nao Realizada |
+
+## Eventos da Reforma (`sefaz-reform-events.ts`)
+
+Eventos da reforma tributaria IBS/CBS (PL\_010). Estes sao distintos dos eventos padrao da NF-e.
+
+### Padrao de template (DRY)
+
+Todos os 14 eventos da reforma seguem a mesma estrutura:
+
+```typescript
+function buildXxx(config, chNFe, nSeqEvento, ...params, verAplic?) {
+  const va = resolveVerAplic(verAplic, config.verAplic);
+  let tagAdic = reformEventHeader(config, va, tpAutor);  // <cOrgaoAutor>+<tpAutor>+<verAplic>
+  // ... event-specific content added to tagAdic ...
+  return wrapReformEvent(config, tpEvento, chNFe, nSeqEvento, tagAdic, va);
+}
+```
+
+### Tipos de evento
+
+| tpEvento | Funcao | Descricao |
+|----------|--------|-----------|
+| 110001 | buildCancelaEvento | Cancelar um evento anterior |
+| 112110 | buildInfoPagtoIntegral | Informacao de pagamento integral |
+| 112120 | buildImportacaoZFM | Importacao ALC/ZFM nao convertida |
+| 112130 | buildRouboPerdaTransporteFornecedor | Perda/roubo pelo fornecedor (CIF) |
+| 112140 | buildFornecimentoNaoRealizado | Fornecimento nao realizado |
+| 112150 | buildAtualizacaoDataEntrega | Atualizacao de data de entrega |
+| 211110 | buildSolApropCredPresumido | Apropriacao de credito presumido |
+| 211120 | buildDestinoConsumoPessoal | Consumo pessoal |
+| 211124 | buildRouboPerdaTransporteAdquirente | Perda/roubo pelo adquirente (FOB) |
+| 211128 | buildAceiteDebito | Aceite de debito |
+| 211130 | buildImobilizacaoItem | Imobilizacao de item |
+| 211140 | buildApropriacaoCreditoComb | Apropriacao de credito de combustivel |
+| 211150 | buildApropriacaoCreditoBens | Credito de bens/servicos |
+| 212110 | buildManifestacaoTransfCredIBS | Manifestacao de transferencia de credito IBS |
+| 212120 | buildManifestacaoTransfCredCBS | Manifestacao de transferencia de credito CBS |

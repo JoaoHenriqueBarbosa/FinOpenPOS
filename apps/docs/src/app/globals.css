@@ -1,3 +1,146 @@
 @import "tailwindcss";
 @import "fumadocs-ui/css/neutral.css";
 @import "fumadocs-ui/css/preset.css";
+
+/* ── Landing page theme ── */
+
+:root {
+  --neon-bg-primary: #0c0d0d;
+  --neon-bg-secondary: #0a0a0b;
+  --neon-bg-tertiary: #111215;
+  --neon-bg-card: #151617;
+  --neon-bg-light: #e4f1eb;
+  --neon-bg-light-alt: #ebf5f0;
+  --neon-bg-light-accent: #cae6d9;
+  --neon-green-primary: #2c6d4c;
+  --neon-green-accent: #34d59a;
+  --neon-green-dark: #285d49;
+  --neon-green-mid: #37c38f;
+  --neon-green-glow: rgba(57, 165, 125, 0.6);
+  --neon-text-primary: #ffffff;
+  --neon-text-secondary: #c9cbcf;
+  --neon-text-muted: #94979e;
+  --neon-text-dim: #a3a6b3;
+  --neon-border: #1a1a1a;
+}
+
+@theme inline {
+  --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
+  --font-mono: var(--font-mono);
+  --color-neon-primary: var(--neon-bg-primary);
+  --color-neon-secondary: var(--neon-bg-secondary);
+  --color-neon-tertiary: var(--neon-bg-tertiary);
+  --color-neon-card: var(--neon-bg-card);
+  --color-neon-light: var(--neon-bg-light);
+  --color-neon-light-alt: var(--neon-bg-light-alt);
+  --color-neon-light-accent: var(--neon-bg-light-accent);
+  --color-neon-green: var(--neon-green-primary);
+  --color-neon-accent: var(--neon-green-accent);
+  --color-neon-green-dark: var(--neon-green-dark);
+  --color-neon-green-mid: var(--neon-green-mid);
+  --color-neon-text: var(--neon-text-primary);
+  --color-neon-text-secondary: var(--neon-text-secondary);
+  --color-neon-text-muted: var(--neon-text-muted);
+  --color-neon-text-dim: var(--neon-text-dim);
+  --color-neon-border: var(--neon-border);
+  --animate-fade-in-up: fade-in-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-fade-in: fade-in 0.6s ease-out both;
+  --animate-glow-pulse: glow-pulse 4s ease-in-out infinite;
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(32px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
+@keyframes grid-move {
+  0% { transform: perspective(800px) rotateX(65deg) translateY(0); }
+  100% { transform: perspective(800px) rotateX(65deg) translateY(50px); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.noise::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.015;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
+
+.perspective-grid {
+  background-image:
+    linear-gradient(rgba(52, 213, 154, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(52, 213, 154, 0.05) 1px, transparent 1px);
+  background-size: 50px 50px;
+  transform: perspective(800px) rotateX(65deg);
+  transform-origin: center top;
+  animation: grid-move 4s linear infinite;
+  mask-image: linear-gradient(to bottom, transparent, white 20%, white 80%, transparent);
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, #34d59a 0%, #37c38f 50%, #2c6d4c 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.btn-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.btn-shimmer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+.bento-card {
+  background: linear-gradient(135deg, rgba(17,18,21,0.8), rgba(21,22,23,0.6));
+  border: 1px solid rgba(26,26,26,0.8);
+  backdrop-filter: blur(8px);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.bento-card:hover {
+  border-color: rgba(44,109,76,0.4);
+  box-shadow: 0 0 40px rgba(44,109,76,0.08), inset 0 1px 0 rgba(255,255,255,0.03);
+  transform: translateY(-2px);
+}
+
+.glow-line {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--neon-green-accent), transparent);
+  box-shadow: 0 0 20px var(--neon-green-glow), 0 0 60px rgba(52,213,154,0.2);
+}
