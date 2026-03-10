@@ -84,6 +84,49 @@ export function signXml(
   return sig.getSignedXml();
 }
 
+/**
+ * Sign a SEFAZ event XML (cancelamento, CCe, etc.) with XMLDSig.
+ *
+ * Same algorithm as signXml() but references <infEvento> and appends
+ * the Signature inside <evento>.
+ */
+export function signEventXml(
+  xml: string,
+  privateKeyPem: string,
+  certificatePem: string
+): string {
+  const idMatch = xml.match(/<infEvento[^>]*Id="([^"]+)"/);
+  if (!idMatch) {
+    throw new Error("Could not find <infEvento> element with Id attribute in XML");
+  }
+
+  const certBase64 = extractCertBase64(certificatePem);
+
+  const sig = new SignedXml({
+    privateKey: privateKeyPem,
+    publicCert: certificatePem,
+    canonicalizationAlgorithm: "http://www.w3.org/TR/2001/REC-xml-c14n-20010315",
+    signatureAlgorithm: "http://www.w3.org/2000/09/xmldsig#rsa-sha1",
+    getKeyInfoContent: () =>
+      `<X509Data><X509Certificate>${certBase64}</X509Certificate></X509Data>`,
+  });
+
+  sig.addReference({
+    xpath: `//*[@Id='${idMatch[1]}']`,
+    transforms: [
+      "http://www.w3.org/2000/09/xmldsig#enveloped-signature",
+      "http://www.w3.org/TR/2001/REC-xml-c14n-20010315",
+    ],
+    digestAlgorithm: "http://www.w3.org/2000/09/xmldsig#sha1",
+  });
+
+  sig.computeSignature(xml, {
+    location: { reference: "//*[local-name()='evento']", action: "append" },
+  });
+
+  return sig.getSignedXml();
+}
+
 // ── Private helpers ─────────────────────────────────────────────────────────
 
 /**
