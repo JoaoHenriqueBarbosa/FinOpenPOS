@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "sonner";
 import { TRPCReactProvider } from "@/components/trpc-provider";
+import { CookieConsent } from "@/components/cookie-consent";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import "./globals.css";
@@ -28,6 +29,7 @@ export default async function RootLayout({
           <TRPCReactProvider>
             <main>{children}</main>
             <Toaster richColors position="bottom-right" />
+            <CookieConsent />
           </TRPCReactProvider>
         </NextIntlClientProvider>
       </body>
