@@ -1,0 +1,72 @@
+---
+title: Primeiros Passos
+description: PDV open-source com módulo fiscal brasileiro (NF-e/NFC-e)
+---
+
+## O que é o FinOpenPOS?
+
+FinOpenPOS é um sistema open-source de Ponto de Venda (PDV) e gestão de estoque com um **módulo fiscal brasileiro** (NF-e/NFC-e). Construído com Next.js 16, React 19 e PostgreSQL embarcado via PGLite. Monorepo Turborepo com o módulo fiscal como pacote independente.
+
+Zero dependências externas para executar — `bun install && bun run dev` e pronto.
+
+## Funcionalidades
+
+### Negócio
+
+- **Dashboard** com gráficos interativos (receita, despesas, fluxo de caixa, margem de lucro)
+- **Gestão de Produtos** com categorias e controle de estoque
+- **Gestão de Clientes** com status ativo/inativo
+- **Gestão de Pedidos** com itens, totais e rastreamento de status
+- **Ponto de Venda (PDV)** para processamento rápido de vendas
+- **Caixa** com registro de transações de receita e despesa
+- **Autenticação** com email/senha via Better Auth
+- **Documentação da API** gerada automaticamente e interativa via Scalar em `/api/docs`
+
+### Fiscal (NF-e / NFC-e Brasileiro)
+
+- **Faturamento Eletrônico** — NF-e (modelo 55, B2B) e NFC-e (modelo 65, consumidor)
+- **Cálculos Tributários** — ICMS (15 CST + 10 CSOSN), PIS, COFINS, IPI, II, ISSQN
+- **Integração SEFAZ** — autorizar, cancelar, inutilizar, consultar com certificado cliente mTLS
+- **Assinatura Digital** — Assinatura XML com certificado A1 e-CNPJ (PFX/PKCS#12)
+- **QR Code** — Geração de QR code NFC-e (v2.00/v3.00, online + offline)
+- **Contingência** — SVC-AN, SVC-RS (NF-e) e EPEC (NFC-e) modos offline
+- **Eventos da Reforma IBS/CBS** — 14 tipos de evento para a reforma tributária brasileira (PL_010)
+- **Interface de Configurações** — dados da empresa, endereço, certificado, CSC, códigos tributários padrão
+- **Preenchimento automático por CEP** — complemento de endereço via ViaCEP + BrasilAPI
+
+## Início Rápido
+
+```bash
+git clone https://github.com/JoaoHenriqueBarbosa/FinOpenPOS.git
+cd FinOpenPOS
+cp apps/web/.env.example apps/web/.env
+```
+
+Edite `apps/web/.env` com um segredo seguro:
+
+```ini
+BETTER_AUTH_SECRET=generate-with-openssl-rand-base64-32
+BETTER_AUTH_URL=http://localhost:3001
+```
+
+```bash
+bun install
+bun run dev
+```
+
+Abra `http://localhost:3001` e use o botão **Preencher credenciais demo** para entrar com a conta de teste (`test@example.com` / `test1234`).
+
+<Callout type="info">
+O primeiro `bun run dev` cria automaticamente o banco de dados em `apps/web/data/pglite`, aplica o schema via Drizzle e popula dados de demonstração (20 clientes, 32 produtos, 40 pedidos, 25 transações) + ~5570 cidades do IBGE.
+</Callout>
+
+## Scripts
+
+| Comando | Descrição |
+|---------|-----------|
+| `bun run dev` | Inicia todos os apps via Turborepo |
+| `bun run dev:web` | Inicia apenas o app web |
+| `bun run check` | Lint e formatação com Biome |
+| `cd apps/web && bun test` | Executa testes dos routers tRPC |
+| `cd packages/fiscal && bun test` | Executa testes do módulo fiscal (754 testes) |
+| `cd apps/web && bun run prepare-prod` | Migra de PGLite para PostgreSQL |

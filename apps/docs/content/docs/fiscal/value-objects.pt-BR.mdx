@@ -1,0 +1,120 @@
+---
+title: Objetos de Valor
+description: Os objetos de valor encapsulam regras complexas de validação e formatação para conceitos centrais da NF-e, como a chave de acesso de 44 dígitos e os identificadores fiscais CPF/CNPJ, fornecendo abstrações imutáveis com igualdade por valor.
+---
+
+## Visão Geral
+
+Os objetos de valor encapsulam regras complexas de validação e formatação. Eles são imutáveis, possuem igualdade por valor e não têm identidade. O módulo fiscal possui dois objetos de valor que representam conceitos centrais da NF-e.
+
+**Arquivos**: `value-objects/access-key.ts`, `value-objects/tax-id.ts`
+
+## AccessKey (`access-key.ts`)
+
+A chave de acesso da NF-e é uma string numérica de 44 dígitos que identifica de forma única cada nota fiscal eletrônica no Brasil.
+
+### Estrutura (44 dígitos)
+
+```
+35 2002 09944445000162 55 101 000123456 7 89012345 3
+── ──── ────────────── ── ─── ───────── ─ ──────── ─
+cUF AAMM     CNPJ      mod ser  nNF   tpEmis cNF  DV
+```
+
+| Posição | Dígitos | Campo | Descrição |
+|---------|---------|-------|-----------|
+| 0-1 | 2 | cUF | Código IBGE do estado (ex: "35" = SP) |
+| 2-5 | 4 | AAMM | Ano+mês da emissão |
+| 6-19 | 14 | CNPJ | CNPJ do emitente |
+| 20-21 | 2 | mod | Modelo (55 ou 65) |
+| 22-24 | 3 | serie | Número da série |
+| 25-33 | 9 | nNF | Número da nota fiscal |
+| 34 | 1 | tpEmis | Tipo de emissão (1=normal, 9=offline) |
+| 35-42 | 8 | cNF | Código numérico aleatório |
+| 43 | 1 | cDV | Dígito verificador (mod-11) |
+
+### API
+
+```typescript
+class AccessKey {
+  // Constrói a partir de componentes (gera o dígito verificador)
+  static build(params: AccessKeyParams): AccessKey
+
+  // Valida uma chave existente
+  constructor(key: string)  // lança erro se não tiver 44 dígitos numéricos
+
+  // Cálculo do dígito verificador mod-11 (pesos 2-9 cíclicos)
+  static calculateMod11(digits: string): string
+
+  // Acessores
+  stateCode(): string     // "35"
+  yearMonth(): string     // "2002"
+  taxId(): string         // "09944445000162"
+  model(): number         // 55
+  series(): number        // 101
+  number(): number        // 123456
+  emissionType(): number  // 7
+  numericCode(): string   // "89012345"
+  checkDigit(): string    // "3"
+
+  toString(): string      // chave completa de 44 dígitos
+}
+```
+
+### Algoritmo Mod-11
+
+1. Pegue os primeiros 43 dígitos
+2. Aplique os pesos 2, 3, 4, 5, 6, 7, 8, 9 ciclicamente da direita para a esquerda
+3. Some os produtos
+4. `resto = soma % 11`
+5. Se o resto for 0 ou 1, o dígito verificador = 0; caso contrário, dígito verificador = 11 - resto
+
+### Uso no sistema
+
+- Gerada pelo `xml-builder.ts` durante a construção do XML
+- Armazenada na coluna `invoices.access_key`
+- Utilizada nas requisições à SEFAZ (cancelamento, consulta, eventos)
+- Codificada nos QR codes da NFC-e
+
+## TaxId (`tax-id.ts`)
+
+Discrimina entre CPF (11 dígitos, pessoas físicas) e CNPJ (14 dígitos, empresas) e lida com a geração de tags XML.
+
+### API
+
+```typescript
+class TaxId {
+  constructor(value: string)
+
+  isCpf(): boolean    // length <= 11
+  isCnpj(): boolean   // length > 11
+
+  tagName(): string   // "CPF" ou "CNPJ"
+  padded(): string    // preenche com zeros até 11 (CPF) ou 14 (CNPJ)
+  toXmlTag(): string  // "<CPF>01234567890</CPF>" ou "<CNPJ>09944445000162</CNPJ>"
+
+  toString(): string  // valor bruto
+}
+```
+
+### Por que um objeto de valor?
+
+Vários pontos no XML precisam de tags CPF/CNPJ: `<emit>`, `<dest>`, `<retirada>`, `<entrega>`, `<autXML>`, envelopes de eventos. Sem o TaxId, cada ponto precisaria de:
+
+```typescript
+// Sem objeto de valor (repetido em todo lugar):
+const isCompany = taxId.length > 11;
+const tagName = isCompany ? "CNPJ" : "CPF";
+const padded = taxId.padStart(isCompany ? 14 : 11, "0");
+const xmlTag = `<${tagName}>${padded}</${tagName}>`;
+
+// Com objeto de valor (uma linha):
+const xmlTag = new TaxId(taxId).toXmlTag();
+```
+
+### Regras de preenchimento com zeros
+
+- CPF: preenche até 11 dígitos (`"1234567890"` → `"01234567890"`)
+- CNPJ: preenche até 14 dígitos (`"9944445000162"` → `"09944445000162"`)
+
+Isso é necessário porque alguns sistemas armazenam identificadores fiscais sem zeros à esquerda.

@@ -1,0 +1,145 @@
+---
+title: Motor de Calculo de Impostos
+description: O motor de impostos calcula os tributos brasileiros para cada item da nota fiscal e produz objetos TaxElement estruturados que o construtor XML serializa, seguindo um padrao de desacoplamento DDD onde a logica de dominio nunca manipula XML diretamente.
+---
+
+## Visao Geral
+
+O motor de impostos calcula os tributos brasileiros para cada item da nota fiscal e produz objetos `TaxElement` estruturados que o construtor XML serializa. Esse desacoplamento (a logica de dominio nunca manipula XML diretamente) e o padrao DDD central do modulo fiscal.
+
+**Arquivos**: `tax-element.ts`, `tax-icms.ts`, `tax-pis-cofins-ipi.ts`, `tax-issqn.ts`, `tax-is.ts`, `format-utils.ts`
+
+## O Padrao TaxElement
+
+```
+tax-icms.ts ──→ TaxElement ──→ xml-builder.ts ──→ XML string
+tax-pis-cofins-ipi.ts ─┘            ↑
+                            serializeTaxElement()
+```
+
+### Estrutura TaxElement (`tax-element.ts`)
+
+```typescript
+interface TaxField {
+  name: string;   // XML tag name, e.g. "vBC"
+  value: string;  // formatted value, e.g. "10.50"
+}
+
+interface TaxElement {
+  outerTag: string | null;  // wrapping tag, e.g. "ICMS", "PIS"
+  outerFields: TaxField[];  // fields on the outer tag (e.g. IPI's cEnq)
+  variantTag: string;       // variant tag, e.g. "ICMS00", "PISAliq"
+  fields: TaxField[];       // fields inside the variant
+}
+```
+
+**Serializacao**: `<ICMS><ICMS00><orig>0</orig><CST>00</CST>...</ICMS00></ICMS>`
+
+### Helpers de campos
+
+- `requiredField(name, value)` — sempre incluido (lanca erro se null em modo estrito)
+- `optionalField(name, value)` — retorna `null` se o valor for null/undefined
+- `filterFields(fields)` — remove entradas null do array
+
+## ICMS (`tax-icms.ts`)
+
+O imposto mais complexo — 15 variantes CST (regime Normal) + 10 variantes CSOSN (Simples Nacional).
+
+### Ponto de entrada
+
+```typescript
+calculateIcms(data: IcmsData): { element: TaxElement; totals: IcmsTotals }
+```
+
+Roteia por `taxRegime`:
+- `1` ou `2` (Simples Nacional) → variantes CSOSN (101, 102, 201, 202, 500, 900)
+- `3` (Normal) → variantes CST (00, 02, 10, 15, 20, 30, 40, 51, 53, 60, 61, 70, 90)
+
+### Acumulacao de totais
+
+Cada funcao CST acumula valores em `IcmsTotals` (vBC, vICMS, vBCST, vST, vFCP, vFCPST, etc.). Esses totais sao agregados entre todos os itens e usados em `<total><ICMSTot>`.
+
+### Helpers de blocos de campos de dominio (padrao DRY)
+
+Conceitos fiscais comuns extraidos como helpers:
+
+```typescript
+fcpFields(d)           // FCP: vBCFCP, pFCP, vFCP (5 CSTs)
+fcpStFields(d)         // FCP-ST: vBCFCPST, pFCPST, vFCPST (7 variants)
+stFields(d)            // ST base: modBCST … vICMSST (6 variants, required)
+desonerationFields(d)  // vICMSDeson, motDesICMS, indDeduzDeson (5 CSTs)
+stDesonerationFields(d) // vICMSSTDeson, motDesICMSST (3 CSTs)
+```
+
+### Construtores especiais
+
+- `buildIcmsPartXml(data)` — ICMSPart (particao interestadual)
+- `buildIcmsStXml(data)` — ICMSST (repasse ST)
+- `buildIcmsUfDestXml(data)` — ICMSUFDest (DIFAL, consumidor final interestadual)
+
+## PIS / COFINS / IPI / II (`tax-pis-cofins-ipi.ts`)
+
+### Padrao ContributionTax (DRY)
+
+PIS e COFINS sao estruturalmente identicos — apenas os nomes dos campos diferem. Um `ContributionTaxConfig` generico parametriza:
+
+```typescript
+interface ContributionTaxConfig {
+  taxName: string;      // "PIS" | "COFINS"
+  rateField: string;    // "pPIS" | "pCOFINS"
+  valueField: string;   // "vPIS" | "vCOFINS"
+  stTag: string;        // "PISST" | "COFINSST"
+  stIndicator: string;  // "indSomaPISST" | "indSomaCOFINSST"
+}
+```
+
+Adaptadores publicos finos mapeiam tipos especificos para o motor generico:
+
+```typescript
+export function calculatePis(data: PisData): TaxElement {
+  return calculateContributionTax(
+    { CST: data.CST, vBC: data.vBC, rate: data.pPIS, value: data.vPIS, ... },
+    PIS_CONFIG,
+  );
+}
+```
+
+### Roteamento por CST
+
+Tanto PIS quanto COFINS roteiam por CST:
+- `01`, `02` → Aliq (base + aliquota + valor)
+- `03` → Qtde (baseado em quantidade)
+- `04`-`09` → NT (nao tributado, apenas CST)
+- `49`-`99` → Outr (outros, campos condicionais)
+
+### IPI
+
+- `IPITrib` (CST 00, 49, 50, 99): dois metodos de calculo (vBC x pIPI ou qUnid x vUnid)
+- `IPINT` (demais CSTs): apenas campo CST
+- Campos externos: CNPJProd, cSelo, qSelo, cEnq (codigo de enquadramento legal)
+
+### II (Imposto de Importacao)
+
+Elemento simples de 4 campos: vBC, vDespAdu, vII, vIOF.
+
+## Utilitarios de Formatacao (`format-utils.ts`)
+
+| Funcao | Entrada | Saida | Caso de uso |
+|--------|---------|-------|-------------|
+| `formatCents(1050)` | int centavos | `"10.50"` | Valores monetarios |
+| `formatCents(1050, 4)` | int centavos | `"10.5000"` | Aliquotas 4dp |
+| `formatRate4(16500)` | int x10000 | `"1.6500"` | Aliquotas PIS/COFINS |
+| `formatCentsOrZero(null)` | nullable | `"0.00"` | Campos obrigatorios |
+| `formatCentsOrNull(null)` | nullable | `null` | Campos opcionais |
+
+## Como o construtor XML usa os modulos de impostos
+
+```typescript
+// Inside xml-builder.ts buildDet()
+const { xml: icmsXml, totals } = buildIcmsXml(item.icmsData);
+const pisXml = buildPisXml(item.pisData);
+const cofinsXml = buildCofinsXml(item.cofinsData);
+// ... compose into <imposto> tag
+```
+
+O construtor XML nunca constroi o XML de impostos diretamente — ele sempre delega para os modulos de impostos do dominio.

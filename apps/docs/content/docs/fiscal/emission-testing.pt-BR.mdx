@@ -1,0 +1,169 @@
+---
+title: Testes de Emissão
+description: Documentação dos testes manuais de emissão NF-e (modelo 55) e NFC-e (modelo 65) realizados em 10/03/2026 contra a SEFAZ PR, incluindo erros encontrados, soluções e requisitos específicos do Paraná.
+---
+
+## Visão Geral
+
+Testes manuais de emissão NF-e (modelo 55) e NFC-e (modelo 65) realizados em **10/03/2026** contra a **SEFAZ PR** (Paraná) em ambientes de produção e homologação.
+
+Os resultados documentados aqui podem variar por estado e data — cada SEFAZ tem suas próprias validações e requisitos. Sempre consulte a documentação oficial da SEFAZ do estado em questão.
+
+## Pré-requisitos
+
+- Certificado digital **A1 (PFX)** válido
+- **Inscrição Estadual** ativa no estado
+- Para **NFC-e**: QR Code (v300 online não precisa de CSC no PR)
+- Para **NF-e modelo 55** (PR): `infRespTec` com CNPJ cadastrado como fornecedor no UPD
+
+## Responsável Técnico (infRespTec) — SEFAZ PR
+
+A SEFAZ PR exige o grupo `infRespTec` em ambos os modelos (55 e 65). O CNPJ informado no `infRespTec` deve estar cadastrado como **fornecedor de software** no sistema UPD da Receita/PR.
+
+O cadastro é feito em:
+
+```
+https://receita.pr.gov.br → UPD → Sistema → Pedido de Credencial e Alteração
+```
+
+Sem o cadastro no UPD, a SEFAZ retorna:
+
+```
+cStat 974: "CNPJ do responsavel tecnico diverge do cadastrado"
+```
+
+## CSRT (Código de Segurança do Responsável Técnico) — SEFAZ PR
+
+O CSRT é um token de segurança vinculado ao responsável técnico. As regras na SEFAZ PR em 10/03/2026 eram:
+
+| Ambiente | Modelo | CSRT obrigatório? |
+|----------|--------|-------------------|
+| Homologação (tpAmb=2) | NF-e 55 | Sim (desde 19/01/2026) |
+| Produção (tpAmb=1) | NF-e 55 | Não (em 10/03/2026) |
+| Qualquer | NFC-e 65 | Não |
+
+Sem CSRT em homologação, a SEFAZ retorna:
+
+```
+cStat 975: "Obrigatoria a informacao do identificador do CSRT e do Hash do CSRT"
+```
+
+### Gerando o CSRT
+
+O CSRT é gerado em:
+
+```
+Receita/PR → UPD → Sistema → CSRT → Solicitação de Token → Fornecedor
+```
+
+### Hash do CSRT
+
+O hash é calculado como `SHA-1(CSRT + chaveDeAcesso)` codificado em Base64, resultando em 28 caracteres.
+
+As tags XML ficam dentro de `<infRespTec>`:
+
+```xml
+<infRespTec>
+  <CNPJ>...</CNPJ>
+  <xContato>...</xContato>
+  <email>...</email>
+  <fone>...</fone>
+  <idCSRT>01</idCSRT>
+  <hashCSRT>aGFzaENTUlRleGVtcGxvMTIzNA==</hashCSRT>
+</infRespTec>
+```
+
+## QR Code NFC-e — SEFAZ PR
+
+O PR usa QR Code **versão 3.00** (NT 2025.001). No modo online (`tpEmis=1`), **não é necessário CSC**.
+
+Formato da URL do QR Code:
+
+```
+http://www.fazenda.pr.gov.br/nfce/qrcode?p={chave}|3|{tpAmb}
+```
+
+A tag `<urlChave>` deve conter **apenas a URL base**, sem parâmetros:
+
+```xml
+<infNFeSupl>
+  <qrCode>http://www.fazenda.pr.gov.br/nfce/qrcode?p=41260312345678000195650010000000011234567890|3|1</qrCode>
+  <urlChave>http://www.fazenda.pr.gov.br/nfce/consulta</urlChave>
+</infNFeSupl>
+```
+
+O `<infNFeSupl>` é inserido **após a assinatura**, antes de `<Signature>`. Se incluir parâmetros na `urlChave`, a SEFAZ retorna erro 225 (falha no schema) por exceder `maxLength`.
+
+## Endereço do Destinatário (enderDest) — NF-e modelo 55
+
+O `buildDest` gera `enderDest` com campos vazios para modelo 55. A SEFAZ rejeita campos vazios (`xLgr`, `nro`, `xBairro`, `cMun`, `xMun`) com erro 225 (falha no schema).
+
+**Solução**: preencher os campos de endereço do destinatário ou usar o tipo `RecipientAddress`.
+
+## Código IBGE do Município
+
+Sempre verificar o código IBGE correto usando uma nota fiscal real ou a API do IBGE. Exemplo de erro encontrado:
+
+```
+Cruzmaltina/PR: código correto é 4106852 (não 4106803)
+```
+
+## Assinatura de Eventos
+
+A função `signXml()` foi originalmente implementada apenas para NF-e (procura `<infNFe>` e appende `<Signature>` em `<NFe>`). Para eventos (cancelamento, CCe, etc.), a assinatura funciona de forma diferente:
+
+- Deve referenciar `<infEvento>` pelo atributo `Id`
+- A `<Signature>` deve ser appendada dentro de `<evento>`
+
+### Timezone em eventos
+
+O datetime de eventos deve usar o timezone BR (`-03:00`), **não UTC** (`Z`):
+
+```
+Errado:  2026-03-10T12:10:44.592Z
+Correto: 2026-03-10T09:10:44-03:00
+```
+
+## Endpoints por Modelo
+
+NF-e (modelo 55) e NFC-e (modelo 65) usam **endpoints diferentes** na SEFAZ PR. Em particular, o cancelamento de NFC-e deve usar o endpoint `RecepcaoEvento` do modelo 65.
+
+Se enviar uma chave de NFC-e para o endpoint de NF-e, a SEFAZ retorna:
+
+```
+cStat 618: "modelo diferente de 55"
+```
+
+## Resultados dos Testes
+
+| Ambiente | Operação | Modelo | Resultado |
+|----------|----------|--------|-----------|
+| Produção | Emissão NF-e | 55 | 100 — Autorizado |
+| Produção | Cancelamento NF-e | 55 | 135 — Evento registrado |
+| Produção | Emissão NFC-e | 65 | 100 — Autorizado |
+| Produção | Cancelamento NFC-e | 65 | 135 — Evento registrado |
+| Homologação | Emissão NF-e | 55 | 975 — CSRT obrigatório |
+| Homologação | Emissão NFC-e | 65 | 100 — Autorizado |
+| Homologação | Cancelamento NFC-e | 65 | 135 — Evento registrado |
+
+## Erros Encontrados e Soluções
+
+| cStat | Motivo | Causa | Solução |
+|-------|--------|-------|---------|
+| 225 | Falha no Schema XML | enderDest com campos vazios; urlChave longa demais | Preencher endereço do dest; urlChave só URL base |
+| 237 | CPF do destinatário inválido | CPF 00000000000 | Usar CPF válido (ex: 12345678909) |
+| 244 | Série incompatível | Série >= 890 reservada | Usar série entre 1-889 |
+| 394 | Sem informação de QR-Code | NFC-e sem infNFeSupl | Adicionar QR Code v300 |
+| 539 | Duplicidade de NF-e | Número/série já usado | Usar série/número diferente |
+| 618 | Chave de Acesso inválida (modelo diferente) | Evento NFC-e enviado para endpoint NF-e | Usar endpoint modelo 65 |
+| 778 | NCM inexistente | NCM inválido na tabela atual | Verificar NCM válido |
+| 972 | Não informado grupo infRespTec | PR exige responsável técnico | Adicionar techResponsible |
+| 974 | CNPJ do resp técnico diverge | CNPJ não cadastrado como fornecedor | Cadastrar no UPD do Receita/PR |
+| 975 | CSRT obrigatório | Homologação PR exige CSRT para modelo 55 | Gerar CSRT no UPD ou testar em produção |
+
+## Aviso Importante
+
+- Estes testes foram realizados especificamente na **SEFAZ PR** em **10/03/2026**
+- Cada estado tem suas próprias validações e requisitos
+- Requisitos como CSRT podem mudar — verificar sempre a documentação oficial da SEFAZ do estado
+- Em produção, notas fiscais emitidas geram obrigação tributária — cancelar dentro de 24h
