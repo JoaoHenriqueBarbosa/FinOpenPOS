@@ -73,3 +73,6 @@ temp
 
 # Fumadocs generated
 apps/docs/.source/
+
+# Manual fiscal test scripts (contain sensitive data)
+packages/fiscal/src/manual-*.ts

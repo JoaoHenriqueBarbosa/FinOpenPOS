@@ -179,25 +179,30 @@ function buildDest(data: InvoiceBuildData): string {
 
   const isNfce = data.model === 65;
 
+  const r = data.recipient;
+  const uf = r.stateCode || data.issuer.stateCode;
+
   return tag("dest", {}, [
     taxIdTag,
-    ...(data.recipient.name ? [tag("xNome", {}, data.recipient.name)] : []),
+    ...(r.name ? [tag("xNome", {}, r.name)] : []),
     ...(!isNfce
       ? [
           tag("enderDest", {}, [
-            tag("xLgr", {}, ""),
-            tag("nro", {}, ""),
-            tag("xBairro", {}, ""),
-            tag("cMun", {}, ""),
-            tag("xMun", {}, ""),
-            tag("UF", {}, data.recipient.stateCode || data.issuer.stateCode),
-            tag("CEP", {}, ""),
+            tag("xLgr", {}, r.street || data.issuer.street),
+            tag("nro", {}, r.streetNumber || data.issuer.streetNumber),
+            ...(r.complement ? [tag("xCpl", {}, r.complement)] : []),
+            tag("xBairro", {}, r.district || data.issuer.district),
+            tag("cMun", {}, r.cityCode || data.issuer.cityCode),
+            tag("xMun", {}, r.cityName || data.issuer.cityName),
+            tag("UF", {}, uf),
+            tag("CEP", {}, r.zipCode || data.issuer.zipCode),
             tag("cPais", {}, "1058"),
             tag("xPais", {}, "Brasil"),
           ]),
         ]
       : []),
-    tag("indIEDest", {}, "9"), // 9=non-contributor
+    tag("indIEDest", {}, r.stateTaxId ? "1" : "9"),
+    ...(r.stateTaxId ? [tag("IE", {}, r.stateTaxId)] : []),
   ]);
 }
 
