@@ -1,0 +1,141 @@
+---
+title: Modos de Contingência
+description: Quando o web service principal da SEFAZ está indisponível, NF-e/NFC-e ainda podem ser emitidas usando modos de contingência, incluindo SVC-AN, SVC-RS para NF-e e EPEC para NFC-e.
+---
+
+## Visão Geral
+
+Quando o web service principal da SEFAZ está indisponível, NF-e/NFC-e ainda podem ser emitidas usando modos de contingência. O Brasil possui três tipos de contingência, cada um com regras diferentes para NF-e e NFC-e.
+
+**Arquivos**: `contingency.ts`, `contingency-nfe.ts`, `epec-nfce.ts`
+
+## Tipos de Contingência
+
+| Tipo | tpEmis | Modelo | Descrição |
+|------|--------|--------|-----------|
+| SVC-AN | 6 | NF-e (55) | Sefaz Virtual de Contingência - Ambiente Nacional |
+| SVC-RS | 7 | NF-e (55) | Sefaz Virtual de Contingência - Rio Grande do Sul |
+| EPEC | 9 | NFC-e (65) | Evento Prévio de Emissão em Contingência |
+
+### Mapeamento Estado → contingência
+
+Cada estado possui um tipo de contingência padrão para NF-e:
+
+```
+SVC-AN: AC, AL, AP, CE, DF, ES, MA, MG, PA, PB, PI, RJ, RN, RO, RR, RS, SC, SE, SP, TO
+SVC-RS: AM, BA, GO, MS, MT, PE, PR
+```
+
+NFC-e sempre usa EPEC (offline, apenas modelo 65).
+
+## Classe Contingency (`contingency.ts`)
+
+Gerencia o estado de contingência (ativar/desativar):
+
+```typescript
+class Contingency {
+  type: ContingencyTypeName;  // "SVCAN" | "SVCRS" | ""
+  motive: string;             // motivo para ativação da contingência
+  timestamp: number;          // timestamp unix da ativação
+  tpEmis: EmissionType;       // 1 (normal), 6, 7, ou 9
+
+  activate(uf: string, motive: string): string   // retorna JSON de configuração
+  deactivate(): string                           // reseta para normal
+
+  load(json: string): void    // restaura de estado persistido
+  toJSON(): string            // persiste estado atual
+}
+```
+
+### Resolução de estado
+
+```typescript
+Contingency.activate("SP", "SEFAZ indisponivel")
+// → type="SVCAN", tpEmis=6, timestamp=now
+```
+
+## Contingência NF-e (`contingency-nfe.ts`)
+
+### adjustNfeForContingency
+
+```typescript
+function adjustNfeForContingency(xml: string, contingency: Contingency): string
+```
+
+Modifica um XML de NF-e existente para mudar do modo normal (tpEmis=1) para o modo de contingência:
+
+1. Validar que o modelo é 55 (não NFC-e)
+2. Verificar o tpEmis atual — pular se já estiver em contingência
+3. Extrair campos necessários para recálculo da chave de acesso (cUF, cNF, nNF, serie, dhEmi)
+4. Substituir `<tpEmis>1</tpEmis>` → `<tpEmis>6</tpEmis>` (ou 7)
+5. Inserir/atualizar `<dhCont>` (timestamp de ativação da contingência) e `<xJust>` (motivo)
+6. Recalcular a chave de acesso (o novo tpEmis altera o dígito verificador)
+7. Atualizar `<infNFe Id="NFe{newKey}">` e `<chNFe>` no QR code, se presente
+
+### Tratamento de timezone
+
+O timestamp de contingência é formatado usando o offset de timezone do XML original da NF-e (extraído do `dhEmi`):
+
+```typescript
+formatDateWithOffset(contDate, tzOffset)
+// → "2026-03-08T14:30:00-03:00"
+```
+
+## NFC-e EPEC (`epec-nfce.ts`)
+
+### buildEpecNfceXml
+
+```typescript
+function buildEpecNfceXml(
+  nfceXml: string,          // o XML original da NFC-e
+  config: EpecNfceConfig,
+  verAplic?: string
+): string
+```
+
+Constrói um evento EPEC (tpEvento=110140) a partir de um XML de NFC-e existente:
+
+1. Faz o parse do XML da NFC-e usando `fast-xml-parser`
+2. Valida: deve ser tpEmis=4 (contingência EPEC), deve ter dhCont e xJust
+3. Extrai a chave de acesso de `<infNFe Id="NFe...">`
+4. Valida correspondência da UF entre a configuração e a chave de acesso
+5. Extrai dados fiscais: dhEmi, tpNF, IE, informações do destinatário, vNF, vICMS
+6. Constrói tagAdic com cOrgaoAutor, tpAutor, verAplic, dhEmi, tpNF, IE, dest, vNF, vICMS
+7. Constrói o envelope do evento usando `buildEventId()` e `defaultLotId()` dos helpers compartilhados
+
+### Fluxo do EPEC na prática
+
+```
+1. NFC-e emitida offline (tpEmis=9, salva localmente)
+2. Quando a conexão retorna: buildEpecNfceXml() → assinar → enviar para SEFAZ
+3. SEFAZ registra o evento EPEC
+4. Depois: reenviar a NFC-e original para autorização completa
+```
+
+### Verificação de status
+
+```typescript
+buildEpecNfceStatusXml(config, uf?, tpAmb?)
+```
+
+Verifica o status do serviço EPEC. Disponível apenas em SP (São Paulo).
+
+## Contingência no Serviço de Notas
+
+A função `issueInvoice()` lida com a contingência como fallback:
+
+```typescript
+// Fluxo simplificado:
+try {
+  response = await sendToSefaz(signedXml, settings, model);
+} catch {
+  if (model === 65) {
+    // NFC-e: salvar como contingência, sincronizar depois
+    status = "contingency";
+  } else {
+    throw; // NF-e: o chamador deve tratar
+  }
+}
+```
+
+A função `syncPendingInvoices()` retenta posteriormente as notas em contingência.

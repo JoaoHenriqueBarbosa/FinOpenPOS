@@ -1,0 +1,167 @@
+---
+title: Schema do Banco de Dados (Fiscal)
+description: O módulo fiscal adiciona 4 tabelas ao banco de dados PGLite usando Drizzle ORM, todas multi-tenant e indexadas por user_uid, cobrindo configurações fiscais, notas fiscais, itens de notas fiscais e eventos de notas fiscais.
+---
+
+## Visão Geral
+
+O módulo fiscal adiciona 4 tabelas ao banco de dados PGLite (Drizzle ORM). Todas as tabelas são multi-tenant, indexadas por `user_uid`. O schema segue a convenção: valores monetários em centavos (integer), nomes em snake\_case.
+
+**Arquivo**: `apps/web/src/lib/db/schema.ts`
+
+## Tabelas
+
+### fiscalSettings
+
+Uma linha por usuário. Armazena informações da empresa, certificado, configuração da SEFAZ e códigos fiscais padrão.
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `id` | serial PK | ID auto-incremento |
+| `user_uid` | text UNIQUE | Identificador do usuário (chave de multi-tenancy) |
+| **Empresa** | | |
+| `company_name` | text | Razão Social |
+| `trade_name` | text | Nome Fantasia (opcional) |
+| `tax_id` | text | CNPJ (14 dígitos) |
+| `state_tax_id` | text | Inscrição Estadual (IE) |
+| `tax_regime` | text | CRT: "1" (Simples), "2" (excesso), "3" (Normal) |
+| **Endereço** | | |
+| `state_code` | text | UF (ex: "SP") |
+| `city_code` | text | Código IBGE do município |
+| `city_name` | text | Nome do município |
+| `street` | text | Logradouro |
+| `street_number` | text | Número |
+| `district` | text | Bairro |
+| `zip_code` | text | CEP (8 dígitos) |
+| `address_complement` | text | Complemento (opcional) |
+| **SEFAZ** | | |
+| `environment` | text | "1" (produção) ou "2" (homologação) |
+| `nfe_series` | integer | Série da NF-e (padrão 1) |
+| `nfce_series` | integer | Série da NFC-e (padrão 1) |
+| `next_nfe_number` | integer | Contador do próximo número de NF-e |
+| `next_nfce_number` | integer | Contador do próximo número de NFC-e |
+| **Segurança NFC-e** | | |
+| `csc_id` | text | Identificador do CSC (para QR code) |
+| `csc_token` | text | Token secreto do CSC |
+| **Certificado** | | |
+| `certificate_pfx` | bytea | Binário PFX bruto (nullable) |
+| `certificate_password` | text | Senha do PFX (nullable) |
+| `certificate_valid_until` | timestamp | Data de expiração do certificado |
+| **Padrões** | | |
+| `default_ncm` | text | Código NCM padrão para produtos |
+| `default_cfop` | text | CFOP padrão (ex: "5102") |
+| `default_icms_cst` | text | CST de ICMS padrão (ex: "00") |
+| `default_pis_cst` | text | CST de PIS padrão (ex: "99") |
+| `default_cofins_cst` | text | CST de COFINS padrão (ex: "99") |
+
+### invoices
+
+Uma linha por nota fiscal emitida. Rastreia o ciclo de vida completo, de pendente a autorizada/cancelada.
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `id` | serial PK | |
+| `user_uid` | text | Chave de multi-tenancy |
+| `order_id` | integer FK | Referência à tabela orders |
+| `model` | integer | 55 (NF-e) ou 65 (NFC-e) |
+| `series` | integer | Número da série |
+| `number` | integer | Número sequencial da nota |
+| `access_key` | text | Chave de acesso de 44 dígitos |
+| `operation_nature` | text | Natureza da operação (ex: "Venda") |
+| `operation_type` | integer | 0 (entrada) ou 1 (saída) |
+| `status` | text | pending, authorized, rejected, cancelled, denied, contingency, voided |
+| `environment` | integer | 1 ou 2 |
+| **Armazenamento XML** | | |
+| `request_xml` | text | XML assinado enviado à SEFAZ |
+| `response_xml` | text | Resposta bruta da SEFAZ |
+| `protocol_xml` | text | nfeProc (NFe + protNFe) |
+| **Resposta da SEFAZ** | | |
+| `protocol_number` | text | nProt da SEFAZ |
+| `status_code` | integer | cStat (100=autorizada, etc.) |
+| `status_message` | text | xMotivo |
+| **Timestamps** | | |
+| `issued_at` | timestamp | Quando o XML foi gerado |
+| `authorized_at` | timestamp | Quando a SEFAZ autorizou |
+| **Contingência** | | |
+| `is_contingency` | boolean | Foi emitida em modo de contingência |
+| `contingency_type` | text | svc-an, svc-rs, offline |
+| `contingency_at` | timestamp | Quando a contingência foi ativada |
+| `contingency_reason` | text | Motivo da contingência |
+| **Destinatário** | | |
+| `recipient_tax_id` | text | CPF/CNPJ do destinatário |
+| `recipient_name` | text | Nome do destinatário |
+| `total_amount` | integer | Total em centavos |
+
+### invoiceItems
+
+Uma linha por item de uma nota fiscal.
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `id` | serial PK | |
+| `invoice_id` | integer FK | Referência à tabela invoices |
+| `product_id` | integer FK | Referência à tabela products (opcional) |
+| `item_number` | integer | nItem (posição baseada em 1) |
+| `product_code` | text | cProd |
+| `description` | text | xProd |
+| `ncm` | text | Código NCM (8 dígitos) |
+| `cfop` | text | Código CFOP (4 dígitos) |
+| `unit_of_measure` | text | uCom (ex: "UN", "KG") |
+| `quantity` | integer | x1000 (1500 = 1,500) |
+| `unit_price` | integer | Centavos (1050 = R$10,50) |
+| `total_price` | integer | Centavos |
+| `icms_cst` | text | Código CST do ICMS |
+| `icms_rate` | integer | x100 (1800 = 18,00%) |
+| `icms_amount` | integer | Centavos |
+| `pis_cst` | text | Código CST do PIS |
+| `cofins_cst` | text | Código CST do COFINS |
+
+### invoiceEvents
+
+Log de auditoria para eventos do ciclo de vida da nota fiscal (cancelamento, inutilização, etc.).
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `id` | serial PK | |
+| `invoice_id` | integer FK | Referência à tabela invoices |
+| `event_type` | text | "cancellation", "voiding", etc. |
+| `sequence` | integer | nSeqEvento |
+| `protocol_number` | text | nProt da resposta da SEFAZ |
+| `status_code` | integer | cStat |
+| `reason` | text | xJust |
+| `request_xml` | text | XML do evento assinado |
+| `response_xml` | text | Resposta da SEFAZ ao evento |
+| `created_at` | timestamp | Timestamp do evento |
+
+### cities (Referência)
+
+Códigos IBGE de municípios, populados a partir da API do IBGE (~5570 registros).
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `id` | integer PK | Código IBGE do município |
+| `name` | text | Nome do município |
+| `state_code` | text | UF (ex: "SP") |
+
+### products (Estendida)
+
+A tabela de produtos existente foi estendida com campos fiscais opcionais:
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `ncm` | text | Código NCM (nullable, usa padrão das configurações) |
+| `cfop` | text | Código CFOP (nullable) |
+| `icms_cst` | text | CST do ICMS (nullable) |
+| `pis_cst` | text | CST do PIS (nullable) |
+| `cofins_cst` | text | CST do COFINS (nullable) |
+| `unit_of_measure` | text | Unidade (nullable, padrão "UN") |
+
+## Seeding (`apps/web/src/lib/db/seed.ts`)
+
+A tabela `cities` é populada a partir da API do IBGE:
+
+```
+https://servicodados.ibge.gov.br/api/v1/localidades/municipios
+```
+
+Isso é executado automaticamente no `bun run dev` (via drizzle-kit push + seed).

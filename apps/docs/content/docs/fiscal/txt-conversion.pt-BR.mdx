@@ -1,0 +1,116 @@
+---
+title: Conversão TXT para XML
+description: O formato TXT do SPED é uma representação legada delimitada por pipes dos dados da NF-e. Este módulo converte TXT para XML de NF-e, possibilitando importação em lote a partir de softwares fiscais legados e ferramentas do SEBRAE.
+---
+
+## Visão Geral
+
+O formato TXT do SPED é uma representação legada delimitada por pipes dos dados da NF-e, utilizada por sistemas fiscais mais antigos e pelo layout simplificado do SEBRAE. Este módulo converte TXT para XML de NF-e, possibilitando importação em lote a partir de softwares legados.
+
+**Arquivos**: `convert.ts`, `txt-structures.ts`, `valid-txt.ts`
+
+## Formato TXT
+
+Cada linha representa um grupo de dados, prefixado por um identificador de tag e delimitado por pipes:
+
+```
+A|4.00|NFe|
+B|35|200209944445000162|55|101|000123456|1|89012345|3|
+C|Empresa Teste|09944445000162|
+...
+H|1|
+I|Produto 1|12345678|01234567890|5102|1|UN|10.50|10.50|
+Q|01|10.50|1.6500|0.17|
+S|01|10.50|7.6000|0.80|
+```
+
+### Significado das tags
+
+| Tag | Grupo XML | Descrição |
+|-----|-----------|-----------|
+| A | Cabeçalho NFe | Versão, namespace |
+| B | ide | Identificação (UF, CNPJ, modelo, série, número) |
+| C | emit | Dados do emitente |
+| E | dest | Dados do destinatário |
+| H | det (cabeçalho) | Número do item |
+| I | prod | Dados do produto |
+| N | ICMS | Dados do imposto ICMS |
+| Q | PIS | Dados do imposto PIS |
+| S | COFINS | Dados do imposto COFINS |
+| W | total | Totais |
+| X | transp | Transporte |
+| Y | pag | Pagamento |
+| Z | infAdic | Informações adicionais |
+
+## Layouts Suportados (`txt-structures.ts`)
+
+| Layout | Descrição | Campos |
+|--------|-----------|--------|
+| LOCAL | Layout local padrão | Conjunto completo de campos |
+| LOCAL\_V12 | Local v1.2 | Pequenas variações nos campos |
+| LOCAL\_V13 | Local v1.3 | Campos atualizados |
+| SEBRAE | Layout simplificado SEBRAE | Conjunto reduzido de campos |
+
+Cada layout define um mapeamento `Record<string, string>` de tag → nomes de campos delimitados por pipes:
+
+```typescript
+const LOCAL: Record<string, string> = {
+  "A": "versao|Id",
+  "B": "cUF|cNF|natOp|mod|serie|nNF|dhEmi|...",
+  "C": "xNome|CNPJ|...",
+  // ...
+};
+```
+
+## Validação (`valid-txt.ts`)
+
+```typescript
+function isValidTxt(content: string): { valid: boolean; errors: string[]; layout: string }
+```
+
+Valida:
+- Primeira linha deve começar com `A|` (tag de versão)
+- Deve conter pelo menos `B|` (identificação)
+- Detecta a versão do layout pela contagem de campos
+- Verifica se as tags obrigatórias estão presentes
+
+## Conversor (`convert.ts`)
+
+### Ponto de entrada
+
+```typescript
+function convertTxtToXml(txtContent: string): string
+```
+
+### Fluxo de conversão
+
+1. **Validar** — Verificar o formato TXT e detectar o layout
+2. **Parsear linhas** — Separar por `|`, mapear para nomes de campos usando a estrutura do layout
+3. **Construir XML** — Para cada grupo parseado, gerar as tags XML correspondentes
+4. **Montar** — Combinar todos os grupos em um documento XML `<NFe>` completo
+
+### Classe parser (NFeParser)
+
+Classe interna que mantém estado entre as linhas:
+
+```typescript
+class NFeParser {
+  private structure: Record<string, string>;  // definição do layout
+  private infNFeId: string;                    // chave de acesso
+  private curProd: ParsedFields;               // produto sendo parseado
+  // ... estado para cada grupo XML
+}
+```
+
+O parser processa as linhas sequencialmente. Quando encontra `H|` (cabeçalho do item), inicia um novo produto. Quando encontra `I|`, `N|`, `Q|`, `S|`, adiciona dados ao produto atual.
+
+### Saída
+
+Um documento XML de NF-e válido e não assinado que pode então ser assinado e enviado à SEFAZ, idêntico ao que o `xml-builder.ts` produz a partir de dados estruturados.
+
+## Casos de Uso
+
+1. **Migração de sistemas legados** — Importar notas fiscais de sistemas mais antigos compatíveis com SPED
+2. **Processamento em lote** — Converter múltiplos arquivos TXT para XML para autorização em massa
+3. **Integração com SEBRAE** — Suportar o layout simplificado usado por pequenas empresas via ferramentas do SEBRAE
+4. **Testes** — A suíte de testes do sped-nfe em PHP usa fixtures em TXT; este conversor possibilita a portabilidade dos testes

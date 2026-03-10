@@ -1,0 +1,139 @@
+---
+title: Deploy
+description: Docker, Coolify e configuração para produção
+---
+
+## Docker Compose
+
+O projeto inclui um Dockerfile multi-estágio baseado em Alpine e Docker Compose com volume persistente.
+
+```mermaid
+flowchart LR
+  subgraph Docker["Docker Container"]
+    Next["Next.js 16\n(standalone)"]
+    PGLite["PGLite\n(data volume)"]
+  end
+
+  Browser["Browser"] -->|":3111"| Next
+  Next --> PGLite
+```
+
+### Comandos
+
+```bash
+docker compose up -d          # Build e iniciar
+docker compose logs -f        # Ver logs
+docker compose down           # Parar
+docker compose down -v        # Parar e deletar dados do banco
+```
+
+### Variáveis de Ambiente
+
+O `compose.yaml` espera estas variáveis de ambiente. Para Docker, crie um arquivo `.env` na raiz ou passe via `-e`:
+
+```ini
+BETTER_AUTH_SECRET=your-secret-key-at-least-32-chars
+BETTER_AUTH_URL=https://your-domain.com
+```
+
+Para desenvolvimento local, configure `apps/web/.env` em vez disso.
+
+| Variável | Obrigatória | Descrição |
+|----------|-------------|-----------|
+| `BETTER_AUTH_SECRET` | Sim | Chave secreta para criptografia de sessão (mín. 32 caracteres) |
+| `BETTER_AUTH_URL` | Sim | URL pública da aplicação |
+| `PORT` | Não | Porta interna (padrão: `3111`) |
+| `DATABASE_URL` | Não | URL do PostgreSQL (apenas para imagem de produção) |
+
+## Dockerfiles
+
+| Arquivo | Caso de Uso |
+|---------|-------------|
+| `Dockerfile` | Imagem de desenvolvimento com PGLite (padrão) |
+| `Dockerfile.production` | Imagem de produção com suporte a PostgreSQL |
+
+## Coolify / PaaS
+
+O projeto funciona com **Coolify** e plataformas similares que detectam `compose.yaml`. Defina as variáveis de ambiente na interface da plataforma. A porta interna padrão é `3111` (configurável via variável `PORT`).
+
+## Produção com PostgreSQL
+
+Para deploys em produção com PostgreSQL real, você pode usar o **script automático** ou seguir os **passos manuais**.
+
+### Automático
+
+```bash
+cd apps/web && bun run prepare-prod
+```
+
+O script troca PGLite por `pg`, reescreve `db/index.ts` e `drizzle.config.ts`, e remove helpers exclusivos do PGLite. Após executá-lo, defina `DATABASE_URL` e aplique o schema:
+
+```ini
+DATABASE_URL=postgresql://user:password@host:5432/finopenpos
+```
+
+```bash
+cd apps/web && bun run db:push
+```
+
+Em seguida, use `Dockerfile.production` na sua configuração do compose.
+
+### Manual
+
+Se você preferir fazer passo a passo:
+
+#### 1. Instale o driver PostgreSQL
+
+```bash
+bun add pg
+bun remove @electric-sql/pglite
+```
+
+#### 2. Atualize `apps/web/src/lib/db/index.ts`
+
+```ts
+import { drizzle } from "drizzle-orm/node-postgres";
+import * as schema from "./schema";
+
+export const db = drizzle(process.env.DATABASE_URL!, { schema });
+```
+
+#### 3. Atualize `apps/web/drizzle.config.ts`
+
+```ts
+import { defineConfig } from "drizzle-kit";
+
+export default defineConfig({
+  dialect: "postgresql",
+  schema: "./src/lib/db/schema.ts",
+  dbCredentials: {
+    url: process.env.DATABASE_URL!,
+  },
+});
+```
+
+#### 4. Adicione a variável de ambiente
+
+```ini
+DATABASE_URL=postgresql://user:password@host:5432/finopenpos
+```
+
+#### 5. Aplique o schema e execute
+
+```bash
+cd apps/web && bun run db:push
+bun run dev
+```
+
+#### 6. Limpeza
+
+- Delete `scripts/ensure-db.ts` (existe apenas para recuperação do PGLite)
+- Remova `db:ensure` dos scripts `dev` e `build` no `package.json`
+- Remova `serverExternalPackages` do `next.config.mjs`
+- No Docker, substitua o volume PGLite por uma conexão PostgreSQL via `DATABASE_URL`
+
+<Callout type="info">
+O schema do Drizzle (`apps/web/src/lib/db/schema.ts`) não muda. Todas as queries, relações e procedures tRPC continuam funcionando sem modificação.
+</Callout>
+
+Veja também [Banco de Dados — Migrando para PostgreSQL](/docs/database#migrating-to-postgresql) para mais detalhes sobre PGLite vs PostgreSQL.
