@@ -1,0 +1,165 @@
+---
+title: Termos de Uso
+description: Termos e condicoes para uso do FinOpenPOS
+---
+
+**Ultima atualizacao:** 10 de marco de 2026
+
+Estes Termos de Uso ("Termos") regem a utilizacao da aplicacao demo do FinOpenPOS hospedada em **fin-open-pos.johnenrique.tech** (o "Servico"). Ao acessar ou utilizar o Servico, voce concorda em estar vinculado a estes Termos. Se voce nao concordar, nao utilize o Servico.
+
+---
+
+## 1. Aceitacao dos Termos
+
+Ao criar uma conta ou utilizar o Servico, voce reconhece que leu, compreendeu e concorda em estar vinculado a estes Termos e a nossa [Politica de Privacidade](/docs/legal/privacy). Se voce estiver utilizando o Servico em nome de uma organizacao, voce declara que possui autoridade para vincular essa organizacao a estes Termos.
+
+---
+
+## 2. Descricao do Servico
+
+O FinOpenPOS e um **sistema de ponto de venda (PDV) de codigo aberto** com modulo fiscal brasileiro (NF-e/NFC-e). A versao hospedada em fin-open-pos.johnenrique.tech e um **ambiente de demonstracao** fornecido para fins de avaliacao e testes.
+
+### 2.1 Natureza de Demonstracao — Aviso Importante
+
+<Callout type="error">
+**Esta e apenas uma demo para a conveniencia de quem tenha curiosidade.** O FinOpenPOS e feito para self-host. A demo online e efemera — todos os dados serao perdidos a qualquer momento sem aviso previo. Desencorajamos fortemente qualquer uso real da demo online.
+</Callout>
+
+Voce entende e concorda que:
+- Este e um **ambiente de demonstracao**, nao um servico pronto para producao
+- **Todos os dados sao efemeros** — podem ser redefinidos, excluidos ou perdidos a qualquer momento sem aviso previo como parte de manutencao, atualizacoes ou mudancas de infraestrutura
+- O Servico pode sofrer **indisponibilidade** sem aviso antecipado
+- Funcionalidades podem ser **adicionadas, modificadas ou removidas** a qualquer momento
+- A demonstracao **nao e adequada** para processar dados reais de clientes ou transacoes financeiras reais
+- **Nao nos responsabilizamos** por quaisquer dados inseridos na demo, incluindo sua perda, exposicao ou uso indevido
+
+### 2.2 Dados Sensiveis — Aviso Forte
+
+<Callout type="error">
+**NAO faca upload nem insira informacoes pessoais sensiveis, documentos reais ou certificados digitais (A1/A3) e suas senhas na demo online.** Nao assumimos qualquer responsabilidade por dados sensiveis inseridos no ambiente de demonstracao.
+</Callout>
+
+**Desencorajamos fortemente e nao nos responsabilizamos** por usuarios que:
+- Fizerem upload de **certificados digitais** (arquivos PFX/PKCS#12) ou inserirem suas senhas
+- Inserirem **CPF, CNPJ ou outros documentos de identificacao reais**
+- Inserirem **dados pessoais reais de clientes** (nomes, enderecos, telefones, e-mails)
+- Inserirem **dados financeiros reais** (contas bancarias, cartoes de credito, transacoes)
+- Utilizarem a demo para **emitir documentos fiscais reais** (NF-e/NFC-e) em ambientes de producao
+
+O ambiente de demonstracao nao oferece as mesmas garantias de seguranca de uma instancia auto-hospedada sob seu controle. Se deseja testar funcionalidades fiscais com certificados reais, **faca o deploy da sua propria instancia** seguindo o [guia de deploy](/docs/deployment).
+
+---
+
+## 3. Licenca de Codigo Aberto
+
+O software FinOpenPOS e licenciado sob a **Licenca MIT**. O codigo-fonte completo esta disponivel em [github.com/JoaoHenriqueBarbosa/FinOpenPOS](https://github.com/JoaoHenriqueBarbosa/FinOpenPOS).
+
+A Licenca MIT permite que voce use, copie, modifique, mescle, publique, distribua, sublicencie e/ou venda copias do software, sujeito as condicoes especificadas na licenca. Estes Termos de Uso se aplicam especificamente a instancia demo hospedada, nao a implantacoes auto-hospedadas do software.
+
+---
+
+## 4. Contas de Usuario
+
+### 4.1 Cadastro
+Para utilizar o Servico, voce deve criar uma conta com um endereco de e-mail valido e uma senha. Voce e responsavel por manter a confidencialidade de suas credenciais.
+
+### 4.2 Seguranca da Conta
+Voce concorda em:
+- Fornecer informacoes de cadastro precisas
+- Manter sua senha segura e nao compartilha-la com terceiros
+- Notificar-nos imediatamente sobre qualquer uso nao autorizado de sua conta
+- Aceitar responsabilidade por todas as atividades que ocorram em sua conta
+
+---
+
+## 5. Uso Aceitavel
+
+Voce concorda em **nao** utilizar o Servico para:
+- Processar dados pessoais reais de clientes ou transacoes financeiras reais
+- Violar qualquer lei local, estadual, nacional ou internacional aplicavel
+- Transmitir codigo malicioso, virus ou outra tecnologia prejudicial
+- Tentar obter acesso nao autorizado ao Servico, outras contas ou sistemas relacionados
+- Interferir ou interromper o Servico ou sua infraestrutura
+- Utilizar o Servico para qualquer finalidade ilegal, fraudulenta ou abusiva
+- Extrair dados do Servico por meios automatizados (scraping, mineracao de dados)
+- Personificar qualquer pessoa ou entidade
+
+---
+
+## 6. Propriedade dos Dados
+
+### 6.1 Seus Dados
+Voce mantem a propriedade de quaisquer dados que inserir no Servico. Nao reivindicamos quaisquer direitos de propriedade intelectual sobre seu conteudo.
+
+### 6.2 Perda de Dados
+Dada a natureza de demonstracao do Servico, voce reconhece que **nao somos responsaveis pela perda de dados**. Voce nao deve depender do Servico para armazenamento permanente de dados. Recomendamos utilizar o software de codigo aberto em um ambiente auto-hospedado para quaisquer dados que deseje preservar.
+
+---
+
+## 7. Aviso sobre o Modulo Fiscal
+
+O modulo fiscal (NF-e/NFC-e) e fornecido **apenas para fins de teste e avaliacao**. Ao utilizar o modulo fiscal:
+- Utilize apenas o **ambiente de homologacao (testes) da SEFAZ**
+- Nao emita documentos fiscais reais atraves da instancia demo
+- Os calculos de impostos sao baseados na implementacao do software e podem nao refletir as aliquotas ou regulamentacoes fiscais vigentes
+- Voce e o unico responsavel pelo cumprimento da legislacao tributaria brasileira em qualquer uso em producao
+
+---
+
+## 8. Ausencia de Garantia
+
+O SERVICO E FORNECIDO "COMO ESTA" E "CONFORME DISPONIVEL", SEM GARANTIAS DE QUALQUER TIPO, SEJAM EXPRESSAS, IMPLICITAS OU LEGAIS, INCLUINDO, MAS NAO SE LIMITANDO AS GARANTIAS IMPLICITAS DE COMERCIALIZACAO, ADEQUACAO A UM FIM ESPECIFICO, TITULARIDADE E NAO VIOLACAO.
+
+Nos nao garantimos que:
+- O Servico sera ininterrupto, pontual, seguro ou livre de erros
+- Os resultados obtidos com o Servico serao precisos ou confiaveis
+- Quaisquer erros no Servico serao corrigidos
+- O Servico atendera aos seus requisitos especificos
+
+---
+
+## 9. Limitacao de Responsabilidade
+
+NA MAXIMA EXTENSAO PERMITIDA PELA LEI APLICAVEL, EM NENHUM CASO A COMUNIDADE FINOPENPOS, SEUS CONTRIBUIDORES OU MANTENEDORES SERAO RESPONSAVEIS POR QUAISQUER DANOS INDIRETOS, INCIDENTAIS, ESPECIAIS, CONSEQUENCIAIS OU PUNITIVOS, INCLUINDO, MAS NAO SE LIMITANDO A PERDA DE LUCROS, DADOS OU OPORTUNIDADES DE NEGOCIOS, DECORRENTES OU RELACIONADOS AO SEU USO DO SERVICO, SEJA COM BASE EM GARANTIA, CONTRATO, ATO ILICITO OU QUALQUER OUTRA TEORIA JURIDICA, MESMO QUE AVISADOS DA POSSIBILIDADE DE TAIS DANOS.
+
+---
+
+## 10. Indenizacao
+
+Voce concorda em indenizar e isentar de responsabilidade a comunidade FinOpenPOS, seus contribuidores e mantenedores contra quaisquer reclamacoes, danos, perdas, responsabilidades, custos e despesas (incluindo honorarios advocaticios razoaveis) decorrentes ou relacionados ao seu uso do Servico ou a sua violacao destes Termos.
+
+---
+
+## 11. Modificacoes no Servico
+
+Reservamo-nos o direito de modificar, suspender ou descontinuar o Servico (ou qualquer parte dele) a qualquer momento, com ou sem aviso previo. Nao seremos responsaveis perante voce ou qualquer terceiro por qualquer modificacao, suspensao ou descontinuacao do Servico.
+
+---
+
+## 12. Modificacoes nestes Termos
+
+Podemos atualizar estes Termos periodicamente. As alteracoes serao publicadas nesta pagina com a data de "Ultima atualizacao" atualizada. Seu uso continuado do Servico apos a publicacao das alteracoes constitui aceitacao dos Termos modificados. Para alteracoes significativas, faremos esforcos razoaveis para notificar os usuarios.
+
+---
+
+## 13. Lei Aplicavel e Jurisdicao
+
+Estes Termos serao regidos e interpretados de acordo com as leis da Republica Federativa do Brasil, em especial o Codigo Civil (Lei 10.406/2002), o Codigo de Defesa do Consumidor (Lei 8.078/1990) quando aplicavel, e a Lei Geral de Protecao de Dados (Lei 13.709/2018). Quaisquer disputas decorrentes ou relacionadas a estes Termos serao submetidas aos tribunais competentes do Brasil.
+
+---
+
+## 14. Divisibilidade
+
+Se qualquer disposicao destes Termos for considerada inexequivel ou invalida, tal disposicao sera limitada ou eliminada na extensao minima necessaria, e as demais disposicoes permanecerao em pleno vigor e efeito.
+
+---
+
+## 15. Acordo Integral
+
+Estes Termos, juntamente com a [Politica de Privacidade](/docs/legal/privacy), constituem o acordo integral entre voce e o FinOpenPOS em relacao ao uso do Servico e substituem quaisquer acordos anteriores.
+
+---
+
+## 16. Contato
+
+Para quaisquer duvidas sobre estes Termos, entre em contato atraves do nosso [repositorio no GitHub](https://github.com/JoaoHenriqueBarbosa/FinOpenPOS).
