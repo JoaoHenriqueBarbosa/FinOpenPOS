@@ -28,7 +28,6 @@
         "lucide-react": "^0.577.0",
         "mermaid": "^11.13.0",
         "next": "catalog:",
-        "next-intl": "^4.8.3",
         "react": "catalog:",
         "react-dom": "catalog:",
       },
@@ -98,28 +97,6 @@
         "drizzle-kit": "^0.31.9",
         "eslint": "^10.0.2",
         "eslint-config-next": "^16.1.6",
-        "postcss": "^8.5.6",
-        "tailwindcss": "catalog:",
-        "typescript": "^5",
-      },
-    },
-    "apps/www": {
-      "name": "@finopenpos/www",
-      "version": "0.1.0",
-      "dependencies": {
-        "@finopenpos/env": "workspace:*",
-        "@finopenpos/ui": "workspace:*",
-        "lucide-react": "catalog:",
-        "next": "catalog:",
-        "next-intl": "^4.8.3",
-        "react": "catalog:",
-        "react-dom": "catalog:",
-      },
-      "devDependencies": {
-        "@finopenpos/config": "workspace:*",
-        "@tailwindcss/postcss": "^4.2.1",
-        "@types/react": "catalog:",
-        "@types/react-dom": "catalog:",
         "postcss": "^8.5.6",
         "tailwindcss": "catalog:",
         "typescript": "^5",
@@ -427,8 +404,6 @@
     "@finopenpos/fiscal": ["@finopenpos/fiscal@workspace:packages/fiscal"],
 
     "@finopenpos/ui": ["@finopenpos/ui@workspace:packages/ui"],
-
-    "@finopenpos/www": ["@finopenpos/www@workspace:apps/www"],
 
     "@floating-ui/core": ["@floating-ui/core@1.7.5", "", { "dependencies": { "@floating-ui/utils": "^0.2.11" } }, "sha512-1Ih4WTWyw0+lKyFMcBHGbb5U5FtuHJuujoyyr5zTaWS5EYMeT6Jb2AuDeftsCsEuchO+mM2ij5+q9crhydzLhQ=="],
 

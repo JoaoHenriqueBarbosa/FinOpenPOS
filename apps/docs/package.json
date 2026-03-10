@@ -16,7 +16,6 @@
     "lucide-react": "^0.577.0",
     "mermaid": "^11.13.0",
     "next": "catalog:",
-    "next-intl": "^4.8.3",
     "react": "catalog:",
     "react-dom": "catalog:"
   },

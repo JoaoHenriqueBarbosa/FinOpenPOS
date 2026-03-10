@@ -9,7 +9,7 @@ import {
 	Database,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations } from "@/lib/translations";
 import { useRef, useEffect } from "react";
 
 const features = [

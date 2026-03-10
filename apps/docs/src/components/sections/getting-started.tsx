@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, Copy } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useTranslations } from "@/lib/translations";
 import type { ReactNode } from "react";
 import { useState } from "react";
 

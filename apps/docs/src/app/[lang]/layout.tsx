@@ -1,8 +1,8 @@
 import { RootProvider } from "fumadocs-ui/provider/next";
 import { defineI18nUI } from "fumadocs-ui/i18n";
-import { NextIntlClientProvider } from "next-intl";
-import { getMessages, setRequestLocale } from "next-intl/server";
 import { i18n } from "@/lib/i18n";
+import { TranslationProvider } from "@/lib/translations";
+import { loadMessages } from "@/lib/translations-server";
 import type { ReactNode } from "react";
 import type { Metadata } from "next";
 import "../globals.css";
@@ -42,16 +42,14 @@ interface LayoutProps {
 
 export default async function Layout({ params, children }: LayoutProps) {
   const { lang } = await params;
-
-  setRequestLocale(lang);
-  const messages = await getMessages();
+  const messages = await loadMessages(lang);
 
   return (
     <html lang={lang} suppressHydrationWarning>
       <body className="flex min-h-screen flex-col">
-        <NextIntlClientProvider locale={lang} messages={messages}>
+        <TranslationProvider locale={lang} messages={messages}>
           <RootProvider i18n={provider(lang)}>{children}</RootProvider>
-        </NextIntlClientProvider>
+        </TranslationProvider>
       </body>
     </html>
   );

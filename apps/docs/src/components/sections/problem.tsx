@@ -1,7 +1,8 @@
-import { getTranslations } from "next-intl/server";
+import { getTranslations } from "@/lib/translations-server";
+import type { Messages } from "@/messages/en";
 
-export default async function Problem() {
-	const t = await getTranslations("problem");
+export default function Problem({ locale, messages }: { locale: string; messages: Messages }) {
+	const t = getTranslations(messages, "problem");
 
 	return (
 		<section className="relative py-32 lg:py-44">
@@ -23,11 +24,13 @@ export default async function Problem() {
 
 					{/* Storytelling text */}
 					<p className="text-[24px] font-normal leading-[1.4] tracking-tighter text-[#94979E] md:text-[32px] lg:text-[40px]">
-						{t.rich("text", {
-							highlight: (chunks) => (
-								<strong className="font-normal text-white">{chunks}</strong>
-							),
-						})}
+						{t("text").split(/<highlight>|<\/highlight>/).map((part, i) =>
+							i % 2 === 1 ? (
+								<strong key={i} className="font-normal text-white">{part}</strong>
+							) : (
+								part
+							)
+						)}
 					</p>
 				</div>
 			</div>

@@ -1,10 +1,10 @@
 import { Github, BookOpen } from "lucide-react";
-import { getTranslations, getLocale } from "next-intl/server";
+import { getTranslations } from "@/lib/translations-server";
 import { links } from "@/lib/links";
+import type { Messages } from "@/messages/en";
 
-export default async function Hero() {
-	const t = await getTranslations("hero");
-	const locale = await getLocale();
+export default function Hero({ locale, messages }: { locale: string; messages: Messages }) {
+	const t = getTranslations(messages, "hero");
 
 	return (
 		<section className="relative -mt-16 min-h-[100svh] overflow-hidden">
