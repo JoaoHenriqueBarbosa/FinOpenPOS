@@ -69,7 +69,7 @@ export function MobileMenu({ links, ctaLabel, ctaHref }: MobileMenuProps) {
 
 				{/* Menu panel */}
 				<div
-					className={`relative flex h-full flex-col bg-[#0C0D0D] transition-transform duration-300 ease-out ${
+					className={`relative flex h-full flex-col transition-transform duration-300 ease-out ${
 						isOpen ? "translate-y-0" : "-translate-y-4"
 					}`}
 				>
@@ -96,7 +96,7 @@ export function MobileMenu({ links, ctaLabel, ctaHref }: MobileMenuProps) {
 					</div>
 
 					{/* Navigation links */}
-					<div className="flex flex-1 flex-col items-center justify-center gap-8">
+					<div className="flex flex-1 flex-col items-center justify-center gap-8 bg-[#0C0D0D]">
 						{links.map((link, i) => (
 							<a
 								key={link.key}
