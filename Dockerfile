@@ -5,7 +5,6 @@ FROM base AS deps
 WORKDIR /app
 COPY package.json bun.lock ./
 COPY apps/web/package.json ./apps/web/
-COPY apps/www/package.json ./apps/www/
 COPY apps/docs/package.json ./apps/docs/
 COPY packages/api/package.json ./packages/api/
 COPY packages/auth/package.json ./packages/auth/
@@ -36,13 +35,8 @@ ENV BASE_PATH=/app
 RUN mkdir -p apps/web/data && cd apps/web && bun run --bun next build
 ENV BASE_PATH=
 
-# Build www (no basePath, serves at /)
-RUN cd apps/www && bun run --bun next build
-
-# Build docs with basePath=/docs
-ENV BASE_PATH=/docs
+# Build docs (serves landing page + documentation, no basePath)
 RUN cd apps/docs && bun run --bun next build
-ENV BASE_PATH=
 
 FROM base AS runtime
 WORKDIR /app
@@ -51,7 +45,6 @@ ENV NODE_ENV=production
 # Copy node_modules
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
-COPY --from=deps /app/apps/www/node_modules ./apps/www/node_modules
 COPY --from=deps /app/apps/docs/node_modules ./apps/docs/node_modules
 
 # Copy built web app
@@ -62,11 +55,6 @@ COPY --from=build /app/apps/web/next.config.mjs ./apps/web/
 COPY --from=build /app/apps/web/drizzle.config.ts ./apps/web/
 COPY --from=build /app/apps/web/scripts ./apps/web/scripts
 COPY --from=build /app/apps/web/src ./apps/web/src
-
-# Copy built www app
-COPY --from=build /app/apps/www/.next ./apps/www/.next
-COPY --from=build /app/apps/www/package.json ./apps/www/
-COPY --from=build /app/apps/www/next.config.ts ./apps/www/
 
 # Copy built docs app
 COPY --from=build /app/apps/docs/.next ./apps/docs/.next

@@ -1,9 +1,9 @@
-import { getTranslations, getLocale } from "next-intl/server";
+import { getTranslations } from "@/lib/translations-server";
 import { links } from "@/lib/links";
+import type { Messages } from "@/messages/en";
 
-export default async function Footer() {
-	const t = await getTranslations("footer");
-	const locale = await getLocale();
+export default function Footer({ locale, messages }: { locale: string; messages: Messages }) {
+	const t = getTranslations(messages, "footer");
 
 	return (
 		<footer className="border-t border-[#1a1a1a] py-8">

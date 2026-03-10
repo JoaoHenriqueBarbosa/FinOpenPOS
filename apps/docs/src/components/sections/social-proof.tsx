@@ -1,8 +1,9 @@
-import { getTranslations } from "next-intl/server";
+import { getTranslations } from "@/lib/translations-server";
 import { getContributors, getGitHubStats } from "../../lib/github";
+import type { Messages } from "@/messages/en";
 
-export default async function SocialProof() {
-	const t = await getTranslations("socialProof");
+export default async function SocialProof({ locale, messages }: { locale: string; messages: Messages }) {
+	const t = getTranslations(messages, "socialProof");
 	const [stats, contributors] = await Promise.all([
 		getGitHubStats(),
 		getContributors(),

@@ -1,9 +1,10 @@
 import { Github } from "lucide-react";
-import { getTranslations } from "next-intl/server";
+import { getTranslations } from "@/lib/translations-server";
 import { links } from "@/lib/links";
+import type { Messages } from "@/messages/en";
 
-export default async function CTA() {
-	const t = await getTranslations("cta");
+export default function CTA({ locale, messages }: { locale: string; messages: Messages }) {
+	const t = getTranslations(messages, "cta");
 
 	return (
 		<section className="relative overflow-hidden py-32 lg:py-44">

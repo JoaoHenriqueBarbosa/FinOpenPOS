@@ -7,21 +7,29 @@ import Features from "@/components/sections/features";
 import SocialProof from "@/components/sections/social-proof";
 import GettingStarted from "@/components/sections/getting-started";
 import CTA from "@/components/sections/cta";
+import { loadMessages } from "@/lib/translations-server";
 
-export default function HomePage() {
+interface PageProps {
+  params: Promise<{ lang: string }>;
+}
+
+export default async function HomePage({ params }: PageProps) {
+  const { lang } = await params;
+  const messages = await loadMessages(lang);
+
   return (
     <>
       <Header />
       <main>
-        <Hero />
-        <Problem />
-        <TechStack />
+        <Hero locale={lang} messages={messages} />
+        <Problem locale={lang} messages={messages} />
+        <TechStack locale={lang} messages={messages} />
         <Features />
-        <SocialProof />
+        <SocialProof locale={lang} messages={messages} />
         <GettingStarted />
-        <CTA />
+        <CTA locale={lang} messages={messages} />
       </main>
-      <Footer />
+      <Footer locale={lang} messages={messages} />
     </>
   );
 }

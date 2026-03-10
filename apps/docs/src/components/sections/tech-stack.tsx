@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
-import { getTranslations } from "next-intl/server";
+import { getTranslations } from "@/lib/translations-server";
+import type { Messages } from "@/messages/en";
 
 const techs = [
 	{ key: "pglite", color: "#34D59A" },
@@ -10,8 +10,8 @@ const techs = [
 	{ key: "betterAuth", color: "#37C38F" },
 ] as const;
 
-export default async function TechStack() {
-	const t = await getTranslations("techStack");
+export default function TechStack({ locale, messages }: { locale: string; messages: Messages }) {
+	const t = getTranslations(messages, "techStack");
 
 	return (
 		<section className="relative overflow-hidden py-28 lg:py-36">
@@ -23,13 +23,15 @@ export default async function TechStack() {
 					Tech Stack
 				</p>
 				<h2 className="max-w-2xl indent-0 text-[24px] font-normal leading-[1.15] tracking-tighter text-[#94979E] md:text-[32px] lg:indent-20 lg:text-[44px]">
-					{t.rich("title", {
-						accent: (chunks: ReactNode) => (
-							<strong className="font-normal text-white">
-								{chunks}
+					{t("title").split(/<accent>|<\/accent>/).map((part, i) =>
+						i % 2 === 1 ? (
+							<strong key={i} className="font-normal text-white">
+								{part}
 							</strong>
-						),
-					})}
+						) : (
+							part
+						)
+					)}
 				</h2>
 
 				{/* Tech list — editorial */}

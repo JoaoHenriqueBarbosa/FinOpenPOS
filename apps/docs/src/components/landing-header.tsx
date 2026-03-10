@@ -1,4 +1,6 @@
-import { useTranslations, useLocale } from "next-intl";
+"use client";
+
+import { useTranslations, useLocale } from "@/lib/translations";
 import { links } from "@/lib/links";
 import { LocaleSwitcher } from "./locale-switcher";
 import { MobileMenu } from "./mobile-menu";
