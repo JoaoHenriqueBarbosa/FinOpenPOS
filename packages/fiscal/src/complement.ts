@@ -22,6 +22,9 @@ const xmlParser = new XMLParser({
  * Attach the SEFAZ authorization protocol to a signed NFe XML,
  * producing the `nfeProc` wrapper required for storage and DANFE.
  *
+ * [pt-BR] Anexa o protocolo de autorização da SEFAZ ao XML assinado da NFe,
+ * produzindo o wrapper `nfeProc` necessário para armazenamento e DANFE.
+ *
  * Output format:
  * ```xml
  * <nfeProc xmlns="..." versao="4.00">
@@ -31,8 +34,11 @@ const xmlParser = new XMLParser({
  * ```
  *
  * @param requestXml  Signed NFe XML (contains `<NFe>`)
+ * [pt-BR] @param requestXml  XML assinado da NFe (contém `<NFe>`)
  * @param responseXml SEFAZ response XML (contains `<protNFe>`)
+ * [pt-BR] @param responseXml XML de resposta da SEFAZ (contém `<protNFe>`)
  * @returns The `nfeProc` XML string
+ * [pt-BR] @returns A string XML do `nfeProc`
  */
 export function attachProtocol(
   requestXml: string,
@@ -109,13 +115,17 @@ export function attachProtocol(
 
 /**
  * Attach a cancellation event response to an authorized nfeProc XML.
+ * Appends the `<retEvento>` node inside the `<nfeProc>` wrapper.
  *
- * Appends the `<retEvento>` node from the cancellation response
- * inside the `<nfeProc>` wrapper. This marks the NFe as cancelled.
+ * [pt-BR] Anexa a resposta do evento de cancelamento ao XML autorizado nfeProc.
+ * Insere o nó `<retEvento>` dentro do wrapper `<nfeProc>`.
  *
  * @param nfeProcXml      The authorized nfeProc XML
+ * [pt-BR] @param nfeProcXml      XML autorizado do nfeProc
  * @param cancelResponseXml The SEFAZ cancellation event response
+ * [pt-BR] @param cancelResponseXml Resposta do evento de cancelamento da SEFAZ
  * @returns Modified nfeProc XML with retEvento appended
+ * [pt-BR] @returns XML nfeProc modificado com retEvento anexado
  */
 export function attachCancellation(
   nfeProcXml: string,
@@ -186,7 +196,10 @@ export function attachCancellation(
 
 /**
  * Attach the SEFAZ inutilizacao response to the request,
- * producing the `procInutNFe` wrapper.
+ * producing the `ProcInutNFe` wrapper.
+ *
+ * [pt-BR] Anexa a resposta de inutilização da SEFAZ à requisição,
+ * produzindo o wrapper `ProcInutNFe`.
  *
  * Output format:
  * ```xml
@@ -197,8 +210,11 @@ export function attachCancellation(
  * ```
  *
  * @param requestXml  The inutNFe request XML
+ * [pt-BR] @param requestXml  XML da requisição inutNFe
  * @param responseXml The SEFAZ retInutNFe response XML
+ * [pt-BR] @param responseXml XML de resposta retInutNFe da SEFAZ
  * @returns The `ProcInutNFe` XML string
+ * [pt-BR] @returns A string XML do `ProcInutNFe`
  */
 export function attachInutilizacao(
   requestXml: string,
@@ -249,9 +265,15 @@ export function attachInutilizacao(
  * Attach an event protocol response to the event request,
  * producing the `procEventoNFe` wrapper.
  *
+ * [pt-BR] Anexa a resposta do protocolo de evento à requisição,
+ * produzindo o wrapper `procEventoNFe`.
+ *
  * @param requestXml  The envEvento request XML (contains `<evento>`)
+ * [pt-BR] @param requestXml  XML da requisição envEvento (contém `<evento>`)
  * @param responseXml The SEFAZ retEnvEvento response XML (contains `<retEvento>`)
+ * [pt-BR] @param responseXml XML de resposta retEnvEvento da SEFAZ (contém `<retEvento>`)
  * @returns The `procEventoNFe` XML string
+ * [pt-BR] @returns A string XML do `procEventoNFe`
  */
 export function attachEventProtocol(
   requestXml: string,
@@ -301,14 +323,19 @@ export function attachEventProtocol(
 
 /**
  * Attach a B2B financial tag to an authorized nfeProc XML.
- *
- * Ported from PHP Complements::b2bTag().
  * Wraps the nfeProc and B2B content in a `<nfeProcB2B>` element.
  *
+ * [pt-BR] Anexa uma tag financeira B2B ao XML autorizado nfeProc.
+ * Envolve o nfeProc e o conteúdo B2B em um elemento `<nfeProcB2B>`.
+ *
  * @param nfeProcXml  The authorized nfeProc XML
+ * [pt-BR] @param nfeProcXml  XML autorizado do nfeProc
  * @param b2bXml      The B2B financial XML (must contain the tagB2B element)
+ * [pt-BR] @param b2bXml      XML financeiro B2B (deve conter o elemento tagB2B)
  * @param tagB2B      The expected B2B tag name (default: "NFeB2BFin")
+ * [pt-BR] @param tagB2B      Nome da tag B2B esperada (padrão: "NFeB2BFin")
  * @returns The `nfeProcB2B` XML string
+ * [pt-BR] @returns A string XML do `nfeProcB2B`
  */
 export function attachB2B(
   nfeProcXml: string,

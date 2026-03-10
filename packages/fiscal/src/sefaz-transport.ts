@@ -6,35 +6,83 @@ import { SOAP_ENVELOPE_NS, NFE_WSDL_NS } from "./constants";
 import { extractCertFromPfx, extractKeyFromPfx } from "./certificate";
 import type { SefazService } from "./types";
 
+/**
+ * Options for sending a SOAP request to SEFAZ
+ *
+ * [pt-BR] Opcoes para envio de requisicao SOAP para a SEFAZ
+ */
 interface SefazRequestOptions {
-  /** Full URL of the SEFAZ web service endpoint */
+  /**
+   * Full URL of the SEFAZ web service endpoint
+   *
+   * [pt-BR] URL completa do endpoint do web service da SEFAZ
+   */
   url: string;
-  /** SOAP action / service name */
+  /**
+   * SOAP action / service name
+   *
+   * [pt-BR] Acao SOAP / nome do servico
+   */
   service: SefazService;
-  /** XML content to send inside the SOAP body */
+  /**
+   * XML content to send inside the SOAP body
+   *
+   * [pt-BR] Conteudo XML a ser enviado dentro do corpo SOAP
+   */
   xmlContent: string;
-  /** PFX certificate buffer for mTLS */
+  /**
+   * PFX certificate buffer for mTLS
+   *
+   * [pt-BR] Buffer do certificado PFX para mTLS
+   */
   pfx: Buffer;
-  /** PFX password */
+  /**
+   * PFX password
+   *
+   * [pt-BR] Senha do PFX
+   */
   passphrase: string;
-  /** Request timeout in milliseconds (default: 30000) */
+  /**
+   * Request timeout in milliseconds (default: 30000)
+   *
+   * [pt-BR] Timeout da requisicao em milissegundos (padrao: 30000)
+   */
   timeout?: number;
 }
 
+/**
+ * Raw response from a SEFAZ web service call
+ *
+ * [pt-BR] Resposta bruta de uma chamada ao web service da SEFAZ
+ */
 interface SefazRawResponse {
-  /** HTTP status code */
+  /**
+   * HTTP status code
+   *
+   * [pt-BR] Codigo de status HTTP
+   */
   httpStatus: number;
-  /** Raw XML response body */
+  /**
+   * Raw XML response body
+   *
+   * [pt-BR] Corpo XML bruto da resposta
+   */
   body: string;
-  /** Extracted content from SOAP envelope */
+  /**
+   * Extracted content from SOAP envelope
+   *
+   * [pt-BR] Conteudo extraido do envelope SOAP
+   */
   content: string;
 }
 
 /**
  * Send a SOAP 1.2 request to a SEFAZ web service with mutual TLS (client certificate).
- *
  * Uses curl with PEM cert/key extracted from PFX, because Bun's node:https
  * does not fully support mTLS with PFX (ECONNREFUSED on Agent with pfx option).
+ *
+ * [pt-BR] Envia requisicao SOAP 1.2 para o web service da SEFAZ com mTLS (certificado digital).
+ * Usa curl com cert/key PEM extraidos do PFX, pois o node:https do Bun nao suporta mTLS com PFX.
  */
 export async function sefazRequest(options: SefazRequestOptions): Promise<SefazRawResponse> {
   const { url, service, xmlContent, pfx, passphrase, timeout = 30000 } = options;

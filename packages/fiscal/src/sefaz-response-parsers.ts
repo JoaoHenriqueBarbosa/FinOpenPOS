@@ -7,7 +7,9 @@ const xmlParser = new XMLParser({
 });
 
 /**
- * Check SEFAZ service status (NfeStatusServico).
+ * Parse the SEFAZ service status response (NfeStatusServico).
+ *
+ * [pt-BR] Faz o parse da resposta de status do servico SEFAZ (retConsStatServ).
  */
 export function parseStatusResponse(xml: string): {
   statusCode: number;
@@ -26,6 +28,8 @@ export function parseStatusResponse(xml: string): {
 
 /**
  * Parse authorization response (NfeAutorizacao / NfeRetAutorizacao).
+ *
+ * [pt-BR] Faz o parse da resposta de autorizacao (retEnviNFe / protNFe).
  */
 export function parseAuthorizationResponse(xml: string): {
   statusCode: number;
@@ -61,6 +65,8 @@ export function parseAuthorizationResponse(xml: string): {
 
 /**
  * Parse cancellation event response.
+ *
+ * [pt-BR] Faz o parse da resposta do evento de cancelamento (retEvento).
  */
 export function parseCancellationResponse(xml: string): {
   statusCode: number;
@@ -82,6 +88,8 @@ export function parseCancellationResponse(xml: string): {
 
 /**
  * Recursively find a nested key in a parsed XML object.
+ *
+ * [pt-BR] Busca recursivamente uma chave aninhada em um objeto XML parseado.
  */
 function findNested(obj: any, key: string): any {
   if (!obj || typeof obj !== "object") return undefined;

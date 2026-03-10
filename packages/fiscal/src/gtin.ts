@@ -1,5 +1,8 @@
 /**
  * GTIN (barcode) validation.
+ *
+ * [pt-BR] Validacao de codigo de barras GTIN.
+ *
  * Ported from PHP sped-nfe: src/NFe/Common/Gtin.php
  * and vendor/nfephp-org/sped-gtin/src/Gtin.php
  */
@@ -25,7 +28,9 @@ function calculateCheckDigit(gtin: string): number {
 }
 
 /**
- * Validate a GTIN barcode number.
+ * Validate a GTIN-8/12/13/14 barcode number.
+ *
+ * [pt-BR] Valida codigo de barras GTIN-8/12/13/14.
  *
  * - Empty string and 'SEM GTIN' are considered valid (exempt).
  * - Valid GTIN-8/12/13/14 with correct check digit returns true.

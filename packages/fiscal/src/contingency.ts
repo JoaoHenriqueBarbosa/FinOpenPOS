@@ -3,16 +3,32 @@ import type { EmissionType } from "./types";
 /**
  * Contingency configuration class.
  *
+ * [pt-BR] Classe de configuracao de contingencia.
+ *
  * Ported from PHP NFePHP\NFe\Factories\Contingency.
  * Manages contingency mode activation/deactivation for NF-e/NFC-e emission.
  */
 
+/**
+ * Contingency type name: SVCAN, SVCRS, or empty (normal mode).
+ *
+ * [pt-BR] Nome do tipo de contingencia: SVCAN, SVCRS ou vazio (modo normal).
+ */
 export type ContingencyTypeName = "SVCAN" | "SVCRS" | "";
 
+/**
+ * Contingency configuration data.
+ *
+ * [pt-BR] Dados de configuracao de contingencia.
+ */
 export interface ContingencyConfig {
+  /** Justification for entering contingency mode / [pt-BR] Justificativa para entrar em contingencia */
   motive: string;
+  /** Unix timestamp when contingency was activated / [pt-BR] Timestamp Unix da ativacao da contingencia */
   timestamp: number;
+  /** Contingency type name / [pt-BR] Nome do tipo de contingencia */
   type: ContingencyTypeName;
+  /** Emission type code / [pt-BR] Codigo do tipo de emissao */
   tpEmis: EmissionType;
 }
 
@@ -38,10 +54,19 @@ function tpEmisFromType(type: ContingencyTypeName): EmissionType {
   }
 }
 
+/**
+ * Manages NF-e/NFC-e contingency mode activation and deactivation.
+ *
+ * [pt-BR] Gerencia ativacao e desativacao do modo de contingencia NF-e/NFC-e.
+ */
 export class Contingency {
+  /** Current contingency type / [pt-BR] Tipo de contingencia atual */
   public type: ContingencyTypeName = "";
+  /** Justification motive / [pt-BR] Motivo da justificativa */
   public motive: string = "";
+  /** Activation timestamp / [pt-BR] Timestamp da ativacao */
   public timestamp: number = 0;
+  /** Emission type code / [pt-BR] Codigo do tipo de emissao */
   public tpEmis: EmissionType = 1;
 
   constructor(json?: string) {
@@ -53,6 +78,8 @@ export class Contingency {
 
   /**
    * Load contingency configuration from a JSON string.
+   *
+   * [pt-BR] Carrega configuracao de contingencia a partir de uma string JSON.
    */
   load(json: string): void {
     const config: ContingencyConfig = JSON.parse(json);
@@ -64,6 +91,8 @@ export class Contingency {
 
   /**
    * Activate contingency mode for the given state.
+   *
+   * [pt-BR] Ativa o modo de contingencia para o estado informado.
    *
    * @param acronym - State abbreviation (e.g. "SP", "RS")
    * @param motive - Justification (15-255 UTF-8 characters)
@@ -107,6 +136,8 @@ export class Contingency {
 
   /**
    * Deactivate contingency mode (reset to normal emission).
+   *
+   * [pt-BR] Desativa o modo de contingencia (retorna a emissao normal).
    */
   deactivate(): string {
     this.timestamp = 0;
@@ -118,6 +149,8 @@ export class Contingency {
 
   /**
    * Return a JSON string representation of the current contingency config.
+   *
+   * [pt-BR] Retorna representacao JSON da configuracao de contingencia atual.
    */
   toString(): string {
     const config: ContingencyConfig = {

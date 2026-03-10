@@ -1,0 +1,14 @@
+{
+  "pages": [
+    "ContingencyType",
+    "ContingencyTypeName",
+    "DestIdType",
+    "EmissionType",
+    "InvoiceModel",
+    "InvoiceStatus",
+    "QrCodeVersion",
+    "SefazEnvironment",
+    "SefazService",
+    "TaxRegime"
+  ]
+}

@@ -4,40 +4,53 @@ import { extractXmlTagValue } from "./xml-utils";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
+/**
+ * QR Code version: 200 (v2) or 300 (v3, NT 2025.001).
+ *
+ * [pt-BR] Versao do QR Code: 200 (v2) ou 300 (v3, NT 2025.001).
+ */
 export type QrCodeVersion = 200 | 300;
 
-/** Destination ID type (tp_idDest) */
+/**
+ * Destination ID type (tp_idDest): 1=CNPJ, 2=CPF, 3=foreign, ""=none.
+ *
+ * [pt-BR] Tipo de identificacao do destinatario: 1=CNPJ, 2=CPF, 3=estrangeiro, ""=sem dest.
+ */
 export type DestIdType = "" | 1 | 2 | 3;
-// 1=CNPJ, 2=CPF, 3=idEstrangeiro, ""=no dest
 
+/**
+ * Parameters for building an NFC-e QR Code URL.
+ *
+ * [pt-BR] Parametros para construcao da URL do QR Code NFC-e.
+ */
 export interface NfceQrCodeParams {
-  /** 44-digit access key */
+  /** 44-digit access key / [pt-BR] Chave de acesso de 44 digitos */
   accessKey: string;
-  /** QR Code version (200 or 300) */
+  /** QR Code version (200 or 300) / [pt-BR] Versao do QR Code (200 ou 300) */
   version: QrCodeVersion;
-  /** Environment: 1=production, 2=homologation */
+  /** Environment: 1=production, 2=homologation / [pt-BR] Ambiente: 1=producao, 2=homologacao */
   environment: SefazEnvironment;
-  /** Emission type (1=normal, 9=offline contingency, etc.) */
+  /** Emission type (1=normal, 9=offline contingency, etc.) / [pt-BR] Tipo de emissao */
   emissionType: EmissionType;
-  /** QR Code base URL (state-specific) */
+  /** QR Code base URL (state-specific) / [pt-BR] URL base do QR Code (por estado) */
   qrCodeBaseUrl: string;
-  /** CSC token (required for v200) */
+  /** CSC token (required for v200) / [pt-BR] Token CSC (obrigatorio para v200) */
   cscToken?: string;
-  /** CSC numeric ID (required for v200) */
+  /** CSC numeric ID (required for v200) / [pt-BR] ID numerico do CSC (obrigatorio para v200) */
   cscId?: string;
-  /** Emission date/time ISO string (required for offline) */
+  /** Emission date/time ISO string (required for offline) / [pt-BR] Data/hora de emissao ISO (obrigatorio para offline) */
   issuedAt?: string;
-  /** Total invoice value as string e.g. "150.00" (required for offline) */
+  /** Total invoice value as string e.g. "150.00" (required for offline) / [pt-BR] Valor total da nota, ex. "150.00" */
   totalValue?: string;
-  /** Total ICMS value as string e.g. "0.00" (required for v200 offline) */
+  /** Total ICMS value as string e.g. "0.00" (required for v200 offline) / [pt-BR] Valor total ICMS */
   totalIcms?: string;
-  /** DigestValue from XML signature Base64 (required for v200 offline) */
+  /** DigestValue from XML signature Base64 (required for v200 offline) / [pt-BR] DigestValue da assinatura XML */
   digestValue?: string;
-  /** Destination document (CPF/CNPJ/idEstrangeiro) */
+  /** Destination document (CPF/CNPJ/idEstrangeiro) / [pt-BR] Documento do destinatario */
   destDocument?: string;
-  /** Destination ID type (required for v300 offline) */
+  /** Destination ID type (required for v300 offline) / [pt-BR] Tipo de ID do destinatario */
   destIdType?: DestIdType;
-  /** Sign function for v300 offline — receives payload, returns base64 signature */
+  /** Sign function for v300 offline -- receives payload, returns base64 signature / [pt-BR] Funcao de assinatura para v300 offline */
   signFn?: (payload: string) => Promise<string> | string;
 }
 
@@ -46,9 +59,15 @@ export interface NfceQrCodeParams {
 /**
  * Build the NFC-e QR Code URL.
  *
+ * [pt-BR] Constroi a URL do QR Code NFC-e.
+ *
  * Supports version 2 (v200) and version 3 (v300, NT 2025.001).
  * Online mode uses a simplified format; offline (tpEmis=9) includes
  * additional fields for validation without network.
+ *
+ * [pt-BR] Suporta versao 2 (v200) e versao 3 (v300, NT 2025.001).
+ * Modo online usa formato simplificado; offline (tpEmis=9) inclui
+ * campos adicionais para validacao sem rede.
  */
 export async function buildNfceQrCodeUrl(
   params: NfceQrCodeParams
@@ -131,6 +150,8 @@ async function buildV300(
 
 /**
  * Build the NFC-e urlChave tag content for consulting the NFe by access key.
+ *
+ * [pt-BR] Constroi o conteudo da tag urlChave para consulta da NFe pela chave de acesso.
  */
 export function buildNfceConsultUrl(
   urlChave: string,
@@ -176,29 +197,40 @@ function formatValue(value: string): string {
 
 // ── putQRTag — Insert QR Code into NFC-e XML ─────────────────────────────────
 
+/**
+ * Parameters for inserting QR Code into NFC-e XML.
+ *
+ * [pt-BR] Parametros para insercao do QR Code no XML da NFC-e.
+ */
 export interface PutQRTagParams {
-  /** Signed NFC-e XML string */
+  /** Signed NFC-e XML string / [pt-BR] XML assinado da NFC-e */
   xml: string;
-  /** CSC token */
+  /** CSC token / [pt-BR] Token CSC */
   cscToken: string;
-  /** CSC ID (e.g. "000001") */
+  /** CSC ID (e.g. "000001") / [pt-BR] ID do CSC (ex. "000001") */
   cscId: string;
-  /** QR Code version string (e.g. "200") */
+  /** QR Code version string (e.g. "200") / [pt-BR] Versao do QR Code (ex. "200") */
   version: string;
-  /** QR Code base URL */
+  /** QR Code base URL / [pt-BR] URL base do QR Code */
   qrCodeBaseUrl: string;
-  /** URL for chave consultation (urlChave) */
+  /** URL for chave consultation (urlChave) / [pt-BR] URL para consulta pela chave */
   urlChave: string;
 }
 
 /**
  * Insert QR Code and urlChave tags into a signed NFC-e XML.
  *
+ * [pt-BR] Insere tags de QR Code e urlChave em um XML de NFC-e assinado.
+ *
  * Ported from PHP NFePHP\NFe\Factories\QRCode::putQRTag().
  * Creates an <infNFeSupl> element with <qrCode> and <urlChave> children,
  * and inserts it before the <Signature> element in the NFe.
  *
+ * [pt-BR] Cria um elemento <infNFeSupl> com filhos <qrCode> e <urlChave>,
+ * e insere antes do elemento <Signature> na NFe.
+ *
  * @returns Modified XML string with infNFeSupl inserted
+ * [pt-BR] @returns String XML modificada com infNFeSupl inserido
  */
 export async function putQRTag(params: PutQRTagParams): Promise<string> {
   const { xml, cscToken, cscId, version, qrCodeBaseUrl, urlChave } = params;

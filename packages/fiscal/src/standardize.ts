@@ -1,5 +1,8 @@
 /**
  * XML document identification and conversion utilities.
+ *
+ * [pt-BR] Utilitarios de identificacao e conversao de documentos XML.
+ *
  * Ported from PHP sped-nfe: src/NFe/Common/Standardize.php
  */
 
@@ -79,6 +82,8 @@ function findRootTag(obj: Record<string, unknown>): string | null {
 /**
  * Identify which NFe document type an XML string represents.
  *
+ * [pt-BR] Identifica qual tipo de documento NFe uma string XML representa.
+ *
  * @returns The root tag name (e.g. 'NFe', 'nfeProc', 'retConsSitNFe')
  * @throws If input is empty, not a string, not valid XML, or not an NFe document
  */
@@ -108,6 +113,8 @@ export function whichIs(xml: unknown): string {
 
 /**
  * Convert an NFe XML string to a JSON string.
+ *
+ * [pt-BR] Converte uma string XML de NFe para string JSON.
  */
 export function toJson(xml: string): string {
   // Validate first
@@ -127,6 +134,8 @@ export function toJson(xml: string): string {
 
 /**
  * Convert an NFe XML string to a plain object (like PHP's toArray).
+ *
+ * [pt-BR] Converte uma string XML de NFe para objeto simples (equivalente ao toArray do PHP).
  */
 export function toArray(xml: string): Record<string, unknown> {
   const json = toJson(xml);
@@ -136,6 +145,8 @@ export function toArray(xml: string): Record<string, unknown> {
 /**
  * Convert an NFe XML string to a normalized object (like PHP's toStd).
  * In TypeScript this is equivalent to toArray since we don't have stdClass.
+ *
+ * [pt-BR] Converte uma string XML de NFe para objeto normalizado (equivalente ao toStd do PHP).
  */
 export function toStd(xml: string): Record<string, unknown> {
   return toArray(xml);

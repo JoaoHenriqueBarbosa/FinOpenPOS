@@ -1,20 +1,40 @@
 /**
  * Fiscal configuration validation.
+ *
+ * [pt-BR] Validacao de configuracao fiscal.
+ *
  * Ported from PHP sped-nfe: src/NFe/Common/Config.php
  */
 
+/**
+ * Fiscal configuration object structure.
+ *
+ * [pt-BR] Estrutura do objeto de configuracao fiscal.
+ */
 export interface FiscalConfig {
+  /** Last update timestamp / [pt-BR] Timestamp da ultima atualizacao */
   atualizacao?: string | null;
+  /** Tax environment: 1=production, 2=homologation / [pt-BR] Ambiente fiscal: 1=producao, 2=homologacao */
   tpAmb: number;
+  /** Company legal name (lowercase key) / [pt-BR] Razao social (chave minuscula) */
   razaosocial?: string;
+  /** Company legal name (camelCase key) / [pt-BR] Razao social (chave camelCase) */
   razaoSocial?: string;
+  /** State abbreviation / [pt-BR] Sigla do estado */
   siglaUF: string;
+  /** CNPJ or CPF / [pt-BR] CNPJ ou CPF */
   cnpj: string;
+  /** XSD schema path / [pt-BR] Caminho dos schemas XSD */
   schemes: string;
+  /** NFe version / [pt-BR] Versao da NFe */
   versao: string;
+  /** IBPT transparency token / [pt-BR] Token de transparencia IBPT */
   tokenIBPT?: string | null;
+  /** CSC token for NFC-e QR Code / [pt-BR] Token CSC para QR Code NFC-e */
   CSC?: string | null;
+  /** CSC ID / [pt-BR] ID do CSC */
   CSCid?: string | null;
+  /** Proxy configuration / [pt-BR] Configuracao de proxy */
   aProxyConf?: {
     proxyIp?: string | null;
     proxyPort?: string | null;
@@ -28,6 +48,9 @@ const REQUIRED_FIELDS = ["tpAmb", "razaosocial", "siglaUF", "cnpj", "schemes", "
 /**
  * Validate a fiscal configuration JSON string.
  * Returns the parsed config object on success, throws on failure.
+ *
+ * [pt-BR] Valida uma string JSON de configuracao fiscal.
+ * Retorna o objeto de configuracao parseado em caso de sucesso, lanca erro em caso de falha.
  */
 export function validate(content: string): FiscalConfig {
   if (typeof content !== "string") {

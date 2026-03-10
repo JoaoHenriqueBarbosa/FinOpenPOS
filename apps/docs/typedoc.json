@@ -1,0 +1,42 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": ["../../packages/fiscal/src/index.ts"],
+  "tsconfig": "../../packages/fiscal/tsconfig.json",
+  "plugin": ["typedoc-plugin-markdown", "typedoc-plugin-frontmatter"],
+  "out": "content/docs/api-reference",
+  "readme": "none",
+  "entryFileName": "index",
+  "outputFileStrategy": "members",
+  "fileExtension": ".md",
+  "expandObjects": true,
+  "parametersFormat": "table",
+  "enumMembersFormat": "table",
+  "typeDeclarationFormat": "table",
+  "indexFormat": "table",
+  "hidePageHeader": true,
+  "hidePageTitle": false,
+  "hideGroupHeadings": false,
+  "useCodeBlocks": true,
+  "sanitizeComments": true,
+  "frontmatterGlobals": {
+    "layout": "docs"
+  },
+  "skipErrorChecking": true,
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "excludeExternals": true,
+  "categorizeByGroup": true,
+  "sort": ["kind", "alphabetical"],
+  "kindSortOrder": [
+    "Function",
+    "Class",
+    "Interface",
+    "TypeAlias",
+    "Variable",
+    "Enum"
+  ],
+  "navigation": {
+    "includeCategories": true,
+    "includeGroups": true
+  }
+}

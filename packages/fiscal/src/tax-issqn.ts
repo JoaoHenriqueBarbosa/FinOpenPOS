@@ -9,63 +9,87 @@ import {
 } from "./tax-element";
 
 /**
- * ISSQN (ISS - Imposto Sobre Serviços) data.
+ * ISSQN (ISS - Imposto Sobre Servicos) input data.
  * All monetary amounts in cents, rates as hundredths.
+ *
+ * [pt-BR] Dados de entrada do ISSQN (ISS - Imposto Sobre Serviços).
+ * Valores monetários em centavos, alíquotas em centésimos.
  */
 export interface IssqnData {
-  /** Base de cálculo in cents */
+  /** Base de calculo in cents / [pt-BR] Base de cálculo em centavos */
   vBC: number;
-  /** Alíquota ISS as hundredths (500 = 5.00%) */
+  /** ISS rate as hundredths (500 = 5.00%) / [pt-BR] Alíquota ISS em centésimos (500 = 5,00%) */
   vAliq: number;
-  /** Valor do ISSQN in cents */
+  /** ISSQN value in cents / [pt-BR] Valor do ISSQN em centavos */
   vISSQN: number;
-  /** Código município fato gerador (IBGE 7 digits) */
+  /** Municipality code of taxable event (IBGE 7 digits) / [pt-BR] Código município do fato gerador (IBGE 7 dígitos) */
   cMunFG: string;
-  /** Item da lista de serviços (LC 116/2003) */
+  /** Service list item (LC 116/2003) / [pt-BR] Item da lista de serviços (LC 116/2003) */
   cListServ: string;
-  /** Indicador exigibilidade ISS: 1-7 */
+  /** ISS enforceability indicator: 1-7 / [pt-BR] Indicador de exigibilidade do ISS: 1-7 */
   indISS: string;
-  /** Indicador incentivo fiscal: 1=sim, 2=não */
+  /** Tax incentive indicator: 1=yes, 2=no / [pt-BR] Indicador de incentivo fiscal: 1=sim, 2=não */
   indIncentivo: string;
-  /** Valor dedução (optional) in cents */
+  /** Deduction value (optional) in cents / [pt-BR] Valor da dedução (opcional) em centavos */
   vDeducao?: number;
-  /** Valor outras retenções (optional) in cents */
+  /** Other retention value (optional) in cents / [pt-BR] Valor de outras retenções (opcional) em centavos */
   vOutro?: number;
-  /** Valor desconto incondicionado (optional) in cents */
+  /** Unconditional discount (optional) in cents / [pt-BR] Desconto incondicionado (opcional) em centavos */
   vDescIncond?: number;
-  /** Valor desconto condicionado (optional) in cents */
+  /** Conditional discount (optional) in cents / [pt-BR] Desconto condicionado (opcional) em centavos */
   vDescCond?: number;
-  /** Valor retenção ISS (optional) in cents */
+  /** ISS retention value (optional) in cents / [pt-BR] Valor da retenção do ISS (opcional) em centavos */
   vISSRet?: number;
-  /** Código serviço município (optional) */
+  /** Municipal service code (optional) / [pt-BR] Código do serviço no município (opcional) */
   cServico?: string;
-  /** Código município incidência (optional, IBGE) */
+  /** Municipality of incidence (optional, IBGE) / [pt-BR] Código do município de incidência (opcional, IBGE) */
   cMun?: string;
-  /** Código país (optional) */
+  /** Country code (optional) / [pt-BR] Código do país (opcional) */
   cPais?: string;
-  /** Número processo judicial (optional) */
+  /** Judicial process number (optional) / [pt-BR] Número do processo judicial (opcional) */
   nProcesso?: string;
 }
 
 /**
- * ISSQN totals accumulator — mirrors PHP stdISSQNTot.
+ * ISSQN totals accumulator (mirrors PHP stdISSQNTot).
+ *
+ * [pt-BR] Acumulador de totais do ISSQN (espelha stdISSQNTot do PHP).
  */
 export interface IssqnTotals {
+  /** Total ISSQN base value [pt-BR] Valor total da base de cálculo do ISSQN */
   vBC: number;
+  /** Total ISS value [pt-BR] Valor total do ISS */
   vISS: number;
+  /** Total ISS retained value [pt-BR] Valor total do ISS retido */
   vISSRet: number;
+  /** Total deduction value [pt-BR] Valor total das deduções */
   vDeducao: number;
+  /** Total other retention value [pt-BR] Valor total de outras retenções */
   vOutro: number;
+  /** Total unconditional discount [pt-BR] Valor total do desconto incondicionado */
   vDescIncond: number;
+  /** Total conditional discount [pt-BR] Valor total do desconto condicionado */
   vDescCond: number;
 }
 
+/**
+ * Create a zeroed-out ISSQN totals object.
+ *
+ * [pt-BR] Cria um objeto de totais ISSQN zerado.
+ */
 export function createIssqnTotals(): IssqnTotals {
   return { vBC: 0, vISS: 0, vISSRet: 0, vDeducao: 0, vOutro: 0, vDescIncond: 0, vDescCond: 0 };
 }
 
 /**
  * Calculate ISSQN tax element and accumulate totals (domain logic, no XML).
+ *
+ * [pt-BR] Calcula o elemento ISSQN e acumula totais (lógica de domínio, sem XML).
+ *
+ * @param data - ISSQN input data with base, rate, and service codes
+ * [pt-BR] @param data - Dados de entrada do ISSQN com base, alíquota e códigos de serviço
+ * @param totals - Optional accumulator to merge item totals into
+ * [pt-BR] @param totals - Acumulador opcional para mesclar totais do item
  */
 export function calculateIssqn(
   data: IssqnData,
@@ -111,6 +135,8 @@ export function calculateIssqn(
 
 /**
  * Build ISSQN XML string and accumulate totals (backward-compatible wrapper).
+ *
+ * [pt-BR] Gera a string XML do ISSQN e acumula totais (wrapper compatível).
  */
 export function buildIssqnXml(
   data: IssqnData,
@@ -122,8 +148,12 @@ export function buildIssqnXml(
 /**
  * Calculate impostoDevol element (domain logic, no XML).
  *
+ * [pt-BR] Calcula o elemento impostoDevol (lógica de domínio, sem XML).
+ *
  * @param pDevol - Percentage returned (0-100), stored as hundredths (10000 = 100.00%)
+ * [pt-BR] @param pDevol - Percentual devolvido (0-100), armazenado em centésimos (10000 = 100,00%)
  * @param vIPIDevol - IPI value returned in cents
+ * [pt-BR] @param vIPIDevol - Valor do IPI devolvido em centavos
  */
 export function calculateImpostoDevol(pDevol: number, vIPIDevol: number): TaxElement {
   return {
@@ -136,6 +166,8 @@ export function calculateImpostoDevol(pDevol: number, vIPIDevol: number): TaxEle
 
 /**
  * Build impostoDevol XML string (backward-compatible wrapper).
+ *
+ * [pt-BR] Gera a string XML do impostoDevol (wrapper compatível).
  */
 export function buildImpostoDevol(pDevol: number, vIPIDevol: number): string {
   return serializeTaxElement(calculateImpostoDevol(pDevol, vIPIDevol));

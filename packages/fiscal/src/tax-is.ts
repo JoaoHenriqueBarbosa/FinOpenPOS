@@ -8,38 +8,40 @@ import {
 } from "./tax-element";
 
 /**
- * IS (Imposto Seletivo / IBS+CBS) data — PL_010 tax reform.
+ * IS (Imposto Seletivo / IBS+CBS) input data -- PL_010 tax reform.
  * Goes inside <imposto> as an alternative/addition to ICMS.
  *
- * Values are passed as strings (to match XML output format directly),
- * following the PHP convention where values go into XML as-is.
+ * [pt-BR] Dados de entrada do IS (Imposto Seletivo / IBS+CBS) -- reforma tributária PL_010.
+ * Posicionado dentro de <imposto> como alternativa/adição ao ICMS.
  */
 export interface IsData {
-  /** Codigo de Situacao Tributaria do IS */
+  /** IS tax situation code / [pt-BR] Código de Situação Tributária do IS */
   CSTIS: string;
-  /** Codigo de Classificacao Tributaria do IS */
+  /** IS tax classification code / [pt-BR] Código de Classificação Tributária do IS */
   cClassTribIS: string;
-  /** Base de calculo (optional, e.g. "100.00") */
+  /** Tax base (optional, e.g. "100.00") / [pt-BR] Base de cálculo (opcional, ex: "100.00") */
   vBCIS?: string;
-  /** Aliquota IS (optional, e.g. "5.0000") */
+  /** IS rate (optional, e.g. "5.0000") / [pt-BR] Alíquota IS (opcional, ex: "5.0000") */
   pIS?: string;
-  /** Aliquota especifica (optional, e.g. "1.5000") */
+  /** Specific rate (optional, e.g. "1.5000") / [pt-BR] Alíquota específica (opcional, ex: "1.5000") */
   pISEspec?: string;
-  /** Unidade de medida tributavel (optional, e.g. "LT") */
+  /** Taxable unit of measure (optional, e.g. "LT") / [pt-BR] Unidade de medida tributável (opcional, ex: "LT") */
   uTrib?: string;
-  /** Quantidade tributavel (optional, e.g. "10.0000") */
+  /** Taxable quantity (optional, e.g. "10.0000") / [pt-BR] Quantidade tributável (opcional, ex: "10.0000") */
   qTrib?: string;
-  /** Valor do IS (e.g. "5.00") */
+  /** IS tax value (e.g. "5.00") / [pt-BR] Valor do IS (ex: "5.00") */
   vIS: string;
 }
 
 /**
  * Calculate IS tax element (domain logic, no XML dependency).
+ * Three mutually exclusive modes based on which fields are present.
  *
- * Three mutually exclusive modes:
- * 1. vBCIS present → includes vBCIS, pIS, pISEspec
- * 2. uTrib+qTrib present → includes uTrib, qTrib
- * 3. Neither → only CSTIS, cClassTribIS, vIS
+ * [pt-BR] Calcula o elemento IS (lógica de domínio, sem dependência de XML).
+ * Três modos mutuamente exclusivos conforme os campos presentes.
+ *
+ * @param data - IS input data with CST, classification code, and values
+ * [pt-BR] @param data - Dados de entrada do IS com CST, código de classificação e valores
  */
 export function calculateIs(data: IsData): TaxElement {
   const fields: Array<TaxField | null> = [
@@ -70,6 +72,8 @@ export function calculateIs(data: IsData): TaxElement {
 
 /**
  * Build IS XML string (backward-compatible wrapper).
+ *
+ * [pt-BR] Gera a string XML do IS (wrapper compatível).
  */
 export function buildIsXml(data: IsData): string {
   return serializeTaxElement(calculateIs(data));

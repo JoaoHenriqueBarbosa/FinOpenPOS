@@ -1,14 +1,27 @@
+/**
+ * Address result from a CEP (zip code) lookup.
+ *
+ * [pt-BR] Resultado de endereco de uma consulta de CEP.
+ */
 export interface CepResult {
+  /** Zip code / [pt-BR] CEP */
   zip_code: string;
+  /** Street name / [pt-BR] Logradouro */
   street: string;
+  /** District/neighborhood / [pt-BR] Bairro */
   district: string;
+  /** City name / [pt-BR] Nome da cidade */
   city_name: string;
-  city_code: string; // IBGE code
+  /** IBGE city code / [pt-BR] Codigo IBGE da cidade */
+  city_code: string;
+  /** State abbreviation / [pt-BR] Sigla do estado */
   state_code: string;
 }
 
 /**
  * Lookup address by CEP using ViaCEP with BrasilAPI as fallback.
+ *
+ * [pt-BR] Consulta endereco pelo CEP usando ViaCEP com BrasilAPI como fallback.
  */
 export async function lookupCep(cep: string): Promise<CepResult | null> {
   const cleanCep = cep.replace(/\D/g, "");
