@@ -43,3 +43,28 @@ export function formatRate4OrZero(value: number | undefined): string {
   if (value == null) return (0).toFixed(4);
   return formatRate4(value);
 }
+
+/**
+ * Format a Date as ISO 8601 with Brazil timezone offset.
+ * SEFAZ rejects UTC "Z" suffix — requires explicit offset like -03:00.
+ *
+ * Uses state-specific offsets for AC (-05:00), AM/RO/MT/MS/RR (-04:00),
+ * and -03:00 (Brasília time) for all other states.
+ */
+export function formatDateTimeBR(date: Date, stateCode?: string): string {
+  const offsets: Record<string, string> = {
+    AC: "-05:00", AM: "-04:00", RO: "-04:00",
+    RR: "-04:00", MT: "-04:00", MS: "-04:00",
+  };
+  const offset = (stateCode && offsets[stateCode]) || "-03:00";
+
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const y = date.getFullYear();
+  const m = pad(date.getMonth() + 1);
+  const d = pad(date.getDate());
+  const h = pad(date.getHours());
+  const min = pad(date.getMinutes());
+  const s = pad(date.getSeconds());
+
+  return `${y}-${m}-${d}T${h}:${min}:${s}${offset}`;
+}

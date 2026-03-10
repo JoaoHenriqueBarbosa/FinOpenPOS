@@ -9,6 +9,7 @@
     "value-objects",
     "invoice-workflow",
     "contingency",
+    "emission-testing",
     "qrcode",
     "txt-conversion",
     "database-schema",

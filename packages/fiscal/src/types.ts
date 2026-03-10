@@ -116,6 +116,14 @@ export interface InvoiceBuildData {
     name: string;
     stateCode?: string;
     stateTaxId?: string;
+    // Address fields (required for NF-e model 55, SEFAZ rejects empty values)
+    street?: string;
+    streetNumber?: string;
+    district?: string;
+    cityCode?: string;
+    cityName?: string;
+    zipCode?: string;
+    complement?: string;
   };
   // Items
   items: InvoiceItemData[];
