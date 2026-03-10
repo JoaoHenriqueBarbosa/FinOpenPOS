@@ -4,6 +4,7 @@ import { i18n } from "@/lib/i18n";
 import { TranslationProvider } from "@/lib/translations";
 import { loadMessages } from "@/lib/translations-server";
 import { CookieConsent } from "@/components/cookie-consent";
+import { LocaleSync } from "@/components/locale-sync";
 import type { ReactNode } from "react";
 import type { Metadata } from "next";
 import "../globals.css";
@@ -52,6 +53,7 @@ export default async function Layout({ params, children }: LayoutProps) {
           <RootProvider i18n={provider(lang)}>
             {children}
             <CookieConsent />
+            <LocaleSync />
           </RootProvider>
         </TranslationProvider>
       </body>
