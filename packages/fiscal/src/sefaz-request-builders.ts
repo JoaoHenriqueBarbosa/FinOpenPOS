@@ -3,6 +3,8 @@ import { EVENT_TYPES, getEventDescription, buildEventId, defaultLotId } from "./
 
 /**
  * Build the status service request XML.
+ *
+ * [pt-BR] Constroi o XML de consulta de status do servico (consStatServ).
  */
 export function buildStatusRequestXml(
   stateCode: string,
@@ -22,6 +24,8 @@ export function buildStatusRequestXml(
 
 /**
  * Build the authorization request XML (envelope for sending an NF-e).
+ *
+ * [pt-BR] Constroi o XML de autorizacao (envelope enviNFe para transmissao da NF-e).
  */
 export function buildAuthorizationRequestXml(
   signedNfeXml: string,
@@ -45,6 +49,8 @@ export function buildAuthorizationRequestXml(
 
 /**
  * Build cancellation event XML.
+ *
+ * [pt-BR] Constroi o XML do evento de cancelamento da NF-e.
  */
 export function buildCancellationXml(
   accessKey: string,
@@ -70,6 +76,8 @@ export function buildCancellationXml(
 
 /**
  * Build number voiding (inutilizacao) request XML.
+ *
+ * [pt-BR] Constroi o XML de inutilizacao de numeracao (inutNFe).
  */
 export function buildVoidingXml(
   stateCode: string,
@@ -108,6 +116,8 @@ export function buildVoidingXml(
 
 /**
  * Build receipt query request XML (consReciNFe).
+ *
+ * [pt-BR] Constroi o XML de consulta de recibo (consReciNFe).
  */
 export function buildReceiptQueryXml(
   receiptNumber: string,
@@ -126,6 +136,8 @@ export function buildReceiptQueryXml(
 
 /**
  * Build access key query request XML (consSitNFe).
+ *
+ * [pt-BR] Constroi o XML de consulta por chave de acesso (consSitNFe).
  */
 export function buildAccessKeyQueryXml(
   accessKey: string,
@@ -151,6 +163,8 @@ export function buildAccessKeyQueryXml(
 
 /**
  * Build batch submission request XML (enviNFe).
+ *
+ * [pt-BR] Constroi o XML de envio em lote (enviNFe).
  */
 export function buildBatchSubmissionXml(
   xmlDocuments: string[],
@@ -188,6 +202,8 @@ export function buildBatchSubmissionXml(
 
 /**
  * Build cadastro query request XML (ConsCad).
+ *
+ * [pt-BR] Constroi o XML de consulta cadastral (ConsCad) por CNPJ, IE ou CPF.
  */
 export function buildCadastroQueryXml(
   stateCode: string,
@@ -219,6 +235,8 @@ export function buildCadastroQueryXml(
 
 /**
  * Build DFe distribution query XML (distDFeInt).
+ *
+ * [pt-BR] Constroi o XML de consulta de distribuicao de DF-e (distDFeInt).
  */
 export function buildDistDFeQueryXml(
   environment: 1 | 2,
@@ -258,6 +276,9 @@ export function buildDistDFeQueryXml(
 /**
  * Build a generic SEFAZ event XML (evento inside envEvento).
  * This produces the unsigned inner evento XML. Signing is done separately.
+ *
+ * [pt-BR] Constroi o XML generico de evento SEFAZ (evento dentro de envEvento).
+ * Produz o XML interno sem assinatura. A assinatura e feita separadamente.
  */
 export function buildEventXml(options: {
   accessKey: string;
@@ -314,6 +335,8 @@ export function buildEventXml(options: {
 
 /**
  * Build Carta de Correcao (CCe) event XML.
+ *
+ * [pt-BR] Constroi o XML do evento Carta de Correcao Eletronica (CC-e).
  */
 export function buildCCeXml(options: {
   accessKey: string;
@@ -372,6 +395,8 @@ export function buildCCeXml(options: {
 
 /**
  * Build Ator Interessado event XML.
+ *
+ * [pt-BR] Constroi o XML do evento Ator Interessado na NF-e.
  */
 export function buildInterestedActorXml(options: {
   accessKey: string;
@@ -442,6 +467,8 @@ export function buildInterestedActorXml(options: {
 
 /**
  * Build EPP (extension request) event XML.
+ *
+ * [pt-BR] Constroi o XML do evento de Pedido de Prorrogacao (EPP).
  */
 export function buildExtensionRequestXml(options: {
   accessKey: string;
@@ -496,6 +523,8 @@ export function buildExtensionRequestXml(options: {
 
 /**
  * Build ECPP (cancel extension request) event XML.
+ *
+ * [pt-BR] Constroi o XML do evento de Cancelamento de Pedido de Prorrogacao (ECPP).
  */
 export function buildExtensionCancellationXml(options: {
   accessKey: string;
@@ -553,6 +582,8 @@ export function buildExtensionCancellationXml(options: {
 
 /**
  * Build cancellation event XML (using the generic event builder).
+ *
+ * [pt-BR] Constroi o XML do evento de cancelamento (via construtor generico de eventos).
  */
 export function buildCancellationEventXml(options: {
   accessKey: string;
@@ -597,6 +628,8 @@ export function buildCancellationEventXml(options: {
 
 /**
  * Build substitution cancellation event XML (for NFC-e model 65 only).
+ *
+ * [pt-BR] Constroi o XML do evento de cancelamento por substituicao (apenas NFC-e modelo 65).
  */
 export function buildSubstitutionCancellationXml(options: {
   accessKey: string;
@@ -663,6 +696,8 @@ export function buildSubstitutionCancellationXml(options: {
 
 /**
  * Build recipient manifestation event XML.
+ *
+ * [pt-BR] Constroi o XML do evento de manifestacao do destinatario.
  */
 export function buildManifestationXml(options: {
   accessKey: string;
@@ -708,6 +743,8 @@ export function buildManifestationXml(options: {
 
 /**
  * Build delivery proof event XML (Comprovante de Entrega da NF-e).
+ *
+ * [pt-BR] Constroi o XML do evento Comprovante de Entrega da NF-e.
  */
 export function buildDeliveryProofXml(options: {
   accessKey: string;
@@ -781,6 +818,8 @@ export function buildDeliveryProofXml(options: {
 
 /**
  * Build delivery proof cancellation event XML.
+ *
+ * [pt-BR] Constroi o XML do evento de cancelamento do Comprovante de Entrega.
  */
 export function buildDeliveryProofCancellationXml(options: {
   accessKey: string;
@@ -827,6 +866,8 @@ export function buildDeliveryProofCancellationXml(options: {
 
 /**
  * Build delivery failure event XML (Insucesso na Entrega da NF-e).
+ *
+ * [pt-BR] Constroi o XML do evento de Insucesso na Entrega da NF-e.
  */
 export function buildDeliveryFailureXml(options: {
   accessKey: string;
@@ -906,6 +947,8 @@ export function buildDeliveryFailureXml(options: {
 
 /**
  * Build delivery failure cancellation event XML.
+ *
+ * [pt-BR] Constroi o XML do evento de cancelamento do Insucesso na Entrega.
  */
 export function buildDeliveryFailureCancellationXml(options: {
   accessKey: string;
@@ -952,6 +995,8 @@ export function buildDeliveryFailureCancellationXml(options: {
 
 /**
  * Build batch manifestation XML (multiple events in one envelope).
+ *
+ * [pt-BR] Constroi o XML de manifestacao em lote (multiplos eventos em um envelope).
  */
 export function buildBatchManifestationXml(options: {
   events: Array<{
@@ -1026,6 +1071,8 @@ export function buildBatchManifestationXml(options: {
 
 /**
  * Build batch event XML (generic, multiple events in one envelope).
+ *
+ * [pt-BR] Constroi o XML generico de eventos em lote (multiplos eventos em um envelope).
  */
 export function buildBatchEventXml(options: {
   stateCode: string;
@@ -1095,6 +1142,8 @@ export function buildBatchEventXml(options: {
 
 /**
  * Build CSC admin request XML (admCscNFCe).
+ *
+ * [pt-BR] Constroi o XML de administracao do CSC para NFC-e (admCscNFCe).
  */
 export function buildCscXml(options: {
   indOp: number;
@@ -1131,6 +1180,8 @@ export function buildCscXml(options: {
 
 /**
  * Build conciliation event XML.
+ *
+ * [pt-BR] Constroi o XML do evento de Conciliacao Financeira.
  */
 export function buildConciliacaoXml(options: {
   accessKey: string;
@@ -1210,6 +1261,8 @@ export function buildConciliacaoXml(options: {
 
 /**
  * Build info pagamento integral event XML (tpEvento 112110).
+ *
+ * [pt-BR] Constroi o XML do evento Informacao de Pagamento Integral (tpEvento 112110).
  */
 export function buildInfoPagtoIntegralXml(options: {
   accessKey: string;
@@ -1266,6 +1319,8 @@ export function buildInfoPagtoIntegralXml(options: {
 
 /**
  * Build EPEC NFC-e status request XML (same as status but for EPEC service).
+ *
+ * [pt-BR] Constroi o XML de consulta de status EPEC NFC-e (apenas SP, modelo 65).
  */
 export function buildEpecStatusXml(options: {
   stateCode: string;
@@ -1286,6 +1341,8 @@ export function buildEpecStatusXml(options: {
 
 /**
  * Validate access key format and throw if invalid.
+ *
+ * [pt-BR] Valida o formato da chave de acesso (44 digitos numericos) e lanca erro se invalida.
  */
 export function validateAccessKey(accessKey: string): void {
   if (!accessKey) {
@@ -1301,6 +1358,8 @@ export function validateAccessKey(accessKey: string): void {
 
 /**
  * Build b2b tag for nfeProc.
+ *
+ * [pt-BR] Anexa a tag B2B (NFeB2BFin) ao XML do nfeProc.
  */
 export function attachB2bTag(nfeProcXml: string, b2bXml: string): string {
   if (!nfeProcXml.includes("nfeProc")) {

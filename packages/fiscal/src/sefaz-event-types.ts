@@ -1,4 +1,8 @@
-/** Event type constants matching PHP sped-nfe */
+/**
+ * Event type constants matching PHP sped-nfe
+ *
+ * [pt-BR] Constantes de tipos de evento compativeis com o sped-nfe PHP
+ */
 export const EVENT_TYPES = {
   CCE: 110110,
   CANCELLATION: 110111,
@@ -19,7 +23,11 @@ export const EVENT_TYPES = {
   OPERATION_NOT_PERFORMED: 210240,
 } as const;
 
-/** Map event type to its description */
+/**
+ * Map event type to its description
+ *
+ * [pt-BR] Retorna a descricao textual do tipo de evento SEFAZ
+ */
 export function getEventDescription(eventType: number | string): string {
   const descriptions: Record<string, string> = {
     [EVENT_TYPES.CCE]: "Carta de Correcao",
@@ -43,7 +51,11 @@ export function getEventDescription(eventType: number | string): string {
   return descriptions[String(eventType)] ?? "";
 }
 
-/** Build an event ID: ID{tpEvento}{chNFe}{seqPadded} */
+/**
+ * Build an event ID: ID{tpEvento}{chNFe}{seqPadded}
+ *
+ * [pt-BR] Constroi o identificador do evento: ID{tpEvento}{chNFe}{nSeqEvento com 2 digitos}
+ */
 export function buildEventId(
   eventType: number | string,
   accessKey: string,
@@ -52,7 +64,11 @@ export function buildEventId(
   return `ID${eventType}${accessKey}${String(seqNum).padStart(2, "0")}`;
 }
 
-/** Generate lot ID from explicit value or Date.now() fallback */
+/**
+ * Generate lot ID from explicit value or Date.now() fallback
+ *
+ * [pt-BR] Gera o ID do lote a partir do valor explicito ou fallback para Date.now()
+ */
 export function defaultLotId(lotId?: string): string {
   return lotId ?? String(Date.now());
 }

@@ -6,7 +6,8 @@
     "dev": "next dev --turbo --port 3002",
     "build": "next build",
     "start": "next start",
-    "postinstall": "fumadocs-mdx"
+    "postinstall": "fumadocs-mdx",
+    "generate-api": "bun run scripts/generate-api-docs.ts"
   },
   "dependencies": {
     "@types/mdx": "^2.0.13",
@@ -25,6 +26,9 @@
     "@types/react-dom": "catalog:",
     "postcss": "^8.5.6",
     "tailwindcss": "catalog:",
+    "typedoc": "^0.28.17",
+    "typedoc-plugin-frontmatter": "^1.3.1",
+    "typedoc-plugin-markdown": "^4.10.0",
     "typescript": "^5"
   }
 }

@@ -36,152 +36,252 @@ function accum(current: number, value: number | undefined | null): number {
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
-/** Tax regime: 1 or 2 = Simples Nacional (CSOSN), 3 = Normal (CST). */
+/**
+ * Tax regime: 1 or 2 = Simples Nacional (CSOSN), 3 = Normal (CST).
+ *
+ * [pt-BR] Regime tributário: 1 ou 2 = Simples Nacional (CSOSN), 3 = Normal (CST).
+ */
 export type TaxRegime = 1 | 2 | 3;
 
 /**
  * Unified input data for all ICMS variations.
+ * All monetary fields in cents; rate fields in hundredths or * 10000.
  *
- * All monetary fields are in **cents** (integer).
- * All rate/percentage fields are in **hundredths** (e.g., 1800 = 18.00%).
- * Rate fields that require 4 decimal places (pICMS, pFCP, etc.) should be
- * provided as integer * 10000 (e.g., 180000 = 18.0000%).
+ * [pt-BR] Dados unificados para todas as variações de ICMS.
+ * Valores monetários em centavos; alíquotas em centésimos ou * 10000.
  */
 export interface IcmsData {
+  /** Tax regime [pt-BR] Regime tributário */
   taxRegime: TaxRegime;
 
   // -- Common fields --
-  orig: string; // Origin of goods (0-8)
+  /** Origin of goods (0-8) [pt-BR] Origem da mercadoria (0-8) */
+  orig: string;
 
   // CST (regime 3) or CSOSN (regime 1/2)
+  /** Tax situation code (regime Normal) [pt-BR] Código da situação tributária (regime Normal) */
   CST?: string;
+  /** Tax situation code (Simples Nacional) [pt-BR] Código da situação da operação no Simples Nacional */
   CSOSN?: string;
 
   // -- Base calculation --
-  modBC?: string; // BC determination method
-  vBC?: number; // BC value (cents)
-  pRedBC?: number; // BC reduction % (hundredths, 4dp)
-  pICMS?: number; // ICMS rate (hundredths, 4dp)
-  vICMS?: number; // ICMS value (cents)
+  /** BC determination method [pt-BR] Modalidade de determinação da BC */
+  modBC?: string;
+  /** ICMS base value in cents [pt-BR] Valor da base de cálculo do ICMS em centavos */
+  vBC?: number;
+  /** BC reduction % (hundredths, 4dp) [pt-BR] Percentual de redução da BC (centésimos, 4dp) */
+  pRedBC?: number;
+  /** ICMS rate (hundredths, 4dp) [pt-BR] Alíquota do ICMS (centésimos, 4dp) */
+  pICMS?: number;
+  /** ICMS value in cents [pt-BR] Valor do ICMS em centavos */
+  vICMS?: number;
 
   // -- FCP (Fundo de Combate a Pobreza) --
-  vBCFCP?: number; // FCP BC value (cents)
-  pFCP?: number; // FCP rate (hundredths, 4dp)
-  vFCP?: number; // FCP value (cents)
+  /** FCP base value in cents [pt-BR] Valor da base de cálculo do FCP em centavos */
+  vBCFCP?: number;
+  /** FCP rate (hundredths, 4dp) [pt-BR] Alíquota do FCP (centésimos, 4dp) */
+  pFCP?: number;
+  /** FCP value in cents [pt-BR] Valor do FCP em centavos */
+  vFCP?: number;
 
   // -- ST (Substituicao Tributaria) --
-  modBCST?: string; // ST BC determination method
-  pMVAST?: number; // MVA ST % (hundredths, 4dp)
-  pRedBCST?: number; // ST BC reduction % (hundredths, 4dp)
-  vBCST?: number; // ST BC value (cents)
-  pICMSST?: number; // ST ICMS rate (hundredths, 4dp)
-  vICMSST?: number; // ST ICMS value (cents)
+  /** ST BC determination method [pt-BR] Modalidade de determinação da BC da ST */
+  modBCST?: string;
+  /** MVA ST % (hundredths, 4dp) [pt-BR] Percentual da margem de valor adicionado do ICMS ST (centésimos, 4dp) */
+  pMVAST?: number;
+  /** ST BC reduction % (hundredths, 4dp) [pt-BR] Percentual de redução da BC da ST (centésimos, 4dp) */
+  pRedBCST?: number;
+  /** ST base value in cents [pt-BR] Valor da base de cálculo da ST em centavos */
+  vBCST?: number;
+  /** ST ICMS rate (hundredths, 4dp) [pt-BR] Alíquota do ICMS ST (centésimos, 4dp) */
+  pICMSST?: number;
+  /** ST ICMS value in cents [pt-BR] Valor do ICMS ST em centavos */
+  vICMSST?: number;
 
   // -- FCP ST --
-  vBCFCPST?: number; // FCP ST BC value (cents)
-  pFCPST?: number; // FCP ST rate (hundredths, 4dp)
-  vFCPST?: number; // FCP ST value (cents)
+  /** FCP ST base value in cents [pt-BR] Valor da base de cálculo do FCP ST em centavos */
+  vBCFCPST?: number;
+  /** FCP ST rate (hundredths, 4dp) [pt-BR] Alíquota do FCP ST (centésimos, 4dp) */
+  pFCPST?: number;
+  /** FCP ST value in cents [pt-BR] Valor do FCP ST em centavos */
+  vFCPST?: number;
 
   // -- Desoneration --
-  vICMSDeson?: number; // Desonerated ICMS value (cents)
-  motDesICMS?: string; // Desoneration reason
-  indDeduzDeson?: string; // Deduct desonerated from item value (0/1)
+  /** Desonerated ICMS value in cents [pt-BR] Valor do ICMS desonerado em centavos */
+  vICMSDeson?: number;
+  /** Desoneration reason [pt-BR] Motivo da desoneração */
+  motDesICMS?: string;
+  /** Deduct desonerated from item value (0/1) [pt-BR] Indica se deduz o valor desonerado do item (0/1) */
+  indDeduzDeson?: string;
 
   // -- ST desoneration --
-  vICMSSTDeson?: number; // ST desonerated value (cents)
-  motDesICMSST?: string; // ST desoneration reason
+  /** ST desonerated value in cents [pt-BR] Valor do ICMS ST desonerado em centavos */
+  vICMSSTDeson?: number;
+  /** ST desoneration reason [pt-BR] Motivo da desoneração do ICMS ST */
+  motDesICMSST?: string;
 
   // -- ST retained --
-  vBCSTRet?: number; // Retained ST BC (cents)
-  pST?: number; // Consumer final rate (hundredths, 4dp)
-  vICMSSubstituto?: number; // Substitute own ICMS (cents)
-  vICMSSTRet?: number; // Retained ST ICMS (cents)
+  /** Retained ST base value in cents [pt-BR] Valor da BC do ICMS ST retido em centavos */
+  vBCSTRet?: number;
+  /** Consumer final rate (hundredths, 4dp) [pt-BR] Alíquota suportada pelo consumidor final (centésimos, 4dp) */
+  pST?: number;
+  /** Substitute own ICMS value in cents [pt-BR] Valor do ICMS próprio do substituto em centavos */
+  vICMSSubstituto?: number;
+  /** Retained ST ICMS value in cents [pt-BR] Valor do ICMS ST retido em centavos */
+  vICMSSTRet?: number;
 
   // -- FCP ST retained --
-  vBCFCPSTRet?: number; // FCP ST retained BC (cents)
-  pFCPSTRet?: number; // FCP ST retained rate (hundredths, 4dp)
-  vFCPSTRet?: number; // FCP ST retained value (cents)
+  /** FCP ST retained base value in cents [pt-BR] Valor da BC do FCP ST retido em centavos */
+  vBCFCPSTRet?: number;
+  /** FCP ST retained rate (hundredths, 4dp) [pt-BR] Alíquota do FCP ST retido (centésimos, 4dp) */
+  pFCPSTRet?: number;
+  /** FCP ST retained value in cents [pt-BR] Valor do FCP ST retido em centavos */
+  vFCPSTRet?: number;
 
   // -- Effective values (CST 60, ICMSSN500) --
-  pRedBCEfet?: number; // Effective BC reduction % (hundredths, 4dp)
-  vBCEfet?: number; // Effective BC (cents)
-  pICMSEfet?: number; // Effective rate (hundredths, 4dp)
-  vICMSEfet?: number; // Effective ICMS (cents)
+  /** Effective BC reduction % (hundredths, 4dp) [pt-BR] Percentual de redução da BC efetiva (centésimos, 4dp) */
+  pRedBCEfet?: number;
+  /** Effective base value in cents [pt-BR] Valor da BC efetiva em centavos */
+  vBCEfet?: number;
+  /** Effective ICMS rate (hundredths, 4dp) [pt-BR] Alíquota do ICMS efetiva (centésimos, 4dp) */
+  pICMSEfet?: number;
+  /** Effective ICMS value in cents [pt-BR] Valor do ICMS efetivo em centavos */
+  vICMSEfet?: number;
 
   // -- Deferral (CST 51, 53, 90) --
-  vICMSOp?: number; // ICMS of the operation (cents)
-  pDif?: number; // Deferral % (hundredths, 4dp)
-  vICMSDif?: number; // Deferred ICMS value (cents)
+  /** ICMS of the operation in cents [pt-BR] Valor do ICMS da operação em centavos */
+  vICMSOp?: number;
+  /** Deferral % (hundredths, 4dp) [pt-BR] Percentual do diferimento (centésimos, 4dp) */
+  pDif?: number;
+  /** Deferred ICMS value in cents [pt-BR] Valor do ICMS diferido em centavos */
+  vICMSDif?: number;
 
   // -- FCP deferral (CST 51, 90) --
-  pFCPDif?: number; // FCP deferral % (hundredths, 4dp)
-  vFCPDif?: number; // Deferred FCP (cents)
-  vFCPEfet?: number; // Effective FCP (cents)
+  /** FCP deferral % (hundredths, 4dp) [pt-BR] Percentual do diferimento do FCP (centésimos, 4dp) */
+  pFCPDif?: number;
+  /** Deferred FCP value in cents [pt-BR] Valor do FCP diferido em centavos */
+  vFCPDif?: number;
+  /** Effective FCP value in cents [pt-BR] Valor do FCP efetivo em centavos */
+  vFCPEfet?: number;
 
   // -- Monofasico (CST 02, 15, 53, 61) --
-  qBCMono?: number; // Mono BC quantity (hundredths, 4dp)
-  adRemICMS?: number; // Ad rem rate (hundredths, 4dp)
-  vICMSMono?: number; // Mono ICMS value (cents)
-  vICMSMonoOp?: number; // Mono ICMS operation (cents)
-  adRemICMSReten?: number; // Ad rem retention rate (hundredths, 4dp)
-  qBCMonoReten?: number; // Mono BC retention qty (hundredths, 4dp)
-  vICMSMonoReten?: number; // Mono ICMS retention value (cents)
-  vICMSMonoDif?: number; // Mono ICMS deferred (cents)
-  qBCMonoRet?: number; // Mono BC retained qty (hundredths, 4dp)
-  adRemICMSRet?: number; // Ad rem retained rate (hundredths, 4dp)
-  vICMSMonoRet?: number; // Mono ICMS retained value (cents)
-  pRedAdRem?: number; // Ad rem reduction % (hundredths, 2dp)
-  motRedAdRem?: string; // Ad rem reduction reason
+  /** Mono BC quantity (hundredths, 4dp) [pt-BR] Quantidade tributada na BC monofásica (centésimos, 4dp) */
+  qBCMono?: number;
+  /** Ad rem ICMS rate (hundredths, 4dp) [pt-BR] Alíquota ad rem do ICMS (centésimos, 4dp) */
+  adRemICMS?: number;
+  /** Mono ICMS value in cents [pt-BR] Valor do ICMS monofásico em centavos */
+  vICMSMono?: number;
+  /** Mono ICMS operation value in cents [pt-BR] Valor do ICMS da operação monofásica em centavos */
+  vICMSMonoOp?: number;
+  /** Ad rem retention rate (hundredths, 4dp) [pt-BR] Alíquota ad rem de retenção (centésimos, 4dp) */
+  adRemICMSReten?: number;
+  /** Mono BC retention quantity (hundredths, 4dp) [pt-BR] Quantidade tributada na BC monofásica de retenção (centésimos, 4dp) */
+  qBCMonoReten?: number;
+  /** Mono ICMS retention value in cents [pt-BR] Valor do ICMS monofásico de retenção em centavos */
+  vICMSMonoReten?: number;
+  /** Mono ICMS deferred value in cents [pt-BR] Valor do ICMS monofásico diferido em centavos */
+  vICMSMonoDif?: number;
+  /** Mono BC retained quantity (hundredths, 4dp) [pt-BR] Quantidade tributada na BC monofásica retida (centésimos, 4dp) */
+  qBCMonoRet?: number;
+  /** Ad rem retained rate (hundredths, 4dp) [pt-BR] Alíquota ad rem retida (centésimos, 4dp) */
+  adRemICMSRet?: number;
+  /** Mono ICMS retained value in cents [pt-BR] Valor do ICMS monofásico retido em centavos */
+  vICMSMonoRet?: number;
+  /** Ad rem reduction % (hundredths, 2dp) [pt-BR] Percentual de redução ad rem (centésimos, 2dp) */
+  pRedAdRem?: number;
+  /** Ad rem reduction reason [pt-BR] Motivo da redução ad rem */
+  motRedAdRem?: string;
 
   // -- Benefit code (CST 51, 90) --
+  /** Benefit code for BC reduction [pt-BR] Código de benefício fiscal para redução da BC */
   cBenefRBC?: string;
 
   // -- Simples Nacional credit --
-  pCredSN?: number; // SN credit rate (hundredths, 2dp or 4dp)
-  vCredICMSSN?: number; // SN credit value (cents)
+  /** SN credit rate (hundredths, 2dp or 4dp) [pt-BR] Alíquota de crédito do Simples Nacional (centésimos, 2dp ou 4dp) */
+  pCredSN?: number;
+  /** SN credit value in cents [pt-BR] Valor do crédito do ICMS do Simples Nacional em centavos */
+  vCredICMSSN?: number;
 
   // -- ICMSPart fields --
-  pBCOp?: number; // Own operation BC % (hundredths, 4dp)
-  UFST?: string; // ST destination state
+  /** Own operation BC % (hundredths, 4dp) [pt-BR] Percentual da BC da operação própria (centésimos, 4dp) */
+  pBCOp?: number;
+  /** ST destination state [pt-BR] UF de destino da ST */
+  UFST?: string;
 
   // -- ICMSST repasse fields --
-  vBCSTDest?: number; // ST BC destination (cents)
-  vICMSSTDest?: number; // ST ICMS destination (cents)
+  /** ST base value at destination in cents [pt-BR] Valor da BC do ICMS ST no destino em centavos */
+  vBCSTDest?: number;
+  /** ST ICMS value at destination in cents [pt-BR] Valor do ICMS ST no destino em centavos */
+  vICMSSTDest?: number;
 
   // -- ICMSUFDest fields --
-  vBCUFDest?: number; // BC in destination state (cents)
-  vBCFCPUFDest?: number; // FCP BC in destination state (cents)
-  pFCPUFDest?: number; // FCP rate in destination (hundredths, 4dp)
-  pICMSUFDest?: number; // Internal rate destination (hundredths, 4dp)
-  pICMSInter?: number; // Interstate rate (hundredths, 2dp)
-  pICMSInterPart?: number; // Interstate partition % (always 100)
-  vFCPUFDest?: number; // FCP destination value (cents)
-  vICMSUFDest?: number; // ICMS destination value (cents)
-  vICMSUFRemet?: number; // ICMS sender value (cents)
+  /** Base value in destination state in cents [pt-BR] Valor da BC na UF de destino em centavos */
+  vBCUFDest?: number;
+  /** FCP base value in destination state in cents [pt-BR] Valor da BC do FCP na UF de destino em centavos */
+  vBCFCPUFDest?: number;
+  /** FCP rate in destination (hundredths, 4dp) [pt-BR] Alíquota do FCP na UF de destino (centésimos, 4dp) */
+  pFCPUFDest?: number;
+  /** Internal ICMS rate in destination (hundredths, 4dp) [pt-BR] Alíquota interna do ICMS na UF de destino (centésimos, 4dp) */
+  pICMSUFDest?: number;
+  /** Interstate ICMS rate (hundredths, 2dp) [pt-BR] Alíquota interestadual do ICMS (centésimos, 2dp) */
+  pICMSInter?: number;
+  /** Interstate partition % (always 100) [pt-BR] Percentual provisório de partilha interestadual (sempre 100) */
+  pICMSInterPart?: number;
+  /** FCP value in destination in cents [pt-BR] Valor do FCP na UF de destino em centavos */
+  vFCPUFDest?: number;
+  /** ICMS value in destination in cents [pt-BR] Valor do ICMS na UF de destino em centavos */
+  vICMSUFDest?: number;
+  /** ICMS value for sender state in cents [pt-BR] Valor do ICMS para a UF do remetente em centavos */
+  vICMSUFRemet?: number;
 }
 
-/** Accumulated totals across all items. */
+/**
+ * Accumulated ICMS totals across all items.
+ *
+ * [pt-BR] Totais acumulados de ICMS entre todos os itens.
+ */
 export interface IcmsTotals {
+  /** Total ICMS base value [pt-BR] Valor total da base de cálculo do ICMS */
   vBC: number;
+  /** Total ICMS value [pt-BR] Valor total do ICMS */
   vICMS: number;
+  /** Total desonerated ICMS value [pt-BR] Valor total do ICMS desonerado */
   vICMSDeson: number;
+  /** Total ST base value [pt-BR] Valor total da base de cálculo da ST */
   vBCST: number;
+  /** Total ST value [pt-BR] Valor total da ST */
   vST: number;
+  /** Total FCP value [pt-BR] Valor total do FCP */
   vFCP: number;
+  /** Total FCP ST value [pt-BR] Valor total do FCP ST */
   vFCPST: number;
+  /** Total FCP ST retained value [pt-BR] Valor total do FCP ST retido */
   vFCPSTRet: number;
+  /** Total FCP destination value [pt-BR] Valor total do FCP na UF de destino */
   vFCPUFDest: number;
+  /** Total ICMS destination value [pt-BR] Valor total do ICMS na UF de destino */
   vICMSUFDest: number;
+  /** Total ICMS sender value [pt-BR] Valor total do ICMS para a UF do remetente */
   vICMSUFRemet: number;
+  /** Total mono BC quantity [pt-BR] Quantidade total da BC monofásica */
   qBCMono: number;
+  /** Total mono ICMS value [pt-BR] Valor total do ICMS monofásico */
   vICMSMono: number;
+  /** Total mono BC retention quantity [pt-BR] Quantidade total da BC monofásica de retenção */
   qBCMonoReten: number;
+  /** Total mono ICMS retention value [pt-BR] Valor total do ICMS monofásico de retenção */
   vICMSMonoReten: number;
+  /** Total mono BC retained quantity [pt-BR] Quantidade total da BC monofásica retida */
   qBCMonoRet: number;
+  /** Total mono ICMS retained value [pt-BR] Valor total do ICMS monofásico retido */
   vICMSMonoRet: number;
 }
 
-/** Create a zeroed-out totals object. */
+/**
+ * Create a zeroed-out ICMS totals object.
+ *
+ * [pt-BR] Cria um objeto de totais ICMS zerado.
+ */
 export function createIcmsTotals(): IcmsTotals {
   return {
     vBC: 0,
@@ -207,14 +307,14 @@ export function createIcmsTotals(): IcmsTotals {
 // ── Main builder ────────────────────────────────────────────────────────────
 
 /**
- * Build the ICMS XML group for a single item.
- *
- * Returns the XML string (the `<ICMS>` element) and accumulated totals.
- * Callers should merge totals across items using `mergeIcmsTotals()`.
- */
-/**
  * Calculate ICMS for a single item (domain logic, no XML dependency).
  * Returns structured TaxElement + accumulated totals.
+ *
+ * [pt-BR] Calcula o ICMS de um item (lógica de domínio, sem dependência de XML).
+ * Retorna TaxElement estruturado + totais acumulados.
+ *
+ * @param data - ICMS input data with tax regime, CST/CSOSN, rates, and amounts
+ * [pt-BR] @param data - Dados de entrada do ICMS com regime, CST/CSOSN, alíquotas e valores
  */
 export function calculateIcms(data: IcmsData): { element: TaxElement; totals: IcmsTotals } {
   const totals = createIcmsTotals();
@@ -239,7 +339,9 @@ export function calculateIcms(data: IcmsData): { element: TaxElement; totals: Ic
 }
 
 /**
- * Build ICMS XML string (backward-compatible wrapper).
+ * Build ICMS XML string (backward-compatible wrapper around calculateIcms).
+ *
+ * [pt-BR] Gera a string XML do ICMS (wrapper compatível sobre calculateIcms).
  */
 export function buildIcmsXml(data: IcmsData): { xml: string; totals: IcmsTotals } {
   const { element, totals } = calculateIcms(data);
@@ -249,6 +351,9 @@ export function buildIcmsXml(data: IcmsData): { xml: string; totals: IcmsTotals 
 /**
  * Build the ICMSPart XML group (partition between states).
  * Used inside `<ICMS>` for CST 10 or 90 with interstate partition.
+ *
+ * [pt-BR] Gera o grupo XML ICMSPart (partilha entre estados).
+ * Usado dentro de `<ICMS>` para CST 10 ou 90 com partilha interestadual.
  */
 export function buildIcmsPartXml(data: IcmsData): { xml: string; totals: IcmsTotals } {
   const totals = createIcmsTotals();
@@ -279,6 +384,9 @@ export function buildIcmsPartXml(data: IcmsData): { xml: string; totals: IcmsTot
 /**
  * Build the ICMSST XML group (ST repasse).
  * Used inside `<ICMS>` for CST 41 or 60 with interstate ST repasse.
+ *
+ * [pt-BR] Gera o grupo XML ICMSST (repasse de ST).
+ * Usado dentro de `<ICMS>` para CST 41 ou 60 com repasse interestadual de ST.
  */
 export function buildIcmsStXml(data: IcmsData): { xml: string; totals: IcmsTotals } {
   const totals = createIcmsTotals();
@@ -309,6 +417,9 @@ export function buildIcmsStXml(data: IcmsData): { xml: string; totals: IcmsTotal
 /**
  * Build the ICMSUFDest XML group (interstate to final consumer).
  * This is a sibling of `<ICMS>`, placed directly inside `<imposto>`.
+ *
+ * [pt-BR] Gera o grupo XML ICMSUFDest (interestadual para consumidor final).
+ * É irmão de `<ICMS>`, posicionado diretamente dentro de `<imposto>`.
  */
 export function buildIcmsUfDestXml(data: IcmsData): { xml: string; totals: IcmsTotals } {
   const totals = createIcmsTotals();
@@ -333,7 +444,14 @@ export function buildIcmsUfDestXml(data: IcmsData): { xml: string; totals: IcmsT
 }
 
 /**
- * Merge item-level totals into an accumulator.
+ * Merge item-level ICMS totals into an accumulator.
+ *
+ * [pt-BR] Mescla os totais ICMS de um item no acumulador.
+ *
+ * @param target - Accumulator to merge into
+ * [pt-BR] @param target - Acumulador para mesclar
+ * @param source - Item-level totals to add
+ * [pt-BR] @param source - Totais do item a adicionar
  */
 export function mergeIcmsTotals(target: IcmsTotals, source: IcmsTotals): void {
   target.vBC += source.vBC;

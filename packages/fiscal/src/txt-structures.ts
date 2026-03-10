@@ -1,14 +1,25 @@
 /**
  * Inlined TXT structure definitions for NFe validation and parsing.
  *
+ * [pt-BR] Definicoes de estrutura TXT embutidas para validacao e parsing de NFe.
+ *
  * These were previously loaded at runtime from JSON files in
  * `.reference/sped-nfe/storage/`. Inlining them removes the dependency
  * on a PHP reference directory that does not exist in production.
  *
  * Each key maps a TXT entity reference (e.g. "A", "B", "N02") to the
  * pipe-delimited field template used for validation and parsing.
+ *
+ * [pt-BR] Anteriormente carregadas em tempo de execucao a partir de arquivos JSON.
+ * Cada chave mapeia uma referencia de entidade TXT (ex. "A", "B", "N02") para o
+ * template de campos delimitado por pipe usado na validacao e parsing.
  */
 
+/**
+ * TXT structure for NFe version 3.10.
+ *
+ * [pt-BR] Estrutura TXT para NFe versao 3.10.
+ */
 export const STRUCTURE_310: Record<string, string> = {
   "NOTAFISCAL":"NOTAFISCAL|1|",
   "A":"A|versao|Id|pk_nItem|",
@@ -133,6 +144,11 @@ export const STRUCTURE_310: Record<string, string> = {
   "ZX01":"ZX01|qrcode|",
 };
 
+/**
+ * TXT structure for NFe version 4.00 (standard LOCAL layout).
+ *
+ * [pt-BR] Estrutura TXT para NFe versao 4.00 (layout LOCAL padrao).
+ */
 export const STRUCTURE_400: Record<string, string> = {
   "NOTAFISCAL": "NOTAFISCAL|qtd|",
   "A": "A|versao|Id|pk_nItem|",
@@ -268,6 +284,11 @@ export const STRUCTURE_400: Record<string, string> = {
   "ZX01": "ZX01|qrcode|urlChave|",
 };
 
+/**
+ * TXT structure for NFe version 4.00 (SEBRAE layout).
+ *
+ * [pt-BR] Estrutura TXT para NFe versao 4.00 (layout SEBRAE).
+ */
 export const STRUCTURE_400_SEBRAE: Record<string, string> = {
   "NOTAFISCAL": "NOTAFISCAL|qtd|",
   "A": "A|versao|Id|",
@@ -402,6 +423,11 @@ export const STRUCTURE_400_SEBRAE: Record<string, string> = {
   "ZX01": "ZX01|qrcode|urlChave|",
 };
 
+/**
+ * TXT structure for NFe version 4.00 (LOCAL v1.2 layout).
+ *
+ * [pt-BR] Estrutura TXT para NFe versao 4.00 (layout LOCAL v1.2).
+ */
 export const STRUCTURE_400_V12: Record<string, string> = {
   "NOTAFISCAL": "NOTAFISCAL|qtd|",
   "A": "A|versao|Id|pk_nItem|",
@@ -533,6 +559,11 @@ export const STRUCTURE_400_V12: Record<string, string> = {
   "ZX01": "ZX01|qrcode|urlChave|",
 };
 
+/**
+ * TXT structure for NFe version 4.00 (LOCAL v1.3 layout).
+ *
+ * [pt-BR] Estrutura TXT para NFe versao 4.00 (layout LOCAL v1.3).
+ */
 export const STRUCTURE_400_V13: Record<string, string> = {
   "NOTAFISCAL": "NOTAFISCAL|qtd|",
   "A": "A|versao|Id|pk_nItem|",
@@ -680,6 +711,8 @@ export const STRUCTURE_400_V13: Record<string, string> = {
 
 /**
  * Get the appropriate structure for the given version and layout.
+ *
+ * [pt-BR] Obtem a estrutura apropriada para a versao e layout informados.
  */
 export function getStructure(
   version: number,
@@ -706,6 +739,8 @@ export function getStructure(
 
 /**
  * Get the appropriate structure for parsing, using a version string like "4.00" or "3.10".
+ *
+ * [pt-BR] Obtem a estrutura apropriada para parsing, usando uma string de versao como "4.00" ou "3.10".
  */
 export function getStructureByVersionString(
   versionStr: string,

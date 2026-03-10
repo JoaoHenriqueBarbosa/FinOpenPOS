@@ -1,0 +1,16 @@
+{
+  "title": "API Reference",
+  "pages": [
+    "index",
+    "---Classes---",
+    "classes",
+    "---Type Aliases---",
+    "type-aliases",
+    "---Interfaces---",
+    "interfaces",
+    "---Variables---",
+    "variables",
+    "---Functions---",
+    "functions"
+  ]
+}

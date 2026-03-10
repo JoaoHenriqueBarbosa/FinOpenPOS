@@ -4,6 +4,13 @@ import type { CertificateData, CertificateInfo } from "./types";
 
 /**
  * Load private key and certificate from a PFX/PKCS12 buffer.
+ *
+ * [pt-BR] Carrega chave privada e certificado a partir de um buffer PFX/PKCS12.
+ *
+ * @param pfxBuffer - Raw PFX file contents
+ * [pt-BR] @param pfxBuffer - Conteúdo bruto do arquivo PFX
+ * @param passphrase - PFX password
+ * [pt-BR] @param passphrase - Senha do PFX
  */
 export function loadCertificate(
   pfxBuffer: Buffer,
@@ -22,6 +29,13 @@ export function loadCertificate(
 
 /**
  * Extract certificate info for display (without exposing private key).
+ *
+ * [pt-BR] Extrai informações do certificado para exibição (sem expor a chave privada).
+ *
+ * @param pfxBuffer - Raw PFX file contents
+ * [pt-BR] @param pfxBuffer - Conteúdo bruto do arquivo PFX
+ * @param passphrase - PFX password
+ * [pt-BR] @param passphrase - Senha do PFX
  */
 export function getCertificateInfo(
   pfxBuffer: Buffer,
@@ -41,10 +55,17 @@ export function getCertificateInfo(
 
 /**
  * Sign an NF-e XML string with XMLDSig enveloped signature using xml-crypto.
+ * Covers <infNFe> with C14N canonicalization, SHA-1 digest, RSA-SHA1 signature.
  *
- * The signature covers the <infNFe> element identified by its Id attribute.
- * Algorithms: C14N canonicalization, SHA-1 digest, RSA-SHA1 signature
- * (as required by SEFAZ MOC 4.0).
+ * [pt-BR] Assina um XML de NF-e com assinatura XMLDSig envelopada via xml-crypto.
+ * Cobre <infNFe> com canonização C14N, digest SHA-1 e assinatura RSA-SHA1.
+ *
+ * @param xml - Unsigned NF-e XML string
+ * [pt-BR] @param xml - String XML da NF-e sem assinatura
+ * @param privateKeyPem - PEM-encoded private key
+ * [pt-BR] @param privateKeyPem - Chave privada em formato PEM
+ * @param certificatePem - PEM-encoded certificate
+ * [pt-BR] @param certificatePem - Certificado em formato PEM
  */
 export function signXml(
   xml: string,
@@ -86,9 +107,17 @@ export function signXml(
 
 /**
  * Sign a SEFAZ event XML (cancelamento, CCe, etc.) with XMLDSig.
+ * Same as signXml() but references <infEvento> inside <evento>.
  *
- * Same algorithm as signXml() but references <infEvento> and appends
- * the Signature inside <evento>.
+ * [pt-BR] Assina um XML de evento SEFAZ (cancelamento, CCe, etc.) com XMLDSig.
+ * Mesmo algoritmo de signXml(), mas referencia <infEvento> dentro de <evento>.
+ *
+ * @param xml - Unsigned event XML string
+ * [pt-BR] @param xml - String XML do evento sem assinatura
+ * @param privateKeyPem - PEM-encoded private key
+ * [pt-BR] @param privateKeyPem - Chave privada em formato PEM
+ * @param certificatePem - PEM-encoded certificate
+ * [pt-BR] @param certificatePem - Certificado em formato PEM
  */
 export function signEventXml(
   xml: string,
@@ -130,7 +159,14 @@ export function signEventXml(
 // ── Private helpers ─────────────────────────────────────────────────────────
 
 /**
- * Extract certificate PEM from PFX using openssl.
+ * Extract certificate PEM from PFX using openssl CLI (with -legacy flag).
+ *
+ * [pt-BR] Extrai o certificado PEM do PFX usando openssl CLI (com flag -legacy).
+ *
+ * @param pfxBuffer - Raw PFX file contents
+ * [pt-BR] @param pfxBuffer - Conteúdo bruto do arquivo PFX
+ * @param passphrase - PFX password
+ * [pt-BR] @param passphrase - Senha do PFX
  */
 export function extractCertFromPfx(pfxBuffer: Buffer, passphrase: string): string {
   const { execSync } = require("node:child_process");
@@ -154,7 +190,14 @@ export function extractCertFromPfx(pfxBuffer: Buffer, passphrase: string): strin
 }
 
 /**
- * Extract private key PEM from PFX using openssl.
+ * Extract private key PEM from PFX using openssl CLI (with -legacy flag).
+ *
+ * [pt-BR] Extrai a chave privada PEM do PFX usando openssl CLI (com flag -legacy).
+ *
+ * @param pfxBuffer - Raw PFX file contents
+ * [pt-BR] @param pfxBuffer - Conteúdo bruto do arquivo PFX
+ * @param passphrase - PFX password
+ * [pt-BR] @param passphrase - Senha do PFX
  */
 export function extractKeyFromPfx(pfxBuffer: Buffer, passphrase: string): string {
   const { execSync } = require("node:child_process");

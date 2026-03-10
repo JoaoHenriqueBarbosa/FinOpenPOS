@@ -1,8 +1,12 @@
 /**
- * TXT-to-XML converter for NFe
+ * TXT-to-XML converter for NFe.
+ *
+ * [pt-BR] Conversor TXT para XML de NFe.
+ *
  * Ported from PHP: NFePHP\NFe\Convert and NFePHP\NFe\Factories\Parser
  *
  * This module converts the SPED TXT representation of an NF-e into XML.
+ * [pt-BR] Este modulo converte a representacao SPED TXT de uma NF-e para XML.
  */
 
 import { isValidTxt } from "./valid-txt";
@@ -12,9 +16,29 @@ import { escapeXml } from "./xml-utils";
 
 // ── Layout constants ────────────────────────────────────────────────────────
 
+/**
+ * Standard LOCAL TXT layout.
+ *
+ * [pt-BR] Layout TXT LOCAL padrao.
+ */
 export const LOCAL = "LOCAL";
+/**
+ * LOCAL v1.2 TXT layout.
+ *
+ * [pt-BR] Layout TXT LOCAL v1.2.
+ */
 export const LOCAL_V12 = "LOCAL_V12";
+/**
+ * LOCAL v1.3 TXT layout.
+ *
+ * [pt-BR] Layout TXT LOCAL v1.3.
+ */
 export const LOCAL_V13 = "LOCAL_V13";
+/**
+ * SEBRAE TXT layout.
+ *
+ * [pt-BR] Layout TXT SEBRAE.
+ */
 export const SEBRAE = "SEBRAE";
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -30,6 +54,11 @@ interface DumpEntry {
 
 // ── Convert class ───────────────────────────────────────────────────────────
 
+/**
+ * Converts SPED TXT representation of NF-e documents into XML.
+ *
+ * [pt-BR] Converte representacao SPED TXT de documentos NF-e para XML.
+ */
 export class Convert {
   private txt: string;
   private data: string[] = [];
@@ -50,6 +79,8 @@ export class Convert {
 
   /**
    * Convert all NFe in the TXT to XML.
+   *
+   * [pt-BR] Converte todas as NFe do TXT para XML.
    */
   toXml(): string[] {
     if (!this.isNFe(this.txt)) {
@@ -82,6 +113,8 @@ export class Convert {
 
   /**
    * Dump the parsed TXT as structured objects (for inspection).
+   *
+   * [pt-BR] Retorna o TXT parseado como objetos estruturados (para inspecao).
    */
   dump(): DumpEntry[][] {
     if (!this.isNFe(this.txt)) {
@@ -183,6 +216,11 @@ export class Convert {
 
 // ── Parser error ────────────────────────────────────────────────────────────
 
+/**
+ * Error thrown when TXT parsing fails.
+ *
+ * [pt-BR] Erro lancado quando o parsing de TXT falha.
+ */
 export class ParserError extends Error {
   constructor(message: string) {
     super(message);

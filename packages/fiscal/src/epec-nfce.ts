@@ -1,8 +1,12 @@
 /**
  * EPEC NFC-e (Evento Previo de Emissao em Contingencia) for NFC-e model 65.
  *
- * Mirrors PHP TraitEPECNfce — parses an NFC-e XML, extracts data,
+ * [pt-BR] EPEC NFC-e (Evento Previo de Emissao em Contingencia) para NFC-e modelo 65.
+ *
+ * Mirrors PHP TraitEPECNfce -- parses an NFC-e XML, extracts data,
  * and builds an EPEC event XML.
+ * [pt-BR] Espelha o PHP TraitEPECNfce -- faz parsing de um XML NFC-e, extrai dados
+ * e constroi um XML de evento EPEC.
  */
 
 import { XMLParser } from "fast-xml-parser";
@@ -15,14 +19,19 @@ const xmlParser = new XMLParser({
   removeNSPrefix: true,
 });
 
+/**
+ * Configuration for EPEC NFC-e event building.
+ *
+ * [pt-BR] Configuracao para construcao de evento EPEC NFC-e.
+ */
 export interface EpecNfceConfig {
-  /** State abbreviation, e.g. "SP" */
+  /** State abbreviation, e.g. "SP" / [pt-BR] Sigla do estado, ex. "SP" */
   stateCode: string;
-  /** Tax environment: 1=production, 2=homologation */
+  /** Tax environment: 1=production, 2=homologation / [pt-BR] Ambiente fiscal: 1=producao, 2=homologacao */
   tpAmb: number;
-  /** CNPJ of the company */
+  /** CNPJ of the company / [pt-BR] CNPJ da empresa */
   cnpj: string;
-  /** Application version (from setVerAplic) */
+  /** Application version (from setVerAplic) / [pt-BR] Versao do aplicativo */
   appVersion?: string;
 }
 
@@ -36,10 +45,16 @@ function getNodeValue(obj: any, tagName: string): string | undefined {
 /**
  * Build EPEC event XML for an NFC-e (model 65).
  *
+ * [pt-BR] Constroi XML do evento EPEC para NFC-e (modelo 65).
+ *
  * @param nfceXml - The NFC-e XML string
+ * [pt-BR] @param nfceXml - String XML da NFC-e
  * @param config - EPEC configuration
+ * [pt-BR] @param config - Configuracao EPEC
  * @param verAplic - Optional explicit verAplic override
+ * [pt-BR] @param verAplic - Substituicao explicita opcional do verAplic
  * @returns The EPEC event XML string
+ * [pt-BR] @returns String XML do evento EPEC
  */
 export function buildEpecNfceXml(
   nfceXml: string,
@@ -166,6 +181,8 @@ export function buildEpecNfceXml(
 
 /**
  * Build consStatServ XML for EPEC NFC-e status check.
+ *
+ * [pt-BR] Constroi XML consStatServ para consulta de status EPEC NFC-e.
  */
 export function buildEpecNfceStatusXml(
   config: EpecNfceConfig,
@@ -192,7 +209,11 @@ export function buildEpecNfceStatusXml(
 
 /**
  * Build a minimal NFC-e XML for testing EPEC.
+ *
+ * [pt-BR] Constroi XML minimo de NFC-e para testes de EPEC.
+ *
  * Mirrors the PHP buildEpecNfceXml() test helper method.
+ * [pt-BR] Espelha o metodo auxiliar de teste buildEpecNfceXml() do PHP.
  */
 export function buildTestNfceXml(
   uf: string = "SP",

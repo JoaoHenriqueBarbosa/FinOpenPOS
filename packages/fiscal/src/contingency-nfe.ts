@@ -5,15 +5,24 @@ import { extractXmlTagValue } from "./xml-utils";
 /**
  * Adjust NF-e XML for contingency mode.
  *
+ * [pt-BR] Ajusta XML de NF-e para modo de contingencia.
+ *
  * Ported from PHP NFePHP\NFe\Factories\ContingencyNFe::adjust().
  *
  * Modifies the XML to set contingency emission type (tpEmis),
  * adds dhCont and xJust tags, and recalculates the access key.
  *
+ * [pt-BR] Modifica o XML para definir o tipo de emissao em contingencia (tpEmis),
+ * adiciona as tags dhCont e xJust, e recalcula a chave de acesso.
+ *
  * @param xml - NF-e XML string
+ * [pt-BR] @param xml - String XML da NF-e
  * @param contingency - Active contingency configuration
+ * [pt-BR] @param contingency - Configuracao de contingencia ativa
  * @returns Modified XML string
+ * [pt-BR] @returns String XML modificada
  * @throws Error when contingency is not active or XML is NFC-e (model 65)
+ * [pt-BR] @throws Erro quando contingencia nao esta ativa ou XML e NFC-e (modelo 65)
  */
 export function adjustNfeForContingency(xml: string, contingency: Contingency): string {
   if (contingency.type === "") {

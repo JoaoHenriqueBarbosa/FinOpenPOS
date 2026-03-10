@@ -20,6 +20,14 @@ import type {
 /**
  * Build a complete NF-e or NFC-e XML (unsigned).
  * The XML follows layout 4.00 as defined by MOC.
+ *
+ * [pt-BR] Constrói o XML completo da NF-e/NFC-e (sem assinatura).
+ * Segue o layout 4.00 conforme definido pelo MOC.
+ *
+ * @param data - Invoice build data with issuer, items, payments, etc.
+ * [pt-BR] @param data - Dados de construção da nota com emitente, itens, pagamentos, etc.
+ * @returns Object with unsigned XML string and 44-digit access key
+ * [pt-BR] @returns Objeto com XML sem assinatura e chave de acesso de 44 dígitos
  */
 export function buildInvoiceXml(data: InvoiceBuildData): {
   xml: string;
@@ -91,9 +99,14 @@ export function buildInvoiceXml(data: InvoiceBuildData): {
 }
 
 /**
- * Build the access key (chave de acesso) — 44 digits.
- *
+ * Build the access key (chave de acesso) -- 44 digits.
  * Delegates to AccessKey.build(); kept for backward compatibility.
+ *
+ * [pt-BR] Gera a chave de acesso -- 44 dígitos.
+ * Delega para AccessKey.build(); mantido para compatibilidade.
+ *
+ * @param params - Access key components (state, date, tax ID, model, etc.)
+ * [pt-BR] @param params - Componentes da chave de acesso (UF, data, CNPJ, modelo, etc.)
  */
 export function buildAccessKey(params: AccessKeyParams): string {
   return AccessKey.build(params).toString();

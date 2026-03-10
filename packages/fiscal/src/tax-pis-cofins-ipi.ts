@@ -10,105 +10,126 @@ import {
 // ── Types ───────────────────────────────────────────────────────────────────
 
 /**
- * All monetary amounts are in cents (integer).
- * Rate/percentage fields are in basis points or raw percentage * 10000
- * (e.g., 1.65% = 165 with 2-decimal, or 16500 with 4-decimal).
+ * PIS tax input data. Monetary amounts in cents, rates as integer * 10000.
  *
- * Callers must pass amounts in cents; rates as integer representations
- * that will be formatted with the appropriate decimal places.
+ * [pt-BR] Dados de entrada do PIS. Valores monetários em centavos, alíquotas como inteiro * 10000.
  */
-
 export interface PisData {
-  /** CST code as 2-digit string (e.g. "01", "04", "49", "99") */
+  /** CST code as 2-digit string (e.g. "01", "04", "49", "99") / [pt-BR] Código CST como string de 2 dígitos */
   CST: string;
-  /** Base de calculo in cents */
+  /** Tax base in cents / [pt-BR] Base de cálculo em centavos */
   vBC?: number;
-  /** Aliquota PIS — stored as rate * 10000 (4 decimal places) */
+  /** PIS rate -- stored as rate * 10000 (4dp) / [pt-BR] Alíquota PIS -- armazenada como taxa * 10000 (4dp) */
   pPIS?: number;
-  /** Valor do PIS in cents */
+  /** PIS value in cents / [pt-BR] Valor do PIS em centavos */
   vPIS?: number;
-  /** Quantidade BC Prod — stored as qty * 10000 (4 decimal places) */
+  /** Product BC quantity -- stored as qty * 10000 (4dp) / [pt-BR] Quantidade BC Prod -- armazenada como qtd * 10000 (4dp) */
   qBCProd?: number;
-  /** Aliquota em reais — stored as value * 10000 (4 decimal places) */
+  /** Rate in BRL -- stored as value * 10000 (4dp) / [pt-BR] Alíquota em reais -- armazenada como valor * 10000 (4dp) */
   vAliqProd?: number;
 }
 
+/**
+ * PIS-ST (substituicao tributaria) input data.
+ *
+ * [pt-BR] Dados de entrada do PIS-ST (substituição tributária).
+ */
 export interface PisStData {
-  /** Base de calculo in cents */
+  /** Tax base in cents / [pt-BR] Base de cálculo em centavos */
   vBC?: number;
-  /** Aliquota PIS — rate * 10000 (4 decimal places) */
+  /** PIS rate -- rate * 10000 (4dp) / [pt-BR] Alíquota PIS -- taxa * 10000 (4dp) */
   pPIS?: number;
-  /** Quantidade BC Prod — qty * 10000 (4 decimal places) */
+  /** Product BC quantity -- qty * 10000 (4dp) / [pt-BR] Quantidade BC Prod -- qtd * 10000 (4dp) */
   qBCProd?: number;
-  /** Aliquota em reais — value * 10000 (4 decimal places) */
+  /** Rate in BRL -- value * 10000 (4dp) / [pt-BR] Alíquota em reais -- valor * 10000 (4dp) */
   vAliqProd?: number;
-  /** Valor do PIS in cents */
+  /** PIS value in cents / [pt-BR] Valor do PIS em centavos */
   vPIS: number;
-  /** Indica se o valor compoe o total (0 or 1) */
+  /** Whether value composes total (0 or 1) / [pt-BR] Indica se o valor compõe o total (0 ou 1) */
   indSomaPISST?: number;
 }
 
+/**
+ * COFINS tax input data. Monetary amounts in cents, rates as integer * 10000.
+ *
+ * [pt-BR] Dados de entrada da COFINS. Valores monetários em centavos, alíquotas como inteiro * 10000.
+ */
 export interface CofinsData {
-  /** CST code as 2-digit string */
+  /** CST code as 2-digit string / [pt-BR] Código CST como string de 2 dígitos */
   CST: string;
-  /** Base de calculo in cents */
+  /** Tax base in cents / [pt-BR] Base de cálculo em centavos */
   vBC?: number;
-  /** Aliquota COFINS — rate * 10000 (4 decimal places) */
+  /** COFINS rate -- rate * 10000 (4dp) / [pt-BR] Alíquota COFINS -- taxa * 10000 (4dp) */
   pCOFINS?: number;
-  /** Valor da COFINS in cents */
+  /** COFINS value in cents / [pt-BR] Valor da COFINS em centavos */
   vCOFINS?: number;
-  /** Quantidade BC Prod — qty * 10000 (4 decimal places) */
+  /** Product BC quantity -- qty * 10000 (4dp) / [pt-BR] Quantidade BC Prod -- qtd * 10000 (4dp) */
   qBCProd?: number;
-  /** Aliquota em reais — value * 10000 (4 decimal places) */
+  /** Rate in BRL -- value * 10000 (4dp) / [pt-BR] Alíquota em reais -- valor * 10000 (4dp) */
   vAliqProd?: number;
 }
 
+/**
+ * COFINS-ST (substituicao tributaria) input data.
+ *
+ * [pt-BR] Dados de entrada da COFINS-ST (substituição tributária).
+ */
 export interface CofinsStData {
-  /** Base de calculo in cents */
+  /** Tax base in cents / [pt-BR] Base de cálculo em centavos */
   vBC?: number;
-  /** Aliquota COFINS — rate * 10000 (4 decimal places) */
+  /** COFINS rate -- rate * 10000 (4dp) / [pt-BR] Alíquota COFINS -- taxa * 10000 (4dp) */
   pCOFINS?: number;
-  /** Quantidade BC Prod — qty * 10000 (4 decimal places) */
+  /** Product BC quantity -- qty * 10000 (4dp) / [pt-BR] Quantidade BC Prod -- qtd * 10000 (4dp) */
   qBCProd?: number;
-  /** Aliquota em reais — value * 10000 (4 decimal places) */
+  /** Rate in BRL -- value * 10000 (4dp) / [pt-BR] Alíquota em reais -- valor * 10000 (4dp) */
   vAliqProd?: number;
-  /** Valor da COFINS in cents */
+  /** COFINS value in cents / [pt-BR] Valor da COFINS em centavos */
   vCOFINS: number;
-  /** Indica se o valor compoe o total (0 or 1) */
+  /** Whether value composes total (0 or 1) / [pt-BR] Indica se o valor compõe o total (0 ou 1) */
   indSomaCOFINSST?: number;
 }
 
+/**
+ * IPI (Imposto sobre Produtos Industrializados) input data.
+ *
+ * [pt-BR] Dados de entrada do IPI (Imposto sobre Produtos Industrializados).
+ */
 export interface IpiData {
-  /** CST code as 2-digit string (e.g. "00", "50", "99", "01") */
+  /** CST code as 2-digit string (e.g. "00", "50", "99", "01") / [pt-BR] Código CST como string de 2 dígitos */
   CST: string;
-  /** Codigo de enquadramento legal do IPI */
+  /** IPI legal classification code / [pt-BR] Código de enquadramento legal do IPI */
   cEnq: string;
-  /** CNPJ do produtor (optional) */
+  /** Producer CNPJ (optional) / [pt-BR] CNPJ do produtor (opcional) */
   CNPJProd?: string;
-  /** Codigo do selo de controle (optional) */
+  /** Control seal code (optional) / [pt-BR] Código do selo de controle (opcional) */
   cSelo?: string;
-  /** Quantidade de selo de controle (optional) */
+  /** Control seal quantity (optional) / [pt-BR] Quantidade de selo de controle (opcional) */
   qSelo?: number;
-  /** Base de calculo in cents */
+  /** Tax base in cents / [pt-BR] Base de cálculo em centavos */
   vBC?: number;
-  /** Aliquota IPI — rate * 10000 (4 decimal places) */
+  /** IPI rate -- rate * 10000 (4dp) / [pt-BR] Alíquota IPI -- taxa * 10000 (4dp) */
   pIPI?: number;
-  /** Quantidade na unidade padrao — qty * 10000 (4 decimal places) */
+  /** Standard unit quantity -- qty * 10000 (4dp) / [pt-BR] Quantidade na unidade padrão -- qtd * 10000 (4dp) */
   qUnid?: number;
-  /** Valor por unidade tributavel — value * 10000 (4 decimal places) */
+  /** Value per taxable unit -- value * 10000 (4dp) / [pt-BR] Valor por unidade tributável -- valor * 10000 (4dp) */
   vUnid?: number;
-  /** Valor do IPI in cents */
+  /** IPI value in cents / [pt-BR] Valor do IPI em centavos */
   vIPI?: number;
 }
 
+/**
+ * II (Imposto de Importacao) input data.
+ *
+ * [pt-BR] Dados de entrada do II (Imposto de Importação).
+ */
 export interface IiData {
-  /** Base de calculo in cents */
+  /** Tax base in cents / [pt-BR] Base de cálculo em centavos */
   vBC: number;
-  /** Valor despesas aduaneiras in cents */
+  /** Customs expenses in cents / [pt-BR] Despesas aduaneiras em centavos */
   vDespAdu: number;
-  /** Valor do imposto de importacao in cents */
+  /** Import tax value in cents / [pt-BR] Valor do imposto de importação em centavos */
   vII: number;
-  /** Valor do IOF in cents */
+  /** IOF value in cents / [pt-BR] Valor do IOF em centavos */
   vIOF: number;
 }
 
@@ -249,6 +270,11 @@ function calculateContributionTaxSt(
 
 // ── PIS (public API) ───────────────────────────────────────────────────────
 
+/**
+ * Calculate PIS tax element (domain logic, no XML).
+ *
+ * [pt-BR] Calcula o elemento PIS (lógica de domínio, sem XML).
+ */
 export function calculatePis(data: PisData): TaxElement {
   return calculateContributionTax(
     { CST: data.CST, vBC: data.vBC, rate: data.pPIS, value: data.vPIS, qBCProd: data.qBCProd, vAliqProd: data.vAliqProd },
@@ -256,10 +282,20 @@ export function calculatePis(data: PisData): TaxElement {
   );
 }
 
+/**
+ * Build PIS XML string (backward-compatible wrapper).
+ *
+ * [pt-BR] Gera a string XML do PIS (wrapper compatível).
+ */
 export function buildPisXml(data: PisData): string {
   return serializeTaxElement(calculatePis(data));
 }
 
+/**
+ * Calculate PIS-ST tax element (domain logic, no XML).
+ *
+ * [pt-BR] Calcula o elemento PIS-ST (lógica de domínio, sem XML).
+ */
 export function calculatePisSt(data: PisStData): TaxElement {
   return calculateContributionTaxSt(
     { vBC: data.vBC, rate: data.pPIS, value: data.vPIS, qBCProd: data.qBCProd, vAliqProd: data.vAliqProd, stIndicator: data.indSomaPISST },
@@ -267,12 +303,22 @@ export function calculatePisSt(data: PisStData): TaxElement {
   );
 }
 
+/**
+ * Build PIS-ST XML string (backward-compatible wrapper).
+ *
+ * [pt-BR] Gera a string XML do PIS-ST (wrapper compatível).
+ */
 export function buildPisStXml(data: PisStData): string {
   return serializeTaxElement(calculatePisSt(data));
 }
 
 // ── COFINS (public API) ────────────────────────────────────────────────────
 
+/**
+ * Calculate COFINS tax element (domain logic, no XML).
+ *
+ * [pt-BR] Calcula o elemento COFINS (lógica de domínio, sem XML).
+ */
 export function calculateCofins(data: CofinsData): TaxElement {
   return calculateContributionTax(
     { CST: data.CST, vBC: data.vBC, rate: data.pCOFINS, value: data.vCOFINS, qBCProd: data.qBCProd, vAliqProd: data.vAliqProd },
@@ -280,10 +326,20 @@ export function calculateCofins(data: CofinsData): TaxElement {
   );
 }
 
+/**
+ * Build COFINS XML string (backward-compatible wrapper).
+ *
+ * [pt-BR] Gera a string XML da COFINS (wrapper compatível).
+ */
 export function buildCofinsXml(data: CofinsData): string {
   return serializeTaxElement(calculateCofins(data));
 }
 
+/**
+ * Calculate COFINS-ST tax element (domain logic, no XML).
+ *
+ * [pt-BR] Calcula o elemento COFINS-ST (lógica de domínio, sem XML).
+ */
 export function calculateCofinsSt(data: CofinsStData): TaxElement {
   return calculateContributionTaxSt(
     { vBC: data.vBC, rate: data.pCOFINS, value: data.vCOFINS, qBCProd: data.qBCProd, vAliqProd: data.vAliqProd, stIndicator: data.indSomaCOFINSST },
@@ -291,12 +347,22 @@ export function calculateCofinsSt(data: CofinsStData): TaxElement {
   );
 }
 
+/**
+ * Build COFINS-ST XML string (backward-compatible wrapper).
+ *
+ * [pt-BR] Gera a string XML da COFINS-ST (wrapper compatível).
+ */
 export function buildCofinsStXml(data: CofinsStData): string {
   return serializeTaxElement(calculateCofinsSt(data));
 }
 
 // ── IPI ─────────────────────────────────────────────────────────────────────
 
+/**
+ * Calculate IPI tax element (domain logic, no XML).
+ *
+ * [pt-BR] Calcula o elemento IPI (lógica de domínio, sem XML).
+ */
 export function calculateIpi(data: IpiData): TaxElement {
   const outerFields: TaxField[] = [];
 
@@ -329,12 +395,22 @@ export function calculateIpi(data: IpiData): TaxElement {
   return { outerTag: "IPI", outerFields, variantTag, fields };
 }
 
+/**
+ * Build IPI XML string (backward-compatible wrapper).
+ *
+ * [pt-BR] Gera a string XML do IPI (wrapper compatível).
+ */
 export function buildIpiXml(data: IpiData): string {
   return serializeTaxElement(calculateIpi(data));
 }
 
 // ── II (Imposto de Importacao) ──────────────────────────────────────────────
 
+/**
+ * Calculate II (import tax) element (domain logic, no XML).
+ *
+ * [pt-BR] Calcula o elemento II (Imposto de Importação) (lógica de domínio, sem XML).
+ */
 export function calculateIi(data: IiData): TaxElement {
   return {
     outerTag: null,
@@ -349,6 +425,11 @@ export function calculateIi(data: IiData): TaxElement {
   };
 }
 
+/**
+ * Build II (import tax) XML string (backward-compatible wrapper).
+ *
+ * [pt-BR] Gera a string XML do II (Imposto de Importação) (wrapper compatível).
+ */
 export function buildIiXml(data: IiData): string {
   return serializeTaxElement(calculateIi(data));
 }

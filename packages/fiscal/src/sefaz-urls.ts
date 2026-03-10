@@ -1,19 +1,32 @@
 import type { SefazEnvironment, SefazService, InvoiceModel } from "./types";
 
+/**
+ * Production and homologation URLs for a SEFAZ service
+ *
+ * [pt-BR] URLs de producao e homologacao para um servico da SEFAZ
+ */
 interface ServiceUrls {
+  /** Production environment URL [pt-BR] URL do ambiente de producao */
   production: string;
+  /** Homologation environment URL [pt-BR] URL do ambiente de homologacao */
   homologation: string;
 }
 
+/**
+ * Map of all SEFAZ services to their production/homologation URLs for a given authorizer
+ *
+ * [pt-BR] Mapa de todos os servicos SEFAZ para suas URLs de producao/homologacao de um autorizador
+ */
 type AuthorizerServices = Record<SefazService, ServiceUrls>;
 
 /**
  * SEFAZ authorizer URLs for NF-e and NFC-e web services (layout 4.00).
- *
  * States either have their own authorizer or use SVRS (Sefaz Virtual do RS).
  * Contingency uses SVC-AN or SVC-RS depending on the state.
- *
  * Source: https://www.nfe.fazenda.gov.br/portal/webServices.aspx
+ *
+ * [pt-BR] URLs dos autorizadores SEFAZ para web services de NF-e e NFC-e (layout 4.00).
+ * Estados possuem autorizador proprio ou usam SVRS. Contingencia usa SVC-AN ou SVC-RS.
  */
 
 // ── Own authorizers ─────────────────────────────────────────────────────────
@@ -498,6 +511,8 @@ const STATE_NFCE_AUTHORIZER: Record<string, AuthorizerServices> = {
 
 /**
  * Get the SEFAZ web service URL for a given state, service, environment and model.
+ *
+ * [pt-BR] Obtem a URL do web service da SEFAZ para o estado, servico, ambiente e modelo informados.
  */
 export function getSefazUrl(
   stateCode: string,
@@ -530,6 +545,8 @@ export function getSefazUrl(
 
 /**
  * Get the contingency type for a given state.
+ *
+ * [pt-BR] Obtem o tipo de contingencia (SVC-AN ou SVC-RS) para o estado informado.
  */
 export function getContingencyType(stateCode: string): "svc-an" | "svc-rs" {
   const contingencyMap = STATE_CONTINGENCY[stateCode];
@@ -605,6 +622,9 @@ const NFCE_CONSULTATION_URIS: Record<string, Record<string, string>> = {
 /**
  * Get the NFC-e consultation URI (urlChave) for a given state and environment.
  * Used for QR Code and DANFCE consultation links.
+ *
+ * [pt-BR] Obtem a URI de consulta NFC-e (urlChave) para o estado e ambiente informados.
+ * Usada para links de QR Code e consulta do DANFCE.
  */
 export function getNfceConsultationUri(
   stateCode: string,

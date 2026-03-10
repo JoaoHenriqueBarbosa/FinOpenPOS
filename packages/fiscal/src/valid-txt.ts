@@ -1,17 +1,26 @@
 /**
- * TXT validation for NFe
+ * TXT validation for NFe.
+ *
+ * [pt-BR] Validacao de TXT para NFe.
+ *
  * Ported from PHP: NFePHP\NFe\Common\ValidTXT
  */
 
 import { getStructure } from "./txt-structures";
 
+/** Standard LOCAL layout / [pt-BR] Layout LOCAL padrao */
 export const LAYOUT_LOCAL = "LOCAL";
+/** LOCAL v1.2 layout / [pt-BR] Layout LOCAL v1.2 */
 export const LAYOUT_LOCAL_V12 = "LOCAL_V12";
+/** LOCAL v1.3 layout / [pt-BR] Layout LOCAL v1.3 */
 export const LAYOUT_LOCAL_V13 = "LOCAL_V13";
+/** SEBRAE layout / [pt-BR] Layout SEBRAE */
 export const LAYOUT_SEBRAE = "SEBRAE";
 
 /**
  * Load the TXT structure definition for the given version and layout.
+ *
+ * [pt-BR] Carrega a definicao de estrutura TXT para a versao e layout informados.
  */
 export function loadStructure(
   version: number = 4.0,
@@ -23,6 +32,9 @@ export function loadStructure(
 /**
  * Validate a TXT representation of an NFe.
  * Returns an empty array if valid, or an array of error strings if invalid.
+ *
+ * [pt-BR] Valida uma representacao TXT de NFe.
+ * Retorna array vazio se valido, ou array de strings de erro se invalido.
  */
 export function isValidTxt(
   txt: string,
