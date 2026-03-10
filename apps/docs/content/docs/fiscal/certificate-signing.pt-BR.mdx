@@ -1,19 +1,19 @@
 ---
 title: Certificado e Assinatura XML
-description: Notas fiscais eletronicas brasileiras exigem assinatura digital com certificado A1 e-CNPJ em formato PFX. Este modulo trata a extracao PFX via openssl, exibicao de informacoes do certificado e assinatura digital XML conforme a especificacao NF-e MOC 4.00.
+description: Notas fiscais eletrônicas brasileiras exigem assinatura digital com certificado A1 e-CNPJ em formato PFX. Este módulo trata a extração PFX via openssl, exibição de informações do certificado e assinatura digital XML conforme a especificação NF-e MOC 4.00.
 ---
 
-## Visao Geral
+## Visão Geral
 
-Notas fiscais eletronicas brasileiras exigem assinatura digital com certificado A1 e-CNPJ (formato PFX/PKCS#12). O modulo trata a extracao PFX, exibicao de informacoes do certificado e assinatura digital XML seguindo a especificacao NF-e MOC 4.00.
+Notas fiscais eletrônicas brasileiras exigem assinatura digital com certificado A1 e-CNPJ (formato PFX/PKCS#12). O módulo trata a extração PFX, exibição de informações do certificado e assinatura digital XML seguindo a especificação NF-e MOC 4.00.
 
-**Arquivos**: `certificate.ts`, `sefaz-transport.ts` (reutiliza a extracao de certificado)
+**Arquivos**: `certificate.ts`, `sefaz-transport.ts` (reutiliza a extração de certificado)
 
 ## Tratamento PFX
 
 ### Por que openssl?
 
-O crypto nativo do Bun nao consegue parsear arquivos PKCS#12 (PFX) — o modulo `pkcs12` nao esta implementado. A solucao alternativa usa o CLI `openssl` via `child_process`:
+O crypto nativo do Bun não consegue parsear arquivos PKCS#12 (PFX) — o módulo `pkcs12` não está implementado. A solução alternativa usa o CLI `openssl` via `child_process`:
 
 ```bash
 # Extract certificate (PEM)
@@ -23,7 +23,7 @@ openssl pkcs12 -in cert.pfx -clcerts -nokeys -passin pass:xxx -legacy
 openssl pkcs12 -in cert.pfx -nocerts -nodes -passin pass:xxx -legacy
 ```
 
-A flag `-legacy` e necessaria para arquivos PFX antigos que usam criptografia legada (RC2-40).
+A flag `-legacy` é necessária para arquivos PFX antigos que usam criptografia legada (RC2-40).
 
 ### extractCertFromPfx / extractKeyFromPfx
 
@@ -33,13 +33,13 @@ export function extractKeyFromPfx(pfxBuffer: Buffer, passphrase: string): string
 ```
 
 Ambas:
-1. Gravam o buffer PFX em um arquivo temporario
+1. Gravam o buffer PFX em um arquivo temporário
 2. Executam `openssl pkcs12` para extrair o PEM
-3. Parseiam a saida com regex para isolar o bloco PEM (`-----BEGIN CERTIFICATE-----...-----END CERTIFICATE-----`)
-4. Limpam o arquivo temporario no `finally`
-5. Lancam erro se o bloco PEM nao for encontrado
+3. Parseiam a saída com regex para isolar o bloco PEM (`-----BEGIN CERTIFICATE-----...-----END CERTIFICATE-----`)
+4. Limpam o arquivo temporário no `finally`
+5. Lançam erro se o bloco PEM não for encontrado
 
-Essas funcoes sao exportadas e compartilhadas com `sefaz-transport.ts` (que precisa dos arquivos PEM para mTLS com curl).
+Essas funções são exportadas e compartilhadas com `sefaz-transport.ts` (que precisa dos arquivos PEM para mTLS com curl).
 
 ### loadCertificate
 
@@ -47,7 +47,7 @@ Essas funcoes sao exportadas e compartilhadas com `sefaz-transport.ts` (que prec
 export function loadCertificate(pfx: Buffer, passphrase: string): CertificateData
 ```
 
-Retorna `{ privateKey, certificate, pfxBuffer, passphrase }` — as strings PEM necessarias para assinatura e o PFX bruto para armazenamento.
+Retorna `{ privateKey, certificate, pfxBuffer, passphrase }` — as strings PEM necessárias para assinatura e o PFX bruto para armazenamento.
 
 ### getCertificateInfo
 
@@ -55,13 +55,13 @@ Retorna `{ privateKey, certificate, pfxBuffer, passphrase }` — as strings PEM 
 export function getCertificateInfo(pfx: Buffer, passphrase: string): CertificateInfo
 ```
 
-Extrai detalhes legiveis do certificado para a UI de configuracoes:
+Extrai detalhes legíveis do certificado para a UI de configurações:
 - `commonName` — nome da empresa no certificado
 - `validFrom`, `validUntil` — datas de validade
-- `serialNumber` — numero serial do certificado
+- `serialNumber` — número serial do certificado
 - `issuer` — nome da AC (Autoridade Certificadora)
 
-Usa `node:crypto.X509Certificate` (disponivel no Bun).
+Usa `node:crypto.X509Certificate` (disponível no Bun).
 
 ## Assinatura XML
 
@@ -71,20 +71,20 @@ Usa `node:crypto.X509Certificate` (disponivel no Bun).
 export function signXml(xml: string, privateKeyPem: string, certificatePem: string): string
 ```
 
-Assina um documento XML de NF-e conforme a especificacao de assinatura MOC 4.00:
+Assina um documento XML de NF-e conforme a especificação de assinatura MOC 4.00:
 
-1. **Referencia**: O elemento `<infNFe Id="NFe...">` e a referencia assinada
-2. **Canonicalizacao**: C14N exclusiva (`http://www.w3.org/2001/10/xml-exc-c14n#`)
-3. **Transformacoes**:
+1. **Referência**: O elemento `<infNFe Id="NFe...">` é a referência assinada
+2. **Canonicalização**: C14N exclusiva (`http://www.w3.org/2001/10/xml-exc-c14n#`)
+3. **Transformações**:
    - Assinatura envelopada (remove `<Signature>` antes do hash)
    - C14N exclusiva
 4. **Digest**: SHA-1 (`http://www.w3.org/2000/09/xmldsig#sha1`)
 5. **Algoritmo de assinatura**: RSA-SHA1 (`http://www.w3.org/2000/09/xmldsig#rsa-sha1`)
-6. **KeyInfo**: Contem `<X509Data><X509Certificate>` com certificado Base64 (sem cabecalhos)
+6. **KeyInfo**: Contém `<X509Data><X509Certificate>` com certificado Base64 (sem cabeçalhos)
 
 ### Posicionamento da assinatura
 
-O elemento `<Signature>` e inserido dentro de `<NFe>`, apos `<infNFe>`:
+O elemento `<Signature>` é inserido dentro de `<NFe>`, após `<infNFe>`:
 
 ```xml
 <NFe xmlns="http://www.portalfiscal.inf.br/nfe">
@@ -113,11 +113,11 @@ O elemento `<Signature>` e inserido dentro de `<NFe>`, apos `<infNFe>`:
 
 ### Biblioteca
 
-Usa [xml-crypto](https://github.com/node-saml/xml-crypto) para a operacao de assinatura propriamente dita. A biblioteca trata canonicalizacao, hashing e computacao da assinatura.
+Usa [xml-crypto](https://github.com/node-saml/xml-crypto) para a operação de assinatura propriamente dita. A biblioteca trata canonicalização, hashing e computação da assinatura.
 
-## Notas de seguranca
+## Notas de segurança
 
-- Senhas PFX sao armazenadas criptografadas no banco de dados (campo `certificate_password`)
-- Arquivos temporarios sao sempre limpos em blocos `finally`
-- Chaves privadas PEM nunca sao persistidas em disco alem da operacao de assinatura
-- A expiracao do certificado e rastreada em `certificate_valid_until` para alertas na UI
+- Senhas PFX são armazenadas criptografadas no banco de dados (campo `certificate_password`)
+- Arquivos temporários são sempre limpos em blocos `finally`
+- Chaves privadas PEM nunca são persistidas em disco além da operação de assinatura
+- A expiração do certificado é rastreada em `certificate_valid_until` para alertas na UI
