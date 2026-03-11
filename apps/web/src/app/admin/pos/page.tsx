@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@finopenpos/ui/components/card";
 import {
   Table,
@@ -12,9 +12,8 @@ import {
 } from "@finopenpos/ui/components/table";
 import { Combobox } from "@finopenpos/ui/components/combobox";
 import { Button } from "@finopenpos/ui/components/button";
-import { Input } from "@finopenpos/ui/components/input";
 import { Badge } from "@finopenpos/ui/components/badge";
-import { Loader2Icon, MinusIcon, PlusIcon, SearchIcon, Trash2Icon, ReceiptTextIcon } from "lucide-react";
+import { Loader2Icon, MinusIcon, PlusIcon, Trash2Icon, ReceiptTextIcon } from "lucide-react";
 import { Skeleton } from "@finopenpos/ui/components/skeleton";
 import { toast } from "sonner";
 import { useTRPC } from "@/lib/trpc/client";
@@ -54,18 +53,9 @@ export default function POSPage() {
   const [selectedProducts, setSelectedProducts] = useState<POSProduct[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<{ id: number; name: string } | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<{ id: number; name: string } | null>(null);
-  const [productSearch, setProductSearch] = useState("");
   const [emitNfce, setEmitNfce] = useState(false);
 
-  const filteredProducts = useMemo(() => {
-    if (!productSearch.trim()) return products;
-    const q = productSearch.toLowerCase();
-    return products.filter(
-      (p) => p.name.toLowerCase().includes(q) || (p.category ?? "").toLowerCase().includes(q)
-    );
-  }, [products, productSearch]);
-
-  const handleSelectProduct = (productId: number | string) => {
+  const handleSelectProduct = (productId: number | string, quantity = 1) => {
     const product = products.find((p) => p.id === productId);
     if (!product) return;
     if (product.in_stock <= 0) {
@@ -73,19 +63,29 @@ export default function POSPage() {
       return;
     }
     const existing = selectedProducts.find((p) => p.id === productId);
-    if (existing && existing.quantity >= product.in_stock) {
+    const currentQty = existing?.quantity ?? 0;
+    if (currentQty + quantity > product.in_stock) {
       toast.error(t("limitedStock", { count: product.in_stock, name: product.name }));
       return;
     }
     if (existing) {
       setSelectedProducts(
         selectedProducts.map((p) =>
-          p.id === productId ? { ...p, quantity: p.quantity + 1 } : p
+          p.id === productId ? { ...p, quantity: p.quantity + quantity } : p
         )
       );
     } else {
-      setSelectedProducts([...selectedProducts, { id: product.id, name: product.name, price: product.price, in_stock: product.in_stock, category: product.category ?? "", quantity: 1 }]);
+      setSelectedProducts([...selectedProducts, { id: product.id, name: product.name, price: product.price, in_stock: product.in_stock, category: product.category ?? "", quantity }]);
     }
+  };
+
+  const handleScannerInput = (code: string, quantity: number) => {
+    const product = products.find((p) => p.barcode === code);
+    if (!product) {
+      toast.error(t("productNotFound", { code }));
+      return;
+    }
+    handleSelectProduct(product.id, quantity);
   };
 
   const handleSelectCustomer = (customerId: number | string) => {
@@ -194,24 +194,16 @@ export default function POSPage() {
         <CardHeader>
           <CardTitle>{t("products")}</CardTitle>
           <div className="flex flex-col sm:flex-row gap-3 !mt-4">
-            <div className="relative flex-1">
-              <SearchIcon className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="text"
-                placeholder={t("searchPlaceholder")}
-                value={productSearch}
-                onChange={(e) => setProductSearch(e.target.value)}
-                className="pl-8"
-              />
-            </div>
             <Combobox
-              items={filteredProducts.map((p) => ({
+              items={products.map((p) => ({
                 id: p.id,
                 name: `${p.name} — ${formatCurrency(p.price, locale)} (${p.in_stock} in stock)`,
+                searchValue: `${p.name} ${p.barcode ?? ""}`.trim(),
               }))}
               placeholder={t("addProduct")}
               noSelect
               onSelect={handleSelectProduct}
+              onScannerInput={handleScannerInput}
             />
           </div>
         </CardHeader>

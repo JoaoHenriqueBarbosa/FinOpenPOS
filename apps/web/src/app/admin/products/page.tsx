@@ -55,6 +55,7 @@ export default function Products() {
     pis_cst: z.string(),
     cofins_cst: z.string(),
     unit_of_measure: z.string(),
+    barcode: z.string(),
   });
 
   const categoryFilterOptions: FilterOption[] = [
@@ -126,7 +127,7 @@ export default function Products() {
   });
 
   const form = useForm({
-    defaultValues: { name: "", description: "", price: 0, in_stock: 0, category: "", ncm: "", cfop: "", icms_cst: "", pis_cst: "", cofins_cst: "", unit_of_measure: "" },
+    defaultValues: { name: "", description: "", price: 0, in_stock: 0, category: "", ncm: "", cfop: "", icms_cst: "", pis_cst: "", cofins_cst: "", unit_of_measure: "", barcode: "" },
     validators: {
       onSubmit: productFormSchema,
     },
@@ -143,6 +144,7 @@ export default function Products() {
         pis_cst: value.pis_cst || undefined,
         cofins_cst: value.cofins_cst || undefined,
         unit_of_measure: value.unit_of_measure || undefined,
+        barcode: value.barcode || undefined,
       };
       if (isEditing) {
         updateMutation.mutate({ id: editingId, ...payload });
@@ -181,6 +183,7 @@ export default function Products() {
     form.setFieldValue("pis_cst", p.pis_cst ?? "");
     form.setFieldValue("cofins_cst", p.cofins_cst ?? "");
     form.setFieldValue("unit_of_measure", p.unit_of_measure ?? "");
+    form.setFieldValue("barcode", p.barcode ?? "");
     setIsDialogOpen(true);
   };
 
@@ -331,6 +334,14 @@ export default function Products() {
                         <SelectItem value="home">{t("home")}</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+                )}
+              </form.Field>
+              <form.Field name="barcode">
+                {(field) => (
+                  <div className="flex flex-col sm:grid sm:grid-cols-4 sm:items-center gap-2 sm:gap-4">
+                    <Label htmlFor="barcode" className="sm:text-right">{t("barcode")}</Label>
+                    <Input id="barcode" value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} className="col-span-3" placeholder="EAN13, EAN8, Code128..." />
                   </div>
                 )}
               </form.Field>

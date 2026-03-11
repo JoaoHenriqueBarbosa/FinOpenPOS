@@ -44,6 +44,7 @@ export const products = pgTable("products", {
   pis_cst: varchar("pis_cst", { length: 2 }),
   cofins_cst: varchar("cofins_cst", { length: 2 }),
   unit_of_measure: varchar("unit_of_measure", { length: 6 }).default("UN"),
+  barcode: varchar("barcode", { length: 50 }),
   created_at: timestamp("created_at").defaultNow(),
 });
 

@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Documentação de Implementação — FinOpenPOS</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      line-height: 1.7;
+      padding: 2rem 1rem;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    header {
+      border-bottom: 1px solid #2d3748;
+      padding-bottom: 2rem;
+      margin-bottom: 3rem;
+    }
+
+    header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #f7fafc;
+      margin-bottom: 0.5rem;
+    }
+
+    header p {
+      color: #718096;
+      font-size: 0.95rem;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 0.2rem 0.65rem;
+      border-radius: 9999px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .badge-feature  { background: #1a365d; color: #63b3ed; }
+    .badge-schema   { background: #1c3a2e; color: #68d391; }
+    .badge-ui       { background: #2d1f3d; color: #b794f4; }
+    .badge-logic    { background: #3d2a00; color: #f6ad55; }
+
+    .feature {
+      background: #1a202c;
+      border: 1px solid #2d3748;
+      border-radius: 12px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+    }
+
+    .feature-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .feature-icon {
+      font-size: 2rem;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+
+    .feature-title {
+      flex: 1;
+    }
+
+    .feature-title h2 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #f7fafc;
+      margin-bottom: 0.4rem;
+    }
+
+    .feature-title .badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+
+    .feature p {
+      color: #a0aec0;
+      margin-bottom: 1rem;
+    }
+
+    .section-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #4a5568;
+      margin-bottom: 0.6rem;
+      margin-top: 1.4rem;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    ul li {
+      position: relative;
+      padding-left: 1.4rem;
+      color: #a0aec0;
+      margin-bottom: 0.4rem;
+      font-size: 0.95rem;
+    }
+
+    ul li::before {
+      content: "→";
+      position: absolute;
+      left: 0;
+      color: #4a5568;
+    }
+
+    ul li strong {
+      color: #e2e8f0;
+    }
+
+    code {
+      font-family: "Fira Code", "Cascadia Code", Consolas, monospace;
+      font-size: 0.85em;
+      background: #2d3748;
+      color: #f6ad55;
+      padding: 0.15em 0.45em;
+      border-radius: 4px;
+    }
+
+    .code-block {
+      background: #171e2e;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      margin: 1rem 0;
+      overflow-x: auto;
+    }
+
+    .code-block pre {
+      font-family: "Fira Code", "Cascadia Code", Consolas, monospace;
+      font-size: 0.85rem;
+      color: #e2e8f0;
+      white-space: pre;
+    }
+
+    .code-block .kw  { color: #b794f4; }
+    .code-block .fn  { color: #63b3ed; }
+    .code-block .str { color: #68d391; }
+    .code-block .cm  { color: #4a5568; font-style: italic; }
+    .code-block .nb  { color: #f6ad55; }
+
+    .files-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+      font-size: 0.9rem;
+    }
+
+    .files-table th {
+      text-align: left;
+      padding: 0.6rem 1rem;
+      background: #171e2e;
+      color: #718096;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 600;
+    }
+
+    .files-table td {
+      padding: 0.65rem 1rem;
+      border-top: 1px solid #2d3748;
+      color: #a0aec0;
+      vertical-align: top;
+    }
+
+    .files-table td:first-child {
+      color: #63b3ed;
+      font-family: "Fira Code", Consolas, monospace;
+      font-size: 0.82rem;
+      white-space: nowrap;
+    }
+
+    .flow-box {
+      background: #171e2e;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      margin-top: 1rem;
+      font-family: "Fira Code", Consolas, monospace;
+      font-size: 0.82rem;
+      color: #a0aec0;
+      white-space: pre;
+      overflow-x: auto;
+      line-height: 1.9;
+    }
+
+    .flow-box .highlight { color: #68d391; }
+    .flow-box .dim       { color: #4a5568; }
+    .flow-box .accent    { color: #f6ad55; }
+
+    footer {
+      margin-top: 4rem;
+      padding-top: 2rem;
+      border-top: 1px solid #2d3748;
+      color: #4a5568;
+      font-size: 0.85rem;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>FinOpenPOS — Documentação de Implementação</h1>
+    <p>Funcionalidades implementadas: campo de código de barras, busca híbrida no POS e multiplicador de produto.</p>
+  </header>
+
+  <!-- FEATURE 1 -->
+  <div class="feature">
+    <div class="feature-header">
+      <div class="feature-icon">🏷️</div>
+      <div class="feature-title">
+        <h2>Campo de Código de Barras no Cadastro de Produtos</h2>
+        <div class="badges">
+          <span class="badge badge-schema">Schema / DB</span>
+          <span class="badge badge-logic">tRPC Router</span>
+          <span class="badge badge-ui">UI / Formulário</span>
+        </div>
+      </div>
+    </div>
+
+    <p>
+      Adição de um campo opcional <code>barcode</code> ao cadastro de produtos,
+      persistido no banco de dados e exposto via API tRPC. O campo aceita
+      formatos como EAN-13, EAN-8 e Code 128.
+    </p>
+
+    <div class="section-label">Alterações por camada</div>
+    <table class="files-table">
+      <thead>
+        <tr>
+          <th>Arquivo</th>
+          <th>O que foi alterado</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>packages/db/src/schema.ts</td>
+          <td>Coluna <code>barcode varchar(50)</code> adicionada à tabela <code>products</code>, nullable e sem valor padrão.</td>
+        </tr>
+        <tr>
+          <td>apps/web/src/lib/trpc/routers/products.ts</td>
+          <td><code>barcode: z.string().nullable()</code> adicionado ao <code>productSchema</code> de saída; <code>barcode: z.string().max(50).optional()</code> adicionado aos inputs de <code>create</code> e <code>update</code>.</td>
+        </tr>
+        <tr>
+          <td>apps/web/src/app/admin/products/page.tsx</td>
+          <td>Campo <code>barcode</code> adicionado ao schema Zod do formulário, aos <code>defaultValues</code>, ao payload de submit, ao <code>openEdit</code> e ao JSX do dialog — com placeholder <code>EAN13, EAN8, Code128...</code>.</td>
+        </tr>
+        <tr>
+          <td>apps/web/src/messages/en.ts<br/>apps/web/src/messages/pt-BR.ts</td>
+          <td>Chave <code>barcode</code> adicionada à seção <code>products</code>: <em>"Barcode"</em> / <em>"Código de Barras"</em>.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="section-label">Características</div>
+    <ul>
+      <li>Campo <strong>opcional</strong> — produtos existentes não são afetados</li>
+      <li>Limite de <strong>50 caracteres</strong> (cobre EAN-13, Code 128 e similares)</li>
+      <li>Renderizado abaixo do campo <em>Category</em> e acima da seção <em>Fiscal Data</em></li>
+      <li>Schema migrado automaticamente via <code>drizzle-kit push</code> na inicialização do servidor</li>
+    </ul>
+  </div>
+
+  <!-- FEATURE 2 -->
+  <div class="feature">
+    <div class="feature-header">
+      <div class="feature-icon">🔍</div>
+      <div class="feature-title">
+        <h2>Busca Híbrida no Campo "Add Product" — Tela POS</h2>
+        <div class="badges">
+          <span class="badge badge-ui">Combobox</span>
+          <span class="badge badge-logic">cmdk filter</span>
+          <span class="badge badge-feature">POS Page</span>
+        </div>
+      </div>
+    </div>
+
+    <p>
+      O campo <em>Add Product</em> na tela POS passou a suportar busca por
+      <strong>nome</strong> e por <strong>código de barras</strong> simultaneamente,
+      usando um filtro customizado no componente <code>cmdk</code>.
+    </p>
+
+    <div class="section-label">Como funciona</div>
+    <ul>
+      <li>Cada item do Combobox recebe uma prop <code>searchValue</code> contendo <code>"nome barcode"</code></li>
+      <li>A prop <code>filter</code> do <code>Command</code> (cmdk) substitui a busca fuzzy padrão por uma busca <strong>substring case-insensitive</strong> sobre <code>searchValue</code></li>
+      <li>O texto exibido na lista continua sendo o <code>name</code> completo com preço e estoque</li>
+      <li>A separação entre dado de <em>display</em> e dado de <em>busca</em> é feita via <code>value={item.searchValue}</code> no <code>CommandItem</code> vs <code>{item.name}</code> no corpo do item</li>
+    </ul>
+
+    <div class="section-label">Alterações por arquivo</div>
+    <table class="files-table">
+      <thead>
+        <tr><th>Arquivo</th><th>Alteração</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>packages/ui/src/components/combobox.tsx</td>
+          <td>Interface <code>ComboboxItem</code> ganhou prop opcional <code>searchValue?: string</code>; <code>Command</code> recebe <code>filter={customFilter}</code>; <code>CommandItem</code> usa <code>value={item.searchValue ?? item.name}</code>.</td>
+        </tr>
+        <tr>
+          <td>apps/web/src/app/admin/pos/page.tsx</td>
+          <td>Items do Combobox de produtos passam <code>searchValue: `${p.name} ${p.barcode ?? ""}`.trim()</code>.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="section-label">Compatibilidade retroativa</div>
+    <ul>
+      <li>Comboboxes de <em>customers</em> e <em>payment methods</em> não passam <code>searchValue</code> — a lógica cai para <code>item.name</code> (comportamento idêntico ao anterior)</li>
+      <li>O filtro customizado é aplicado apenas quando <code>onScannerInput</code> está presente (indicador de modo POS)</li>
+    </ul>
+  </div>
+
+  <!-- FEATURE 3 -->
+  <div class="feature">
+    <div class="feature-header">
+      <div class="feature-icon">⚡</div>
+      <div class="feature-title">
+        <h2>Detecção de Scanner via Timestamp</h2>
+        <div class="badges">
+          <span class="badge badge-ui">Combobox</span>
+          <span class="badge badge-logic">onKeyDown / timing</span>
+          <span class="badge badge-feature">POS Page</span>
+        </div>
+      </div>
+    </div>
+
+    <p>
+      Leitores de código de barras emitem caracteres em rajada com intervalo
+      muito curto entre teclas (&lt; 30 ms) e finalizam com <code>Enter</code>.
+      A detecção utiliza essa característica para diferenciar entrada de scanner
+      de digitação manual sem necessidade de hardware especial ou APIs adicionais.
+    </p>
+
+    <div class="section-label">Algoritmo de detecção</div>
+    <div class="code-block"><pre>
+<span class="cm">// Refs persistem entre renders sem causar re-render</span>
+<span class="kw">const</span> lastKeyTimeRef = useRef&lt;<span class="nb">number</span>&gt;(<span class="nb">0</span>);
+<span class="kw">const</span> intervalsRef   = useRef&lt;<span class="nb">number</span>[]&gt;([]);
+
+<span class="cm">// A cada tecla que NÃO é Enter:</span>
+<span class="kw">const</span> interval = Date.now() - lastKeyTimeRef.current;
+intervalsRef.current.push(interval);   <span class="cm">// acumula até 30 amostras</span>
+
+<span class="cm">// Quando Enter é pressionado:</span>
+<span class="kw">const</span> avg = intervals.reduce((a, b) => a + b, <span class="nb">0</span>) / intervals.length;
+
+<span class="kw">if</span> (avg &lt; <span class="nb">50</span> &amp;&amp; code.length &gt;= <span class="nb">4</span> &amp;&amp; intervals.length &gt;= <span class="nb">2</span>) {
+  <span class="cm">// É um scanner → dispara onScannerInput e limpa o campo</span>
+  onScannerInput(code, quantity);
+}
+<span class="cm">// Caso contrário → Enter normal (cmdk seleciona o item em foco)</span>
+    </pre></div>
+
+    <div class="section-label">Parâmetros de detecção</div>
+    <ul>
+      <li><strong>SCANNER_MAX_INTERVAL_MS = 50</strong> — intervalo médio máximo entre teclas para ser considerado scanner</li>
+      <li><strong>SCANNER_MIN_LENGTH = 4</strong> — comprimento mínimo do código (evita falsos positivos com teclas soltas)</li>
+      <li>Mínimo de <strong>2 amostras</strong> de intervalo coletadas antes de avaliar</li>
+      <li>Refs são reiniciadas ao fechar o popover e após cada detecção</li>
+    </ul>
+
+    <div class="section-label">Resolução no POS</div>
+    <ul>
+      <li>O <code>handleScannerInput</code> busca em <code>products</code> pelo campo <code>barcode</code> com match <strong>exato</strong></li>
+      <li>Se encontrado → chama <code>handleSelectProduct(product.id, quantity)</code></li>
+      <li>Se não encontrado → exibe <code>toast.error</code> com o código lido</li>
+    </ul>
+  </div>
+
+  <!-- FEATURE 4 -->
+  <div class="feature">
+    <div class="feature-header">
+      <div class="feature-icon">✖️</div>
+      <div class="feature-title">
+        <h2>Multiplicador de Produto — Sintaxe <code>N*busca</code></h2>
+        <div class="badges">
+          <span class="badge badge-ui">Combobox</span>
+          <span class="badge badge-logic">Parser / UX</span>
+          <span class="badge badge-feature">POS Page</span>
+        </div>
+      </div>
+    </div>
+
+    <p>
+      O campo <em>Add Product</em> reconhece o caractere <code>*</code> como
+      separador entre uma <strong>quantidade</strong> e um <strong>termo de busca</strong>
+      (nome ou código de barras). O produto é adicionado diretamente com a
+      quantidade especificada, sem etapas adicionais.
+    </p>
+
+    <div class="section-label">Exemplos de uso</div>
+    <div class="code-block"><pre>
+<span class="str">"arroz"</span>       <span class="cm">→ busca por nome, adiciona 1 unidade</span>
+<span class="str">"7891234"</span>     <span class="cm">→ busca por barcode, adiciona 1 unidade</span>
+<span class="str">"3*arroz"</span>     <span class="cm">→ busca por nome, adiciona 3 unidades</span>
+<span class="str">"2*7891234"</span>   <span class="cm">→ busca por barcode, adiciona 2 unidades</span>
+<span class="str">"5*"</span> + scanner <span class="cm">→ scan detectado após *, adiciona 5 unidades</span>
+    </pre></div>
+
+    <div class="section-label">Função parseMultiplier</div>
+    <div class="code-block"><pre>
+<span class="kw">function</span> <span class="fn">parseMultiplier</span>(raw: <span class="nb">string</span>) {
+  <span class="kw">const</span> starIndex = raw.indexOf(<span class="str">"*"</span>);
+  <span class="kw">if</span> (starIndex &lt;= <span class="nb">0</span>) <span class="kw">return</span> { quantity: <span class="nb">1</span>, searchTerm: raw };
+
+  <span class="kw">const</span> qty = parseInt(raw.slice(<span class="nb">0</span>, starIndex), <span class="nb">10</span>);
+  <span class="kw">if</span> (isNaN(qty) || qty &lt;= <span class="nb">0</span>) <span class="kw">return</span> { quantity: <span class="nb">1</span>, searchTerm: raw };
+
+  <span class="kw">return</span> { quantity: qty, searchTerm: raw.slice(starIndex + <span class="nb">1</span>) };
+}
+    </pre></div>
+
+    <div class="section-label">Regras de validação</div>
+    <ul>
+      <li><code>*</code> deve ter um número inteiro positivo à esquerda — caso contrário é ignorado</li>
+      <li><code>"0*termo"</code> e <code>"abc*termo"</code> são tratados como busca normal pelo input completo</li>
+      <li>O <code>customFilter</code> extrai automaticamente apenas o <code>searchTerm</code> (após <code>*</code>) para filtrar a lista</li>
+      <li>A detecção de scanner também opera sobre <code>searchTerm</code>, ignorando o prefixo de quantidade</li>
+    </ul>
+
+    <div class="section-label">Feedback visual</div>
+    <ul>
+      <li>Quando <code>quantity &gt; 1</code>, um banner aparece abaixo do <code>CommandInput</code> mostrando <code>N× termo</code></li>
+      <li>O campo do input exibe o valor bruto (<code>"3*arroz"</code>), mantendo o fluxo natural de digitação</li>
+    </ul>
+
+    <div class="section-label">Validação de estoque com multiplicador</div>
+    <ul>
+      <li><code>handleSelectProduct</code> recebe <code>quantity</code> como segundo parâmetro (default <code>1</code>)</li>
+      <li>Verifica: <code>currentQty + quantity &lt;= product.in_stock</code> antes de adicionar</li>
+      <li>Produto já na lista → incrementa <code>p.quantity + quantity</code></li>
+      <li>Produto novo → inicializa com <code>quantity</code> diretamente</li>
+    </ul>
+  </div>
+
+  <!-- FLUXO COMPLETO -->
+  <div class="feature">
+    <div class="feature-header">
+      <div class="feature-icon">🗺️</div>
+      <div class="feature-title">
+        <h2>Fluxo Completo Unificado</h2>
+        <div class="badges">
+          <span class="badge badge-feature">Visão Geral</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-box"><span class="highlight">Input no CommandInput (campo Add Product)</span>
+       │
+       ├── <span class="accent">Sem "*"</span>
+       │       ├── Digitação lenta  → filtra lista por nome OU barcode → seleciona → qty = 1
+       │       └── Digitação rápida (scanner) → busca direta por barcode exato → qty = 1
+       │
+       └── <span class="accent">Com "*"</span>  ex: "3*"
+               ├── Parte após "*" digitada lentamente
+               │       → filtra lista por nome OU barcode → seleciona → qty = 3
+               └── Parte após "*" digitada por scanner (rápida + Enter)
+                       → busca direta por barcode exato → qty = 3
+    </div>
+  </div>
+
+  <!-- ARQUIVOS MODIFICADOS -->
+  <div class="feature">
+    <div class="feature-header">
+      <div class="feature-icon">📁</div>
+      <div class="feature-title">
+        <h2>Resumo de Arquivos Modificados</h2>
+      </div>
+    </div>
+    <table class="files-table">
+      <thead>
+        <tr><th>Arquivo</th><th>Tipo de alteração</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>packages/db/src/schema.ts</td><td>Nova coluna <code>barcode varchar(50)</code> na tabela <code>products</code></td></tr>
+        <tr><td>packages/ui/src/components/combobox.tsx</td><td>Reescrita: <code>searchValue</code>, filtro customizado, detecção de scanner, multiplicador, feedback visual</td></tr>
+        <tr><td>apps/web/src/lib/trpc/routers/products.ts</td><td>Campo <code>barcode</code> no schema Zod de output, create e update</td></tr>
+        <tr><td>apps/web/src/app/admin/products/page.tsx</td><td>Campo <code>barcode</code> no formulário de cadastro/edição</td></tr>
+        <tr><td>apps/web/src/app/admin/pos/page.tsx</td><td><code>handleSelectProduct</code> com <code>quantity</code>, <code>handleScannerInput</code>, <code>searchValue</code> nos items</td></tr>
+        <tr><td>apps/web/src/messages/en.ts</td><td>Chaves <code>barcode</code> e <code>productNotFound</code></td></tr>
+        <tr><td>apps/web/src/messages/pt-BR.ts</td><td>Chaves <code>barcode</code> e <code>productNotFound</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <footer>
+    FinOpenPOS &mdash; Gerado por Claude Code &mdash; 2026
+  </footer>
+
+</div>
+</body>
+</html>

@@ -134,6 +134,7 @@ const messages = {
     pisCst: "PIS CST",
     cofinsCst: "COFINS CST",
     unitOfMeasure: "Unit",
+    barcode: "Barcode",
     fiscalDataHint: "Leave blank to use global defaults from fiscal settings",
   },
   customers: {
@@ -225,6 +226,7 @@ const messages = {
     outOfStock: "{name} is out of stock",
     limitedStock: "Only {count} units of {name} available",
     limitedUnits: "Only {count} units available",
+    productNotFound: "No product found with barcode {code}",
   },
   fiscal: {
     title: "Invoices",

@@ -18,6 +18,7 @@ const productSchema = z.object({
   pis_cst: z.string().nullable(),
   cofins_cst: z.string().nullable(),
   unit_of_measure: z.string().nullable(),
+  barcode: z.string().nullable(),
   created_at: z.date().nullable(),
 });
 
@@ -45,6 +46,7 @@ export const productsRouter = router({
         pis_cst: z.string().max(2).optional(),
         cofins_cst: z.string().max(2).optional(),
         unit_of_measure: z.string().max(6).optional(),
+        barcode: z.string().max(50).optional(),
       })
     )
     .output(productSchema)
@@ -72,6 +74,7 @@ export const productsRouter = router({
         pis_cst: z.string().max(2).optional(),
         cofins_cst: z.string().max(2).optional(),
         unit_of_measure: z.string().max(6).optional(),
+        barcode: z.string().max(50).optional(),
       })
     )
     .output(productSchema)
