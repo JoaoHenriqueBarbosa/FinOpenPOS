@@ -136,6 +136,7 @@ const messages: Messages = {
     pisCst: "CST PIS",
     cofinsCst: "CST COFINS",
     unitOfMeasure: "Unidade",
+    barcode: "Código de Barras",
     fiscalDataHint: "Deixe em branco para usar os padrões das configurações fiscais",
   },
   customers: {
@@ -227,6 +228,7 @@ const messages: Messages = {
     outOfStock: "{name} está sem estoque",
     limitedStock: "Apenas {count} unidades de {name} disponíveis",
     limitedUnits: "Apenas {count} unidades disponíveis",
+    productNotFound: "Nenhum produto encontrado com o código {code}",
   },
   fiscal: {
     title: "Notas Fiscais",

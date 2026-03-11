@@ -392,6 +392,7 @@ erDiagram
         varchar pis_cst
         varchar cofins_cst
         varchar unit_of_measure
+        varchar barcode
         timestamp created_at
     }
 
