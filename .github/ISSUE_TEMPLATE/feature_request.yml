@@ -1,0 +1,42 @@
+name: Feature Request
+description: Suggest a feature for FinOpenPOS
+title: "[feat]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What problem does this feature solve?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How do you envision this working?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - POS (apps/web)
+        - Fiscal engine (packages/fiscal)
+        - Database (packages/db)
+        - UI components (packages/ui)
+        - Docs (apps/docs)
+        - Other
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
