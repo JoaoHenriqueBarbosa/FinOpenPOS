@@ -375,75 +375,83 @@ O projeto funciona com Coolify e plataformas similares que detectam `compose.yam
 
 ```mermaid
 erDiagram
-    products {
-        serial id PK
-        varchar name
-        text description
-        integer price
-        integer in_stock
+    events {
+        serial global_seq PK
+        varchar stream_type
+        integer stream_id
+        integer version
+        varchar event_type
+        text payload
         varchar user_uid
-        varchar category
+        timestamp with time zone occurred_at
+    }
+
+    invoices {
+        serial id PK
+        varchar user_uid
+        integer order_id
+        integer model
+        integer series
+        integer number
+        varchar access_key
+        varchar operation_nature
+        integer operation_type
+        varchar status
+        integer environment
+        text request_xml
+        text response_xml
+        text protocol_xml
+        varchar protocol_number
+        integer status_code
+        text status_message
+        timestamp issued_at
+        timestamp authorized_at
+        integer total_amount
+        boolean is_contingency
+        varchar contingency_type
+        timestamp contingency_at
+        text contingency_reason
+        varchar recipient_tax_id
+        varchar recipient_name
+        timestamp created_at
+    }
+
+    invoice_items {
+        serial id PK
+        integer invoice_id FK
+        integer product_id
+        integer item_number
+        varchar product_code
+        varchar description
         varchar ncm
         varchar cfop
+        varchar unit_of_measure
+        integer quantity
+        integer unit_price
+        integer total_price
         varchar icms_cst
+        integer icms_rate
+        integer icms_amount
         varchar pis_cst
         varchar cofins_cst
-        varchar unit_of_measure
         timestamp created_at
     }
 
-    customers {
+    invoice_events {
         serial id PK
-        varchar name
-        varchar email UK
-        varchar phone
-        varchar user_uid
-        varchar status
+        integer invoice_id FK
+        varchar event_type
+        integer sequence
+        varchar protocol_number
+        integer status_code
+        text reason
+        text request_xml
+        text response_xml
         timestamp created_at
     }
 
-    payment_methods {
-        serial id PK
-        varchar name UK
-        timestamp created_at
-    }
-
-    orders {
-        serial id PK
-        integer customer_id FK
-        integer total_amount
-        varchar user_uid
-        varchar status
-        timestamp created_at
-    }
-
-    order_items {
-        serial id PK
-        integer order_id FK
-        integer product_id FK
-        integer quantity
-        integer price
-        timestamp created_at
-    }
-
-    transactions {
-        serial id PK
-        text description
-        integer order_id FK
-        integer payment_method_id FK
-        integer amount
-        varchar user_uid
-        varchar type
-        varchar category
-        varchar status
-        timestamp created_at
-    }
-
-    customers |o--o{ orders : "has"
-    orders |o--o{ order_items : "contains"
-    products |o--o{ order_items : "references"
-    orders |o--o{ transactions : "generates"
-    payment_methods |o--o{ transactions : "uses"
+    invoices ||--o{ invoice_items : "contains"
+    invoices ||--o{ invoice_events : "tracks"
 ```
 
 <!-- ER_END -->
