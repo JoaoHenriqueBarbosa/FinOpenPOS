@@ -1,0 +1,51 @@
+{
+	"name": "@finopenpos/addon-fiscal",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": {
+			"default": "./src/index.ts"
+		},
+		"./ui": {
+			"default": "./src/ui/index.ts"
+		},
+		"./*": {
+			"default": "./src/*.ts"
+		}
+	},
+	"scripts": {
+		"check-types": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@finopenpos/addon-kit": "workspace:*",
+		"@finopenpos/api": "workspace:*",
+		"@finopenpos/fiscal": "workspace:*",
+		"drizzle-orm": "^0.45.1",
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@finopenpos/config": "workspace:*",
+		"@finopenpos/ui": "workspace:*",
+		"@tanstack/react-form": "^1.28.3",
+		"@tanstack/react-query": "^5.90.21",
+		"@trpc/server": "catalog:",
+		"@trpc/tanstack-react-query": "^11.10.0",
+		"@types/react": "catalog:",
+		"lucide-react": "catalog:",
+		"next": "catalog:",
+		"next-intl": "^4.8.3",
+		"react": "catalog:",
+		"sonner": "catalog:",
+		"typescript": "^5"
+	},
+	"peerDependencies": {
+		"@finopenpos/ui": "workspace:*",
+		"@tanstack/react-query": "*",
+		"lucide-react": "*",
+		"next": "*",
+		"next-intl": "*",
+		"react": "*",
+		"sonner": "*"
+	}
+}

@@ -15,6 +15,8 @@
 	},
 	"dependencies": {
 		"@electric-sql/pglite": "^0.3.15",
+		"@finopenpos/addon-fiscal": "workspace:*",
+		"@finopenpos/addon-kit": "workspace:*",
 		"@finopenpos/api": "workspace:*",
 		"@finopenpos/auth": "workspace:*",
 		"@finopenpos/db": "workspace:*",

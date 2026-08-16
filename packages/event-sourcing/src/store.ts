@@ -68,8 +68,20 @@ CREATE INDEX IF NOT EXISTS events_stream_idx
  *  - append multi-row em um único INSERT: ~8x mais rápido que inserts unitários.
  *  - concorrência otimista via UNIQUE (stream_type, stream_id, version).
  */
+export interface EventStoreOptions {
+	/**
+	 * Observer chamado após cada append bem-sucedido (ex.: dispatcher de
+	 * addons). Erros do observer NÃO propagam para o comando — o fato já
+	 * foi persistido; efeitos colaterais são responsabilidade do observer.
+	 */
+	onAppended?: (events: StoredEvent[]) => void | Promise<void>;
+}
+
 export class EventStore {
-	constructor(private readonly sql: Querier) {}
+	constructor(
+		private readonly sql: Querier,
+		private readonly options: EventStoreOptions = {},
+	) {}
 
 	/** Cria a tabela/índices se não existirem (útil em testes e bootstrap). */
 	async ensureSchema(): Promise<void> {
@@ -131,7 +143,15 @@ export class EventStore {
 				`INSERT INTO events ${columns} VALUES ${values.join(", ")} RETURNING *`,
 				params,
 			);
-			return res.rows.map(rowToEvent) as StoredEvent<TEvent>[];
+			const stored = res.rows.map(rowToEvent) as StoredEvent<TEvent>[];
+			if (this.options.onAppended) {
+				try {
+					await this.options.onAppended(stored);
+				} catch {
+					// o fato já foi persistido; falha do observer não desfaz o comando
+				}
+			}
+			return stored;
 		} catch (err) {
 			if (isUniqueViolation(err)) {
 				throw new ConcurrencyError(

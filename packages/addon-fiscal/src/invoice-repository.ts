@@ -7,9 +7,8 @@ import type {
 	SefazResponse,
 } from "@finopenpos/fiscal";
 import { and, eq } from "drizzle-orm";
-import { db } from "@/lib/db";
-import { invoiceEvents, invoiceItems, invoices } from "@/lib/db/schema";
-import { loadOrder, productMap } from "@/lib/es";
+import { db, getFiscalContext } from "./context";
+import { invoiceEvents, invoiceItems, invoices } from "./schema";
 
 // ── Types for repository inputs ─────────────────────────────────────────────
 
@@ -62,24 +61,11 @@ export interface UpdateInvoiceStatusData {
 
 /**
  * Load an order with its items and products for invoice building.
+ * Os domínios operacionais são do host — acesso via Host API (contrato
+ * estável do addon-kit), nunca via internals.
  */
 export async function loadOrderWithItems(orderId: number, userUid: string) {
-	const { state } = await loadOrder(orderId);
-	if (!state || state.user_uid !== userUid) return undefined;
-
-	const products = await productMap(userUid);
-	const { items, ...order } = state;
-	return {
-		...order,
-		orderItems: items.map((item, idx) => ({
-			id: state.id * 1000 + idx + 1,
-			order_id: state.id,
-			product_id: item.product_id,
-			quantity: item.quantity,
-			price: item.price,
-			product: products.get(item.product_id) ?? null,
-		})),
-	};
+	return getFiscalContext().api.loadOrderWithItems(orderId, userUid);
 }
 
 /**
