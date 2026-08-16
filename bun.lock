@@ -49,6 +49,8 @@
       "dependencies": {
         "@electric-sql/pglite": "^0.3.15",
         "@faker-js/faker": "^10.3.0",
+        "@finopenpos/addon-fiscal": "workspace:*",
+        "@finopenpos/addon-kit": "workspace:*",
         "@finopenpos/api": "workspace:*",
         "@finopenpos/auth": "workspace:*",
         "@finopenpos/db": "workspace:*",
@@ -104,6 +106,61 @@
         "postcss": "^8.5.6",
         "tailwindcss": "catalog:",
         "typescript": "^5",
+      },
+    },
+    "packages/addon-fiscal": {
+      "name": "@finopenpos/addon-fiscal",
+      "version": "0.0.0",
+      "dependencies": {
+        "@finopenpos/addon-kit": "workspace:*",
+        "@finopenpos/api": "workspace:*",
+        "@finopenpos/fiscal": "workspace:*",
+        "drizzle-orm": "^0.45.1",
+        "zod": "catalog:",
+      },
+      "devDependencies": {
+        "@finopenpos/config": "workspace:*",
+        "@finopenpos/ui": "workspace:*",
+        "@tanstack/react-form": "^1.28.3",
+        "@tanstack/react-query": "^5.90.21",
+        "@trpc/server": "catalog:",
+        "@trpc/tanstack-react-query": "^11.10.0",
+        "@types/react": "catalog:",
+        "lucide-react": "catalog:",
+        "next": "catalog:",
+        "next-intl": "^4.8.3",
+        "react": "catalog:",
+        "sonner": "catalog:",
+        "typescript": "^5",
+      },
+      "peerDependencies": {
+        "@finopenpos/ui": "workspace:*",
+        "@tanstack/react-query": "*",
+        "lucide-react": "*",
+        "next": "*",
+        "next-intl": "*",
+        "react": "*",
+        "sonner": "*",
+      },
+    },
+    "packages/addon-kit": {
+      "name": "@finopenpos/addon-kit",
+      "version": "0.0.0",
+      "dependencies": {
+        "@finopenpos/event-sourcing": "workspace:*",
+        "drizzle-orm": "^0.45.1",
+      },
+      "devDependencies": {
+        "@finopenpos/config": "workspace:*",
+        "@trpc/server": "catalog:",
+        "@types/bun": "^1.3.9",
+        "@types/react": "catalog:",
+        "react": "catalog:",
+        "typescript": "^5",
+      },
+      "peerDependencies": {
+        "@trpc/server": "catalog:",
+        "react": "catalog:",
       },
     },
     "packages/api": {
@@ -406,6 +463,10 @@
     "@eslint/plugin-kit": ["@eslint/plugin-kit@0.6.1", "", { "dependencies": { "@eslint/core": "^1.1.1", "levn": "^0.4.1" } }, "sha512-iH1B076HoAshH1mLpHMgwdGeTs0CYwL0SPMkGuSebZrwBp16v415e9NZXg2jtrqPVQjf6IANe2Vtlr5KswtcZQ=="],
 
     "@faker-js/faker": ["@faker-js/faker@10.3.0", "", {}, "sha512-It0Sne6P3szg7JIi6CgKbvTZoMjxBZhcv91ZrqrNuaZQfB5WoqYYbzCUOq89YR+VY8juY9M1vDWmDDa2TzfXCw=="],
+
+    "@finopenpos/addon-fiscal": ["@finopenpos/addon-fiscal@workspace:packages/addon-fiscal"],
+
+    "@finopenpos/addon-kit": ["@finopenpos/addon-kit@workspace:packages/addon-kit"],
 
     "@finopenpos/api": ["@finopenpos/api@workspace:packages/api"],
 

@@ -4,7 +4,10 @@ import { createTestDb, makeUser, SCHEMA_DDL } from "./helpers";
 const { pg, db } = createTestDb();
 mock.module("@/lib/db", () => ({ db, pglite: pg }));
 
-const { fiscalRouter } = await import("../fiscal");
+const { bootAddons } = await import("@/lib/addons/bootstrap");
+await bootAddons();
+const { fiscalAddon } = await import("@finopenpos/addon-fiscal");
+const fiscalRouter = fiscalAddon.routers.fiscal;
 const { createCallerFactory } = await import("../../init");
 
 const caller = createCallerFactory(fiscalRouter)({ user: makeUser("fiscal-test-1") });

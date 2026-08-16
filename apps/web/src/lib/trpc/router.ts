@@ -1,25 +1,22 @@
 import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
+import { addonRouters } from "@/lib/addons/installed";
 import { router } from "./init";
-import { productsRouter } from "./routers/products";
 import { customersRouter } from "./routers/customers";
-import { ordersRouter } from "./routers/orders";
-import { transactionsRouter } from "./routers/transactions";
-import { paymentMethodsRouter } from "./routers/payment-methods";
 import { dashboardRouter } from "./routers/dashboard";
-import { fiscalSettingsRouter } from "./routers/fiscal-settings";
-import { fiscalRouter } from "./routers/fiscal";
-import { citiesRouter } from "./routers/cities";
+import { ordersRouter } from "./routers/orders";
+import { paymentMethodsRouter } from "./routers/payment-methods";
+import { productsRouter } from "./routers/products";
+import { transactionsRouter } from "./routers/transactions";
 
 export const appRouter = router({
-  products: productsRouter,
-  customers: customersRouter,
-  orders: ordersRouter,
-  transactions: transactionsRouter,
-  paymentMethods: paymentMethodsRouter,
-  dashboard: dashboardRouter,
-  fiscalSettings: fiscalSettingsRouter,
-  fiscal: fiscalRouter,
-  cities: citiesRouter,
+	products: productsRouter,
+	customers: customersRouter,
+	orders: ordersRouter,
+	transactions: transactionsRouter,
+	paymentMethods: paymentMethodsRouter,
+	dashboard: dashboardRouter,
+	// Routers contribuídos pelos addons instalados (fiscal, ...)
+	...addonRouters,
 });
 
 export type AppRouter = typeof appRouter;

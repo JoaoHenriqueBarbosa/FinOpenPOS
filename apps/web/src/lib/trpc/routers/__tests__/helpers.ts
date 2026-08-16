@@ -3,18 +3,16 @@ import { EVENTS_TABLE_DDL } from "@finopenpos/event-sourcing";
 import { getTableName } from "drizzle-orm";
 import { getTableConfig, type PgTable } from "drizzle-orm/pg-core";
 import { drizzle } from "drizzle-orm/pglite";
+import { installedAddons } from "@/lib/addons/installed";
 import * as schema from "@/lib/db/schema";
 
-// FK-safe order: referenced tables before referencing tables.
 // Domínios operacionais (products/customers/orders/transactions/payment
 // methods) vivem no event store — tabela `events`, criada via EVENTS_TABLE_DDL.
-const TABLES: PgTable[] = [
-	schema.cities,
-	schema.fiscalSettings,
-	schema.invoices,
-	schema.invoiceItems,
-	schema.invoiceEvents,
-];
+// Tabelas restantes são contribuídas pelos addons instalados (ordem FK-safe
+// garantida por cada addon em `tables`).
+const TABLES: PgTable[] = installedAddons.flatMap(
+	(addon) => (addon.tables ?? []) as PgTable[],
+);
 
 function tableToDDL(table: PgTable): string {
 	const { name, columns, foreignKeys } = getTableConfig(table);
