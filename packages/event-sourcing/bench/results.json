@@ -1,0 +1,74 @@
+[
+	{
+		"name": "append jsonb batch=1",
+		"ops": 2000,
+		"totalMs": 189.3,
+		"opsPerSec": 10564
+	},
+	{
+		"name": "append jsonb batch=10",
+		"ops": 2000,
+		"totalMs": 39.1,
+		"opsPerSec": 51138
+	},
+	{
+		"name": "append jsonb batch=100",
+		"ops": 2000,
+		"totalMs": 22,
+		"opsPerSec": 91011
+	},
+	{
+		"name": "append text batch=1",
+		"ops": 2000,
+		"totalMs": 152.8,
+		"opsPerSec": 13091
+	},
+	{
+		"name": "append text batch=10",
+		"ops": 2000,
+		"totalMs": 32.4,
+		"opsPerSec": 61727
+	},
+	{
+		"name": "append text batch=100",
+		"ops": 2000,
+		"totalMs": 19,
+		"opsPerSec": 105032
+	},
+	{
+		"name": "replay+fold jsonb n=1000",
+		"ops": 1000,
+		"totalMs": 2.1,
+		"opsPerSec": 486096
+	},
+	{
+		"name": "replay+fold jsonb n=10000",
+		"ops": 10000,
+		"totalMs": 15.9,
+		"opsPerSec": 628403
+	},
+	{
+		"name": "replay+fold jsonb n=50000",
+		"ops": 50000,
+		"totalMs": 92.7,
+		"opsPerSec": 539378
+	},
+	{
+		"name": "replay+fold text n=1000",
+		"ops": 1000,
+		"totalMs": 1.1,
+		"opsPerSec": 894732
+	},
+	{
+		"name": "replay+fold text n=10000",
+		"ops": 10000,
+		"totalMs": 10.3,
+		"opsPerSec": 969896
+	},
+	{
+		"name": "replay+fold text n=50000",
+		"ops": 50000,
+		"totalMs": 53.5,
+		"opsPerSec": 935042
+	}
+]
